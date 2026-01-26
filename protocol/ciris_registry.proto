@@ -1,0 +1,789 @@
+// CIRISRegistry Protocol Buffer Definitions
+// Version: 1.0.0
+//
+// This file defines the data structures for the CIRIS Agent and Partner Registry.
+// See FSD-001_CIRISREGISTRY_PROTOCOL.md for full specification.
+
+syntax = "proto3";
+
+package ciris.registry.v1;
+
+option go_package = "github.com/cirisai/cirisregistry/proto/v1";
+option java_package = "ai.ciris.registry.v1";
+option java_multiple_files = true;
+
+// ============================================================================
+// COMMON TYPES
+// ============================================================================
+
+// Hybrid cryptographic signature (Ed25519 + ML-DSA-65)
+message HybridSignature {
+  bytes classical_signature = 1;      // Ed25519 signature (64 bytes)
+  bytes post_quantum_signature = 2;   // ML-DSA-65 signature (~3300 bytes)
+  int64 timestamp = 3;                // Unix timestamp of signature
+  string key_id = 4;                  // Identifier of signing key
+}
+
+// Semantic version
+message SemanticVersion {
+  uint32 major = 1;
+  uint32 minor = 2;
+  uint32 patch = 3;
+  string prerelease = 4;              // e.g., "beta.1"
+  string build_metadata = 5;          // e.g., "20250125"
+}
+
+// Autonomy tier levels
+enum AutonomyTier {
+  AUTONOMY_TIER_UNSPECIFIED = 0;
+  A0_ADVISORY = 1;                    // Information and suggestions only
+  A1_LIMITED = 2;                     // Low-risk automated actions
+  A2_MODERATE = 3;                    // Supervised significant actions
+  A3_HIGH = 4;                        // Independent professional actions
+  A4_CRITICAL = 5;                    // Life-affecting decisions (requires special license)
+}
+
+// ============================================================================
+// AGENT REGISTRY
+// ============================================================================
+
+// Type of CIRIS agent
+enum AgentType {
+  AGENT_TYPE_UNSPECIFIED = 0;
+  CIRISCARE = 1;                      // Community health companion
+  CIRISMEDICAL = 2;                   // Licensed medical deployment
+  CIRISLEGAL = 3;                     // Licensed legal deployment
+  CIRISFINANCIAL = 4;                 // Licensed financial deployment
+  CUSTOM = 99;                        // Partner-specific build
+}
+
+// Status of an agent build
+enum AgentStatus {
+  AGENT_STATUS_UNSPECIFIED = 0;
+  AGENT_ACTIVE = 1;                   // Build is current and approved
+  AGENT_DEPRECATED = 2;               // Outdated but functional
+  AGENT_REVOKED = 3;                  // Compromised or unauthorized
+}
+
+// Record for a verified agent build
+message AgentRecord {
+  // Identity
+  bytes agent_hash = 1;               // SHA-256 of canonical agent build (32 bytes)
+  AgentType agent_type = 2;
+  SemanticVersion version = 3;
+
+  // Capabilities
+  repeated string base_capabilities = 10;  // Capabilities this agent can support
+  AutonomyTier max_autonomy_tier = 11;
+
+  // Provenance
+  int64 build_timestamp = 20;         // When this build was created
+  string source_repo = 21;            // Git repository URL
+  string source_commit = 22;          // Git commit hash (40 hex chars)
+  bytes builder_attestation = 23;     // Reproducible build attestation
+
+  // Status
+  AgentStatus status = 30;
+  string revocation_reason = 31;      // If revoked, why
+  int64 revocation_timestamp = 32;    // When revoked
+
+  // Metadata
+  int64 registered_at = 40;           // When added to registry
+  int64 last_updated = 41;            // Last modification time
+
+  // Signature
+  HybridSignature registry_signature = 50;
+}
+
+// ============================================================================
+// PARTNER REGISTRY
+// ============================================================================
+
+// Type of license
+enum LicenseType {
+  LICENSE_TYPE_UNSPECIFIED = 0;
+  COMMUNITY = 1;                      // No professional capabilities
+  COMMUNITY_PLUS = 2;                 // Limited enhanced features
+  PROFESSIONAL_MEDICAL = 10;          // Medical domain capabilities
+  PROFESSIONAL_LEGAL = 11;            // Legal domain capabilities
+  PROFESSIONAL_FINANCIAL = 12;        // Financial domain capabilities
+  PROFESSIONAL_FULL = 20;             // All professional capabilities
+}
+
+// Status of a partner license
+enum PartnerStatus {
+  PARTNER_STATUS_UNSPECIFIED = 0;
+  PARTNER_ACTIVE = 1;                 // License is valid
+  PARTNER_SUSPENDED = 2;              // Temporary hold
+  PARTNER_REVOKED = 3;                // License terminated
+}
+
+// Record for a licensed partner organization
+message PartnerRecord {
+  // Identity
+  string partner_id = 1;              // UUID assigned at licensing
+  string organization_name = 2;       // Legal entity name
+  string organization_id = 3;         // Tax ID / Registration number
+
+  // License
+  LicenseType license_type = 10;
+  string license_id = 11;             // License certificate ID
+  int64 issued_at = 12;               // License issue timestamp
+  int64 expires_at = 13;              // License expiry timestamp
+
+  // Grants
+  repeated string capabilities_granted = 20;  // Specific capabilities allowed
+  repeated string capabilities_denied = 21;   // Explicit denials
+  AutonomyTier max_autonomy_tier = 22;
+
+  // Constraints
+  bool requires_supervisor = 30;      // Must have human supervisor
+  repeated string geographic_restrictions = 31;  // ISO country codes
+  int32 deployment_limit = 32;        // Maximum concurrent deployments
+  int32 offline_grace_hours = 33;     // Hours allowed offline (default 72)
+
+  // Contact
+  string technical_contact = 40;
+  string compliance_contact = 41;
+
+  // Status
+  PartnerStatus status = 50;
+  string suspension_reason = 51;
+  string revocation_reason = 52;
+  int64 status_changed_at = 53;
+
+  // Signatures
+  HybridSignature license_signature = 60;   // Steward signature on license
+  HybridSignature registry_signature = 61;  // Registry signature on record
+}
+
+// ============================================================================
+// ORGANIZATION MANAGEMENT (CIRISPortal)
+// ============================================================================
+
+// Role within an organization
+enum OrgRole {
+  ORG_ROLE_UNSPECIFIED = 0;
+  ORG_ADMIN = 1;                        // Full organization management
+  ORG_KEY_MANAGER = 2;                  // Can manage keys, cannot modify users
+  ORG_OPERATOR = 3;                     // Can view, cannot modify
+  ORG_VIEWER = 4;                       // Read-only access
+}
+
+// Organization record (Portal-managed)
+message Organization {
+  // Identity
+  string org_id = 1;                    // UUID assigned at creation
+  string name = 2;                      // Display name
+  string legal_name = 3;                // Legal entity name
+  string tax_id = 4;                    // Tax ID / Registration number
+
+  // Link to partner license (if licensed)
+  string partner_id = 10;               // Links to PartnerRecord.partner_id
+
+  // Contact
+  string primary_email = 20;
+  string billing_email = 21;
+  string technical_contact_email = 22;
+  string compliance_contact_email = 23;
+
+  // OAuth
+  string oauth_provider = 30;           // e.g., "google"
+  string oauth_domain = 31;             // Verified email domain (e.g., "acme.com")
+
+  // Status
+  bool active = 40;
+  int64 created_at = 41;
+  int64 updated_at = 42;
+  string created_by = 43;               // User ID who created
+
+  // Metadata
+  map<string, string> metadata = 50;
+}
+
+// User within an organization
+message OrgUser {
+  // Identity
+  string user_id = 1;                   // UUID assigned at creation
+  string org_id = 2;                    // Parent organization
+  string email = 3;                     // Email (unique within system)
+  string name = 4;                      // Display name
+
+  // OAuth
+  string oauth_provider = 10;           // e.g., "google"
+  string oauth_subject = 11;            // OAuth sub claim
+
+  // Role
+  OrgRole role = 20;
+
+  // Status
+  bool active = 30;
+  int64 created_at = 31;
+  int64 updated_at = 32;
+  int64 last_login_at = 33;
+  string invited_by = 34;               // User ID who invited
+
+  // MFA
+  bool mfa_enabled = 40;
+  string mfa_method = 41;               // "totp", "webauthn", etc.
+}
+
+// ============================================================================
+// KEY MANAGEMENT (CIRISPortal)
+// ============================================================================
+
+// Status of a key pair
+enum KeyStatus {
+  KEY_STATUS_UNSPECIFIED = 0;
+  KEY_ACTIVE = 1;                       // Current signing key
+  KEY_ROTATED = 2;                      // Replaced, signatures still valid
+  KEY_REVOKED = 3;                      // Compromised or manually revoked
+  KEY_PENDING = 4;                      // Generated, not yet activated
+}
+
+// Custody model for keys
+enum KeyCustodyModel {
+  KEY_CUSTODY_UNSPECIFIED = 0;
+  CUSTODIED = 1;                        // Portal holds private keys (Cloudflare KV/HSM)
+  SELF_SOVEREIGN = 2;                   // Partner holds private keys
+}
+
+// Public keys for an organization (both algorithms)
+message PublicKeys {
+  bytes ed25519_public_key = 1;         // Ed25519 public key (32 bytes)
+  bytes ml_dsa_65_public_key = 2;       // ML-DSA-65 public key (~1952 bytes)
+}
+
+// Complete key record for an organization
+message PartnerKeyRecord {
+  // Identity
+  string key_id = 1;                    // UUID for this key pair
+  string org_id = 2;                    // Owning organization
+  string partner_id = 3;                // Associated partner (if licensed)
+
+  // Public keys (always available)
+  PublicKeys public_keys = 10;
+
+  // Key fingerprints for identification
+  string ed25519_fingerprint = 11;      // SHA-256 of ed25519 pubkey (hex)
+  string ml_dsa_65_fingerprint = 12;    // SHA-256 of ml-dsa-65 pubkey (hex)
+
+  // Custody
+  KeyCustodyModel custody_model = 20;
+
+  // For custodied keys only (encrypted private keys stored in KV/HSM)
+  // Note: Actual encrypted private keys are NOT in proto - only in secure storage
+  string kv_key_ref = 21;               // Reference to KV/HSM storage location
+
+  // Status
+  KeyStatus status = 30;
+  string revocation_reason = 31;
+
+  // Timestamps
+  int64 created_at = 40;
+  int64 activated_at = 41;              // When key became active
+  int64 rotated_at = 42;                // When replaced by new key
+  int64 revoked_at = 43;
+
+  // Audit
+  string created_by = 50;               // User ID who generated
+  string rotated_by = 51;               // User ID who rotated
+  string revoked_by = 52;               // User ID who revoked
+
+  // Registry signature (proves key is registered)
+  HybridSignature registry_signature = 60;
+}
+
+// Signing request for custodied keys
+message SignRequest {
+  string org_id = 1;                    // Organization requesting signature
+  string key_id = 2;                    // Which key to use (empty = active key)
+  bytes data = 3;                       // Data to sign (will be hashed)
+  string purpose = 4;                   // Audit log purpose description
+  string requester_user_id = 5;         // User making the request
+}
+
+// Signing response
+message SignResponse {
+  HybridSignature signature = 1;
+  string key_id = 2;                    // Key that was used
+  int64 signed_at = 3;
+}
+
+// Key rotation request
+message RotateKeyRequest {
+  string org_id = 1;
+  string requester_user_id = 2;
+  string reason = 3;                    // Why rotating (audit log)
+}
+
+// Key rotation response
+message RotateKeyResponse {
+  PartnerKeyRecord old_key = 1;         // Previous key (now KEY_ROTATED)
+  PartnerKeyRecord new_key = 2;         // New active key
+}
+
+// ============================================================================
+// REVOCATION LIST
+// ============================================================================
+
+// Type of entity being revoked
+enum RevocationType {
+  REVOCATION_TYPE_UNSPECIFIED = 0;
+  AGENT_HASH = 1;                     // Revoking an agent build
+  PARTNER_ID = 2;                     // Revoking a partner
+  LICENSE_ID = 3;                     // Revoking a specific license
+}
+
+// Reason for revocation
+enum RevocationReason {
+  REVOCATION_REASON_UNSPECIFIED = 0;
+  SECURITY_COMPROMISED = 1;           // Agent or key compromised
+  LICENSE_VIOLATION = 2;              // Terms violation
+  PAYMENT_LAPSED = 3;                 // Payment not received
+  VOLUNTARY_TERMINATION = 4;          // Partner requested termination
+  REGULATORY_ACTION = 5;              // Regulatory body required revocation
+  SAFETY_INCIDENT = 6;                // Patient safety incident
+}
+
+// Severity of revocation
+enum RevocationSeverity {
+  REVOCATION_SEVERITY_UNSPECIFIED = 0;
+  ADMINISTRATIVE = 1;                 // Business issue, may be resolved
+  COMPLIANCE = 2;                     // Compliance issue
+  SECURITY_CRITICAL = 3;              // Security-critical, immediate action
+}
+
+// Entry in the revocation list
+message RevocationEntry {
+  // Target
+  RevocationType target_type = 1;
+  string target_id = 2;               // Hash (hex) or ID being revoked
+
+  // Details
+  int64 revoked_at = 10;
+  RevocationReason reason_code = 11;
+  string reason_detail = 12;          // Human-readable explanation
+  RevocationSeverity severity = 13;
+
+  // Signature
+  HybridSignature authority_signature = 20;
+}
+
+// Complete revocation list
+message RevocationList {
+  repeated RevocationEntry entries = 1;
+  int64 list_version = 2;             // Monotonically increasing version
+  int64 generated_at = 3;
+  int64 next_update = 4;              // Expected next update time
+  HybridSignature list_signature = 5;
+}
+
+// ============================================================================
+// REGISTRY SNAPSHOT (for offline operation)
+// ============================================================================
+
+message RegistrySnapshot {
+  int64 snapshot_version = 1;
+  int64 generated_at = 2;
+
+  bytes agents_merkle_root = 10;      // Merkle root of agent records
+  bytes partners_merkle_root = 11;    // Merkle root of partner records
+  bytes revocations_merkle_root = 12; // Merkle root of revocation list
+
+  HybridSignature snapshot_signature = 20;
+}
+
+// Merkle proof for individual record verification
+message MerkleProof {
+  repeated bytes siblings = 1;        // Sibling hashes in path
+  repeated bool directions = 2;       // true = right, false = left
+  bytes root = 3;                     // Expected root hash
+}
+
+// ============================================================================
+// API MESSAGES
+// ============================================================================
+
+// --- Agent Lookup ---
+
+message LookupAgentRequest {
+  bytes agent_hash = 1;               // SHA-256 hash to look up
+  bytes request_nonce = 2;            // 32-byte nonce for freshness
+}
+
+message LookupAgentResponse {
+  AgentRecord agent = 1;              // The agent record (if found)
+  bool found = 2;                     // Whether agent was found
+  int64 query_timestamp = 3;
+  HybridSignature response_signature = 4;
+
+  // For offline verification
+  MerkleProof merkle_proof = 10;
+}
+
+// --- Partner Lookup ---
+
+message LookupPartnerRequest {
+  string partner_id = 1;              // Partner UUID to look up
+  bytes request_nonce = 2;            // 32-byte nonce for freshness
+  bytes hardware_attestation = 3;     // Required for professional lookups
+}
+
+message LookupPartnerResponse {
+  PartnerRecord partner = 1;          // The partner record (if found)
+  bool found = 2;                     // Whether partner was found
+  int64 query_timestamp = 3;
+  HybridSignature response_signature = 4;
+
+  // For offline verification
+  MerkleProof merkle_proof = 10;
+}
+
+// --- Revocation List ---
+
+message GetRevocationListRequest {
+  int64 since_version = 1;            // Only get updates since this version (0 for full list)
+}
+
+message GetRevocationListResponse {
+  RevocationList revocations = 1;
+  bool is_delta = 2;                  // true if this is delta update
+}
+
+// --- Combined Verification ---
+
+// Single request to verify both agent and partner (common case)
+message VerifyDeploymentRequest {
+  bytes agent_hash = 1;
+  string partner_id = 2;
+  bytes request_nonce = 3;
+  bytes hardware_attestation = 4;
+}
+
+message VerifyDeploymentResponse {
+  // Results
+  AgentRecord agent = 1;
+  PartnerRecord partner = 2;
+  bool agent_found = 3;
+  bool partner_found = 4;
+
+  // Computed effective capabilities
+  repeated string effective_capabilities = 10;
+  AutonomyTier effective_autonomy_tier = 11;
+
+  // Mandatory disclosure
+  string mandatory_disclosure = 20;
+
+  // Metadata
+  int64 query_timestamp = 30;
+  HybridSignature response_signature = 31;
+}
+
+// ============================================================================
+// ADMINISTRATIVE MESSAGES (for registry operators)
+// ============================================================================
+
+message RegisterAgentRequest {
+  AgentRecord agent = 1;
+  bytes admin_signature = 2;          // Admin authorization
+}
+
+message RegisterPartnerRequest {
+  PartnerRecord partner = 1;
+  bytes steward_signature = 2;        // Steward authorization
+}
+
+message RevokeEntityRequest {
+  RevocationType target_type = 1;
+  string target_id = 2;
+  RevocationReason reason = 3;
+  string reason_detail = 4;
+  bytes authority_signature = 5;
+}
+
+// Generic response for administrative operations
+message AdminResponse {
+  bool success = 1;
+  string message = 2;
+  string error_code = 3;
+}
+
+// ============================================================================
+// ORGANIZATION API MESSAGES (CIRISPortal)
+// ============================================================================
+
+// --- Organization CRUD ---
+
+message CreateOrganizationRequest {
+  Organization organization = 1;
+  bytes admin_signature = 2;            // Wise Authority authorization
+}
+
+message GetOrganizationRequest {
+  string org_id = 1;
+}
+
+message GetOrganizationResponse {
+  Organization organization = 1;
+  bool found = 2;
+}
+
+message UpdateOrganizationRequest {
+  Organization organization = 1;
+  bytes requester_signature = 2;        // Org admin authorization
+}
+
+message ListOrganizationsRequest {
+  int32 page_size = 1;                  // Max 100
+  string page_token = 2;                // For pagination
+  bool include_inactive = 3;            // Include deactivated orgs
+}
+
+message ListOrganizationsResponse {
+  repeated Organization organizations = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// --- User CRUD ---
+
+message CreateOrgUserRequest {
+  OrgUser user = 1;
+  bytes admin_signature = 2;            // Org admin authorization
+}
+
+message GetOrgUserRequest {
+  string user_id = 1;
+}
+
+message GetOrgUserByEmailRequest {
+  string email = 1;
+}
+
+message GetOrgUserResponse {
+  OrgUser user = 1;
+  bool found = 2;
+}
+
+message UpdateOrgUserRequest {
+  OrgUser user = 1;
+  bytes requester_signature = 2;
+}
+
+message ListOrgUsersRequest {
+  string org_id = 1;                    // Required
+  int32 page_size = 2;
+  string page_token = 3;
+  bool include_inactive = 4;
+}
+
+message ListOrgUsersResponse {
+  repeated OrgUser users = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// ============================================================================
+// KEY MANAGEMENT API MESSAGES (CIRISPortal)
+// ============================================================================
+
+// --- Key Generation (custodied keys) ---
+
+message GenerateKeyPairRequest {
+  string org_id = 1;
+  string requester_user_id = 2;
+  bool activate_immediately = 3;        // If true, set as active key
+}
+
+message GenerateKeyPairResponse {
+  PartnerKeyRecord key_record = 1;
+  // Note: Private keys are NEVER returned - stored in secure KV/HSM
+}
+
+// --- Key Lookup ---
+
+message GetPublicKeysRequest {
+  string org_id = 1;
+  string key_id = 2;                    // Optional: specific key, or empty for active
+}
+
+message GetPublicKeysResponse {
+  PublicKeys public_keys = 1;
+  string key_id = 2;
+  KeyStatus status = 3;
+  bool found = 4;
+}
+
+message ListKeysRequest {
+  string org_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  bool include_revoked = 4;
+}
+
+message ListKeysResponse {
+  repeated PartnerKeyRecord keys = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// --- Key Operations ---
+
+message ActivateKeyRequest {
+  string org_id = 1;
+  string key_id = 2;                    // Key to activate
+  string requester_user_id = 3;
+}
+
+message RevokeKeyRequest {
+  string org_id = 1;
+  string key_id = 2;
+  string reason = 3;
+  string requester_user_id = 4;
+}
+
+// --- Signing (custodied keys only) ---
+
+message RequestSignatureRequest {
+  SignRequest sign_request = 1;
+  bytes user_auth_token = 2;            // OAuth token for authentication
+}
+
+message RequestSignatureResponse {
+  SignResponse sign_response = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+// ============================================================================
+// AUDIT LOG MESSAGES
+// ============================================================================
+
+// Type of audited action
+enum AuditActionType {
+  AUDIT_ACTION_UNSPECIFIED = 0;
+  // Organization actions
+  ORG_CREATED = 1;
+  ORG_UPDATED = 2;
+  ORG_DEACTIVATED = 3;
+  // User actions
+  USER_CREATED = 10;
+  USER_UPDATED = 11;
+  USER_DEACTIVATED = 12;
+  USER_LOGIN = 13;
+  USER_LOGOUT = 14;
+  // Key actions
+  KEY_GENERATED = 20;
+  KEY_ACTIVATED = 21;
+  KEY_ROTATED = 22;
+  KEY_REVOKED = 23;
+  KEY_USED_FOR_SIGNING = 24;
+  // Partner actions
+  PARTNER_REGISTERED = 30;
+  PARTNER_UPDATED = 31;
+  PARTNER_SUSPENDED = 32;
+  PARTNER_REVOKED = 33;
+}
+
+// Audit log entry
+message AuditEntry {
+  string entry_id = 1;                  // UUID
+  int64 timestamp = 2;
+
+  // Actor
+  string actor_user_id = 10;
+  string actor_org_id = 11;
+  string actor_ip_address = 12;
+  string actor_user_agent = 13;
+
+  // Action
+  AuditActionType action = 20;
+  string target_type = 21;              // "organization", "user", "key", "partner"
+  string target_id = 22;
+
+  // Details
+  string description = 30;
+  map<string, string> metadata = 31;
+
+  // For sensitive actions, signed by registry
+  HybridSignature entry_signature = 40;
+}
+
+message GetAuditLogRequest {
+  string org_id = 1;                    // Filter by org (required for non-admin)
+  int64 start_time = 2;                 // Unix timestamp
+  int64 end_time = 3;
+  repeated AuditActionType action_types = 4;  // Filter by action type
+  int32 page_size = 5;
+  string page_token = 6;
+}
+
+message GetAuditLogResponse {
+  repeated AuditEntry entries = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// ============================================================================
+// gRPC SERVICE DEFINITIONS
+// ============================================================================
+
+// Public registry service (read-only lookups)
+service RegistryService {
+  // Agent lookups
+  rpc LookupAgent(LookupAgentRequest) returns (LookupAgentResponse);
+
+  // Partner lookups
+  rpc LookupPartner(LookupPartnerRequest) returns (LookupPartnerResponse);
+
+  // Combined verification
+  rpc VerifyDeployment(VerifyDeploymentRequest) returns (VerifyDeploymentResponse);
+
+  // Revocation list
+  rpc GetRevocationList(GetRevocationListRequest) returns (GetRevocationListResponse);
+
+  // Public key lookup (for verification by third parties)
+  rpc GetPublicKeys(GetPublicKeysRequest) returns (GetPublicKeysResponse);
+}
+
+// Administrative service (requires authentication)
+service RegistryAdminService {
+  // Agent management
+  rpc RegisterAgent(RegisterAgentRequest) returns (AdminResponse);
+
+  // Partner management
+  rpc RegisterPartner(RegisterPartnerRequest) returns (AdminResponse);
+
+  // Revocation
+  rpc RevokeEntity(RevokeEntityRequest) returns (AdminResponse);
+}
+
+// Portal service (CIRISPortal operations)
+service PortalService {
+  // Organization management
+  rpc CreateOrganization(CreateOrganizationRequest) returns (AdminResponse);
+  rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse);
+  rpc UpdateOrganization(UpdateOrganizationRequest) returns (AdminResponse);
+  rpc ListOrganizations(ListOrganizationsRequest) returns (ListOrganizationsResponse);
+
+  // User management
+  rpc CreateOrgUser(CreateOrgUserRequest) returns (AdminResponse);
+  rpc GetOrgUser(GetOrgUserRequest) returns (GetOrgUserResponse);
+  rpc GetOrgUserByEmail(GetOrgUserByEmailRequest) returns (GetOrgUserResponse);
+  rpc UpdateOrgUser(UpdateOrgUserRequest) returns (AdminResponse);
+  rpc ListOrgUsers(ListOrgUsersRequest) returns (ListOrgUsersResponse);
+
+  // Key management (custodied)
+  rpc GenerateKeyPair(GenerateKeyPairRequest) returns (GenerateKeyPairResponse);
+  rpc ListKeys(ListKeysRequest) returns (ListKeysResponse);
+  rpc ActivateKey(ActivateKeyRequest) returns (AdminResponse);
+  rpc RotateKey(RotateKeyRequest) returns (RotateKeyResponse);
+  rpc RevokeKey(RevokeKeyRequest) returns (AdminResponse);
+
+  // Signing
+  rpc RequestSignature(RequestSignatureRequest) returns (RequestSignatureResponse);
+
+  // Audit
+  rpc GetAuditLog(GetAuditLogRequest) returns (GetAuditLogResponse);
+}

@@ -1,0 +1,93 @@
+---
+# CIRISBridge Integration Playbook
+#
+# This playbook is called from CIRISBridge's main orchestration.
+# It pulls secrets from Vault and delegates to the main playbook.
+
+- name: CIRISRegistry Deployment (CIRISBridge Integration)
+  hosts: localhost
+  connection: local
+
+  vars:
+    cirisbridge_vault_path: "secret/data/ciris/registry"
+
+  pre_tasks:
+    - name: Fetch secrets from Vault
+      community.hashi_vault.vault_kv2_get:
+        url: "{{ vault_addr }}"
+        path: "{{ cirisbridge_vault_path }}"
+        auth_method: token
+        token: "{{ vault_token }}"
+      register: registry_secrets
+      no_log: true
+      when: use_vault | default(true)
+
+    - name: Write temporary secrets file
+      copy:
+        content: |
+          ---
+          db_password: "{{ registry_secrets.secret.db_password }}"
+          db_replication_password: "{{ registry_secrets.secret.db_replication_password }}"
+          registry_signing_key: "{{ registry_secrets.secret.registry_signing_key }}"
+          registry_signing_key_pq: "{{ registry_secrets.secret.registry_signing_key_pq }}"
+          admin_api_key: "{{ registry_secrets.secret.admin_api_key }}"
+          cloudflare_api_token: "{{ registry_secrets.secret.cloudflare_api_token }}"
+          cloudflare_zone_id: "{{ registry_secrets.secret.cloudflare_zone_id }}"
+        dest: /tmp/cirisregistry_secrets.yml
+        mode: '0600'
+      no_log: true
+      when: use_vault | default(true)
+
+    - name: Get Terraform outputs
+      command: terraform output -json
+      args:
+        chdir: "{{ playbook_dir }}/../terraform"
+      register: tf_outputs
+      changed_when: false
+
+    - name: Parse Terraform outputs
+      set_fact:
+        tf: "{{ tf_outputs.stdout | from_json }}"
+
+    - name: Update inventory with Terraform IPs
+      add_host:
+        name: "registry-{{ item.key }}"
+        groups: registry
+        ansible_host: "{{ item.value }}"
+        region: "{{ item.key }}"
+        db_role: "{{ 'primary' if item.key == 'us' else 'replica' }}"
+      loop:
+        - { key: us, value: "{{ tf.us_server_ip.value }}" }
+        - { key: eu, value: "{{ tf.eu_server_ip.value }}" }
+
+- name: Deploy CIRISRegistry
+  import_playbook: playbook.yml
+  vars:
+    secrets_file: /tmp/cirisregistry_secrets.yml
+
+- name: Cleanup
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Remove temporary secrets file
+      file:
+        path: /tmp/cirisregistry_secrets.yml
+        state: absent
+
+    - name: Notify CIRISBridge
+      uri:
+        url: "{{ cirisbridge_callback_url | default('https://bridge.ciris.ai/api/deployments/callback') }}"
+        method: POST
+        body_format: json
+        body:
+          project: cirisregistry
+          environment: "{{ env }}"
+          status: success
+          endpoints:
+            api: "https://api.registry.ciris.ai"
+            us: "https://registry-us.ciris.ai"
+            eu: "https://registry-eu.ciris.ai"
+        headers:
+          Authorization: "Bearer {{ cirisbridge_api_token }}"
+      when: cirisbridge_callback_url is defined
+      ignore_errors: true

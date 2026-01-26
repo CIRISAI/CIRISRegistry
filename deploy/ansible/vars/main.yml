@@ -1,0 +1,43 @@
+---
+# CIRISRegistry - Common Variables
+
+app_name: cirisregistry
+app_user: ciris
+app_dir: /opt/cirisregistry
+
+# Database
+db_name: cirisregistry
+db_user: ciris
+db_port: 5432
+
+# API
+api_host: "0.0.0.0"
+api_port: 8000
+api_workers: 4
+
+# Logging
+log_level: INFO
+log_dir: /var/log/cirisregistry
+
+# SSL
+ssl_enabled: true
+ssl_email: security@ciris.ai
+
+# Health check
+health_check_interval: 60
+
+# Multi-source validation
+validation_sources:
+  - name: us
+    dns: registry-us.ciris.ai
+  - name: eu
+    dns: registry-eu.ciris.ai
+  - name: api
+    url: https://api.registry.ciris.ai
+
+# Required agreement for positive verification
+validation_quorum: 2
+
+# Signing key paths (relative to app_dir)
+signing_key_ed25519: keys/ed25519.pem
+signing_key_mldsa65: keys/mldsa65.pem

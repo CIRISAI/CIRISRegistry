@@ -1,0 +1,35 @@
+---
+# CIRISRegistry - Staging Environment
+
+env: staging
+
+# API Configuration
+api_debug: true
+api_workers: 2
+
+# Database
+db_pool_size: 5
+db_max_overflow: 5
+
+# Logging
+log_level: DEBUG
+
+# Rate Limiting (more permissive for testing)
+rate_limit_agent_lookup: 1000
+rate_limit_partner_lookup: 500
+rate_limit_revocation_list: 100
+
+# Cache TTL (shorter for testing)
+cache_ttl_agent: 60
+cache_ttl_partner: 60
+cache_ttl_revocation: 30
+
+# Offline grace period
+offline_grace_hours: 24
+
+# Audit log retention
+audit_retention_days: 30
+
+# Snapshot generation
+snapshot_interval_hours: 6
+snapshot_retention_count: 10

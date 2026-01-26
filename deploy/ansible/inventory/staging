@@ -1,0 +1,12 @@
+# CIRISRegistry Staging Inventory
+
+[registry]
+registry-staging ansible_host=STAGING_SERVER_IP region=us db_role=primary
+
+[registry:vars]
+ansible_user=root
+ansible_python_interpreter=/usr/bin/python3
+env=staging
+
+[primary]
+registry-staging

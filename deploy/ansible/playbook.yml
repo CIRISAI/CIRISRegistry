@@ -1,0 +1,351 @@
+---
+# CIRISRegistry Deployment Playbook
+#
+# Deploys the CIRISRegistry API to multi-region infrastructure.
+#
+# Usage:
+#   ansible-playbook -i inventory/production playbook.yml
+#   ansible-playbook -i inventory/production playbook.yml --tags=deploy
+#   ansible-playbook -i inventory/production playbook.yml --limit=us
+
+- name: Deploy CIRISRegistry
+  hosts: registry
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars/main.yml
+    - "vars/{{ env | default('production') }}.yml"
+    - "{{ secrets_file | default('secrets/secrets.yml') }}"
+
+  vars:
+    app_name: cirisregistry
+    app_user: ciris
+    app_dir: /opt/cirisregistry
+    db_name: cirisregistry
+    db_user: ciris
+
+  handlers:
+    - name: Restart registry
+      systemd:
+        name: cirisregistry
+        state: restarted
+        daemon_reload: true
+
+    - name: Restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+
+    - name: Restart postgresql
+      systemd:
+        name: postgresql
+        state: restarted
+
+  tasks:
+    # =========================================================================
+    # SYSTEM SETUP
+    # =========================================================================
+
+    - name: System setup
+      tags: [setup]
+      block:
+        - name: Update apt cache
+          apt:
+            update_cache: true
+            cache_valid_time: 3600
+
+        - name: Install system packages
+          apt:
+            name:
+              - python3
+              - python3-pip
+              - python3-venv
+              - postgresql
+              - postgresql-contrib
+              - nginx
+              - certbot
+              - python3-certbot-nginx
+              - ufw
+              - fail2ban
+              - unzip
+              - curl
+              - git
+            state: present
+
+        - name: Create application user
+          user:
+            name: "{{ app_user }}"
+            system: true
+            shell: /bin/bash
+            home: "{{ app_dir }}"
+            create_home: true
+
+    # =========================================================================
+    # FIREWALL
+    # =========================================================================
+
+    - name: Configure firewall
+      tags: [firewall, setup]
+      block:
+        - name: Configure UFW defaults
+          ufw:
+            direction: "{{ item.direction }}"
+            policy: "{{ item.policy }}"
+          loop:
+            - { direction: incoming, policy: deny }
+            - { direction: outgoing, policy: allow }
+
+        - name: Allow SSH
+          ufw:
+            rule: allow
+            port: "22"
+            proto: tcp
+
+        - name: Allow HTTP
+          ufw:
+            rule: allow
+            port: "80"
+            proto: tcp
+
+        - name: Allow HTTPS
+          ufw:
+            rule: allow
+            port: "443"
+            proto: tcp
+
+        - name: Allow PostgreSQL from peers
+          ufw:
+            rule: allow
+            port: "5432"
+            proto: tcp
+            from_ip: "{{ item }}"
+          loop: "{{ groups['registry'] | map('extract', hostvars, 'ansible_host') | list }}"
+          when: groups['registry'] | length > 1
+
+        - name: Enable UFW
+          ufw:
+            state: enabled
+
+    # =========================================================================
+    # POSTGRESQL
+    # =========================================================================
+
+    - name: Configure PostgreSQL
+      tags: [database, setup]
+      block:
+        - name: Configure PostgreSQL to listen on all interfaces
+          lineinfile:
+            path: /etc/postgresql/14/main/postgresql.conf
+            regexp: "^#?listen_addresses"
+            line: "listen_addresses = '*'"
+          notify: Restart postgresql
+
+        - name: Configure PostgreSQL authentication
+          template:
+            src: templates/pg_hba.conf.j2
+            dest: /etc/postgresql/14/main/pg_hba.conf
+            owner: postgres
+            group: postgres
+            mode: '0640'
+          notify: Restart postgresql
+
+        - name: Ensure PostgreSQL is running
+          systemd:
+            name: postgresql
+            state: started
+            enabled: true
+
+        - name: Create database
+          become_user: postgres
+          postgresql_db:
+            name: "{{ db_name }}"
+            encoding: UTF8
+
+        - name: Create database user
+          become_user: postgres
+          postgresql_user:
+            name: "{{ db_user }}"
+            password: "{{ db_password }}"
+            db: "{{ db_name }}"
+            priv: ALL
+
+    # =========================================================================
+    # APPLICATION
+    # =========================================================================
+
+    - name: Deploy application
+      tags: [deploy]
+      block:
+        - name: Create application directories
+          file:
+            path: "{{ item }}"
+            state: directory
+            owner: "{{ app_user }}"
+            group: "{{ app_user }}"
+            mode: '0755'
+          loop:
+            - "{{ app_dir }}"
+            - "{{ app_dir }}/app"
+            - "{{ app_dir }}/keys"
+            - "{{ app_dir }}/logs"
+
+        - name: Copy application code
+          synchronize:
+            src: "{{ playbook_dir }}/../../src/"
+            dest: "{{ app_dir }}/app/"
+            rsync_opts:
+              - "--exclude=__pycache__"
+              - "--exclude=.git"
+              - "--exclude=*.pyc"
+          notify: Restart registry
+
+        - name: Create Python virtual environment
+          command: python3 -m venv {{ app_dir }}/venv
+          args:
+            creates: "{{ app_dir }}/venv/bin/python"
+
+        - name: Install Python dependencies
+          pip:
+            requirements: "{{ app_dir }}/app/requirements.txt"
+            virtualenv: "{{ app_dir }}/venv"
+          notify: Restart registry
+
+        - name: Deploy signing keys
+          copy:
+            content: "{{ item.content | b64decode }}"
+            dest: "{{ app_dir }}/keys/{{ item.name }}"
+            owner: "{{ app_user }}"
+            group: "{{ app_user }}"
+            mode: '0600'
+          loop:
+            - { name: ed25519.pem, content: "{{ registry_signing_key }}" }
+            - { name: mldsa65.pem, content: "{{ registry_signing_key_pq }}" }
+          no_log: true
+          notify: Restart registry
+
+        - name: Deploy environment file
+          template:
+            src: templates/env.j2
+            dest: "{{ app_dir }}/.env"
+            owner: "{{ app_user }}"
+            group: "{{ app_user }}"
+            mode: '0600'
+          notify: Restart registry
+
+        - name: Deploy systemd service
+          template:
+            src: templates/cirisregistry.service.j2
+            dest: /etc/systemd/system/cirisregistry.service
+            mode: '0644'
+          notify: Restart registry
+
+        - name: Enable and start service
+          systemd:
+            name: cirisregistry
+            state: started
+            enabled: true
+            daemon_reload: true
+
+    # =========================================================================
+    # NGINX
+    # =========================================================================
+
+    - name: Configure Nginx
+      tags: [nginx, deploy]
+      block:
+        - name: Deploy Nginx configuration
+          template:
+            src: templates/nginx.conf.j2
+            dest: /etc/nginx/sites-available/cirisregistry
+            mode: '0644'
+          notify: Restart nginx
+
+        - name: Enable site
+          file:
+            src: /etc/nginx/sites-available/cirisregistry
+            dest: /etc/nginx/sites-enabled/cirisregistry
+            state: link
+          notify: Restart nginx
+
+        - name: Remove default site
+          file:
+            path: /etc/nginx/sites-enabled/default
+            state: absent
+          notify: Restart nginx
+
+        - name: Ensure Nginx is running
+          systemd:
+            name: nginx
+            state: started
+            enabled: true
+
+    # =========================================================================
+    # SSL CERTIFICATES
+    # =========================================================================
+
+    - name: Configure SSL
+      tags: [ssl]
+      block:
+        - name: Obtain SSL certificate
+          command: >
+            certbot --nginx -d {{ inventory_hostname }}
+            --non-interactive --agree-tos
+            --email {{ ssl_email }}
+          args:
+            creates: /etc/letsencrypt/live/{{ inventory_hostname }}/fullchain.pem
+          when: ssl_enabled | default(true)
+
+    # =========================================================================
+    # DATABASE REPLICATION (Primary to Replica)
+    # =========================================================================
+
+    - name: Configure replication (primary)
+      tags: [replication]
+      when: db_role == 'primary'
+      block:
+        - name: Configure PostgreSQL for replication
+          lineinfile:
+            path: /etc/postgresql/14/main/postgresql.conf
+            regexp: "^#?{{ item.key }}"
+            line: "{{ item.key }} = {{ item.value }}"
+          loop:
+            - { key: wal_level, value: replica }
+            - { key: max_wal_senders, value: "3" }
+            - { key: wal_keep_size, value: "64" }
+          notify: Restart postgresql
+
+        - name: Create replication user
+          become_user: postgres
+          postgresql_user:
+            name: replicator
+            password: "{{ db_replication_password }}"
+            role_attr_flags: REPLICATION,LOGIN
+
+    # =========================================================================
+    # HEALTH CHECK
+    # =========================================================================
+
+    - name: Verify deployment
+      tags: [verify]
+      block:
+        - name: Wait for service to be ready
+          uri:
+            url: "http://localhost:8000/health"
+            status_code: 200
+          register: health
+          retries: 10
+          delay: 5
+          until: health.status == 200
+
+        - name: Display deployment status
+          debug:
+            msg: |
+              ============================================
+              CIRISRegistry Deployment Complete
+              ============================================
+              Host: {{ inventory_hostname }}
+              Region: {{ region }}
+              DB Role: {{ db_role }}
+              Health: {{ health.json | default('OK') }}
+              ============================================

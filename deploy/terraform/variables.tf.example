@@ -1,0 +1,30 @@
+# Example terraform.tfvars for CIRISRegistry
+# Copy to secrets.tfvars and fill in values
+# NEVER commit secrets.tfvars to git!
+
+# Cloudflare
+cloudflare_api_token  = "your-cloudflare-api-token"
+cloudflare_account_id = "your-cloudflare-account-id"
+cloudflare_zone_id    = "your-ciris-ai-zone-id"
+
+# Vultr (US Region)
+vultr_api_key = "your-vultr-api-key"
+
+# Hetzner (EU Region)
+hetzner_api_token = "your-hetzner-api-token"
+
+# Environment
+environment = "production"
+
+# SSH Access
+ssh_public_key = "ssh-ed25519 AAAA... your-key"
+
+# Database
+db_password = "generate-a-strong-password"
+
+# Registry Signing Keys
+# Generate Ed25519: openssl genpkey -algorithm ED25519 -out ed25519.pem
+# Generate ML-DSA-65: (requires liboqs or similar)
+# Then base64 encode: base64 -w0 ed25519.pem
+registry_signing_key    = "base64-encoded-ed25519-private-key"
+registry_signing_key_pq = "base64-encoded-mldsa65-private-key"

@@ -1,0 +1,19 @@
+# CIRISRegistry Production Inventory
+#
+# Hosts are populated by Terraform outputs
+# or can be manually specified
+
+[registry]
+registry-us ansible_host=TERRAFORM_OUTPUT_US_IP region=us db_role=primary
+registry-eu ansible_host=TERRAFORM_OUTPUT_EU_IP region=eu db_role=replica
+
+[registry:vars]
+ansible_user=root
+ansible_python_interpreter=/usr/bin/python3
+env=production
+
+[primary]
+registry-us
+
+[replica]
+registry-eu
