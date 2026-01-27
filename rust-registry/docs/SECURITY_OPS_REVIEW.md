@@ -50,20 +50,23 @@ sslmode: env::var("DB_SSLMODE").unwrap_or_else(|_| "disable".to_string()),
 
 ---
 
-### 3. Authentication Not Enforced (HIGH)
+### 3. Authentication Enforcement (RESOLVED)
 
-**Location**: `src/middleware/auth.rs:107-117`
+**Location**: `src/middleware/auth.rs:107-115`
+
+**Status**: Fixed - JWT authentication is now enforced. Invalid tokens return HTTP 401 Unauthorized.
 
 ```rust
 Err(e) => {
     tracing::warn!("JWT validation failed: {}", e);
-    // For now, log but don't reject (to allow gradual migration)
-    // In production, uncomment below to enforce auth:
+    return Box::pin(async move {
+        Ok(Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(ResBody::default())
+            .unwrap())
+    });
+}
 ```
-
-**Risk**: Invalid/missing JWT tokens are logged but not rejected.
-
-**Recommendation**: Enable enforcement for production environment.
 
 ---
 
