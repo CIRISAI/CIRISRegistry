@@ -3,27 +3,59 @@
 
 env: production
 
-# API Configuration
+# =============================================================================
+# Rust Registry Production Settings
+# =============================================================================
+registry_environment: production
+
+# Database - Production tuning
+db_sslmode: verify-full  # Full certificate verification in production
+db_max_connections: 20
+db_min_connections: 5
+
+# Authentication - Production requirements
+registry_mtls_enabled: true
+registry_tls_cert_path: "{{ app_dir }}/certs/server.crt"
+registry_tls_key_path: "{{ app_dir }}/certs/server.key"
+registry_ca_cert_path: "{{ app_dir }}/certs/ca.crt"
+
+# Key storage - Use HSM or Vault in production
+registry_key_storage_mode: vault  # or hsm for hardware security
+registry_vault_addr: "https://vault.ciris.ai:8200"
+
+# Logging - Production level
+rust_log: "info,ciris_registry=info"
+
+# =============================================================================
+# Legacy API Configuration (Go)
+# =============================================================================
 api_debug: false
 api_workers: 4
 
-# Database
+# Database (legacy)
 db_pool_size: 20
 db_max_overflow: 10
 
 # Logging
 log_level: INFO
 
+# =============================================================================
 # Rate Limiting
+# =============================================================================
 rate_limit_agent_lookup: 100  # per minute
 rate_limit_partner_lookup: 60
 rate_limit_revocation_list: 10
 
+# =============================================================================
 # Cache TTL (seconds)
+# =============================================================================
 cache_ttl_agent: 300      # 5 minutes
 cache_ttl_partner: 300
 cache_ttl_revocation: 60  # 1 minute (critical data)
 
+# =============================================================================
+# Operational Settings
+# =============================================================================
 # Offline grace period (hours)
 offline_grace_hours: 72
 
@@ -33,3 +65,10 @@ audit_retention_days: 2555  # ~7 years
 # Snapshot generation
 snapshot_interval_hours: 24
 snapshot_retention_count: 30
+
+# =============================================================================
+# Secrets (must be provided via vault or external secrets manager)
+# DO NOT commit actual secrets here
+# =============================================================================
+# db_password: "{{ vault_db_password }}"
+# registry_jwt_secret: "{{ vault_jwt_secret }}"

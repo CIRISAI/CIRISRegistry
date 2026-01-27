@@ -88,6 +88,52 @@ impl Settings {
             _ => Environment::Development,
         };
 
+        let is_production = environment == Environment::Production;
+        let is_production_like = matches!(environment, Environment::Production | Environment::Staging | Environment::Canary);
+
+        // Get database password with production validation
+        let db_password = env::var("DB_PASSWORD").unwrap_or_else(|_| "ciris_dev".to_string());
+        if is_production && (db_password == "ciris_dev" || db_password.is_empty()) {
+            anyhow::bail!(
+                "SECURITY: DB_PASSWORD must be set to a secure value in production. \
+                 The default 'ciris_dev' password is not allowed."
+            );
+        }
+
+        // Get JWT secret with production validation
+        let jwt_secret = env::var("JWT_SECRET")
+            .unwrap_or_else(|_| "development-secret-do-not-use-in-production".to_string());
+        if is_production_like {
+            if jwt_secret.contains("development") || jwt_secret.contains("do-not-use") {
+                anyhow::bail!(
+                    "SECURITY: JWT_SECRET must be set to a secure value in {}. \
+                     Development secrets are not allowed.",
+                    format!("{:?}", environment).to_lowercase()
+                );
+            }
+            if jwt_secret.len() < 32 {
+                anyhow::bail!(
+                    "SECURITY: JWT_SECRET must be at least 32 characters in {}. \
+                     Current length: {}",
+                    format!("{:?}", environment).to_lowercase(),
+                    jwt_secret.len()
+                );
+            }
+        }
+
+        // Default SSL mode based on environment
+        let default_sslmode = if is_production_like { "require" } else { "disable" };
+        let sslmode = env::var("DB_SSLMODE").unwrap_or_else(|_| default_sslmode.to_string());
+
+        // Warn if SSL is disabled in production-like environments
+        if is_production_like && sslmode == "disable" {
+            tracing::warn!(
+                "SECURITY WARNING: DB_SSLMODE is 'disable' in {}. \
+                 Consider using 'require' or 'verify-full' for encrypted database connections.",
+                format!("{:?}", environment).to_lowercase()
+            );
+        }
+
         Ok(Settings {
             environment,
             grpc_port: env::var("GRPC_PORT")
@@ -105,9 +151,9 @@ impl Settings {
                     .parse()
                     .context("Invalid DB_PORT")?,
                 user: env::var("DB_USER").unwrap_or_else(|_| "ciris".to_string()),
-                password: env::var("DB_PASSWORD").unwrap_or_else(|_| "ciris_dev".to_string()),
+                password: db_password,
                 name: env::var("DB_NAME").unwrap_or_else(|_| "ciris_registry".to_string()),
-                sslmode: env::var("DB_SSLMODE").unwrap_or_else(|_| "disable".to_string()),
+                sslmode,
                 max_connections: env::var("DB_MAX_CONNECTIONS")
                     .unwrap_or_else(|_| "10".to_string())
                     .parse()
@@ -125,8 +171,7 @@ impl Settings {
                 vault_addr: env::var("VAULT_ADDR").ok(),
             },
             auth: AuthSettings {
-                jwt_secret: env::var("JWT_SECRET")
-                    .unwrap_or_else(|_| "development-secret-do-not-use-in-production".to_string()),
+                jwt_secret,
                 jwt_issuer: env::var("JWT_ISSUER")
                     .unwrap_or_else(|_| "ciris-registry".to_string()),
                 mtls_enabled: env::var("MTLS_ENABLED")

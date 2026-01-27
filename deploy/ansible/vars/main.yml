@@ -5,28 +5,71 @@ app_name: cirisregistry
 app_user: ciris
 app_dir: /opt/cirisregistry
 
-# Database
+# =============================================================================
+# Database Configuration
+# =============================================================================
+db_host: localhost
 db_name: cirisregistry
 db_user: ciris
 db_port: 5432
+# db_password: "{{ vault_db_password }}"  # REQUIRED: Set via secrets manager
+db_sslmode: require  # disable, require, verify-ca, verify-full
+db_max_connections: 10
+db_min_connections: 1
 
-# API
+# =============================================================================
+# API Configuration (Legacy Go - api_* prefix)
+# =============================================================================
 api_host: "0.0.0.0"
 api_port: 8000
 api_workers: 4
 
-# Logging
+# =============================================================================
+# Rust Registry Configuration (registry_* prefix)
+# =============================================================================
+registry_grpc_port: 50051
+registry_http_port: 8080
+registry_environment: production  # development, staging, canary, production
+
+# =============================================================================
+# Authentication Configuration
+# =============================================================================
+# registry_jwt_secret: "{{ vault_jwt_secret }}"  # REQUIRED: Min 32 chars in production
+registry_jwt_issuer: ciris-registry
+registry_mtls_enabled: false
+# registry_tls_cert_path: "{{ app_dir }}/certs/server.crt"
+# registry_tls_key_path: "{{ app_dir }}/certs/server.key"
+# registry_ca_cert_path: "{{ app_dir }}/certs/ca.crt"
+
+# =============================================================================
+# Cryptographic Key Configuration
+# =============================================================================
+registry_key_storage_mode: file  # memory (dev only), file, vault, hsm
+registry_ed25519_key_path: "{{ app_dir }}/keys/ed25519.key"
+registry_mldsa_key_path: "{{ app_dir }}/keys/mldsa65.key"
+# registry_vault_addr: https://vault.ciris.ai:8200
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
 log_level: INFO
 log_dir: /var/log/cirisregistry
+rust_log: "info,ciris_registry=info"  # Rust RUST_LOG format
 
-# SSL
+# =============================================================================
+# SSL/TLS Configuration
+# =============================================================================
 ssl_enabled: true
 ssl_email: security@ciris.ai
 
-# Health check
+# =============================================================================
+# Health Check Configuration
+# =============================================================================
 health_check_interval: 60
 
-# Multi-source validation
+# =============================================================================
+# Multi-source Validation
+# =============================================================================
 validation_sources:
   - name: us
     dns: registry-us.ciris.ai
@@ -38,6 +81,8 @@ validation_sources:
 # Required agreement for positive verification
 validation_quorum: 2
 
-# Signing key paths (relative to app_dir)
+# =============================================================================
+# Signing Key Paths (Hybrid Cryptography)
+# =============================================================================
 signing_key_ed25519: keys/ed25519.pem
 signing_key_mldsa65: keys/mldsa65.pem

@@ -3,27 +3,59 @@
 
 env: staging
 
-# API Configuration
+# =============================================================================
+# Rust Registry Staging Settings
+# =============================================================================
+registry_environment: staging
+
+# Database - Staging tuning
+db_sslmode: require  # Encrypted but no certificate verification
+db_max_connections: 5
+db_min_connections: 1
+
+# Authentication - Staging still requires proper secrets
+registry_mtls_enabled: false  # Can disable for easier testing
+# registry_tls_cert_path: "{{ app_dir }}/certs/server.crt"
+# registry_tls_key_path: "{{ app_dir }}/certs/server.key"
+
+# Key storage - File-based for staging
+registry_key_storage_mode: file
+registry_ed25519_key_path: "{{ app_dir }}/keys/ed25519.key"
+registry_mldsa_key_path: "{{ app_dir }}/keys/mldsa65.key"
+
+# Logging - More verbose for debugging
+rust_log: "debug,ciris_registry=debug"
+
+# =============================================================================
+# Legacy API Configuration (Go)
+# =============================================================================
 api_debug: true
 api_workers: 2
 
-# Database
+# Database (legacy)
 db_pool_size: 5
 db_max_overflow: 5
 
 # Logging
 log_level: DEBUG
 
+# =============================================================================
 # Rate Limiting (more permissive for testing)
+# =============================================================================
 rate_limit_agent_lookup: 1000
 rate_limit_partner_lookup: 500
 rate_limit_revocation_list: 100
 
+# =============================================================================
 # Cache TTL (shorter for testing)
+# =============================================================================
 cache_ttl_agent: 60
 cache_ttl_partner: 60
 cache_ttl_revocation: 30
 
+# =============================================================================
+# Operational Settings
+# =============================================================================
 # Offline grace period
 offline_grace_hours: 24
 
@@ -33,3 +65,10 @@ audit_retention_days: 30
 # Snapshot generation
 snapshot_interval_hours: 6
 snapshot_retention_count: 10
+
+# =============================================================================
+# Secrets (must be provided via vault or environment)
+# Staging still requires real secrets (no dev defaults allowed)
+# =============================================================================
+# db_password: "{{ vault_staging_db_password }}"
+# registry_jwt_secret: "{{ vault_staging_jwt_secret }}"
