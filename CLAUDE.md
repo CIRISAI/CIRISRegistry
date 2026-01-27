@@ -10,6 +10,38 @@ CIRISRegistry is the authoritative source of truth for the CIRIS AI ecosystem, p
 
 The registry is the **trust backbone** that distinguishes licensed professional deployments from community deployments. It enables the ecosystem's core promise: *"You're not paying for capability. You're paying for accountability."*
 
+## Implementation
+
+**Language:** Rust (2021 edition)
+**Framework:** Tonic (gRPC) + Axum (HTTP)
+**Database:** PostgreSQL with SQLx
+**Cryptography:** Ed25519 (ed25519-dalek) + ML-DSA-65 (pqcrypto-dilithium)
+
+### Build & Run
+
+```bash
+# Development
+cd rust-registry
+cargo build
+cargo run
+
+# Production
+cargo build --release
+./target/release/ciris-registry
+
+# Docker
+docker compose up -d
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgres://ciris:ciris_dev@localhost:5434/ciris_registry` | PostgreSQL connection |
+| `GRPC_PORT` | `50052` | gRPC server port |
+| `HTTP_PORT` | `8082` | HTTP health/metrics port |
+| `RUST_LOG` | `info` | Log level |
+
 ## System Architecture
 
 ```
@@ -32,18 +64,17 @@ The registry is the **trust backbone** that distinguishes licensed professional 
 │           └──────────────┬───────────────────┘                          │
 │                          ▼                                              │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │                    CIRISRegistry API                               │  │
+│  │                    CIRISRegistry API (Rust)                        │  │
 │  │                  api.registry.ciris.ai                             │  │
 │  │                                                                    │  │
-│  │  Endpoints:                                                        │  │
-│  │  • GET  /v1/agents/{hash}           - Agent lookup                 │  │
-│  │  • GET  /v1/partners/{id}           - Partner lookup               │  │
-│  │  • POST /v1/partners                - Create partner               │  │
-│  │  • POST /v1/partners/{id}/keys      - Register public key          │  │
-│  │  • GET  /v1/revocations             - Revocation list              │  │
-│  │  • GET  /v1/organizations           - List organizations           │  │
-│  │  • POST /v1/organizations           - Create organization          │  │
-│  │  • POST /v1/organizations/{id}/users - Invite user                 │  │
+│  │  gRPC Services:                                                    │  │
+│  │  • RegistryService      - Public read-only lookups (14 methods)   │  │
+│  │  • PortalService        - CIRISPortal operations (17 methods)     │  │
+│  │  • RegistryAdminService - Admin operations (14 methods)           │  │
+│  │                                                                    │  │
+│  │  HTTP Endpoints:                                                   │  │
+│  │  • GET /health          - Health check                            │  │
+│  │  • GET /metrics         - Prometheus metrics                      │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 │                          │                                              │
 │                          ▼                                              │
@@ -56,6 +87,137 @@ The registry is the **trust backbone** that distinguishes licensed professional 
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Project Structure
+
+```
+CIRISRegistry/
+├── rust-registry/                 # Rust implementation
+│   ├── src/
+│   │   ├── main.rs               # Application entrypoint
+│   │   ├── config.rs             # Configuration management
+│   │   ├── error.rs              # Error types
+│   │   ├── services/             # gRPC service implementations
+│   │   │   ├── registry.rs       # RegistryService (public lookups)
+│   │   │   ├── portal.rs         # PortalService (Portal operations)
+│   │   │   └── admin.rs          # RegistryAdminService
+│   │   ├── db/                   # Database layer (13 modules)
+│   │   │   ├── mod.rs            # Database connection pool
+│   │   │   ├── agents.rs         # Agent CRUD operations
+│   │   │   ├── partners.rs       # Partner CRUD operations
+│   │   │   ├── organizations.rs  # Organization management
+│   │   │   ├── users.rs          # User management
+│   │   │   ├── keys.rs           # Key management
+│   │   │   ├── audit.rs          # Audit logging
+│   │   │   ├── revocations.rs    # Revocation operations
+│   │   │   ├── webhooks.rs       # Webhook configuration
+│   │   │   ├── signing_keys.rs   # Registry signing keys
+│   │   │   ├── build_attestations.rs  # SLSA provenance
+│   │   │   ├── emergency_status.rs    # Emergency lockdown
+│   │   │   ├── escrows.rs        # Key escrow tracking
+│   │   │   └── snapshots.rs      # Offline verification
+│   │   ├── crypto/               # Cryptography
+│   │   │   └── mod.rs            # Hybrid Ed25519 + ML-DSA-65
+│   │   ├── middleware/           # Request middleware
+│   │   │   ├── auth.rs           # JWT/mTLS validation
+│   │   │   ├── metrics.rs        # Prometheus metrics
+│   │   │   └── tracing.rs        # Request tracing
+│   │   └── api/                  # HTTP API
+│   │       └── http.rs           # Health/metrics endpoints
+│   ├── migrations/               # SQL migrations
+│   ├── Cargo.toml                # Dependencies
+│   ├── Dockerfile                # Container build
+│   └── docker-compose.yml        # Local dev stack
+│
+├── protocol/                      # Protocol definitions
+│   └── ciris_registry.proto      # gRPC/protobuf (1876 lines, v1.1.0)
+│
+├── FSD/                          # Functional Specifications
+│   ├── FSD-001_CIRISREGISTRY_PROTOCOL.md  # Protocol spec
+│   └── UIUX-001_PORTAL_SCREENS.md         # Portal UI guide
+│
+├── docs/                         # Documentation
+│   └── QA_INTEGRATION_PLAN.md    # QA test plan
+│
+├── scripts/                      # Utility scripts
+│   └── seed_test_data.sh         # Test data seeding
+│
+├── docker-compose.yml            # Root orchestration
+├── Dockerfile                    # Root container build
+├── CLAUDE.md                     # This file
+└── README.md                     # Project README
+```
+
+## gRPC Services Reference
+
+### RegistryService (Public, Read-Only)
+
+| Method | Purpose | Proto Line |
+|--------|---------|------------|
+| `HealthCheck` | System health and diagnostics | 1767 |
+| `GetCapabilities` | API feature discovery | 1768 |
+| `GetMetrics` | Prometheus metrics | 1769 |
+| `LookupAgent` | Lookup agent by hash | 1772 |
+| `BatchLookupAgents` | Batch agent lookup (max 100) | 1773 |
+| `LookupPartner` | Lookup partner by ID | 1776 |
+| `VerifyDeployment` | Combined agent+partner verification | 1779 |
+| `GetRevocationList` | Get revocation list (full or delta) | 1782 |
+| `GetPublicKeys` | Get organization public keys | 1785 |
+| `GetOfflinePackage` | Full offline verification package | 1788 |
+| `GetOfflineDelta` | Incremental snapshot delta | 1789 |
+| `GetBuildAttestation` | SLSA build provenance | 1792 |
+| `GetEmergencyStatus` | Emergency shutdown status | 1795 |
+
+### PortalService (Authenticated)
+
+| Method | Purpose | Proto Line |
+|--------|---------|------------|
+| `CreateOrganization` | Create organization | 1840 |
+| `GetOrganization` | Get organization details | 1841 |
+| `UpdateOrganization` | Update organization | 1842 |
+| `ListOrganizations` | List organizations (paginated) | 1843 |
+| `BatchCreateOrganizations` | Batch create (max 100) | 1844 |
+| `CreateOrgUser` | Create user | 1847 |
+| `GetOrgUser` | Get user by ID | 1848 |
+| `GetOrgUserByEmail` | Get user by email | 1849 |
+| `UpdateOrgUser` | Update user | 1850 |
+| `ListOrgUsers` | List organization users | 1851 |
+| `BatchCreateOrgUsers` | Batch create users (max 100) | 1852 |
+| `GenerateKeyPair` | Generate Ed25519+ML-DSA-65 keypair | 1855 |
+| `ListKeys` | List organization keys | 1856 |
+| `ActivateKey` | Activate pending key | 1857 |
+| `RotateKey` | Rotate active key | 1858 |
+| `RevokeKey` | Revoke key | 1859 |
+| `RequestKeyEscrow` | Create key escrow | 1862 |
+| `RequestKeyRecovery` | Request key recovery | 1863 |
+| `ListKeyEscrows` | List key escrows | 1864 |
+| `RequestSignature` | Sign data with custodied key | 1867 |
+| `GetAuditLog` | Get audit log (paginated) | 1870 |
+| `ExportAuditLog` | Export audit log (JSON/CSV/JSONL/Splunk) | 1871 |
+| `GenerateComplianceReport` | SOC2/HIPAA/GDPR reports | 1874 |
+
+### RegistryAdminService (Admin Only)
+
+| Method | Purpose | Proto Line |
+|--------|---------|------------|
+| `RegisterAgent` | Register new agent build | 1801 |
+| `BatchRegisterAgents` | Batch register (max 1000) | 1802 |
+| `RegisterPartner` | Register new partner | 1805 |
+| `RevokeEntity` | Revoke agent/partner/license | 1808 |
+| `MassRevoke` | Mass revocation (incident response) | 1811 |
+| `SetEmergencyShutdown` | Enable emergency lockdown | 1812 |
+| `ClearEmergencyShutdown` | Clear emergency lockdown | 1813 |
+| `RotateSigningKey` | Rotate registry signing key | 1816 |
+| `GetActiveSigningKey` | Get active signing key | 1817 |
+| `ListSigningKeys` | List all signing keys | 1818 |
+| `TestHSMConnection` | Test HSM/Vault connection | 1819 |
+| `RegisterBuildAttestation` | Register SLSA attestation | 1822 |
+| `RegisterWebhook` | Register webhook | 1825 |
+| `ListWebhooks` | List webhooks | 1826 |
+| `DeleteWebhook` | Delete webhook | 1827 |
+| `ListExpiringLicenses` | License expiration tracking | 1830 |
+| `GetPartnerActivity` | Partner health assessment | 1831 |
+| `CleanupTestRecords` | Remove test records | 1834 |
+
 ## CIRISPortal Integration
 
 **CIRISPortal** (portal.ciris.ai) is the administrative interface that writes to this registry.
@@ -64,88 +226,18 @@ The registry is the **trust backbone** that distinguishes licensed professional 
 
 ```
 1. Admin creates Organization in Portal
-   └─→ POST /v1/organizations
+   └─→ PortalService/CreateOrganization
 
 2. Admin onboards Partner (assigns license)
-   └─→ POST /v1/partners
+   └─→ RegistryAdminService/RegisterPartner
 
 3. Partner generates custodied keys in Portal
    └─→ Portal generates Ed25519 + ML-DSA-65 key pair
-   └─→ POST /v1/partners/{id}/keys (registers public key)
+   └─→ PortalService/GenerateKeyPair
 
-4. Partner rotates keys
-   └─→ Portal generates new key pair
-   └─→ POST /v1/partners/{id}/keys (new public key)
-   └─→ Old key marked as rotated (still valid for verification)
-```
-
-### API Endpoints Needed by Portal
-
-| Endpoint | Method | Purpose | Status |
-|----------|--------|---------|--------|
-| `/v1/organizations` | GET | List orgs (admin) | TODO |
-| `/v1/organizations` | POST | Create org | TODO |
-| `/v1/organizations/{id}` | GET | Get org details | TODO |
-| `/v1/organizations/{id}` | PATCH | Update org | TODO |
-| `/v1/organizations/{id}/users` | GET | List org users | TODO |
-| `/v1/organizations/{id}/users` | POST | Invite user | TODO |
-| `/v1/partners` | POST | Create partner | TODO |
-| `/v1/partners/{id}` | GET | Get partner | Spec'd |
-| `/v1/partners/{id}` | PATCH | Update partner | TODO |
-| `/v1/partners/{id}/keys` | GET | List partner keys | TODO |
-| `/v1/partners/{id}/keys` | POST | Register public key | TODO |
-| `/v1/partners/{id}/keys/{keyId}` | DELETE | Revoke key | TODO |
-
-### Proto Additions Needed
-
-```protobuf
-// Organization management (add to ciris_registry.proto)
-message Organization {
-  string org_id = 1;
-  string name = 2;
-  string tax_id = 3;
-  repeated string admin_emails = 10;
-  int64 created_at = 20;
-  int64 updated_at = 21;
-}
-
-message OrgUser {
-  string user_id = 1;
-  string email = 2;
-  OrgRole role = 3;
-  string org_id = 4;
-  int64 invited_at = 10;
-  int64 joined_at = 11;
-}
-
-enum OrgRole {
-  ORG_ROLE_UNSPECIFIED = 0;
-  ORG_ADMIN = 1;      // Can manage keys, invite users
-  ORG_USER = 2;       // Read-only access
-}
-
-// Partner key registration
-message PartnerKeyRecord {
-  string key_id = 1;
-  string partner_id = 2;
-  KeyStatus status = 3;
-  PublicKeys public_keys = 10;
-  int64 created_at = 20;
-  int64 rotated_at = 21;
-  string rotated_by_key_id = 22;  // If rotated, which key replaced this
-}
-
-enum KeyStatus {
-  KEY_STATUS_UNSPECIFIED = 0;
-  KEY_ACTIVE = 1;
-  KEY_ROTATED = 2;    // Still valid for verification, not signing
-  KEY_REVOKED = 3;
-}
-
-message PublicKeys {
-  bytes ed25519_public = 1;       // 32 bytes
-  bytes mldsa65_public = 2;       // ~1952 bytes
-}
+4. Partner rotates keys (zero-downtime)
+   └─→ PortalService/RotateKey (STAGED mode with grace period)
+   └─→ Old key marked as rotated (still valid during grace period)
 ```
 
 ## CIRIS Ecosystem Context
@@ -217,19 +309,6 @@ When making implementation decisions, apply these principles in order:
 - **Wisdom-Based Deferral (WBD)**: When uncertain, defer to Wise Authorities
 - **Coherence Ratchet**: Cryptographic trace chains make deception geometrically expensive
 
-## Project Structure
-
-```
-CIRISRegistry/
-├── FSD/                        # Functional Specification Documents
-│   └── FSD-001_*.md            # Protocol specification
-├── protocol/
-│   └── ciris_registry.proto    # Protocol buffer definitions
-├── docs/                       # Additional documentation
-├── CLAUDE.md                   # This file
-└── README.md
-```
-
 ## Security Requirements
 
 ### Hybrid Cryptography
@@ -238,12 +317,18 @@ All records use Ed25519 (classical) + ML-DSA-65 (post-quantum) signatures:
 
 ```protobuf
 message HybridSignature {
-  bytes classical_signature = 1;      // Ed25519
-  bytes post_quantum_signature = 2;   // ML-DSA-65 (FIPS 204)
+  bytes classical_signature = 1;      // Ed25519 (64 bytes)
+  bytes post_quantum_signature = 2;   // ML-DSA-65 (~3300 bytes)
   int64 timestamp = 3;
   string key_id = 4;
 }
 ```
+
+Implementation in `rust-registry/src/crypto/mod.rs`:
+- `HybridCrypto::generate_ephemeral()` - Generate keypair
+- `HybridCrypto::sign(data)` - Create hybrid signature
+- `HybridCrypto::verify(data, signature)` - Verify both signatures
+- `HybridCrypto::fingerprint(pubkey)` - SHA-256 fingerprint
 
 ### Multi-Source Validation
 
@@ -282,6 +367,28 @@ Any REVOKED status from any source triggers immediate action.
 4. Hybrid signatures are mandatory - never classical-only
 5. **Coordinate with CIRISPortal** - proto changes may require Portal updates
 
+### Database Module Pattern
+
+Each database module in `rust-registry/src/db/` follows:
+
+```rust
+// Row type (maps to PostgreSQL table)
+pub struct AgentRow {
+    pub agent_hash: Vec<u8>,
+    pub agent_type: i32,
+    // ...
+}
+
+impl AgentRow {
+    pub fn to_proto(&self) -> AgentRecord { /* ... */ }
+}
+
+// CRUD functions
+pub async fn lookup_agent(pool: &PgPool, hash: &[u8]) -> Result<Option<AgentRow>, sqlx::Error>;
+pub async fn register_agent(pool: &PgPool, agent: &AgentRecord) -> Result<(), sqlx::Error>;
+pub async fn revoke_agent(pool: &PgPool, hash: &[u8], reason: &str) -> Result<(), sqlx::Error>;
+```
+
 ### Capability Namespace
 
 Follow the hierarchical naming convention:
@@ -302,7 +409,39 @@ autonomy:<tier>:<action>          # e.g., autonomy:A2:moderate
 | PROFESSIONAL_FINANCIAL | Financial analysis | Yes |
 | PROFESSIONAL_FULL | All professional capabilities | Yes |
 
-## Testing Considerations
+## Testing
+
+### Run Tests
+
+```bash
+cd rust-registry
+cargo test
+
+# With coverage
+cargo tarpaulin
+```
+
+### gRPC Testing with grpcurl
+
+```bash
+# List services
+grpcurl -plaintext localhost:50052 list
+
+# Health check
+grpcurl -plaintext localhost:50052 ciris.registry.v1.RegistryService/HealthCheck
+
+# Create organization
+grpcurl -plaintext -d '{
+  "context": {"request_id": "test-1"},
+  "organization": {
+    "name": "Test Org",
+    "legal_name": "Test Organization LLC",
+    "primary_email": "test@example.com"
+  }
+}' localhost:50052 ciris.registry.v1.PortalService/CreateOrganization
+```
+
+### Testing Considerations
 
 - Verify multi-source validation logic handles disagreements correctly
 - Test offline/degraded mode behavior (72-hour grace period default)

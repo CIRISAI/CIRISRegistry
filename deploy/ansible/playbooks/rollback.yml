@@ -1,0 +1,84 @@
+# CIRISRegistry Rollback Playbook
+# Rolls back to a previous task definition revision
+---
+- name: Rollback CIRISRegistry
+  hosts: all
+  gather_facts: false
+
+  vars:
+    rollback_revisions: 1  # Number of revisions to roll back
+
+  tasks:
+    - name: Get current service info
+      amazon.aws.ecs_service_info:
+        cluster: "{{ ecs_cluster }}"
+        service: "{{ ecs_service }}"
+        region: "{{ region }}"
+      register: service_info
+
+    - name: Extract current task definition
+      ansible.builtin.set_fact:
+        current_task_def: "{{ service_info.services[0].taskDefinition }}"
+
+    - name: Parse task definition family and revision
+      ansible.builtin.set_fact:
+        task_family: "{{ current_task_def | regex_replace(':([0-9]+)$', '') }}"
+        current_revision: "{{ current_task_def | regex_replace('.*:([0-9]+)$', '\\1') | int }}"
+
+    - name: Calculate target revision
+      ansible.builtin.set_fact:
+        target_revision: "{{ current_revision - rollback_revisions }}"
+
+    - name: Validate rollback target
+      ansible.builtin.fail:
+        msg: "Cannot roll back to revision {{ target_revision }} - must be positive"
+      when: target_revision | int < 1
+
+    - name: Display rollback info
+      ansible.builtin.debug:
+        msg: |
+          Rolling back service: {{ ecs_service }}
+          Current revision: {{ current_revision }}
+          Target revision: {{ target_revision }}
+          Task definition: {{ task_family }}:{{ target_revision }}
+
+    - name: Confirm rollback
+      ansible.builtin.pause:
+        prompt: "Press Enter to continue with rollback, or Ctrl+C to abort"
+      when: lookup('env', 'ROLLBACK_CONFIRM') | default('true', true) | bool
+
+    - name: Get target task definition
+      amazon.aws.ecs_task_definition_info:
+        task_definition: "{{ task_family }}:{{ target_revision }}"
+        region: "{{ region }}"
+      register: target_task_def
+
+    - name: Update service to previous revision
+      amazon.aws.ecs_service:
+        state: present
+        name: "{{ ecs_service }}"
+        cluster: "{{ ecs_cluster }}"
+        region: "{{ region }}"
+        task_definition: "{{ task_family }}:{{ target_revision }}"
+        force_new_deployment: true
+      register: rollback_result
+
+    - name: Wait for rollback to stabilize
+      amazon.aws.ecs_service_info:
+        cluster: "{{ ecs_cluster }}"
+        service: "{{ ecs_service }}"
+        region: "{{ region }}"
+      register: service_status
+      until: >
+        service_status.services[0].deployments | length == 1 and
+        service_status.services[0].runningCount == service_status.services[0].desiredCount
+      retries: 30
+      delay: 20
+
+    - name: Rollback complete
+      ansible.builtin.debug:
+        msg: |
+          Rollback successful!
+          Service: {{ ecs_service }}
+          Now running: {{ task_family }}:{{ target_revision }}
+          Running tasks: {{ service_status.services[0].runningCount }}

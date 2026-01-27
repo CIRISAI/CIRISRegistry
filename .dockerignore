@@ -1,0 +1,11 @@
+.git
+.gitignore
+*.md
+!README.md
+deploy/
+docs/
+FSD/
+bin/
+.env*
+docker-compose*.yml
+Dockerfile*

@@ -1,0 +1,36 @@
+# CIRISRegistry Ansible Site Playbook
+# Master playbook for all deployment operations
+---
+# Full deployment workflow
+- name: CIRISRegistry Full Deployment
+  hosts: all
+  gather_facts: false
+
+  vars:
+    run_migrations: true
+    run_health_check: true
+    image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest', true) }}"
+
+  pre_tasks:
+    - name: Display deployment info
+      ansible.builtin.debug:
+        msg: |
+          ═══════════════════════════════════════════════════════
+          CIRISRegistry Deployment
+          ═══════════════════════════════════════════════════════
+          Environment: {{ environment }}
+          Region: {{ region }}
+          Image Tag: {{ image_tag }}
+          Run Migrations: {{ run_migrations }}
+          ═══════════════════════════════════════════════════════
+
+- name: Run Database Migrations
+  import_playbook: playbooks/migrate.yml
+  when: run_migrations | default(true) | bool
+
+- name: Deploy Application
+  import_playbook: playbooks/deploy.yml
+
+- name: Verify Deployment Health
+  import_playbook: playbooks/health_check.yml
+  when: run_health_check | default(true) | bool

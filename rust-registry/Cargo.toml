@@ -1,0 +1,102 @@
+[package]
+name = "ciris-registry"
+version = "1.1.0"
+edition = "2021"
+rust-version = "1.84"
+authors = ["CIRIS L3C"]
+description = "CIRISRegistry - Agent and Partner Registry Service"
+license = "Apache-2.0"
+repository = "https://github.com/cirisai/cirisregistry"
+
+[dependencies]
+# gRPC / Protocol Buffers
+tonic = { version = "0.12", features = ["gzip", "tls"] }
+tonic-reflection = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+
+# Async Runtime
+tokio = { version = "1.44", features = ["full"] }
+
+# Database
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "time",
+    "json"
+]}
+
+# Middleware / Tower
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "auth"] }
+hyper = { version = "1.5", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+http = "1.2"
+
+# Cryptography - Classical
+ed25519-dalek = { version = "2.1", features = ["rand_core", "hazmat"] }
+sha2 = "0.10"
+rand = "0.8"
+
+# Cryptography - Post-Quantum (ML-DSA-65)
+pqcrypto-dilithium = "0.5"
+pqcrypto-traits = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Utilities
+uuid = { version = "1.11", features = ["v4", "serde"] }
+time = { version = "0.3", features = ["serde", "formatting", "parsing"] }
+thiserror = "2.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Configuration
+config = "0.15"
+dotenvy = "0.15"
+
+# Authentication
+jsonwebtoken = "9.3"
+rustls = "0.23"
+tokio-rustls = "0.26"
+rcgen = "0.13"  # For generating test certificates
+
+# Metrics
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+
+# Health checks
+axum = "0.8"  # For HTTP/REST gateway
+
+# Compression for offline packages
+flate2 = "1.0"
+zstd = "0.13"
+
+# Merkle tree
+rs_merkle = "1.4"
+
+# Base encoding
+hex = "0.4"
+base64 = "0.22"
+
+[build-dependencies]
+tonic-build = "0.12"
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.13"
+tempfile = "3.15"
+testcontainers-modules = { version = "0.11", features = ["postgres"] }
+
+[[bin]]
+name = "ciris-registry"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

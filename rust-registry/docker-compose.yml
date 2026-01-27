@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ciris-postgres-rust
+    environment:
+      POSTGRES_USER: ciris
+      POSTGRES_PASSWORD: ciris_dev
+      POSTGRES_DB: ciris_registry
+    ports:
+      - "5434:5432"  # Use 5434 to avoid conflict with Go version
+    volumes:
+      - postgres_data_rust:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ciris -d ciris_registry"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  registry:
+    build:
+      context: ..
+      dockerfile: rust-registry/Dockerfile
+    container_name: ciris-registry-rust
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ciris
+      DB_PASSWORD: ciris_dev
+      DB_NAME: ciris_registry
+      DB_SSLMODE: disable
+      GRPC_PORT: 50051
+      HTTP_PORT: 8080
+      ENVIRONMENT: development
+      RUST_LOG: debug
+    ports:
+      - "50052:50051"  # Use 50052 to avoid conflict with Go version
+      - "8082:8080"    # Use 8082 to avoid conflict with Go version
+
+volumes:
+  postgres_data_rust:

@@ -67,3 +67,7 @@ Thumbs.db
 *.proto.go
 *_pb2.py
 *_pb2_grpc.py
+
+# Rust
+rust-registry/target/
+**/*.rs.bk

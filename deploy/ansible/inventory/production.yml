@@ -1,0 +1,51 @@
+# Ansible Inventory for Production Environment
+---
+all:
+  vars:
+    environment: production
+    domain: registry.ciris.ai
+
+    # Container Configuration
+    container_name: ciris-registry
+    grpc_port: 50051
+    http_port: 8080
+
+    # Logging
+    log_level: info
+    log_retention_days: 90
+
+    # Feature Flags
+    mtls_enabled: true
+    key_storage_mode: vault
+
+    # Database
+    db_name: ciris_registry
+    db_port: 5432
+
+    # AWS Configuration
+    aws_account_id: "{{ lookup('env', 'AWS_ACCOUNT_ID') }}"
+
+  children:
+    us_region:
+      vars:
+        region: us-east-1
+        ecs_cluster: ciris-registry-prod-us-cluster
+        ecs_service: ciris-registry-prod-us-registry
+        ecr_repository: "{{ aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/ciris-registry"
+        log_group: /ciris/registry/production/application
+        regional_domain: registry-us.ciris.ai
+      hosts:
+        us_east:
+          ansible_connection: local
+
+    eu_region:
+      vars:
+        region: eu-west-1
+        ecs_cluster: ciris-registry-prod-eu-cluster
+        ecs_service: ciris-registry-prod-eu-registry
+        ecr_repository: "{{ aws_account_id }}.dkr.ecr.eu-west-1.amazonaws.com/ciris-registry"
+        log_group: /ciris/registry/production-eu/application
+        regional_domain: registry-eu.ciris.ai
+      hosts:
+        eu_west:
+          ansible_connection: local

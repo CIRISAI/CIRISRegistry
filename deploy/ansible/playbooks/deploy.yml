@@ -1,0 +1,91 @@
+# CIRISRegistry Deployment Playbook
+# Builds, pushes, and deploys the registry service
+---
+- name: Deploy CIRISRegistry
+  hosts: all
+  gather_facts: false
+
+  vars:
+    image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest', true) }}"
+    force_deploy: "{{ lookup('env', 'FORCE_DEPLOY') | default('false', true) | bool }}"
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - aws_account_id is defined
+          - region is defined
+          - ecs_cluster is defined
+          - ecs_service is defined
+        fail_msg: "Required variables are not defined"
+
+    - name: Get current task definition
+      amazon.aws.ecs_task_definition_info:
+        task_definition: "{{ ecs_service }}"
+        region: "{{ region }}"
+      register: current_task_def
+      ignore_errors: true
+
+    - name: Display current deployment status
+      ansible.builtin.debug:
+        msg: |
+          Environment: {{ environment }}
+          Region: {{ region }}
+          Cluster: {{ ecs_cluster }}
+          Service: {{ ecs_service }}
+          Current Image: {{ current_task_def.container_definitions[0].image | default('none') }}
+          Target Image: {{ ecr_repository }}:{{ image_tag }}
+      when: current_task_def is succeeded
+
+    - name: Login to ECR
+      ansible.builtin.shell: |
+        aws ecr get-login-password --region {{ region }} | \
+        docker login --username AWS --password-stdin {{ aws_account_id }}.dkr.ecr.{{ region }}.amazonaws.com
+      changed_when: false
+
+    - name: Build Docker image
+      ansible.builtin.shell: |
+        docker build \
+          --platform linux/amd64 \
+          -t {{ ecr_repository }}:{{ image_tag }} \
+          -t {{ ecr_repository }}:latest \
+          -f ../../Dockerfile \
+          ../..
+      args:
+        chdir: "{{ playbook_dir }}"
+      when: lookup('env', 'SKIP_BUILD') | default('false', true) != 'true'
+
+    - name: Push Docker image to ECR
+      ansible.builtin.shell: |
+        docker push {{ ecr_repository }}:{{ image_tag }}
+        docker push {{ ecr_repository }}:latest
+      when: lookup('env', 'SKIP_PUSH') | default('false', true) != 'true'
+
+    - name: Update ECS service
+      amazon.aws.ecs_service:
+        state: present
+        name: "{{ ecs_service }}"
+        cluster: "{{ ecs_cluster }}"
+        region: "{{ region }}"
+        force_new_deployment: "{{ force_deploy }}"
+      register: ecs_update
+
+    - name: Wait for deployment to stabilize
+      amazon.aws.ecs_service_info:
+        cluster: "{{ ecs_cluster }}"
+        service: "{{ ecs_service }}"
+        region: "{{ region }}"
+      register: service_info
+      until: >
+        service_info.services[0].deployments | length == 1 and
+        service_info.services[0].runningCount == service_info.services[0].desiredCount
+      retries: 30
+      delay: 20
+      when: lookup('env', 'SKIP_WAIT') | default('false', true) != 'true'
+
+    - name: Display deployment result
+      ansible.builtin.debug:
+        msg: |
+          Deployment complete!
+          Running tasks: {{ service_info.services[0].runningCount }}
+          Desired tasks: {{ service_info.services[0].desiredCount }}

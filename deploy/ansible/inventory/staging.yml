@@ -1,0 +1,38 @@
+# Ansible Inventory for Staging Environment
+---
+all:
+  vars:
+    environment: staging
+    region: us-east-1
+    domain: staging.registry.ciris.ai
+
+    # ECS Configuration
+    ecs_cluster: ciris-registry-staging-cluster
+    ecs_service: ciris-registry-staging-registry
+
+    # Container Configuration
+    container_name: ciris-registry
+    grpc_port: 50051
+    http_port: 8080
+
+    # Logging
+    log_level: debug
+    log_group: /ciris/registry/staging/application
+
+    # Feature Flags
+    mtls_enabled: false
+    key_storage_mode: memory
+
+    # Database
+    db_name: ciris_registry
+    db_port: 5432
+
+    # AWS Configuration
+    aws_account_id: "{{ lookup('env', 'AWS_ACCOUNT_ID') }}"
+    ecr_repository: "{{ aws_account_id }}.dkr.ecr.{{ region }}.amazonaws.com/ciris-registry-staging"
+
+  children:
+    registry:
+      hosts:
+        localhost:
+          ansible_connection: local

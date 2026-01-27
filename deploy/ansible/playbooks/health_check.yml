@@ -1,0 +1,92 @@
+# CIRISRegistry Health Check Playbook
+# Verifies service health across all endpoints
+---
+- name: Health Check CIRISRegistry
+  hosts: all
+  gather_facts: false
+
+  vars:
+    health_check_timeout: 10
+    grpc_health_check: true
+
+  tasks:
+    - name: Get ALB DNS name
+      amazon.aws.elb_application_lb_info:
+        names:
+          - "{{ ecs_cluster | replace('-cluster', '-alb') }}"
+        region: "{{ region }}"
+      register: alb_info
+
+    - name: Set endpoint URL
+      ansible.builtin.set_fact:
+        api_endpoint: "https://{{ alb_info.load_balancers[0].dns_name }}"
+
+    - name: Check HTTP health endpoint
+      ansible.builtin.uri:
+        url: "{{ api_endpoint }}:8443/health"
+        method: GET
+        timeout: "{{ health_check_timeout }}"
+        validate_certs: true
+        return_content: true
+      register: health_response
+      retries: 3
+      delay: 5
+
+    - name: Display health status
+      ansible.builtin.debug:
+        msg: |
+          HTTP Health Check: {{ 'PASSED' if health_response.status == 200 else 'FAILED' }}
+          Response: {{ health_response.content }}
+          Endpoint: {{ api_endpoint }}:8443/health
+
+    - name: Check metrics endpoint
+      ansible.builtin.uri:
+        url: "{{ api_endpoint }}:8443/metrics"
+        method: GET
+        timeout: "{{ health_check_timeout }}"
+        validate_certs: true
+      register: metrics_response
+      retries: 3
+      delay: 5
+
+    - name: Display metrics status
+      ansible.builtin.debug:
+        msg: |
+          Metrics Endpoint: {{ 'AVAILABLE' if metrics_response.status == 200 else 'UNAVAILABLE' }}
+
+    - name: Check gRPC health (using grpcurl)
+      ansible.builtin.shell: |
+        grpcurl -insecure {{ alb_info.load_balancers[0].dns_name }}:443 grpc.health.v1.Health/Check
+      register: grpc_health
+      when: grpc_health_check
+      ignore_errors: true
+
+    - name: Display gRPC health status
+      ansible.builtin.debug:
+        msg: |
+          gRPC Health Check: {{ 'PASSED' if grpc_health.rc == 0 else 'FAILED' }}
+          Response: {{ grpc_health.stdout | default('N/A') }}
+      when: grpc_health_check
+
+    - name: Get ECS service status
+      amazon.aws.ecs_service_info:
+        cluster: "{{ ecs_cluster }}"
+        service: "{{ ecs_service }}"
+        region: "{{ region }}"
+      register: service_info
+
+    - name: Display service status
+      ansible.builtin.debug:
+        msg: |
+          Service: {{ ecs_service }}
+          Running Tasks: {{ service_info.services[0].runningCount }}
+          Desired Tasks: {{ service_info.services[0].desiredCount }}
+          Pending Tasks: {{ service_info.services[0].pendingCount }}
+          Deployments: {{ service_info.services[0].deployments | length }}
+
+    - name: Fail if unhealthy
+      ansible.builtin.fail:
+        msg: "Service health check failed"
+      when: >
+        health_response.status != 200 or
+        service_info.services[0].runningCount < service_info.services[0].desiredCount

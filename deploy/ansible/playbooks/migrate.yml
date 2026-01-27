@@ -1,0 +1,83 @@
+# CIRISRegistry Database Migration Playbook
+# Runs database migrations using a one-off ECS task
+---
+- name: Run Database Migrations
+  hosts: all
+  gather_facts: false
+
+  vars:
+    migration_timeout: 300
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ecs_cluster is defined
+          - region is defined
+
+    - name: Get current task definition
+      amazon.aws.ecs_task_definition_info:
+        task_definition: "{{ ecs_service }}"
+        region: "{{ region }}"
+      register: task_def
+
+    - name: Create migration task definition
+      amazon.aws.ecs_taskdefinition:
+        family: "{{ ecs_service }}-migration"
+        region: "{{ region }}"
+        network_mode: awsvpc
+        launch_type: FARGATE
+        cpu: "{{ task_def.cpu }}"
+        memory: "{{ task_def.memory }}"
+        execution_role_arn: "{{ task_def.execution_role_arn }}"
+        task_role_arn: "{{ task_def.task_role_arn }}"
+        containers:
+          - name: migration
+            image: "{{ task_def.container_definitions[0].image }}"
+            essential: true
+            command:
+              - "/app/ciris-registry"
+              - "migrate"
+            environment: "{{ task_def.container_definitions[0].environment }}"
+            secrets: "{{ task_def.container_definitions[0].secrets }}"
+            logConfiguration: "{{ task_def.container_definitions[0].logConfiguration }}"
+      register: migration_task_def
+
+    - name: Get VPC configuration from service
+      amazon.aws.ecs_service_info:
+        cluster: "{{ ecs_cluster }}"
+        service: "{{ ecs_service }}"
+        region: "{{ region }}"
+      register: service_info
+
+    - name: Run migration task
+      amazon.aws.ecs_task:
+        operation: run
+        cluster: "{{ ecs_cluster }}"
+        region: "{{ region }}"
+        task_definition: "{{ migration_task_def.taskdefinition.taskDefinitionArn }}"
+        launch_type: FARGATE
+        network_configuration:
+          subnets: "{{ service_info.services[0].networkConfiguration.awsvpcConfiguration.subnets }}"
+          security_groups: "{{ service_info.services[0].networkConfiguration.awsvpcConfiguration.securityGroups }}"
+          assign_public_ip: false
+      register: migration_task
+
+    - name: Wait for migration to complete
+      amazon.aws.ecs_task_info:
+        cluster: "{{ ecs_cluster }}"
+        task: "{{ migration_task.task.taskArn }}"
+        region: "{{ region }}"
+      register: task_status
+      until: task_status.tasks[0].lastStatus in ['STOPPED']
+      retries: "{{ (migration_timeout / 10) | int }}"
+      delay: 10
+
+    - name: Check migration exit code
+      ansible.builtin.fail:
+        msg: "Migration failed with exit code {{ task_status.tasks[0].containers[0].exitCode }}"
+      when: task_status.tasks[0].containers[0].exitCode != 0
+
+    - name: Migration successful
+      ansible.builtin.debug:
+        msg: "Database migration completed successfully"

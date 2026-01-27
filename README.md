@@ -1,184 +1,278 @@
 # CIRISRegistry
 
-**Agent and Partner Registry for the CIRIS Ecosystem**
+The authoritative trust registry for the CIRIS AI ecosystem.
 
-CIRISRegistry provides the authoritative source of truth for:
+## Overview
 
-1. **Agent Identity** - Which agent builds are legitimate and what capabilities they possess
-2. **Partner Authorization** - Which organizations are licensed to deploy agents with professional capabilities
-3. **Revocation State** - Which agents or licenses have been compromised or revoked
+CIRISRegistry is a gRPC-based registry service that provides:
+
+- **Agent Verification** - Lookup and validate registered agent builds
+- **Partner Authorization** - License and capability management
+- **Revocation Tracking** - Real-time revocation list distribution
+- **Key Custody** - Hybrid Ed25519 + ML-DSA-65 key management
+- **Audit Compliance** - SOC2/HIPAA/GDPR reporting
+
+## Quick Start
+
+### Prerequisites
+
+- Rust 1.75+ (for building)
+- PostgreSQL 15+ (database)
+- Docker & Docker Compose (recommended)
+
+### Run with Docker
+
+```bash
+docker compose up -d
+```
+
+Services:
+- gRPC API: `localhost:50052`
+- HTTP Health/Metrics: `localhost:8082`
+- PostgreSQL: `localhost:5434`
+
+### Run Locally
+
+```bash
+# Start PostgreSQL
+docker compose up -d postgres
+
+# Build and run
+cd rust-registry
+cargo run
+```
+
+### Verify Installation
+
+```bash
+# Health check
+curl http://localhost:8082/health
+
+# gRPC health (requires grpcurl)
+grpcurl -plaintext localhost:50052 ciris.registry.v1.RegistryService/HealthCheck
+```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          CIRIS Ecosystem                                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌──────────────┐    ┌──────────────┐    ┌────────────────────────────┐ │
-│  │ CIRISVerify  │───▶│ CIRISRegistry│◀───│ CIRISPortal                │ │
-│  │ (Binary)     │    │ (This Repo)  │    │ (portal.ciris.ai)          │ │
-│  └──────────────┘    └──────────────┘    │ - Org/User Management      │ │
-│         │                   │            │ - Key Custody              │ │
-│         │                   │            │ - Partner Onboarding       │ │
-│         │                   │            └────────────────────────────┘ │
-│         ▼                   ▼                                            │
-│  ┌───────────────────────────────────────────────────────────┐          │
-│  │                   Effective Capabilities                   │          │
-│  │  = agent.capabilities ∩ partner.grants - partner.denials   │          │
-│  └───────────────────────────────────────────────────────────┘          │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         Clients                                  │
+│                                                                  │
+│   CIRISVerify (Read)          CIRISPortal (Read+Write)          │
+│   • Agent lookups             • Organization management          │
+│   • Partner lookups           • User/key management             │
+│   • Revocation checks         • License management              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    CIRISRegistry API                             │
+│                                                                  │
+│   gRPC Services (port 50052):                                   │
+│   ├── RegistryService       - Public read-only (13 methods)    │
+│   ├── PortalService         - Authenticated ops (23 methods)   │
+│   └── RegistryAdminService  - Admin operations (18 methods)    │
+│                                                                  │
+│   HTTP Endpoints (port 8082):                                   │
+│   ├── GET /health           - Health check                     │
+│   └── GET /metrics          - Prometheus metrics               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│   PostgreSQL Database        Hybrid Cryptography                │
+│   • Organizations            • Ed25519 (classical)              │
+│   • Users                    • ML-DSA-65 (post-quantum)         │
+│   • Agents                   • Dual signatures required         │
+│   • Partners                                                    │
+│   • Keys                                                        │
+│   • Audit logs                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## How It Works
+## API Reference
 
-### Two-Factor Verification
+### RegistryService (Public)
 
-CIRISVerify queries CIRISRegistry to verify **both**:
+| Method | Description |
+|--------|-------------|
+| `HealthCheck` | System health status |
+| `GetCapabilities` | API feature discovery |
+| `GetMetrics` | Performance metrics |
+| `LookupAgent` | Lookup agent by SHA-256 hash |
+| `BatchLookupAgents` | Batch lookup (max 100) |
+| `LookupPartner` | Lookup partner by ID |
+| `VerifyDeployment` | Combined agent+partner verification |
+| `GetRevocationList` | Full or delta revocation list |
+| `GetPublicKeys` | Organization public keys |
+| `GetOfflinePackage` | 72-hour offline verification bundle |
+| `GetOfflineDelta` | Incremental snapshot updates |
+| `GetBuildAttestation` | SLSA build provenance |
+| `GetEmergencyStatus` | Emergency shutdown status |
 
-1. **Agent Hash** - Is this agent build registered and approved?
-2. **Partner License** - Is this organization licensed for the requested capabilities?
+### PortalService (Authenticated)
 
-The effective capabilities are the **intersection** of what the agent supports and what the partner is licensed for.
+| Method | Description |
+|--------|-------------|
+| `CreateOrganization` | Create new organization |
+| `GetOrganization` | Get organization details |
+| `UpdateOrganization` | Update organization |
+| `ListOrganizations` | List all organizations (paginated) |
+| `BatchCreateOrganizations` | Batch create (max 100) |
+| `CreateOrgUser` | Invite user to organization |
+| `GetOrgUser` | Get user by ID |
+| `GetOrgUserByEmail` | Get user by email |
+| `UpdateOrgUser` | Update user details/role |
+| `ListOrgUsers` | List organization users |
+| `BatchCreateOrgUsers` | Batch create users |
+| `GenerateKeyPair` | Generate Ed25519+ML-DSA-65 keypair |
+| `ListKeys` | List organization keys |
+| `ActivateKey` | Activate pending key |
+| `RotateKey` | Zero-downtime key rotation |
+| `RevokeKey` | Revoke compromised key |
+| `RequestKeyEscrow` | Create key backup |
+| `RequestKeyRecovery` | Recover escrowed key |
+| `ListKeyEscrows` | List key escrows |
+| `RequestSignature` | Sign with custodied key |
+| `GetAuditLog` | Query audit events |
+| `ExportAuditLog` | Export JSON/CSV/JSONL/Splunk |
+| `GenerateComplianceReport` | SOC2/HIPAA/GDPR reports |
 
-### Multi-Source Validation
+### RegistryAdminService (Admin Only)
 
-Critical queries are validated across geographically distributed sources:
-
-| Source | Endpoint | Purpose |
-|--------|----------|---------|
-| DNS US | registry-us.ciris.ai | Primary DNS |
-| DNS EU | registry-eu.ciris.ai | Geographic redundancy |
-| HTTPS | api.registry.ciris.ai | Full record access |
-
-At least 2 of 3 sources must agree for a positive verification.
-
-## Repository Structure
-
-```
-CIRISRegistry/
-├── FSD/
-│   └── FSD-001_CIRISREGISTRY_PROTOCOL.md   # Full specification
-├── protocol/
-│   └── ciris_registry.proto                 # Protocol buffer definitions
-├── docs/
-│   └── ...                                  # Additional documentation
-├── CLAUDE.md                                # AI development guide
-└── README.md                                # This file
-```
-
-## Key Concepts
-
-### Agent Registry
-
-Maps cryptographic hashes of agent builds to their properties:
-
-```protobuf
-message AgentRecord {
-  bytes agent_hash = 1;           // SHA-256 of agent build
-  AgentType agent_type = 2;       // CIRISCARE, CIRISMEDICAL, etc.
-  SemanticVersion version = 3;
-  repeated string base_capabilities = 10;
-  AutonomyTier max_autonomy_tier = 11;
-  AgentStatus status = 30;        // ACTIVE, DEPRECATED, REVOKED
-  HybridSignature registry_signature = 50;
-}
-```
-
-### Partner Registry
-
-Maps licensed organizations to their authorized capabilities:
-
-```protobuf
-message PartnerRecord {
-  string partner_id = 1;
-  string organization_name = 2;
-  LicenseType license_type = 10;  // COMMUNITY, PROFESSIONAL_MEDICAL, etc.
-  repeated string capabilities_granted = 20;
-  repeated string capabilities_denied = 21;
-  AutonomyTier max_autonomy_tier = 22;
-  PartnerStatus status = 50;      // ACTIVE, SUSPENDED, REVOKED
-}
-```
-
-### Revocation List
-
-Time-critical revocation information distributed separately:
-
-```protobuf
-message RevocationEntry {
-  RevocationType target_type = 1; // AGENT_HASH, PARTNER_ID, LICENSE_ID
-  string target_id = 2;
-  RevocationReason reason_code = 11;
-  RevocationSeverity severity = 13;
-}
-```
+| Method | Description |
+|--------|-------------|
+| `RegisterAgent` | Register new agent build |
+| `BatchRegisterAgents` | Batch register (max 1000) |
+| `RegisterPartner` | Register licensed partner |
+| `RevokeEntity` | Revoke agent/partner/license |
+| `MassRevoke` | Incident response mass revocation |
+| `SetEmergencyShutdown` | Enable emergency lockdown |
+| `ClearEmergencyShutdown` | Clear emergency status |
+| `RotateSigningKey` | Rotate registry signing key |
+| `GetActiveSigningKey` | Get current signing key |
+| `ListSigningKeys` | List all signing keys |
+| `TestHSMConnection` | Test HSM/Vault connectivity |
+| `RegisterBuildAttestation` | Register SLSA attestation |
+| `RegisterWebhook` | Configure event webhook |
+| `ListWebhooks` | List webhooks |
+| `DeleteWebhook` | Remove webhook |
+| `ListExpiringLicenses` | Track license expirations |
+| `GetPartnerActivity` | Partner health assessment |
+| `CleanupTestRecords` | Remove test data |
 
 ## Security
 
 ### Hybrid Cryptography
 
-All records are signed using Ed25519 (classical) + ML-DSA-65 (post-quantum):
+All signatures use both classical and post-quantum algorithms:
 
-```protobuf
-message HybridSignature {
-  bytes classical_signature = 1;      // Ed25519
-  bytes post_quantum_signature = 2;   // ML-DSA-65 (FIPS 204)
-  int64 timestamp = 3;
-  string key_id = 4;
-}
-```
+- **Ed25519** - 64-byte classical signatures
+- **ML-DSA-65** - ~3300-byte post-quantum signatures (FIPS 204)
+
+Both signatures are required for verification. This ensures:
+- Current security via Ed25519
+- Future-proof protection against quantum computers
 
 ### Fail-Secure Design
 
-- Unknown agents default to community tier
-- Unknown partners have no capability grants
-- Any source reporting REVOKED triggers immediate action
-- Network failures result in degradation, never escalation
+- Unknown agents default to community tier (no professional capabilities)
+- Unknown partners receive no capability grants
+- Network failures trigger graceful degradation, never escalation
+- Any revocation signal from any source triggers immediate enforcement
 
-## Integration
+### Multi-Source Validation
 
-### CIRISVerify
+Critical deployments can verify against multiple sources:
+- DNS US (registry-us.ciris.ai)
+- DNS EU (registry-eu.ciris.ai)
+- HTTPS API (api.registry.ciris.ai)
 
-Queries CIRISRegistry via:
-1. **HTTPS API** - Full record lookup with hardware attestation
-2. **DNS TXT** - Lightweight status verification for multi-source validation
-3. **Signed Snapshots** - Offline operation support
+2-of-3 agreement required for positive verification.
 
-### CIRISPortal
+## Configuration
 
-Administrative interface at **portal.ciris.ai** that writes to CIRISRegistry:
-- Organization and user management
-- Partner onboarding and license management
-- Custodied key generation and registration
-- Audit log viewing
+### Environment Variables
 
-See [CIRISPortal](https://github.com/CIRISAI/CIRISPortal) for the admin interface.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgres://ciris:ciris_dev@localhost:5434/ciris_registry` | PostgreSQL connection |
+| `GRPC_PORT` | `50052` | gRPC server port |
+| `HTTP_PORT` | `8082` | HTTP health/metrics port |
+| `RUST_LOG` | `info` | Log level (trace/debug/info/warn/error) |
 
-## API Endpoints
+### Key Storage Options
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/v1/agents/{hash}` | GET | Lookup agent by hash |
-| `/v1/partners/{id}` | GET | Lookup partner by ID |
-| `/v1/partners` | POST | Create partner record |
-| `/v1/partners/{id}/keys` | POST | Register partner public key |
-| `/v1/revocations` | GET | Get revocation list |
-| `/v1/organizations` | GET/POST | Organization management |
-| `/v1/organizations/{id}/users` | GET/POST | User management |
+1. **File-based** (development) - Keys stored in local files
+2. **HashiCorp Vault** (production) - Secure secret management
+3. **HSM** (high-security) - Hardware security module integration
+
+## Development
+
+### Project Structure
+
+```
+CIRISRegistry/
+├── rust-registry/           # Rust implementation
+│   ├── src/
+│   │   ├── services/       # gRPC service implementations
+│   │   ├── db/             # Database layer (13 modules)
+│   │   ├── crypto/         # Hybrid cryptography
+│   │   ├── middleware/     # Auth, metrics, tracing
+│   │   └── api/            # HTTP endpoints
+│   └── migrations/         # SQL schema
+├── protocol/               # Protobuf definitions
+│   └── ciris_registry.proto
+├── FSD/                    # Functional specifications
+├── docs/                   # Documentation
+└── scripts/                # Utility scripts
+```
+
+### Build from Source
+
+```bash
+cd rust-registry
+cargo build --release
+```
+
+### Run Tests
+
+```bash
+cd rust-registry
+cargo test
+```
+
+### Generate Proto Code
+
+Proto code is auto-generated at build time via `build.rs`. To regenerate:
+
+```bash
+cd rust-registry
+cargo build
+```
+
+## Documentation
+
+- [CLAUDE.md](./CLAUDE.md) - Development guide and architecture
+- [FSD-001](./FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md) - Protocol specification
+- [UIUX-001](./FSD/UIUX-001_PORTAL_SCREENS.md) - Portal UI/UX guide
+- [QA Plan](./docs/QA_INTEGRATION_PLAN.md) - Testing strategy
+
+## CIRIS Ecosystem
+
+CIRISRegistry is part of the CIRIS AI governance ecosystem:
+
+| Component | Purpose |
+|-----------|---------|
+| **CIRISRegistry** | Trust registry (this repo) |
+| **CIRISPortal** | Admin web interface |
+| **CIRISVerify** | Hardware-rooted verification |
+| **CIRISAgent** | Ethical AI framework |
+| **CIRISLens** | Observability platform |
 
 ## License
 
-CIRIS Mission License (CML) - See LICENSE file.
-
-## Related Projects
-
-| Project | Purpose |
-|---------|---------|
-| [CIRISPortal](https://github.com/CIRISAI/CIRISPortal) | Partner portal and key custody (portal.ciris.ai) |
-| [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) | Hardware-rooted license verification |
-| [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) | Core agent engine |
+Copyright 2025 CIRIS L3C. All rights reserved.
 
 ## Contact
 
