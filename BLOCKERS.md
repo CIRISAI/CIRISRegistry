@@ -1,229 +1,194 @@
-# CIRISRegistry - Blockers & Dependencies
+# CIRISRegistry - Status & Roadmap
 
 **Last Updated:** 2026-01-26
 
 ---
 
-## Progress Summary
+## Implementation Status
 
-| Component | Status |
-|-----------|--------|
-| Proto definitions | ✅ Complete (organizations, users, keys, audit, gRPC services) |
-| Database schema | ✅ Complete (7 migration files) |
-| Migration runner | ✅ Complete (auto-runs on startup) |
-| API scaffolding | ✅ Complete (repository + service layers) |
-| Terraform | ✅ Complete (Vultr US + Hetzner EU) |
-| Ansible | ✅ Complete (needs app deployment testing) |
-| ML-DSA-65 signing | 🔴 BLOCKER |
-| Repository implementations | 🟡 Stubs only |
+### Core Services - COMPLETE
 
----
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Rust Implementation** | ✅ Complete | Migrated from Go, fully functional |
+| **RegistryService** | ✅ 12 endpoints | Public read-only API |
+| **RegistryAdminService** | ✅ 18 endpoints | Admin operations |
+| **PortalService** | ✅ 17 endpoints | CIRISPortal backend |
+| **Database Layer** | ✅ 13 modules | Full CRUD + batch operations |
+| **Hybrid Cryptography** | ✅ Complete | Ed25519 + ML-DSA-65 signatures |
+| **Property-Based Testing** | ✅ 61 tests | Proptest (Hypothesis equivalent) |
 
-## Critical Blockers
+### Infrastructure - COMPLETE
 
-### 1. ML-DSA-65 (Post-Quantum) Library
-
-**Status:** 🔴 BLOCKER
-
-No production-ready ML-DSA-65 implementation integrated:
-
-| Platform | Options | Status |
-|----------|---------|--------|
-| Go (API server) | `circl` (Cloudflare) | Available, needs integration |
-| Cloudflare Workers (Portal) | None native | Need WASM build or server proxy |
-| Python (testing) | `liboqs-python` | Available |
-
-**Recommended Path:**
-1. Use Cloudflare's `circl` library for Go implementation
-2. Portal uses API server for signing (custodied keys)
-
-**Effort:** Medium (1-2 weeks)
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Proto Definitions** | ✅ Complete | All messages and services defined |
+| **Database Schema** | ✅ 8 migrations | Auto-runs on startup |
+| **Docker Compose** | ✅ Working | Development environment |
+| **Ansible Playbooks** | ✅ Complete | staging, production, canary vars |
+| **Security Hardening** | ✅ Complete | Production secret validation |
 
 ---
 
-### 2. Repository Implementations
+## What Works Now
 
-**Status:** 🟡 Stubs Only
+### Full Functionality (No External Dependencies)
 
-Repository interfaces defined, but implementations are stubs (`ErrNotImplemented`).
+1. **Agent Management**
+   - RegisterAgent / BatchRegisterAgents
+   - LookupAgent / BatchLookupAgents
+   - ListRegisteredAgents (with filtering, pagination)
+   - RevokeEntity / MassRevoke
 
-**Files:**
-- `internal/repository/repository.go` - interfaces and types
-- `internal/repository/stubs.go` - stub implementations
+2. **Partner Management**
+   - RegisterPartner
+   - LookupPartner
+   - VerifyDeployment (agent+partner effective capabilities)
 
-**Needs:**
-- SQL queries for CRUD operations
-- Pagination cursor encoding/decoding
-- Error handling for not-found cases
+3. **Organization & User Management**
+   - Full CRUD for Organizations
+   - Full CRUD for Users
+   - Batch operations (max 100)
+   - Role-based access
 
-**Effort:** Medium (3-5 days)
+4. **Key Management (Custodied)**
+   - GenerateKeyPair (Ed25519 + ML-DSA-65)
+   - RotateKey with grace period
+   - RevokeKey
+   - Key escrow workflow
 
----
+5. **Cryptographic Operations**
+   - Hybrid signatures on all responses
+   - RequestSignature for custodied keys
+   - Post-quantum ready (ML-DSA-65)
 
-### 3. gRPC Server Wiring
+6. **Revocation & Emergency**
+   - GetRevocationList (full + delta)
+   - SetEmergencyShutdown / ClearEmergencyShutdown
+   - MassRevoke by hash, version, or partner
 
-**Status:** 🟡 Not Connected
+7. **Offline Verification**
+   - GetOfflinePackage (gzip, signed, 72h TTL)
+   - GetOfflineDelta (incremental updates)
 
-Service implementations exist but aren't wired to gRPC server:
+8. **Audit & Compliance**
+   - Full audit trail
+   - Export: JSON, CSV, JSONL, Splunk HEC
+   - Compliance reports: SOC2, ISO27001, HIPAA
 
-**Files:**
-- `internal/service/registry.go` - RegistryService
-- `internal/service/admin.go` - AdminService
-- `internal/service/portal.go` - PortalService
-
-**Needs:**
-1. Generate Go code from proto: `make proto`
-2. Wire services to gRPC server in `cmd/registry/main.go`
-3. Add authentication middleware
-
-**Effort:** Low (1-2 days)
-
----
-
-## Dependencies
-
-### CIRISPortal → CIRISRegistry
-
-Portal needs these Registry gRPC endpoints (defined in proto):
-
-| Service | Method | Priority | Status |
-|---------|--------|----------|--------|
-| PortalService | CreateOrganization | P0 | Service stub ready |
-| PortalService | GetOrganization | P0 | Service stub ready |
-| PortalService | ListOrganizations | P0 | Service stub ready |
-| PortalService | CreateOrgUser | P0 | Service stub ready |
-| PortalService | ListOrgUsers | P0 | Service stub ready |
-| PortalService | GenerateKeyPair | P0 | Service stub ready |
-| PortalService | RequestSignature | P0 | Service stub ready |
-| RegistryService | GetPublicKeys | P1 | Service stub ready |
-| RegistryService | LookupPartner | P1 | Service stub ready |
-
-### CIRISVerify → CIRISRegistry
-
-Verify needs read-only endpoints:
-
-| Service | Method | Priority | Status |
-|---------|--------|----------|--------|
-| RegistryService | LookupAgent | P0 | Service stub ready |
-| RegistryService | LookupPartner | P0 | Service stub ready |
-| RegistryService | VerifyDeployment | P0 | Service stub ready |
-| RegistryService | GetRevocationList | P0 | Service stub ready |
-| DNS TXT records | - | P0 | Terraform ready |
+9. **Health & Observability**
+   - HealthCheck with component diagnostics
+   - Prometheus metrics
+   - HTTP endpoints: /health, /ready, /live, /metrics
 
 ---
 
-## Completed Components
-
-### Proto Definitions ✅
-
-**File:** `protocol/ciris_registry.proto`
-
-Added for CIRISPortal integration:
-- `Organization` message
-- `OrgUser` message
-- `OrgRole` enum
-- `PartnerKeyRecord` message
-- `KeyStatus` enum
-- `KeyCustodyModel` enum
-- `PublicKeys` message
-- `SignRequest` / `SignResponse` messages
-- `AuditEntry` / `AuditActionType` messages
-- CRUD request/response messages for all entities
-- gRPC service definitions: `RegistryService`, `RegistryAdminService`, `PortalService`
-
-### Database Schema ✅
-
-**Directory:** `internal/database/migrations/`
-
-| Migration | Description |
-|-----------|-------------|
-| 001_enums_and_extensions.sql | PostgreSQL extensions, all enum types |
-| 002_agent_registry.sql | `agents` table |
-| 003_partner_registry.sql | `partners`, `revocations`, `registry_snapshots` tables |
-| 004_organizations.sql | `organizations`, `org_users`, `user_sessions` tables |
-| 005_key_management.sql | `partner_keys`, `signing_log` tables |
-| 006_audit_log.sql | `audit_log`, `schema_migrations` tables |
-| 007_indexes_and_triggers.sql | Performance indexes, updated_at triggers |
-
-### Migration Runner ✅
-
-**Files:**
-- `internal/database/migrator.go` - embeds and runs migrations on startup
-- `internal/database/db.go` - connection helper with `ConnectAndMigrate()`
-
-Features:
-- Automatic migration on server startup
-- Checksum verification (detects modified migrations)
-- Transactional migrations
-- Migration status reporting
-
-### Infrastructure ✅
-
-**Terraform:**
-- [x] Vultr US region (New Jersey)
-- [x] Hetzner EU region (Nuremberg)
-- [x] Cloudflare DNS records
-- [x] Cloudflare Load Balancer
-- [x] SSH key provisioning
-
-**Ansible:**
-- [x] System setup (packages, firewall, user)
-- [x] PostgreSQL installation and replication config
-- [x] Nginx with SSL (Let's Encrypt)
-- [x] Systemd service template
-- [x] CIRISBridge Vault integration
-
----
-
-## Vault Secrets Required
-
-For CIRISBridge deployment, add to `secret/data/ciris/registry`:
-
-```yaml
-db_password: "<generated>"
-db_replication_password: "<generated>"
-registry_signing_key_ed25519: "<base64 Ed25519 private key>"
-registry_signing_key_mldsa65: "<base64 ML-DSA-65 private key>"
-admin_api_key: "<generated>"
-cloudflare_api_token: "<from CF dashboard>"
-cloudflare_zone_id: "<ciris.ai zone ID>"
-```
-
----
-
-## Build & Run
+## Quick Start
 
 ```bash
-# Generate proto
-make proto
+# Start everything
+docker compose up -d
 
-# Build
-make build
+# Verify health
+curl http://localhost:8082/health
 
-# Run locally (requires PostgreSQL)
-export DB_HOST=localhost
-export DB_PASSWORD=ciris_dev
-./bin/registry
+# List agents via gRPC
+grpcurl -plaintext localhost:50052 \
+  ciris.registry.v1.RegistryAdminService/ListRegisteredAgents
 
-# Start dev database (Docker)
-make db-start
+# Run tests (requires cargo)
+cd rust-registry && cargo test
 ```
 
 ---
 
-## Next Steps
+## Future Enhancements (Not Blockers)
 
-1. **Implement repository layer** - Replace stubs with SQL queries
-2. **Integrate `circl`** - Add ML-DSA-65 signing via Cloudflare's library
-3. **Wire gRPC server** - Connect services to generated proto code
-4. **Add authentication** - OAuth token verification middleware
-5. **Deploy to staging** - Test with CIRISPortal
+### Nice to Have
+
+| Feature | Priority | Status |
+|---------|----------|--------|
+| HSM Integration (PKCS#11) | P2 | Placeholder code exists |
+| Vault Transit API | P2 | Config ready, needs implementation |
+| Merkle Proofs | P3 | Stubs in place |
+| Rate Limiting | P2 | Not yet implemented |
+| Request Timeouts | P2 | Not yet implemented |
+
+### CIRISVerify Integration
+
+CIRISVerify is a **separate component** that consumes Registry data:
+- Runs on client machines
+- Hardware-rooted verification
+- Multi-source validation (DNS + HTTPS)
+- Local caching with offline support
+
+**Registry does NOT depend on CIRISVerify.** Any gRPC client can use the Registry directly.
 
 ---
 
-## Resolved Questions
+## Resolved Blockers (Historical)
 
-1. **API Framework:** Go + gRPC ✅
-2. **Key Custody:** Portal uses Registry API for signing (custodied in Cloudflare KV) ✅
-3. **Replication Strategy:** PostgreSQL active/active managed by bridge team ✅
-4. **Database:** PostgreSQL 15+ ✅
+### ML-DSA-65 Library - RESOLVED
+
+**Solution:** Using `pqcrypto-mldsa` crate (Rust bindings to liboqs)
+
+```toml
+[dependencies]
+pqcrypto-mldsa = "0.1"
+```
+
+Implemented in `rust-registry/src/crypto/mod.rs`.
+
+### Go to Rust Migration - RESOLVED
+
+**Decision:** Migrated entirely to Rust for:
+- Better async performance (tokio)
+- Stronger type safety
+- Single-binary deployment
+- Native gRPC support (tonic)
+
+---
+
+## Environment Configuration
+
+All settings exposed via environment variables for Ansible:
+
+```bash
+# Required in Production
+ENVIRONMENT=production
+DB_PASSWORD=<from-vault>
+JWT_SECRET=<min-32-chars>
+DB_SSLMODE=require
+
+# Key Storage
+KEY_STORAGE_MODE=file|vault|hsm
+ED25519_KEY_PATH=/path/to/key
+MLDSA_KEY_PATH=/path/to/key
+
+# See rust-registry/.env.example for full list
+```
+
+---
+
+## Deployment Readiness
+
+| Environment | Ready | Notes |
+|-------------|-------|-------|
+| Development | ✅ Yes | Docker Compose |
+| Staging | ✅ Yes | Ansible vars complete |
+| Production | ✅ Yes | Security hardening complete |
+
+Production deployment requires:
+1. Set `ENVIRONMENT=production`
+2. Provide secure `DB_PASSWORD` (not "ciris_dev")
+3. Provide secure `JWT_SECRET` (min 32 chars, no "development")
+4. Configure `DB_SSLMODE=require` or `verify-full`
+5. Generate and deploy signing keys
+
+---
+
+## Contact
+
+- Technical: registry@ciris.ai
+- Security: security@ciris.ai
+- Licensing: licensing@ciris.ai

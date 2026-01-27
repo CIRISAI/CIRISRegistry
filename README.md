@@ -69,8 +69,8 @@ grpcurl -plaintext localhost:50052 ciris.registry.v1.RegistryService/HealthCheck
 │                    CIRISRegistry API                             │
 │                                                                  │
 │   gRPC Services (port 50052):                                   │
-│   ├── RegistryService       - Public read-only (13 methods)    │
-│   ├── PortalService         - Authenticated ops (23 methods)   │
+│   ├── RegistryService       - Public read-only (12 methods)    │
+│   ├── PortalService         - Portal operations (17 methods)   │
 │   └── RegistryAdminService  - Admin operations (18 methods)    │
 │                                                                  │
 │   HTTP Endpoints (port 8082):                                   │
@@ -256,7 +256,9 @@ cargo build
 - [CLAUDE.md](./CLAUDE.md) - Development guide and architecture
 - [FSD-001](./FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md) - Protocol specification
 - [UIUX-001](./FSD/UIUX-001_PORTAL_SCREENS.md) - Portal UI/UX guide
-- [QA Plan](./docs/QA_INTEGRATION_PLAN.md) - Testing strategy
+- [Testing Strategy](./docs/TESTING_STRATEGY.md) - Property-based testing guide
+- [Deployment Guide](./docs/DEPLOYMENT.md) - AWS/Ansible deployment
+- [Security & Ops](./rust-registry/docs/SECURITY_OPS_REVIEW.md) - Environment variables and security
 
 ## CIRIS Ecosystem
 
