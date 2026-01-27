@@ -106,14 +106,12 @@ where
                     }
                     Err(e) => {
                         tracing::warn!("JWT validation failed: {}", e);
-                        // For now, log but don't reject (to allow gradual migration)
-                        // In production, uncomment below to enforce auth:
-                        // return Box::pin(async move {
-                        //     Ok(Response::builder()
-                        //         .status(StatusCode::UNAUTHORIZED)
-                        //         .body(ResBody::default())
-                        //         .unwrap())
-                        // });
+                        return Box::pin(async move {
+                            Ok(Response::builder()
+                                .status(StatusCode::UNAUTHORIZED)
+                                .body(ResBody::default())
+                                .unwrap())
+                        });
                     }
                 }
             }
