@@ -117,6 +117,47 @@ enum OrgRole {
 
 *Only for PARTNER orgs
 
+### 4a. User Model (Multi-Org)
+
+```protobuf
+// User identity (org-independent)
+message User {
+  string user_id = 1;
+  string email = 2;
+  string name = 3;
+  string oauth_provider = 10;
+  string oauth_subject = 11;
+  bool active = 20;
+  int64 created_at = 21;
+  int64 updated_at = 22;
+  int64 last_login_at = 23;
+  string created_at_iso = 24;
+  string updated_at_iso = 25;
+  string last_login_at_iso = 26;
+  bool mfa_enabled = 30;
+  string mfa_method = 31;
+
+  // Memberships this user has (populated on fetch)
+  repeated OrgMembership memberships = 40;
+}
+
+// User's membership in a specific org
+message OrgMembership {
+  string org_id = 1;
+  string org_name = 2;              // Denormalized for convenience
+  OrgType org_type = 3;             // Denormalized
+  OrgRole role = 4;
+  string invited_by = 5;
+  int64 created_at = 6;
+  string created_at_iso = 7;
+}
+```
+
+**Key Difference from OrgUser:**
+- `OrgUser` was tied to a single org (had `org_id` as core field)
+- `User` is identity-only; memberships are a list
+- A user can be `ORG_ADMIN` in Org A and `ORG_VIEWER` in Org B
+
 ### 5. License Tiers (Clarified Naming)
 
 The existing `LicenseType` in `PartnerRecord` maps to capability grants:
@@ -144,7 +185,7 @@ ADD COLUMN parent_org_id TEXT REFERENCES organizations(org_id);
 -- Index for hierarchy queries
 CREATE INDEX idx_organizations_parent ON organizations(parent_org_id);
 
--- System users table (separate from org_users)
+-- System users table (global admins, separate from org membership)
 CREATE TABLE system_users (
   user_id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
@@ -157,7 +198,46 @@ CREATE TABLE system_users (
     role != 1 OR email LIKE '%@ciris.ai'  -- SYSTEM_ADMIN must be @ciris.ai
   )
 );
+
+-- Refactored: Users table (identity only, no org affiliation)
+-- Migration: Extract user identity from org_users
+CREATE TABLE users (
+  user_id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  oauth_provider TEXT,
+  oauth_subject TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_login_at TIMESTAMPTZ,
+  mfa_enabled BOOLEAN NOT NULL DEFAULT false,
+  mfa_method TEXT
+);
+
+-- Junction table: User ↔ Organization with role
+-- Replaces org_users (which had org_id baked in)
+CREATE TABLE user_org_memberships (
+  user_id TEXT NOT NULL REFERENCES users(user_id),
+  org_id TEXT NOT NULL REFERENCES organizations(org_id),
+  role INTEGER NOT NULL,  -- OrgRole enum
+  invited_by TEXT REFERENCES users(user_id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, org_id)
+);
+
+-- Index for "list users in org" queries
+CREATE INDEX idx_user_org_memberships_org ON user_org_memberships(org_id);
 ```
+
+**Migration Strategy:**
+1. Create new `users` and `user_org_memberships` tables
+2. Migrate data from `org_users`:
+   - Insert into `users` (dedupe by email if needed)
+   - Insert into `user_org_memberships` with existing role
+3. Update application code to use new schema
+4. Drop `org_users` table
 
 ### 7. API Changes
 
@@ -257,27 +337,28 @@ message CreateOrganizationRequest {
 
 ---
 
-## Open Questions
+## Design Decisions
 
-1. **Should LICENSEE orgs inherit capabilities from parent PARTNER?**
-   - Option A: Yes, automatic inheritance
-   - Option B: No, explicit grants required
-   - Recommendation: Option A with ability to restrict
+1. **LICENSEE orgs do NOT inherit capabilities from parent PARTNER**
+   - LICENSEE may be a vertical (e.g., medical clinic) where parent is a horizontal/SI
+   - Each LICENSEE has their own PartnerRecord with explicit capability grants
+   - Parent relationship is organizational/billing, not capability inheritance
 
-2. **Can a user belong to multiple orgs?**
-   - Current: No (org_id is required on OrgUser)
-   - Proposal: Allow multi-org membership via junction table
-   - Recommendation: Keep single-org for simplicity, system users handle cross-org access
+2. **Users can belong to multiple orgs with different roles**
+   - Remove org_id from OrgUser, use junction table instead
+   - User can be ADMIN in one org, VIEWER in another
+   - System users are still separate (global access)
 
-3. **How do COMMUNITY orgs get upgraded to PARTNER?**
+3. **Community → Partner upgrade supported**
    - Requires Steward action (SYSTEM_ADMIN)
    - Creates PartnerRecord with license
    - Changes org_type to PARTNER
+   - Existing users/data preserved
 
-4. **Rate limiting by org type?**
+4. **Rate limiting by org type**
    - INTERNAL: No limits
    - PARTNER: Standard limits
-   - LICENSEE: Inherit parent limits
+   - LICENSEE: Own limits (not inherited from parent)
    - COMMUNITY: Stricter limits
 
 ---
@@ -288,12 +369,25 @@ message CreateOrganizationRequest {
 |--------|---------|
 | **Organization** | +org_type, +parent_org_id |
 | **OrgRole** | Unchanged (org-scoped) |
-| **SystemUser** | New table/message |
+| **User** | New table (replaces OrgUser identity) |
+| **OrgMembership** | Junction table: user ↔ org with role |
+| **SystemUser** | New table/message (global admins) |
 | **SystemRole** | New enum (ADMIN, AUDITOR, WISE_AUTHORITY) |
-| **PortalService** | +CreateSystemUser, +ListSystemUsers, +CreateLicenseeOrganization |
+| **PortalService** | +CreateSystemUser, +ListSystemUsers, +CreateLicenseeOrganization, +AddUserToOrg, +RemoveUserFromOrg |
 
-This design maintains backward compatibility while enabling the hierarchical model needed for the CIRIS ecosystem licensing structure.
+### Key Design Decisions
+
+1. **LICENSEE does NOT inherit parent capabilities** - Verticals have their own license
+2. **Multi-org membership** - User can have different roles in different orgs
+3. **Community → Partner upgrade** - Supported via SYSTEM_ADMIN action
+
+### Breaking Changes
+
+- `OrgUser` replaced by `User` + `OrgMembership`
+- Portal must update to:
+  - Create user first, then add to org
+  - Or use atomic `CreateUserWithMembership` (new RPC)
 
 ---
 
-*Awaiting review before implementation.*
+*Awaiting approval before implementation.*
