@@ -64,17 +64,32 @@ impl PortalServiceTrait for PortalService {
 
         let org = req.organization.ok_or_else(|| Status::invalid_argument("organization required"))?;
 
-        info!(name = %org.name, "Creating organization");
+        // Check if initial_admin is provided - use transactional creation to avoid race condition
+        if let Some(admin_user) = req.initial_admin {
+            info!(name = %org.name, admin_email = %admin_user.email, "Creating organization with initial admin");
 
-        let org_id = db::create_organization(self.db.pool(), &org)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+            let (org_id, user_id) = db::create_organization_with_admin(self.db.pool(), &org, &admin_user)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
 
-        Ok(Response::new(self.admin_response(
-            true,
-            &format!("Organization created with ID: {}", org_id),
-            request_id,
-        )))
+            Ok(Response::new(self.admin_response(
+                true,
+                &format!("Organization created with ID: {}, admin user ID: {}", org_id, user_id),
+                request_id,
+            )))
+        } else {
+            info!(name = %org.name, "Creating organization");
+
+            let org_id = db::create_organization(self.db.pool(), &org)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+
+            Ok(Response::new(self.admin_response(
+                true,
+                &format!("Organization created with ID: {}", org_id),
+                request_id,
+            )))
+        }
     }
 
     async fn get_organization(

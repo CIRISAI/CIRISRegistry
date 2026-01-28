@@ -143,6 +143,74 @@ pub async fn list_organizations(
     Ok((rows, total.0 as i32))
 }
 
+/// Create an organization with an initial admin user in a single transaction
+/// This ensures the org exists before the user is created (avoids FK violation race)
+pub async fn create_organization_with_admin(
+    pool: &PgPool,
+    org: &proto::Organization,
+    admin_user: &proto::OrgUser,
+) -> Result<(String, String)> {
+    let org_id = uuid::Uuid::new_v4().to_string();
+    let user_id = uuid::Uuid::new_v4().to_string();
+
+    let mut tx = pool.begin().await?;
+
+    // Create organization
+    sqlx::query(
+        r#"
+        INSERT INTO organizations (
+            org_id, name, legal_name, tax_id, partner_id, primary_email,
+            billing_email, technical_contact_email, compliance_contact_email,
+            oauth_provider, oauth_domain, active, created_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        "#,
+    )
+    .bind(&org_id)
+    .bind(&org.name)
+    .bind(&org.legal_name)
+    .bind(if org.tax_id.is_empty() { None } else { Some(&org.tax_id) })
+    .bind(if org.partner_id.is_empty() { None } else { Some(&org.partner_id) })
+    .bind(&org.primary_email)
+    .bind(if org.billing_email.is_empty() { None } else { Some(&org.billing_email) })
+    .bind(if org.technical_contact_email.is_empty() { None } else { Some(&org.technical_contact_email) })
+    .bind(if org.compliance_contact_email.is_empty() { None } else { Some(&org.compliance_contact_email) })
+    .bind(if org.oauth_provider.is_empty() { None } else { Some(&org.oauth_provider) })
+    .bind(if org.oauth_domain.is_empty() { None } else { Some(&org.oauth_domain) })
+    .bind(org.active)
+    .bind(if org.created_by.is_empty() { None } else { Some(&org.created_by) })
+    .execute(&mut *tx)
+    .await?;
+
+    // Create admin user in the same transaction
+    sqlx::query(
+        r#"
+        INSERT INTO org_users (
+            user_id, org_id, email, name, oauth_provider, oauth_subject,
+            role, active, invited_by, mfa_enabled, mfa_method
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        "#,
+    )
+    .bind(&user_id)
+    .bind(&org_id)
+    .bind(&admin_user.email)
+    .bind(&admin_user.name)
+    .bind(if admin_user.oauth_provider.is_empty() { None } else { Some(&admin_user.oauth_provider) })
+    .bind(if admin_user.oauth_subject.is_empty() { None } else { Some(&admin_user.oauth_subject) })
+    .bind(admin_user.role)
+    .bind(admin_user.active)
+    .bind(if admin_user.invited_by.is_empty() { None } else { Some(&admin_user.invited_by) })
+    .bind(admin_user.mfa_enabled)
+    .bind(if admin_user.mfa_method.is_empty() { None } else { Some(&admin_user.mfa_method) })
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok((org_id, user_id))
+}
+
 /// Update an organization
 pub async fn update_organization(pool: &PgPool, org_id: &str, org: &proto::Organization) -> Result<bool> {
     let result = sqlx::query(

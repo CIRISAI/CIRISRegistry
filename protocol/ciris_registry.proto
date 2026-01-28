@@ -1553,6 +1553,9 @@ message AdminResponse {
 message CreateOrganizationRequest {
   Organization organization = 1;
   bytes admin_signature = 2;
+  // Optional: Create an initial admin user in the same transaction
+  // This avoids race conditions when creating org + user separately
+  OrgUser initial_admin = 3;
   RequestContext context = 10;
 }
 
