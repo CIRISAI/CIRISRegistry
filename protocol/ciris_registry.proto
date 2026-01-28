@@ -462,6 +462,15 @@ message PartnerRecord {
 // ORGANIZATION MANAGEMENT (CIRISPortal)
 // ============================================================================
 
+// Organization type (determines hierarchy rules and capabilities)
+enum OrgType {
+  ORG_TYPE_UNSPECIFIED = 0;
+  ORG_INTERNAL = 1;                     // CIRIS L3C (Steward) - @ciris.ai only
+  ORG_PARTNER = 2;                      // Licensed Delegated Authority
+  ORG_LICENSEE = 3;                     // Under a partner (vertical deployment)
+  ORG_COMMUNITY = 4;                    // Unlicensed (cannot claim official status)
+}
+
 // Role within an organization
 enum OrgRole {
   ORG_ROLE_UNSPECIFIED = 0;
@@ -471,6 +480,14 @@ enum OrgRole {
   ORG_VIEWER = 4;                       // Read-only access
 }
 
+// System-level role (global, not org-scoped)
+enum SystemRole {
+  SYSTEM_ROLE_UNSPECIFIED = 0;
+  SYSTEM_ADMIN = 1;                     // Full system access (@ciris.ai only)
+  SYSTEM_AUDITOR = 2;                   // Read-only across all orgs
+  WISE_AUTHORITY = 3;                   // Governance access (9 members max)
+}
+
 // Organization record (Portal-managed)
 message Organization {
   // Identity
@@ -478,6 +495,10 @@ message Organization {
   string name = 2;                      // Display name
   string legal_name = 3;                // Legal entity name
   string tax_id = 4;                    // Tax ID / Registration number
+
+  // Organization type and hierarchy
+  OrgType org_type = 5;                 // INTERNAL, PARTNER, LICENSEE, COMMUNITY
+  string parent_org_id = 6;             // Parent org (for LICENSEE under PARTNER)
 
   // Link to partner license (if licensed)
   string partner_id = 10;               // Links to PartnerRecord.partner_id
@@ -537,6 +558,61 @@ message OrgUser {
   // MFA
   bool mfa_enabled = 40;
   string mfa_method = 41;               // "totp", "webauthn", etc.
+}
+
+// User identity (org-independent, supports multi-org membership)
+message User {
+  // Identity
+  string user_id = 1;                   // UUID assigned at creation
+  string email = 2;                     // Email (unique within system)
+  string name = 3;                      // Display name
+
+  // OAuth
+  string oauth_provider = 10;           // e.g., "google"
+  string oauth_subject = 11;            // OAuth sub claim
+
+  // Status
+  bool active = 20;
+  int64 created_at = 21;
+  int64 updated_at = 22;
+  int64 last_login_at = 23;
+
+  // ISO 8601 timestamp strings for JavaScript compatibility
+  string created_at_iso = 24;
+  string updated_at_iso = 25;
+  string last_login_at_iso = 26;
+
+  // MFA
+  bool mfa_enabled = 30;
+  string mfa_method = 31;               // "totp", "webauthn", etc.
+
+  // Memberships (populated on fetch)
+  repeated OrgMembership memberships = 40;
+}
+
+// User's membership in a specific organization
+message OrgMembership {
+  string org_id = 1;                    // Organization ID
+  string org_name = 2;                  // Denormalized for convenience
+  OrgType org_type = 3;                 // Denormalized
+  OrgRole role = 4;                     // User's role in this org
+  string invited_by = 5;                // User ID who invited
+  int64 created_at = 6;
+  string created_at_iso = 7;
+}
+
+// System user (global admin, separate from org membership)
+message SystemUser {
+  string user_id = 1;                   // UUID
+  string email = 2;                     // Must be @ciris.ai for SYSTEM_ADMIN
+  string name = 3;
+  SystemRole role = 4;
+  bool active = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+  string created_at_iso = 8;
+  string updated_at_iso = 9;
+  string created_by = 10;               // System user who created
 }
 
 // ============================================================================
@@ -1659,6 +1735,193 @@ message ListOrgUsersResponse {
 }
 
 // ============================================================================
+// USER MANAGEMENT API MESSAGES (Multi-Org)
+// ============================================================================
+
+// Create user (identity only, then add to orgs separately)
+message CreateUserRequest {
+  User user = 1;
+  RequestContext context = 10;
+}
+
+message CreateUserResponse {
+  bool success = 1;
+  string message = 2;
+  string user_id = 3;
+  User user = 4;
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
+// Create user and add to org in one transaction
+message CreateUserWithMembershipRequest {
+  User user = 1;
+  string org_id = 2;
+  OrgRole role = 3;
+  RequestContext context = 10;
+}
+
+message CreateUserWithMembershipResponse {
+  bool success = 1;
+  string message = 2;
+  string user_id = 3;
+  User user = 4;                        // Includes the membership
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
+// Get user by ID (includes all memberships)
+message GetUserRequest {
+  string user_id = 1;
+  RequestContext context = 10;
+}
+
+message GetUserResponse {
+  User user = 1;
+  bool found = 2;
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
+// Get user by email
+message GetUserByEmailRequest {
+  string email = 1;
+  RequestContext context = 10;
+}
+
+// Add user to an organization
+message AddUserToOrgRequest {
+  string user_id = 1;
+  string org_id = 2;
+  OrgRole role = 3;
+  string invited_by = 4;
+  RequestContext context = 10;
+}
+
+// Remove user from an organization
+message RemoveUserFromOrgRequest {
+  string user_id = 1;
+  string org_id = 2;
+  RequestContext context = 10;
+}
+
+// Update user's role in an organization
+message UpdateUserOrgRoleRequest {
+  string user_id = 1;
+  string org_id = 2;
+  OrgRole new_role = 3;
+  RequestContext context = 10;
+}
+
+// List users in an organization (returns User with single membership)
+message ListOrgMembersRequest {
+  string org_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  bool include_inactive = 4;
+  RequestContext context = 10;
+}
+
+message ListOrgMembersResponse {
+  repeated User users = 1;              // Each user has single membership (for this org)
+  string next_page_token = 2;
+  int32 total_count = 3;
+  ResponseContext context = 50;
+}
+
+// ============================================================================
+// SYSTEM USER API MESSAGES (Global Admins)
+// ============================================================================
+
+message CreateSystemUserRequest {
+  SystemUser user = 1;
+  RequestContext context = 10;
+}
+
+message CreateSystemUserResponse {
+  bool success = 1;
+  string message = 2;
+  string user_id = 3;
+  SystemUser user = 4;
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
+message GetSystemUserRequest {
+  string user_id = 1;
+  RequestContext context = 10;
+}
+
+message GetSystemUserResponse {
+  SystemUser user = 1;
+  bool found = 2;
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
+message ListSystemUsersRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  bool include_inactive = 3;
+  RequestContext context = 10;
+}
+
+message ListSystemUsersResponse {
+  repeated SystemUser users = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  ResponseContext context = 50;
+}
+
+message UpdateSystemUserRequest {
+  SystemUser user = 1;
+  RequestContext context = 10;
+}
+
+// ============================================================================
+// ORGANIZATION HIERARCHY API MESSAGES
+// ============================================================================
+
+// List child organizations (for PARTNER viewing LICENSEEs)
+message ListChildOrganizationsRequest {
+  string parent_org_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  bool include_inactive = 4;
+  RequestContext context = 10;
+}
+
+// Create licensee organization under a partner
+message CreateLicenseeOrganizationRequest {
+  Organization organization = 1;
+  string parent_org_id = 2;             // Must be PARTNER type
+  OrgUser initial_admin = 3;            // Optional initial admin
+  RequestContext context = 10;
+}
+
+// Get organization hierarchy (ancestors and children)
+message GetOrganizationHierarchyRequest {
+  string org_id = 1;
+  bool include_ancestors = 2;
+  bool include_descendants = 3;
+  RequestContext context = 10;
+}
+
+message GetOrganizationHierarchyResponse {
+  Organization organization = 1;
+  repeated Organization ancestors = 2;  // Parent chain up to root
+  repeated Organization children = 3;   // Direct children
+  ResponseContext context = 50;
+}
+
+// Upgrade community org to partner (SYSTEM_ADMIN only)
+message UpgradeToPartnerRequest {
+  string org_id = 1;
+  string partner_license_type = 2;      // License to grant
+  RequestContext context = 10;
+}
+
+// ============================================================================
 // KEY MANAGEMENT API MESSAGES
 // ============================================================================
 
@@ -1902,13 +2165,35 @@ service PortalService {
   rpc ListOrganizations(ListOrganizationsRequest) returns (ListOrganizationsResponse);
   rpc BatchCreateOrganizations(BatchCreateOrganizationsRequest) returns (BatchCreateOrganizationsResponse);
 
-  // User management
+  // User management (legacy - single org)
   rpc CreateOrgUser(CreateOrgUserRequest) returns (AdminResponse);
   rpc GetOrgUser(GetOrgUserRequest) returns (GetOrgUserResponse);
   rpc GetOrgUserByEmail(GetOrgUserByEmailRequest) returns (GetOrgUserResponse);
   rpc UpdateOrgUser(UpdateOrgUserRequest) returns (AdminResponse);
   rpc ListOrgUsers(ListOrgUsersRequest) returns (ListOrgUsersResponse);
   rpc BatchCreateOrgUsers(BatchCreateOrgUsersRequest) returns (BatchCreateOrgUsersResponse);
+
+  // User management (multi-org - v1.2.0)
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc CreateUserWithMembership(CreateUserWithMembershipRequest) returns (CreateUserWithMembershipResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserResponse);
+  rpc AddUserToOrg(AddUserToOrgRequest) returns (AdminResponse);
+  rpc RemoveUserFromOrg(RemoveUserFromOrgRequest) returns (AdminResponse);
+  rpc UpdateUserOrgRole(UpdateUserOrgRoleRequest) returns (AdminResponse);
+  rpc ListOrgMembers(ListOrgMembersRequest) returns (ListOrgMembersResponse);
+
+  // System user management (global admins - v1.2.0)
+  rpc CreateSystemUser(CreateSystemUserRequest) returns (CreateSystemUserResponse);
+  rpc GetSystemUser(GetSystemUserRequest) returns (GetSystemUserResponse);
+  rpc ListSystemUsers(ListSystemUsersRequest) returns (ListSystemUsersResponse);
+  rpc UpdateSystemUser(UpdateSystemUserRequest) returns (AdminResponse);
+
+  // Organization hierarchy (v1.2.0)
+  rpc ListChildOrganizations(ListChildOrganizationsRequest) returns (ListOrganizationsResponse);
+  rpc CreateLicenseeOrganization(CreateLicenseeOrganizationRequest) returns (CreateOrganizationResponse);
+  rpc GetOrganizationHierarchy(GetOrganizationHierarchyRequest) returns (GetOrganizationHierarchyResponse);
+  rpc UpgradeToPartner(UpgradeToPartnerRequest) returns (AdminResponse);
 
   // Key management (custodied)
   rpc GenerateKeyPair(GenerateKeyPairRequest) returns (GenerateKeyPairResponse);

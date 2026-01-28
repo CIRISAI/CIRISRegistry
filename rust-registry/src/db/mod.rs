@@ -8,11 +8,13 @@ mod build_attestations;
 mod emergency_status;
 mod escrows;
 mod keys;
+mod memberships;
 mod organizations;
 mod partners;
 mod revocations;
 mod signing_keys;
 mod snapshots;
+mod system_users;
 mod users;
 mod webhooks;
 
@@ -30,11 +32,13 @@ pub use build_attestations::*;
 pub use emergency_status::*;
 pub use escrows::*;
 pub use keys::*;
+pub use memberships::*;
 pub use organizations::*;
 pub use partners::*;
 pub use revocations::*;
 pub use signing_keys::*;
 pub use snapshots::*;
+pub use system_users::*;
 pub use users::*;
 pub use webhooks::*;
 

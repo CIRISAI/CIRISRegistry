@@ -23,6 +23,9 @@ pub struct OrganizationRow {
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
     pub created_by: Option<String>,
+    // Role hierarchy fields (added in migration 002)
+    pub org_type: i32,
+    pub parent_org_id: Option<String>,
 }
 
 impl OrganizationRow {
@@ -49,6 +52,9 @@ impl OrganizationRow {
             created_at_iso: self.created_at.format(&Rfc3339).unwrap_or_default(),
             updated_at_iso: self.updated_at.format(&Rfc3339).unwrap_or_default(),
             metadata: Default::default(),
+            // Role hierarchy fields
+            org_type: self.org_type,
+            parent_org_id: self.parent_org_id.clone().unwrap_or_default(),
         }
     }
 }
@@ -58,7 +64,8 @@ pub async fn get_organization(pool: &PgPool, org_id: &str) -> Result<Option<Orga
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by
+               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
+               org_type, parent_org_id
         FROM organizations
         WHERE org_id = $1
         "#,
@@ -78,9 +85,9 @@ pub async fn create_organization(pool: &PgPool, org: &proto::Organization) -> Re
         INSERT INTO organizations (
             org_id, name, legal_name, tax_id, partner_id, primary_email,
             billing_email, technical_contact_email, compliance_contact_email,
-            oauth_provider, oauth_domain, active, created_by
+            oauth_provider, oauth_domain, active, created_by, org_type, parent_org_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         "#,
     )
     .bind(&org_id)
@@ -96,6 +103,8 @@ pub async fn create_organization(pool: &PgPool, org: &proto::Organization) -> Re
     .bind(if org.oauth_domain.is_empty() { None } else { Some(&org.oauth_domain) })
     .bind(org.active)
     .bind(if org.created_by.is_empty() { None } else { Some(&org.created_by) })
+    .bind(org.org_type)
+    .bind(if org.parent_org_id.is_empty() { None } else { Some(&org.parent_org_id) })
     .execute(pool)
     .await?;
 
@@ -112,7 +121,8 @@ pub async fn list_organizations(
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by
+               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
+               org_type, parent_org_id
         FROM organizations
         ORDER BY created_at DESC
         LIMIT $1 OFFSET $2
@@ -121,7 +131,8 @@ pub async fn list_organizations(
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by
+               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
+               org_type, parent_org_id
         FROM organizations
         WHERE active = true
         ORDER BY created_at DESC
@@ -166,9 +177,9 @@ pub async fn create_organization_with_admin(
         INSERT INTO organizations (
             org_id, name, legal_name, tax_id, partner_id, primary_email,
             billing_email, technical_contact_email, compliance_contact_email,
-            oauth_provider, oauth_domain, active, created_by
+            oauth_provider, oauth_domain, active, created_by, org_type, parent_org_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         "#,
     )
     .bind(&org_id)
@@ -184,6 +195,8 @@ pub async fn create_organization_with_admin(
     .bind(if org.oauth_domain.is_empty() { None } else { Some(&org.oauth_domain) })
     .bind(org.active)
     .bind(if org.created_by.is_empty() { None } else { Some(&org.created_by) })
+    .bind(org.org_type)
+    .bind(if org.parent_org_id.is_empty() { None } else { Some(&org.parent_org_id) })
     .execute(&mut *tx)
     .await?;
 
@@ -232,6 +245,8 @@ pub async fn update_organization(pool: &PgPool, org_id: &str, org: &proto::Organ
             oauth_provider = $10,
             oauth_domain = $11,
             active = $12,
+            org_type = $13,
+            parent_org_id = $14,
             updated_at = NOW()
         WHERE org_id = $1
         "#,
@@ -248,8 +263,116 @@ pub async fn update_organization(pool: &PgPool, org_id: &str, org: &proto::Organ
     .bind(if org.oauth_provider.is_empty() { None } else { Some(&org.oauth_provider) })
     .bind(if org.oauth_domain.is_empty() { None } else { Some(&org.oauth_domain) })
     .bind(org.active)
+    .bind(org.org_type)
+    .bind(if org.parent_org_id.is_empty() { None } else { Some(&org.parent_org_id) })
     .execute(pool)
     .await?;
 
     Ok(result.rows_affected() > 0)
+}
+
+/// List child organizations (for hierarchy queries)
+pub async fn list_child_organizations(
+    pool: &PgPool,
+    parent_org_id: &str,
+    page_size: i32,
+    offset: i32,
+    include_inactive: bool,
+) -> Result<(Vec<OrganizationRow>, i32)> {
+    let query = if include_inactive {
+        r#"
+        SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
+               billing_email, technical_contact_email, compliance_contact_email,
+               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
+               org_type, parent_org_id
+        FROM organizations
+        WHERE parent_org_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+        "#
+    } else {
+        r#"
+        SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
+               billing_email, technical_contact_email, compliance_contact_email,
+               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
+               org_type, parent_org_id
+        FROM organizations
+        WHERE parent_org_id = $1 AND active = true
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+        "#
+    };
+
+    let rows = sqlx::query_as::<_, OrganizationRow>(query)
+        .bind(parent_org_id)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?;
+
+    let total: (i64,) = sqlx::query_as(
+        if include_inactive {
+            "SELECT COUNT(*) FROM organizations WHERE parent_org_id = $1"
+        } else {
+            "SELECT COUNT(*) FROM organizations WHERE parent_org_id = $1 AND active = true"
+        },
+    )
+    .bind(parent_org_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok((rows, total.0 as i32))
+}
+
+/// List organizations by type
+pub async fn list_organizations_by_type(
+    pool: &PgPool,
+    org_type: i32,
+    page_size: i32,
+    offset: i32,
+    include_inactive: bool,
+) -> Result<(Vec<OrganizationRow>, i32)> {
+    let query = if include_inactive {
+        r#"
+        SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
+               billing_email, technical_contact_email, compliance_contact_email,
+               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
+               org_type, parent_org_id
+        FROM organizations
+        WHERE org_type = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+        "#
+    } else {
+        r#"
+        SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
+               billing_email, technical_contact_email, compliance_contact_email,
+               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
+               org_type, parent_org_id
+        FROM organizations
+        WHERE org_type = $1 AND active = true
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+        "#
+    };
+
+    let rows = sqlx::query_as::<_, OrganizationRow>(query)
+        .bind(org_type)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?;
+
+    let total: (i64,) = sqlx::query_as(
+        if include_inactive {
+            "SELECT COUNT(*) FROM organizations WHERE org_type = $1"
+        } else {
+            "SELECT COUNT(*) FROM organizations WHERE org_type = $1 AND active = true"
+        },
+    )
+    .bind(org_type)
+    .fetch_one(pool)
+    .await?;
+
+    Ok((rows, total.0 as i32))
 }

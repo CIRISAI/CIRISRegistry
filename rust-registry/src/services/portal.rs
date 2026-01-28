@@ -10,7 +10,7 @@ use crate::crypto::HybridCrypto;
 use crate::db::{self, Database};
 use crate::proto::portal_service_server::PortalService as PortalServiceTrait;
 use crate::proto::{
-    AuditActionType, AuditEntry, AuditExportFormat, KeyRotationMode, KeyStatus,
+    AuditActionType, AuditEntry, AuditExportFormat, KeyRotationMode, KeyStatus, OrgType, User,
     *,
 };
 
@@ -1152,5 +1152,583 @@ impl PortalServiceTrait for PortalService {
             generated_at: now,
             context: Some(self.response_context(request_id, None)),
         }))
+    }
+
+    // =============================================================================
+    // Multi-Org User Management (v1.2.0)
+    // =============================================================================
+
+    async fn create_user(
+        &self,
+        request: Request<CreateUserRequest>,
+    ) -> Result<Response<CreateUserResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+
+        info!(email = %user.email, "Creating multi-org user");
+
+        let user_id = db::create_multiorg_user(self.db.pool(), &user)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Fetch the created user with memberships
+        let created_user = db::get_multiorg_user(self.db.pool(), &user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let memberships = db::get_user_memberships(self.db.pool(), &user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(CreateUserResponse {
+            success: true,
+            message: "User created".to_string(),
+            user_id: user_id.clone(),
+            user: created_user.map(|u| u.to_proto(memberships.iter().map(|m| m.to_proto()).collect())),
+            error: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn create_user_with_membership(
+        &self,
+        request: Request<CreateUserWithMembershipRequest>,
+    ) -> Result<Response<CreateUserWithMembershipResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+
+        info!(email = %user.email, org_id = %req.org_id, role = req.role, "Creating user with membership");
+
+        let user_id = db::create_user_with_membership(
+            self.db.pool(),
+            &user,
+            &req.org_id,
+            req.role,
+            None, // invited_by not in proto
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Fetch the created user with memberships
+        let created_user = db::get_multiorg_user(self.db.pool(), &user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let memberships = db::get_user_memberships(self.db.pool(), &user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(CreateUserWithMembershipResponse {
+            success: true,
+            message: "User created with membership".to_string(),
+            user_id: user_id.clone(),
+            user: created_user.map(|u| u.to_proto(memberships.iter().map(|m| m.to_proto()).collect())),
+            error: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn get_user(
+        &self,
+        request: Request<GetUserRequest>,
+    ) -> Result<Response<GetUserResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let user = db::get_multiorg_user(self.db.pool(), &req.user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let found = user.is_some();
+
+        let user_proto = if let Some(u) = user {
+            let memberships = db::get_user_memberships(self.db.pool(), &req.user_id)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+            Some(u.to_proto(memberships.iter().map(|m| m.to_proto()).collect()))
+        } else {
+            None
+        };
+
+        Ok(Response::new(GetUserResponse {
+            user: user_proto,
+            found,
+            error: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn get_user_by_email(
+        &self,
+        request: Request<GetUserByEmailRequest>,
+    ) -> Result<Response<GetUserResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let user = db::get_multiorg_user_by_email(self.db.pool(), &req.email)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let found = user.is_some();
+
+        let user_proto = if let Some(u) = user {
+            let memberships = db::get_user_memberships(self.db.pool(), &u.user_id)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+            Some(u.to_proto(memberships.iter().map(|m| m.to_proto()).collect()))
+        } else {
+            None
+        };
+
+        Ok(Response::new(GetUserResponse {
+            user: user_proto,
+            found,
+            error: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn add_user_to_org(
+        &self,
+        request: Request<AddUserToOrgRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(user_id = %req.user_id, org_id = %req.org_id, role = req.role, "Adding user to org");
+
+        db::add_user_to_org(
+            self.db.pool(),
+            &req.user_id,
+            &req.org_id,
+            req.role,
+            if req.invited_by.is_empty() { None } else { Some(&req.invited_by) },
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(self.admin_response(
+            true,
+            "User added to organization",
+            request_id,
+        )))
+    }
+
+    async fn remove_user_from_org(
+        &self,
+        request: Request<RemoveUserFromOrgRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(user_id = %req.user_id, org_id = %req.org_id, "Removing user from org");
+
+        let removed = db::remove_user_from_org(self.db.pool(), &req.user_id, &req.org_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        if removed {
+            Ok(Response::new(self.admin_response(
+                true,
+                "User removed from organization",
+                request_id,
+            )))
+        } else {
+            Ok(Response::new(self.admin_response(
+                false,
+                "User not found in organization",
+                request_id,
+            )))
+        }
+    }
+
+    async fn update_user_org_role(
+        &self,
+        request: Request<UpdateUserOrgRoleRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(user_id = %req.user_id, org_id = %req.org_id, new_role = req.new_role, "Updating user org role");
+
+        let updated = db::update_user_org_role(self.db.pool(), &req.user_id, &req.org_id, req.new_role)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        if updated {
+            Ok(Response::new(self.admin_response(
+                true,
+                "User role updated",
+                request_id,
+            )))
+        } else {
+            Ok(Response::new(self.admin_response(
+                false,
+                "User membership not found",
+                request_id,
+            )))
+        }
+    }
+
+    async fn list_org_members(
+        &self,
+        request: Request<ListOrgMembersRequest>,
+    ) -> Result<Response<ListOrgMembersResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let offset: i32 = req.page_token.parse().unwrap_or(0);
+
+        let (members, total) = db::list_org_members(
+            self.db.pool(),
+            &req.org_id,
+            page_size,
+            offset,
+            req.include_inactive,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        let next_offset = offset + members.len() as i32;
+        let next_page_token = if next_offset < total {
+            next_offset.to_string()
+        } else {
+            String::new()
+        };
+
+        // Convert to proto User with their memberships
+        let users: Vec<User> = members
+            .into_iter()
+            .map(|(user, membership)| user.to_proto(vec![membership.to_proto()]))
+            .collect();
+
+        Ok(Response::new(ListOrgMembersResponse {
+            users,
+            next_page_token,
+            total_count: total,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    // =============================================================================
+    // System User Management (v1.2.0)
+    // =============================================================================
+
+    async fn create_system_user(
+        &self,
+        request: Request<CreateSystemUserRequest>,
+    ) -> Result<Response<CreateSystemUserResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+
+        // SYSTEM_ADMIN (role=1) requires @ciris.ai email
+        if user.role == 1 && !user.email.ends_with("@ciris.ai") {
+            return Err(Status::invalid_argument("SYSTEM_ADMIN role requires @ciris.ai email"));
+        }
+
+        info!(email = %user.email, role = user.role, "Creating system user");
+
+        let user_id = db::create_system_user(
+            self.db.pool(),
+            &user,
+            None, // created_by not in proto
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        let created_user = db::get_system_user(self.db.pool(), &user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(CreateSystemUserResponse {
+            success: true,
+            message: "System user created".to_string(),
+            user_id: user_id.clone(),
+            user: created_user.map(|u| u.to_proto()),
+            error: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn get_system_user(
+        &self,
+        request: Request<GetSystemUserRequest>,
+    ) -> Result<Response<GetSystemUserResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let user = db::get_system_user(self.db.pool(), &req.user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let found = user.is_some();
+
+        Ok(Response::new(GetSystemUserResponse {
+            user: user.map(|u| u.to_proto()),
+            found,
+            error: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn list_system_users(
+        &self,
+        request: Request<ListSystemUsersRequest>,
+    ) -> Result<Response<ListSystemUsersResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let offset: i32 = req.page_token.parse().unwrap_or(0);
+
+        let (users, total) = db::list_system_users(
+            self.db.pool(),
+            page_size,
+            offset,
+            req.include_inactive,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        let next_offset = offset + users.len() as i32;
+        let next_page_token = if next_offset < total {
+            next_offset.to_string()
+        } else {
+            String::new()
+        };
+
+        Ok(Response::new(ListSystemUsersResponse {
+            users: users.iter().map(|u| u.to_proto()).collect(),
+            next_page_token,
+            total_count: total,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn update_system_user(
+        &self,
+        request: Request<UpdateSystemUserRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+
+        info!(user_id = %user.user_id, "Updating system user");
+
+        let updated = db::update_system_user(self.db.pool(), &user.user_id, &user)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        if updated {
+            Ok(Response::new(self.admin_response(
+                true,
+                "System user updated",
+                request_id,
+            )))
+        } else {
+            Ok(Response::new(self.admin_response(
+                false,
+                "System user not found",
+                request_id,
+            )))
+        }
+    }
+
+    // =============================================================================
+    // Organization Hierarchy (v1.2.0)
+    // =============================================================================
+
+    async fn list_child_organizations(
+        &self,
+        request: Request<ListChildOrganizationsRequest>,
+    ) -> Result<Response<ListOrganizationsResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let offset: i32 = req.page_token.parse().unwrap_or(0);
+
+        let (orgs, total) = db::list_child_organizations(
+            self.db.pool(),
+            &req.parent_org_id,
+            page_size,
+            offset,
+            req.include_inactive,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        let next_offset = offset + orgs.len() as i32;
+        let next_page_token = if next_offset < total {
+            next_offset.to_string()
+        } else {
+            String::new()
+        };
+
+        Ok(Response::new(ListOrganizationsResponse {
+            organizations: orgs.iter().map(|o| o.to_proto()).collect(),
+            next_page_token,
+            total_count: total,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn create_licensee_organization(
+        &self,
+        request: Request<CreateLicenseeOrganizationRequest>,
+    ) -> Result<Response<CreateOrganizationResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let mut org = req.organization.ok_or_else(|| Status::invalid_argument("organization required"))?;
+
+        // Verify parent org exists and is a PARTNER type
+        let parent = db::get_organization(self.db.pool(), &req.parent_org_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::not_found("Parent organization not found"))?;
+
+        if parent.org_type != OrgType::OrgPartner as i32 {
+            return Err(Status::invalid_argument("Only PARTNER organizations can create licensees"));
+        }
+
+        // Set licensee org fields
+        org.org_type = OrgType::OrgLicensee as i32;
+        org.parent_org_id = req.parent_org_id.clone();
+
+        info!(name = %org.name, parent_org_id = %req.parent_org_id, "Creating licensee organization");
+
+        let org_id = db::create_organization(self.db.pool(), &org)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let created_org = db::get_organization(self.db.pool(), &org_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(CreateOrganizationResponse {
+            success: true,
+            message: "Licensee organization created".to_string(),
+            org_id: org_id.clone(),
+            user_id: String::new(),
+            organization: created_org.map(|o| o.to_proto()),
+            admin_user: None,
+            error: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn get_organization_hierarchy(
+        &self,
+        request: Request<GetOrganizationHierarchyRequest>,
+    ) -> Result<Response<GetOrganizationHierarchyResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // Get the requested org
+        let org = db::get_organization(self.db.pool(), &req.org_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::not_found("Organization not found"))?;
+
+        // Build ancestors chain (walk up parent links)
+        let mut ancestors = Vec::new();
+        let mut current_parent_id = org.parent_org_id.clone();
+        while let Some(parent_id) = current_parent_id {
+            if let Some(parent) = db::get_organization(self.db.pool(), &parent_id)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?
+            {
+                current_parent_id = parent.parent_org_id.clone();
+                ancestors.push(parent.to_proto());
+            } else {
+                break;
+            }
+        }
+
+        // Get children
+        let (children, _) = db::list_child_organizations(
+            self.db.pool(),
+            &req.org_id,
+            100, // Max children to return
+            0,
+            false, // Only active
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(GetOrganizationHierarchyResponse {
+            organization: Some(org.to_proto()),
+            ancestors,
+            children: children.iter().map(|c| c.to_proto()).collect(),
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn upgrade_to_partner(
+        &self,
+        request: Request<UpgradeToPartnerRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // Get the org to upgrade
+        let org = db::get_organization(self.db.pool(), &req.org_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::not_found("Organization not found"))?;
+
+        // Must be COMMUNITY type to upgrade
+        if org.org_type != OrgType::OrgCommunity as i32 {
+            return Err(Status::invalid_argument("Only COMMUNITY organizations can be upgraded to PARTNER"));
+        }
+
+        info!(org_id = %req.org_id, "Upgrading organization to PARTNER");
+
+        // Create updated org with PARTNER type
+        let mut updated_org = org.to_proto();
+        updated_org.org_type = OrgType::OrgPartner as i32;
+
+        let updated = db::update_organization(self.db.pool(), &req.org_id, &updated_org)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        if updated {
+            // Create audit entry
+            let _ = db::create_audit_entry(
+                self.db.pool(),
+                AuditActionType::AuditOrgCreated, // Could add AUDIT_ORG_UPGRADED
+                None, // upgraded_by not in proto
+                Some(&req.org_id),
+                None,
+                Some("organization"),
+                Some(&req.org_id),
+                &format!("Organization upgraded to PARTNER: {}", req.org_id),
+                Some(serde_json::json!({
+                    "partner_license_type": req.partner_license_type,
+                })),
+            )
+            .await;
+
+            Ok(Response::new(self.admin_response(
+                true,
+                "Organization upgraded to PARTNER",
+                request_id,
+            )))
+        } else {
+            Ok(Response::new(self.admin_response(
+                false,
+                "Failed to upgrade organization",
+                request_id,
+            )))
+        }
     }
 }
