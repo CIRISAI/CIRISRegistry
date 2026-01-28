@@ -498,6 +498,11 @@ message Organization {
   int64 updated_at = 42;
   string created_by = 43;               // User ID who created
 
+  // ISO 8601 timestamp strings for JavaScript compatibility
+  // These are populated from created_at/updated_at Unix timestamps
+  string created_at_iso = 44;           // e.g., "2026-01-28T16:41:44Z"
+  string updated_at_iso = 45;           // e.g., "2026-01-28T16:41:44Z"
+
   // Metadata
   map<string, string> metadata = 50;
 }
@@ -523,6 +528,11 @@ message OrgUser {
   int64 updated_at = 32;
   int64 last_login_at = 33;
   string invited_by = 34;               // User ID who invited
+
+  // ISO 8601 timestamp strings for JavaScript compatibility
+  string created_at_iso = 35;           // e.g., "2026-01-28T16:41:44Z"
+  string updated_at_iso = 36;           // e.g., "2026-01-28T16:41:44Z"
+  string last_login_at_iso = 37;        // e.g., "2026-01-28T16:41:44Z"
 
   // MFA
   bool mfa_enabled = 40;
@@ -1559,6 +1569,17 @@ message CreateOrganizationRequest {
   RequestContext context = 10;
 }
 
+message CreateOrganizationResponse {
+  bool success = 1;
+  string message = 2;
+  string org_id = 3;                      // Generated organization UUID
+  string user_id = 4;                     // Generated admin user UUID (if initial_admin provided)
+  Organization organization = 5;          // Full organization record
+  OrgUser admin_user = 6;                 // Full admin user record (if created)
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
 message GetOrganizationRequest {
   string org_id = 1;
   RequestContext context = 10;
@@ -1875,7 +1896,7 @@ service RegistryAdminService {
 // Portal service (CIRISPortal operations)
 service PortalService {
   // Organization management
-  rpc CreateOrganization(CreateOrganizationRequest) returns (AdminResponse);
+  rpc CreateOrganization(CreateOrganizationRequest) returns (CreateOrganizationResponse);
   rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse);
   rpc UpdateOrganization(UpdateOrganizationRequest) returns (AdminResponse);
   rpc ListOrganizations(ListOrganizationsRequest) returns (ListOrganizationsResponse);

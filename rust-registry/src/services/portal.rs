@@ -58,7 +58,7 @@ impl PortalServiceTrait for PortalService {
     async fn create_organization(
         &self,
         request: Request<CreateOrganizationRequest>,
-    ) -> Result<Response<AdminResponse>, Status> {
+    ) -> Result<Response<CreateOrganizationResponse>, Status> {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -72,11 +72,24 @@ impl PortalServiceTrait for PortalService {
                 .await
                 .map_err(|e| Status::internal(e.to_string()))?;
 
-            Ok(Response::new(self.admin_response(
-                true,
-                &format!("Organization created with ID: {}, admin user ID: {}", org_id, user_id),
-                request_id,
-            )))
+            // Fetch the created records to return full objects
+            let created_org = db::get_organization(self.db.pool(), &org_id)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+            let created_user = db::get_user(self.db.pool(), &user_id)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+
+            Ok(Response::new(CreateOrganizationResponse {
+                success: true,
+                message: "Organization created with initial admin".to_string(),
+                org_id: org_id.clone(),
+                user_id: user_id.clone(),
+                organization: created_org.map(|o| o.to_proto()),
+                admin_user: created_user.map(|u| u.to_proto()),
+                error: None,
+                context: Some(self.response_context(request_id, None)),
+            }))
         } else {
             info!(name = %org.name, "Creating organization");
 
@@ -84,11 +97,21 @@ impl PortalServiceTrait for PortalService {
                 .await
                 .map_err(|e| Status::internal(e.to_string()))?;
 
-            Ok(Response::new(self.admin_response(
-                true,
-                &format!("Organization created with ID: {}", org_id),
-                request_id,
-            )))
+            // Fetch the created record to return full object
+            let created_org = db::get_organization(self.db.pool(), &org_id)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+
+            Ok(Response::new(CreateOrganizationResponse {
+                success: true,
+                message: "Organization created".to_string(),
+                org_id: org_id.clone(),
+                user_id: String::new(),
+                organization: created_org.map(|o| o.to_proto()),
+                admin_user: None,
+                error: None,
+                context: Some(self.response_context(request_id, None)),
+            }))
         }
     }
 

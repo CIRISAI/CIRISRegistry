@@ -26,6 +26,8 @@ pub struct OrgUserRow {
 
 impl OrgUserRow {
     pub fn to_proto(&self) -> proto::OrgUser {
+        use time::format_description::well_known::Rfc3339;
+
         proto::OrgUser {
             user_id: self.user_id.clone(),
             org_id: self.org_id.clone(),
@@ -39,6 +41,10 @@ impl OrgUserRow {
             updated_at: self.updated_at.unix_timestamp(),
             last_login_at: self.last_login_at.map(|t| t.unix_timestamp()).unwrap_or(0),
             invited_by: self.invited_by.clone().unwrap_or_default(),
+            // ISO 8601 timestamp strings for JavaScript compatibility
+            created_at_iso: self.created_at.format(&Rfc3339).unwrap_or_default(),
+            updated_at_iso: self.updated_at.format(&Rfc3339).unwrap_or_default(),
+            last_login_at_iso: self.last_login_at.map(|t| t.format(&Rfc3339).unwrap_or_default()).unwrap_or_default(),
             mfa_enabled: self.mfa_enabled,
             mfa_method: self.mfa_method.clone().unwrap_or_default(),
         }

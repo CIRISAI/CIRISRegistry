@@ -27,6 +27,8 @@ pub struct OrganizationRow {
 
 impl OrganizationRow {
     pub fn to_proto(&self) -> proto::Organization {
+        use time::format_description::well_known::Rfc3339;
+
         proto::Organization {
             org_id: self.org_id.clone(),
             name: self.name.clone(),
@@ -43,6 +45,9 @@ impl OrganizationRow {
             created_at: self.created_at.unix_timestamp(),
             updated_at: self.updated_at.unix_timestamp(),
             created_by: self.created_by.clone().unwrap_or_default(),
+            // ISO 8601 timestamp strings for JavaScript compatibility
+            created_at_iso: self.created_at.format(&Rfc3339).unwrap_or_default(),
+            updated_at_iso: self.updated_at.format(&Rfc3339).unwrap_or_default(),
             metadata: Default::default(),
         }
     }
