@@ -80,6 +80,41 @@ impl PortalServiceTrait for PortalService {
                 .await
                 .map_err(|e| Status::internal(e.to_string()))?;
 
+            // Create audit entry for organization creation
+            let _ = db::create_audit_entry(
+                self.db.pool(),
+                AuditActionType::AuditOrgCreated,
+                Some(&user_id),
+                Some(&org_id),
+                None,
+                Some("organization"),
+                Some(&org_id),
+                &format!("Organization created: {}", org.name),
+                Some(serde_json::json!({
+                    "org_name": org.name,
+                    "org_type": org.org_type,
+                    "initial_admin_email": admin_user.email,
+                })),
+            )
+            .await;
+
+            // Create audit entry for admin user creation
+            let _ = db::create_audit_entry(
+                self.db.pool(),
+                AuditActionType::AuditUserCreated,
+                Some(&user_id),
+                Some(&org_id),
+                None,
+                Some("user"),
+                Some(&user_id),
+                &format!("Initial admin user created: {}", admin_user.email),
+                Some(serde_json::json!({
+                    "user_email": admin_user.email,
+                    "role": "ORG_ADMIN",
+                })),
+            )
+            .await;
+
             Ok(Response::new(CreateOrganizationResponse {
                 success: true,
                 message: "Organization created with initial admin".to_string(),
@@ -101,6 +136,23 @@ impl PortalServiceTrait for PortalService {
             let created_org = db::get_organization(self.db.pool(), &org_id)
                 .await
                 .map_err(|e| Status::internal(e.to_string()))?;
+
+            // Create audit entry
+            let _ = db::create_audit_entry(
+                self.db.pool(),
+                AuditActionType::AuditOrgCreated,
+                None,
+                Some(&org_id),
+                None,
+                Some("organization"),
+                Some(&org_id),
+                &format!("Organization created: {}", org.name),
+                Some(serde_json::json!({
+                    "org_name": org.name,
+                    "org_type": org.org_type,
+                })),
+            )
+            .await;
 
             Ok(Response::new(CreateOrganizationResponse {
                 success: true,
@@ -151,6 +203,22 @@ impl PortalServiceTrait for PortalService {
             .map_err(|e| Status::internal(e.to_string()))?;
 
         if updated {
+            // Create audit entry
+            let _ = db::create_audit_entry(
+                self.db.pool(),
+                AuditActionType::AuditOrgUpdated,
+                None,
+                Some(&org.org_id),
+                None,
+                Some("organization"),
+                Some(&org.org_id),
+                &format!("Organization updated: {}", org.org_id),
+                Some(serde_json::json!({
+                    "org_name": org.name,
+                })),
+            )
+            .await;
+
             Ok(Response::new(self.admin_response(
                 true,
                 "Organization updated successfully",
@@ -272,6 +340,24 @@ impl PortalServiceTrait for PortalService {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
+        // Create audit entry
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditUserCreated,
+            None, // Requester user ID not in proto
+            Some(&user.org_id),
+            None,
+            Some("user"),
+            Some(&user_id),
+            &format!("User created: {}", user.email),
+            Some(serde_json::json!({
+                "user_email": user.email,
+                "user_name": user.name,
+                "role": user.role,
+            })),
+        )
+        .await;
+
         Ok(Response::new(self.admin_response(
             true,
             &format!("User created with ID: {}", user_id),
@@ -335,6 +421,25 @@ impl PortalServiceTrait for PortalService {
             .map_err(|e| Status::internal(e.to_string()))?;
 
         if updated {
+            // Create audit entry
+            let _ = db::create_audit_entry(
+                self.db.pool(),
+                AuditActionType::AuditUserUpdated,
+                None, // Requester user ID not in proto
+                Some(&user.org_id),
+                None,
+                Some("user"),
+                Some(&user.user_id),
+                &format!("User updated: {}", user.user_id),
+                Some(serde_json::json!({
+                    "user_email": user.email,
+                    "user_name": user.name,
+                    "role": user.role,
+                    "active": user.active,
+                })),
+            )
+            .await;
+
             Ok(Response::new(self.admin_response(
                 true,
                 "User updated successfully",
@@ -479,11 +584,45 @@ impl PortalServiceTrait for PortalService {
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
+        // Create audit entry for key generation
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditKeyGenerated,
+            Some(&req.requester_user_id),
+            Some(&req.org_id),
+            None,
+            Some("key"),
+            Some(&key_id),
+            &format!("Key pair generated: {}", key_id),
+            Some(serde_json::json!({
+                "key_id": key_id,
+                "ed25519_fingerprint": ed25519_fp,
+                "activate_immediately": req.activate_immediately,
+            })),
+        )
+        .await;
+
         // Activate immediately if requested
         if req.activate_immediately {
             db::activate_key(self.db.pool(), &key_id)
                 .await
                 .map_err(|e| Status::internal(e.to_string()))?;
+
+            // Create audit entry for key activation
+            let _ = db::create_audit_entry(
+                self.db.pool(),
+                AuditActionType::AuditKeyActivated,
+                Some(&req.requester_user_id),
+                Some(&req.org_id),
+                None,
+                Some("key"),
+                Some(&key_id),
+                &format!("Key activated immediately: {}", key_id),
+                Some(serde_json::json!({
+                    "key_id": key_id,
+                })),
+            )
+            .await;
         }
 
         let key = db::get_key(self.db.pool(), &key_id)
@@ -525,11 +664,33 @@ impl PortalServiceTrait for PortalService {
 
         info!(key_id = %req.key_id, "Activating key");
 
+        // Fetch the key to get org_id for audit logging
+        let key = db::get_key(self.db.pool(), &req.key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
         let activated = db::activate_key(self.db.pool(), &req.key_id)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
         if activated {
+            // Create audit entry
+            let requester = if req.requester_user_id.is_empty() { None } else { Some(req.requester_user_id.as_str()) };
+            let _ = db::create_audit_entry(
+                self.db.pool(),
+                AuditActionType::AuditKeyActivated,
+                requester,
+                key.as_ref().map(|k| k.org_id.as_str()),
+                None,
+                Some("key"),
+                Some(&req.key_id),
+                &format!("Key activated: {}", req.key_id),
+                Some(serde_json::json!({
+                    "key_id": req.key_id,
+                })),
+            )
+            .await;
+
             Ok(Response::new(self.admin_response(true, "Key activated", request_id)))
         } else {
             Ok(Response::new(self.admin_response(false, "Key not found or already active", request_id)))
@@ -1008,6 +1169,55 @@ impl PortalServiceTrait for PortalService {
             export_id: uuid::Uuid::new_v4().to_string(),
             sha256_checksum: checksum,
             export_signature: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn create_audit_entry(
+        &self,
+        request: Request<CreateAuditEntryRequest>,
+    ) -> Result<Response<CreateAuditEntryResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(
+            action = ?req.action,
+            actor_user_id = %req.actor_user_id,
+            actor_org_id = %req.actor_org_id,
+            "Creating audit entry from Portal"
+        );
+
+        // Convert action enum to AuditActionType
+        let action = AuditActionType::try_from(req.action)
+            .unwrap_or(AuditActionType::AuditActionUnspecified);
+
+        // Convert metadata map to JSON
+        let metadata = if req.metadata.is_empty() {
+            None
+        } else {
+            Some(serde_json::json!(req.metadata))
+        };
+
+        // Create the audit entry
+        let entry_id = db::create_audit_entry(
+            self.db.pool(),
+            action,
+            if req.actor_user_id.is_empty() { None } else { Some(&req.actor_user_id) },
+            if req.actor_org_id.is_empty() { None } else { Some(&req.actor_org_id) },
+            if req.actor_ip_address.is_empty() { None } else { Some(&req.actor_ip_address) },
+            if req.target_type.is_empty() { None } else { Some(&req.target_type) },
+            if req.target_id.is_empty() { None } else { Some(&req.target_id) },
+            &req.description,
+            metadata,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(CreateAuditEntryResponse {
+            success: true,
+            entry_id,
+            message: "Audit entry created".to_string(),
+            error: None,
             context: Some(self.response_context(request_id, None)),
         }))
     }

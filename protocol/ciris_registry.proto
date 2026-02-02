@@ -2078,6 +2078,36 @@ message GetAuditLogResponse {
   ResponseContext context = 50;
 }
 
+// CreateAuditEntry - allows Portal to record audit events (v1.2.0)
+message CreateAuditEntryRequest {
+  // Action being recorded
+  AuditActionType action = 1;
+
+  // Actor information
+  string actor_user_id = 10;
+  string actor_org_id = 11;
+  string actor_ip_address = 12;
+  string actor_user_agent = 13;
+
+  // Target (optional - for actions on specific entities)
+  string target_type = 20;  // e.g., "user", "organization", "key"
+  string target_id = 21;
+
+  // Details
+  string description = 30;
+  map<string, string> metadata = 31;
+
+  RequestContext context = 50;
+}
+
+message CreateAuditEntryResponse {
+  bool success = 1;
+  string entry_id = 2;
+  string message = 3;
+  ErrorDetail error = 4;
+  ResponseContext context = 50;
+}
+
 // ============================================================================
 // gRPC SERVICE DEFINITIONS
 // ============================================================================
@@ -2213,6 +2243,7 @@ service PortalService {
   // Audit
   rpc GetAuditLog(GetAuditLogRequest) returns (GetAuditLogResponse);
   rpc ExportAuditLog(ExportAuditLogRequest) returns (ExportAuditLogResponse);
+  rpc CreateAuditEntry(CreateAuditEntryRequest) returns (CreateAuditEntryResponse);  // (v1.2.0) For Portal to record login/logout events
 
   // Compliance (v1.1.0)
   rpc GenerateComplianceReport(GenerateComplianceReportRequest) returns (ComplianceReport);
