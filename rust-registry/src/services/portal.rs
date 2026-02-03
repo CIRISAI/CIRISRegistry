@@ -1423,6 +1423,25 @@ impl PortalServiceTrait for PortalService {
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
+        // Create audit entry
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditUserCreated,
+            None,
+            Some(&req.org_id),
+            None,
+            Some("user"),
+            Some(&user_id),
+            &format!("User created with membership: {}", user.email),
+            Some(serde_json::json!({
+                "user_email": user.email,
+                "user_name": user.name,
+                "org_id": req.org_id,
+                "role": req.role,
+            })),
+        )
+        .await;
+
         // Fetch the created user with memberships
         let created_user = db::get_multiorg_user(self.db.pool(), &user_id)
             .await
@@ -1652,6 +1671,25 @@ impl PortalServiceTrait for PortalService {
         )
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Create audit entry for system user creation
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditUserCreated,
+            None,
+            None, // System users are org-independent
+            None,
+            Some("system_user"),
+            Some(&user_id),
+            &format!("System user created: {}", user.email),
+            Some(serde_json::json!({
+                "user_email": user.email,
+                "user_name": user.name,
+                "system_role": user.role,
+                "is_system_user": true,
+            })),
+        )
+        .await;
 
         let created_user = db::get_system_user(self.db.pool(), &user_id)
             .await

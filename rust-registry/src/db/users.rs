@@ -52,13 +52,17 @@ impl OrgUserRow {
 }
 
 pub async fn get_user(pool: &PgPool, user_id: &str) -> Result<Option<OrgUserRow>> {
+    // Query from new tables (users + user_org_memberships) for multi-org support
+    // Returns the first org membership found (for backward compatibility)
     let row = sqlx::query_as::<_, OrgUserRow>(
         r#"
-        SELECT user_id, org_id, email, name, oauth_provider, oauth_subject,
-               role, active, created_at, updated_at, last_login_at, invited_by,
-               mfa_enabled, mfa_method
-        FROM org_users
-        WHERE user_id = $1
+        SELECT u.user_id, m.org_id, u.email, u.name, u.oauth_provider, u.oauth_subject,
+               m.role, u.active, u.created_at, u.updated_at, u.last_login_at, m.invited_by,
+               u.mfa_enabled, u.mfa_method
+        FROM users u
+        JOIN user_org_memberships m ON u.user_id = m.user_id
+        WHERE u.user_id = $1
+        LIMIT 1
         "#,
     )
     .bind(user_id)
@@ -69,13 +73,16 @@ pub async fn get_user(pool: &PgPool, user_id: &str) -> Result<Option<OrgUserRow>
 }
 
 pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<OrgUserRow>> {
+    // Query from new tables (users + user_org_memberships)
     let row = sqlx::query_as::<_, OrgUserRow>(
         r#"
-        SELECT user_id, org_id, email, name, oauth_provider, oauth_subject,
-               role, active, created_at, updated_at, last_login_at, invited_by,
-               mfa_enabled, mfa_method
-        FROM org_users
-        WHERE email = $1
+        SELECT u.user_id, m.org_id, u.email, u.name, u.oauth_provider, u.oauth_subject,
+               m.role, u.active, u.created_at, u.updated_at, u.last_login_at, m.invited_by,
+               u.mfa_enabled, u.mfa_method
+        FROM users u
+        JOIN user_org_memberships m ON u.user_id = m.user_id
+        WHERE u.email = $1
+        LIMIT 1
         "#,
     )
     .bind(email)
@@ -87,29 +94,44 @@ pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<OrgU
 
 pub async fn create_user(pool: &PgPool, user: &proto::OrgUser) -> Result<String> {
     let user_id = uuid::Uuid::new_v4().to_string();
+    let mut tx = pool.begin().await?;
 
+    // Insert into users table
     sqlx::query(
         r#"
-        INSERT INTO org_users (
-            user_id, org_id, email, name, oauth_provider, oauth_subject,
-            role, active, invited_by, mfa_enabled, mfa_method
+        INSERT INTO users (
+            user_id, email, name, oauth_provider, oauth_subject,
+            active, mfa_enabled, mfa_method
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         "#,
     )
     .bind(&user_id)
-    .bind(&user.org_id)
     .bind(&user.email)
     .bind(&user.name)
     .bind(if user.oauth_provider.is_empty() { None } else { Some(&user.oauth_provider) })
     .bind(if user.oauth_subject.is_empty() { None } else { Some(&user.oauth_subject) })
-    .bind(user.role)
     .bind(user.active)
-    .bind(if user.invited_by.is_empty() { None } else { Some(&user.invited_by) })
     .bind(user.mfa_enabled)
     .bind(if user.mfa_method.is_empty() { None } else { Some(&user.mfa_method) })
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    // Insert into user_org_memberships table
+    sqlx::query(
+        r#"
+        INSERT INTO user_org_memberships (user_id, org_id, role, invited_by)
+        VALUES ($1, $2, $3, $4)
+        "#,
+    )
+    .bind(&user_id)
+    .bind(&user.org_id)
+    .bind(user.role)
+    .bind(if user.invited_by.is_empty() { None } else { Some(&user.invited_by) })
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
 
     Ok(user_id)
 }
@@ -121,24 +143,27 @@ pub async fn list_org_users(
     offset: i32,
     include_inactive: bool,
 ) -> Result<(Vec<OrgUserRow>, i32)> {
+    // Query from new tables (users + user_org_memberships)
     let query = if include_inactive {
         r#"
-        SELECT user_id, org_id, email, name, oauth_provider, oauth_subject,
-               role, active, created_at, updated_at, last_login_at, invited_by,
-               mfa_enabled, mfa_method
-        FROM org_users
-        WHERE org_id = $1
-        ORDER BY created_at DESC
+        SELECT u.user_id, m.org_id, u.email, u.name, u.oauth_provider, u.oauth_subject,
+               m.role, u.active, u.created_at, u.updated_at, u.last_login_at, m.invited_by,
+               u.mfa_enabled, u.mfa_method
+        FROM users u
+        JOIN user_org_memberships m ON u.user_id = m.user_id
+        WHERE m.org_id = $1
+        ORDER BY u.created_at DESC
         LIMIT $2 OFFSET $3
         "#
     } else {
         r#"
-        SELECT user_id, org_id, email, name, oauth_provider, oauth_subject,
-               role, active, created_at, updated_at, last_login_at, invited_by,
-               mfa_enabled, mfa_method
-        FROM org_users
-        WHERE org_id = $1 AND active = true
-        ORDER BY created_at DESC
+        SELECT u.user_id, m.org_id, u.email, u.name, u.oauth_provider, u.oauth_subject,
+               m.role, u.active, u.created_at, u.updated_at, u.last_login_at, m.invited_by,
+               u.mfa_enabled, u.mfa_method
+        FROM users u
+        JOIN user_org_memberships m ON u.user_id = m.user_id
+        WHERE m.org_id = $1 AND u.active = true
+        ORDER BY u.created_at DESC
         LIMIT $2 OFFSET $3
         "#
     };
@@ -152,9 +177,13 @@ pub async fn list_org_users(
 
     let total: (i64,) = sqlx::query_as(
         if include_inactive {
-            "SELECT COUNT(*) FROM org_users WHERE org_id = $1"
+            "SELECT COUNT(*) FROM user_org_memberships WHERE org_id = $1"
         } else {
-            "SELECT COUNT(*) FROM org_users WHERE org_id = $1 AND active = true"
+            r#"
+            SELECT COUNT(*) FROM user_org_memberships m
+            JOIN users u ON m.user_id = u.user_id
+            WHERE m.org_id = $1 AND u.active = true
+            "#
         },
     )
     .bind(org_id)
@@ -166,26 +195,46 @@ pub async fn list_org_users(
 
 /// Update a user
 pub async fn update_user(pool: &PgPool, user_id: &str, user: &proto::OrgUser) -> Result<bool> {
+    let mut tx = pool.begin().await?;
+
+    // Update users table (identity fields)
     let result = sqlx::query(
         r#"
-        UPDATE org_users SET
+        UPDATE users SET
             name = $2,
-            role = $3,
-            active = $4,
-            mfa_enabled = $5,
-            mfa_method = $6,
+            active = $3,
+            mfa_enabled = $4,
+            mfa_method = $5,
             updated_at = NOW()
         WHERE user_id = $1
         "#,
     )
     .bind(user_id)
     .bind(&user.name)
-    .bind(user.role)
     .bind(user.active)
     .bind(user.mfa_enabled)
     .bind(if user.mfa_method.is_empty() { None } else { Some(&user.mfa_method) })
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    // Update role in user_org_memberships (if org_id provided)
+    if !user.org_id.is_empty() {
+        sqlx::query(
+            r#"
+            UPDATE user_org_memberships SET
+                role = $3,
+                updated_at = NOW()
+            WHERE user_id = $1 AND org_id = $2
+            "#,
+        )
+        .bind(user_id)
+        .bind(&user.org_id)
+        .bind(user.role)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
 
     Ok(result.rows_affected() > 0)
 }
@@ -194,7 +243,7 @@ pub async fn update_user(pool: &PgPool, user_id: &str, user: &proto::OrgUser) ->
 pub async fn update_last_login(pool: &PgPool, user_id: &str) -> Result<()> {
     sqlx::query(
         r#"
-        UPDATE org_users SET last_login_at = NOW(), updated_at = NOW()
+        UPDATE users SET last_login_at = NOW(), updated_at = NOW()
         WHERE user_id = $1
         "#,
     )
