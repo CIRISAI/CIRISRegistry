@@ -338,6 +338,12 @@ message AgentRecord {
   // Testing support (v1.1.0)
   bool is_test_record = 60;           // If true, exclude from SLA calculations
   string test_tag = 61;               // e.g., "e2e-pr-1234" for test batching
+
+  // Identity template (CIRISVerify enforcement, v1.2.0)
+  string identity_template = 70;      // echo, scout, sage, datum, ally, default, custom
+  repeated string permitted_actions = 71;  // Actions this template allows
+  int32 stewardship_tier = 72;        // 1-5 stewardship tier
+  bytes template_hash = 73;           // SHA-256 of template YAML
 }
 
 // ============================================================================
@@ -456,6 +462,9 @@ message PartnerRecord {
   // Signatures
   HybridSignature license_signature = 60;   // Steward signature on license
   HybridSignature registry_signature = 61;  // Registry signature on record
+
+  // Identity template constraints (CIRISVerify enforcement, v1.2.0)
+  repeated string allowed_identity_templates = 70;  // Templates this partner may use
 }
 
 // ============================================================================
@@ -1595,8 +1604,14 @@ message VerifyDeploymentResponse {
 
   int64 query_timestamp = 30;
   HybridSignature response_signature = 31;
-  ErrorDetail error = 40;
-  ResponseContext context = 50;
+
+  // Identity template enforcement (CIRISVerify, v1.2.0)
+  string identity_template = 40;      // Effective template for this deployment
+  repeated string permitted_actions = 41;  // Effective permitted actions
+  int32 stewardship_tier = 42;        // Effective stewardship tier
+
+  ErrorDetail error = 50;
+  ResponseContext context = 60;
 }
 
 // ============================================================================

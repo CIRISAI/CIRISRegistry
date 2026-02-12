@@ -29,6 +29,8 @@ pub struct PartnerRow {
     pub suspension_reason: Option<String>,
     pub revocation_reason: Option<String>,
     pub status_changed_at: Option<OffsetDateTime>,
+    // Identity template enforcement (v1.2.0)
+    pub allowed_identity_templates: Vec<String>,
 }
 
 impl PartnerRow {
@@ -59,6 +61,7 @@ impl PartnerRow {
                 .unwrap_or(0),
             license_signature: None,
             registry_signature: None,
+            allowed_identity_templates: self.allowed_identity_templates.clone(),
         }
     }
 }
@@ -72,7 +75,8 @@ pub async fn lookup_partner(pool: &PgPool, partner_id: &str) -> Result<Option<Pa
             issued_at, expires_at, capabilities_granted, capabilities_denied,
             max_autonomy_tier, requires_supervisor, geographic_restrictions,
             deployment_limit, offline_grace_hours, technical_contact, compliance_contact,
-            status, suspension_reason, revocation_reason, status_changed_at
+            status, suspension_reason, revocation_reason, status_changed_at,
+            allowed_identity_templates
         FROM partners
         WHERE partner_id = $1
         "#,
@@ -142,7 +146,8 @@ pub async fn list_expiring_licenses(
             issued_at, expires_at, capabilities_granted, capabilities_denied,
             max_autonomy_tier, requires_supervisor, geographic_restrictions,
             deployment_limit, offline_grace_hours, technical_contact, compliance_contact,
-            status, suspension_reason, revocation_reason, status_changed_at
+            status, suspension_reason, revocation_reason, status_changed_at,
+            allowed_identity_templates
         FROM partners
         WHERE expires_at <= NOW() + INTERVAL '1 day' * $1
           AND status = $2
@@ -155,7 +160,8 @@ pub async fn list_expiring_licenses(
             issued_at, expires_at, capabilities_granted, capabilities_denied,
             max_autonomy_tier, requires_supervisor, geographic_restrictions,
             deployment_limit, offline_grace_hours, technical_contact, compliance_contact,
-            status, suspension_reason, revocation_reason, status_changed_at
+            status, suspension_reason, revocation_reason, status_changed_at,
+            allowed_identity_templates
         FROM partners
         WHERE expires_at > NOW()
           AND expires_at <= NOW() + INTERVAL '1 day' * $1

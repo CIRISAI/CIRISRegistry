@@ -302,6 +302,30 @@ impl RegistryServiceTrait for RegistryService {
                 _ => (vec![], 0),
             };
 
+        // Calculate effective identity template
+        // Template is valid if partner allows it (empty allowed list = allow all)
+        let (effective_template, effective_permitted_actions, effective_stewardship_tier) =
+            match (&agent_row, &partner_row) {
+                (Some(agent), Some(partner)) => {
+                    let template = agent.identity_template.clone().unwrap_or_default();
+                    let template_allowed = partner.allowed_identity_templates.is_empty()
+                        || partner
+                            .allowed_identity_templates
+                            .contains(&template);
+                    if template_allowed {
+                        (
+                            template,
+                            agent.permitted_actions.clone(),
+                            agent.stewardship_tier.unwrap_or(0),
+                        )
+                    } else {
+                        // Partner doesn't allow this template — fall back to default
+                        (String::from("default"), vec![], 0)
+                    }
+                }
+                _ => (String::new(), vec![], 0),
+            };
+
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -317,6 +341,9 @@ impl RegistryServiceTrait for RegistryService {
             mandatory_disclosure: String::new(),
             query_timestamp: now,
             response_signature: None,
+            identity_template: effective_template,
+            permitted_actions: effective_permitted_actions,
+            stewardship_tier: effective_stewardship_tier,
             error: None,
             context: Some(self.response_context(request_id, None)),
         }))

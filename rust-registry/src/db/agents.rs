@@ -30,6 +30,11 @@ pub struct AgentRow {
     pub registry_signature: Option<Vec<u8>>,
     pub is_test_record: bool,
     pub test_tag: Option<String>,
+    // Identity template (CIRISVerify enforcement, v1.2.0)
+    pub identity_template: Option<String>,
+    pub stewardship_tier: Option<i32>,
+    pub permitted_actions: Vec<String>,
+    pub template_hash: Option<Vec<u8>>,
 }
 
 impl AgentRow {
@@ -67,6 +72,11 @@ impl AgentRow {
             registry_signature: None, // Populated separately
             is_test_record: self.is_test_record,
             test_tag: self.test_tag.clone().unwrap_or_default(),
+            // Identity template (v1.2.0)
+            identity_template: self.identity_template.clone().unwrap_or_default(),
+            permitted_actions: self.permitted_actions.clone(),
+            stewardship_tier: self.stewardship_tier.unwrap_or(0),
+            template_hash: self.template_hash.clone().unwrap_or_default().into(),
         }
     }
 }
@@ -80,7 +90,8 @@ pub async fn lookup_agent(pool: &PgPool, agent_hash: &[u8]) -> Result<Option<Age
             version_prerelease, version_build_metadata, base_capabilities,
             max_autonomy_tier, build_timestamp, source_repo, source_commit,
             builder_attestation, status, revocation_reason, revocation_timestamp,
-            registered_at, last_updated, registry_signature, is_test_record, test_tag
+            registered_at, last_updated, registry_signature, is_test_record, test_tag,
+            identity_template, stewardship_tier, permitted_actions, template_hash
         FROM agents
         WHERE agent_hash = $1
         "#,
@@ -104,7 +115,8 @@ pub async fn batch_lookup_agents(
             version_prerelease, version_build_metadata, base_capabilities,
             max_autonomy_tier, build_timestamp, source_repo, source_commit,
             builder_attestation, status, revocation_reason, revocation_timestamp,
-            registered_at, last_updated, registry_signature, is_test_record, test_tag
+            registered_at, last_updated, registry_signature, is_test_record, test_tag,
+            identity_template, stewardship_tier, permitted_actions, template_hash
         FROM agents
         WHERE agent_hash = ANY($1)
         "#,
@@ -267,7 +279,8 @@ pub async fn list_registered_agents(
             version_prerelease, version_build_metadata, base_capabilities,
             max_autonomy_tier, build_timestamp, source_repo, source_commit,
             builder_attestation, status, revocation_reason, revocation_timestamp,
-            registered_at, last_updated, registry_signature, is_test_record, test_tag
+            registered_at, last_updated, registry_signature, is_test_record, test_tag,
+            identity_template, stewardship_tier, permitted_actions, template_hash
         FROM agents
         WHERE 1=1
         "#,
