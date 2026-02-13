@@ -35,6 +35,9 @@ pub struct AgentRow {
     pub stewardship_tier: Option<i32>,
     pub permitted_actions: Option<Vec<String>>,
     pub template_hash: Option<Vec<u8>>,
+    // Approved adapters and org linkage (v1.3.0)
+    pub approved_adapters: Option<Vec<String>>,
+    pub org_id: Option<String>,
 }
 
 impl AgentRow {
@@ -77,6 +80,51 @@ impl AgentRow {
             permitted_actions: self.permitted_actions.clone().unwrap_or_default(),
             stewardship_tier: self.stewardship_tier.unwrap_or(0),
             template_hash: self.template_hash.clone().unwrap_or_default().into(),
+            // Approved adapters and org linkage (v1.3.0)
+            approved_adapters: self.approved_adapters.clone().unwrap_or_default(),
+            org_id: self.org_id.clone().unwrap_or_default(),
+        }
+    }
+
+    /// Convert to redacted protobuf AgentRecord for public (unauthenticated) access.
+    /// Only exposes: hash, type, version, status, registration date, identity template name.
+    /// Strips: capabilities, actions, adapters, org details, source provenance.
+    pub fn to_proto_public(&self) -> proto::AgentRecord {
+        proto::AgentRecord {
+            agent_hash: self.agent_hash.clone().into(),
+            agent_hash_hex: hex::encode(&self.agent_hash),
+            agent_type: self.agent_type,
+            version: Some(proto::SemanticVersion {
+                major: self.version_major as u32,
+                minor: self.version_minor as u32,
+                patch: self.version_patch as u32,
+                prerelease: String::new(),
+                build_metadata: String::new(),
+            }),
+            status: self.status,
+            registered_at: self.registered_at.unix_timestamp(),
+            identity_template: self.identity_template.clone().unwrap_or_default(),
+            // Redacted fields — zeroed/empty for public access
+            base_capabilities: vec![],
+            max_autonomy_tier: 0,
+            build_timestamp: 0,
+            source_repo: String::new(),
+            source_commit: String::new(),
+            builder_attestation: Default::default(),
+            revocation_reason: self.revocation_reason.clone().unwrap_or_default(),
+            revocation_timestamp: self
+                .revocation_timestamp
+                .map(|t| t.unix_timestamp())
+                .unwrap_or(0),
+            last_updated: 0,
+            registry_signature: None,
+            is_test_record: false,
+            test_tag: String::new(),
+            permitted_actions: vec![],
+            stewardship_tier: 0,
+            template_hash: Default::default(),
+            approved_adapters: vec![],
+            org_id: String::new(),
         }
     }
 }
@@ -91,7 +139,8 @@ pub async fn lookup_agent(pool: &PgPool, agent_hash: &[u8]) -> Result<Option<Age
             max_autonomy_tier, build_timestamp, source_repo, source_commit,
             builder_attestation, status, revocation_reason, revocation_timestamp,
             registered_at, last_updated, registry_signature, is_test_record, test_tag,
-            identity_template, stewardship_tier, permitted_actions, template_hash
+            identity_template, stewardship_tier, permitted_actions, template_hash,
+            approved_adapters, org_id
         FROM agents
         WHERE agent_hash = $1
         "#,
@@ -116,7 +165,8 @@ pub async fn batch_lookup_agents(
             max_autonomy_tier, build_timestamp, source_repo, source_commit,
             builder_attestation, status, revocation_reason, revocation_timestamp,
             registered_at, last_updated, registry_signature, is_test_record, test_tag,
-            identity_template, stewardship_tier, permitted_actions, template_hash
+            identity_template, stewardship_tier, permitted_actions, template_hash,
+            approved_adapters, org_id
         FROM agents
         WHERE agent_hash = ANY($1)
         "#,
@@ -150,9 +200,10 @@ pub async fn register_agent(pool: &PgPool, record: &proto::AgentRecord) -> Resul
             version_prerelease, version_build_metadata, base_capabilities,
             max_autonomy_tier, build_timestamp, source_repo, source_commit,
             builder_attestation, status, is_test_record, test_tag,
-            identity_template, stewardship_tier, permitted_actions, template_hash
+            identity_template, stewardship_tier, permitted_actions, template_hash,
+            approved_adapters, org_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10), $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10), $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         "#,
     )
     .bind(record.agent_hash.as_ref() as &[u8])
@@ -211,6 +262,13 @@ pub async fn register_agent(pool: &PgPool, record: &proto::AgentRecord) -> Resul
         None::<&[u8]>
     } else {
         Some(record.template_hash.as_ref() as &[u8])
+    })
+    // Approved adapters and org linkage (v1.3.0)
+    .bind(&record.approved_adapters)
+    .bind(if record.org_id.is_empty() {
+        None
+    } else {
+        Some(&record.org_id)
     })
     .execute(pool)
     .await?;
@@ -298,7 +356,8 @@ pub async fn list_registered_agents(
             max_autonomy_tier, build_timestamp, source_repo, source_commit,
             builder_attestation, status, revocation_reason, revocation_timestamp,
             registered_at, last_updated, registry_signature, is_test_record, test_tag,
-            identity_template, stewardship_tier, permitted_actions, template_hash
+            identity_template, stewardship_tier, permitted_actions, template_hash,
+            approved_adapters, org_id
         FROM agents
         WHERE 1=1
         "#,

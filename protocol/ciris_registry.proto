@@ -344,6 +344,10 @@ message AgentRecord {
   repeated string permitted_actions = 71;  // Actions this template allows
   int32 stewardship_tier = 72;        // 1-5 stewardship tier
   bytes template_hash = 73;           // SHA-256 of template YAML
+
+  // Approved adapters and org linkage (v1.3.0)
+  repeated string approved_adapters = 74;  // Adapters this agent build may load at runtime
+  string org_id = 75;                       // Owning organization ID (for signing key lookup)
 }
 
 // ============================================================================

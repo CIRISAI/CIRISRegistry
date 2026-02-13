@@ -100,7 +100,9 @@ pub async fn get_all_agents_for_snapshot(pool: &PgPool) -> Result<Vec<AgentRow>>
                version_prerelease, version_build_metadata, base_capabilities,
                max_autonomy_tier, build_timestamp, source_repo, source_commit,
                builder_attestation, status, revocation_reason, revocation_timestamp,
-               registered_at, last_updated, registry_signature, is_test_record, test_tag
+               registered_at, last_updated, registry_signature, is_test_record, test_tag,
+               identity_template, stewardship_tier, permitted_actions, template_hash,
+               approved_adapters, org_id
         FROM agents
         WHERE status != $1 AND (is_test_record = false OR is_test_record IS NULL)
         ORDER BY registered_at ASC
@@ -145,7 +147,9 @@ pub async fn get_agents_since_snapshot(
                version_prerelease, version_build_metadata, base_capabilities,
                max_autonomy_tier, build_timestamp, source_repo, source_commit,
                builder_attestation, status, revocation_reason, revocation_timestamp,
-               registered_at, last_updated, registry_signature, is_test_record, test_tag
+               registered_at, last_updated, registry_signature, is_test_record, test_tag,
+               identity_template, stewardship_tier, permitted_actions, template_hash,
+               approved_adapters, org_id
         FROM agents
         WHERE last_updated > to_timestamp($1)
           AND (is_test_record = false OR is_test_record IS NULL)

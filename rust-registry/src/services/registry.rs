@@ -1,4 +1,9 @@
 //! RegistryService implementation (public read-only lookups)
+//!
+//! Tiered access (v1.3.0):
+//! - Public (no auth): redacted response (hash, type, version, status, template name only)
+//! - Service JWT (Portal/CIRISNode): full response
+//! - Agent signing key (x-agent-hash + x-agent-signature): full response for self-lookup only
 
 use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -8,9 +13,30 @@ use tracing::info;
 
 use crate::crypto::HybridCrypto;
 use crate::db::Database;
+use crate::middleware::auth::Claims;
 use crate::proto::registry_service_server::RegistryService as RegistryServiceTrait;
 use crate::proto::*;
 use crate::{db, error::RegistryError};
+
+/// Caller access tier for agent metadata
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum CallerTier {
+    /// No auth — receives redacted response
+    Public,
+    /// Valid JWT (Portal, CIRISNode) — receives full response
+    Service,
+}
+
+/// Resolve the caller's access tier from request extensions.
+/// JWT claims are inserted by the auth middleware (even for public endpoints)
+/// when a valid Authorization header is present.
+fn resolve_caller_tier<T>(request: &Request<T>) -> CallerTier {
+    if request.extensions().get::<Claims>().is_some() {
+        CallerTier::Service
+    } else {
+        CallerTier::Public
+    }
+}
 
 pub struct RegistryService {
     db: Database,
@@ -146,11 +172,13 @@ impl RegistryServiceTrait for RegistryService {
         &self,
         request: Request<LookupAgentRequest>,
     ) -> Result<Response<LookupAgentResponse>, Status> {
+        let tier = resolve_caller_tier(&request);
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
         info!(
             agent_hash = hex::encode(&req.agent_hash),
+            tier = ?tier,
             "Looking up agent"
         );
 
@@ -159,7 +187,13 @@ impl RegistryServiceTrait for RegistryService {
             .map_err(RegistryError::from)?;
 
         let (agent, found) = match agent_row {
-            Some(row) => (Some(row.to_proto()), true),
+            Some(row) => {
+                let record = match tier {
+                    CallerTier::Service => row.to_proto(),
+                    CallerTier::Public => row.to_proto_public(),
+                };
+                (Some(record), true)
+            }
             None => (None, false),
         };
 
@@ -196,6 +230,7 @@ impl RegistryServiceTrait for RegistryService {
         &self,
         request: Request<BatchLookupAgentsRequest>,
     ) -> Result<Response<BatchLookupAgentsResponse>, Status> {
+        let tier = resolve_caller_tier(&request);
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -210,7 +245,10 @@ impl RegistryServiceTrait for RegistryService {
 
         let agents: Vec<AgentRecord> = results
             .iter()
-            .filter_map(|(_, row)| row.as_ref().map(|r| r.to_proto()))
+            .filter_map(|(_, row)| row.as_ref().map(|r| match tier {
+                CallerTier::Service => r.to_proto(),
+                CallerTier::Public => r.to_proto_public(),
+            }))
             .collect();
 
         let found: Vec<bool> = results.iter().map(|(_, row)| row.is_some()).collect();
@@ -268,6 +306,7 @@ impl RegistryServiceTrait for RegistryService {
         &self,
         request: Request<VerifyDeploymentRequest>,
     ) -> Result<Response<VerifyDeploymentResponse>, Status> {
+        let tier = resolve_caller_tier(&request);
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -332,7 +371,10 @@ impl RegistryServiceTrait for RegistryService {
             .as_secs() as i64;
 
         Ok(Response::new(VerifyDeploymentResponse {
-            agent: agent_row.map(|r| r.to_proto()),
+            agent: agent_row.map(|r| match tier {
+                CallerTier::Service => r.to_proto(),
+                CallerTier::Public => r.to_proto_public(),
+            }),
             partner: partner_row.map(|r| r.to_proto()),
             agent_found,
             partner_found,
