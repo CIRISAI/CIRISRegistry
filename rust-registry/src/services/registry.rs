@@ -438,7 +438,12 @@ impl RegistryServiceTrait for RegistryService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let key = if req.key_id.is_empty() {
+        let key = if !req.ed25519_fingerprint.is_empty() {
+            // Fingerprint-based lookup (used by CIRISNode for auto-discovery)
+            db::get_key_by_fingerprint(self.db.pool(), &req.ed25519_fingerprint)
+                .await
+                .map_err(RegistryError::from)?
+        } else if req.key_id.is_empty() {
             db::get_active_key(self.db.pool(), &req.org_id)
                 .await
                 .map_err(RegistryError::from)?
@@ -457,6 +462,7 @@ impl RegistryServiceTrait for RegistryService {
                 key_id: k.key_id,
                 status: k.status,
                 found: true,
+                org_id: k.org_id,
                 error: None,
                 context: Some(self.response_context(request_id, None)),
             })),
@@ -465,6 +471,7 @@ impl RegistryServiceTrait for RegistryService {
                 key_id: String::new(),
                 status: 0,
                 found: false,
+                org_id: String::new(),
                 error: None,
                 context: Some(self.response_context(request_id, None)),
             })),

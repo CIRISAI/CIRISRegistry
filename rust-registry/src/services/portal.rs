@@ -568,6 +568,7 @@ impl PortalServiceTrait for PortalService {
 
         let ed25519_pubkey = key_pair.ed25519_public_key();
         let mldsa_pubkey = key_pair.mldsa_public_key();
+        let ed25519_private = key_pair.ed25519_private_key_bytes();
         let ed25519_fp = HybridCrypto::fingerprint(&ed25519_pubkey);
         let mldsa_fp = HybridCrypto::fingerprint(&mldsa_pubkey);
 
@@ -632,6 +633,7 @@ impl PortalServiceTrait for PortalService {
 
         Ok(Response::new(GenerateKeyPairResponse {
             key_record: Some(key.to_proto()),
+            ed25519_private_key: ed25519_private.into(),
             context: Some(self.response_context(request_id, None)),
         }))
     }

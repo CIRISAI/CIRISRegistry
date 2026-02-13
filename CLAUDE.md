@@ -475,8 +475,10 @@ Migration `003_identity_template.sql` added these columns without `DEFAULT` or `
 ### Architecture Clarifications
 
 - **Registry is single source of truth for keys**. Everything else verifies against Registry.
-- **Signing keys for agents** are generated at CIRISPortal → stored in Registry. Provided to agent at install time. Agent cannot self-generate keys that will pass verification.
-- **CIRISNode** verifies agent signatures against Registry, does NOT store keys independently.
+- **Signing keys for agents** are generated at CIRISPortal → stored in Registry. Private key downloaded once at generation via Portal UI, placed in agent's `data/agent_signing.key`.
+- **CIRISNode** auto-discovers org_id via fingerprint lookup: `GetPublicKeys(ed25519_fingerprint=SHA256(pubkey))` returns org_id + verification status. No org_id config needed on agents.
+- **Fingerprint lookup**: `GetPublicKeysRequest.ed25519_fingerprint` field added to proto. Handler in `registry.rs` calls `db::get_key_by_fingerprint()`. Returns active key matching the fingerprint with org_id in response.
+- **Private key export**: `GenerateKeyPairResponse.ed25519_private_key` field returns raw 32-byte Ed25519 seed. Returned ONCE at generation, never stored in Registry.
 
 ## Related Projects
 

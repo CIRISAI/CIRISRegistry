@@ -99,6 +99,27 @@ pub async fn get_key(pool: &PgPool, key_id: &str) -> Result<Option<PartnerKeyRow
     Ok(row)
 }
 
+pub async fn get_key_by_fingerprint(pool: &PgPool, fingerprint: &str) -> Result<Option<PartnerKeyRow>> {
+    let row = sqlx::query_as::<_, PartnerKeyRow>(
+        r#"
+        SELECT key_id, org_id, partner_id, ed25519_public_key, ml_dsa_65_public_key,
+               ed25519_fingerprint, ml_dsa_65_fingerprint, custody_model, kv_key_ref,
+               status, revocation_reason, created_at, activated_at, rotated_at,
+               revoked_at, grace_period_expires_at, created_by, rotated_by, revoked_by, escrow_id
+        FROM partner_keys
+        WHERE ed25519_fingerprint = $1 AND status = $2
+        ORDER BY activated_at DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(fingerprint)
+    .bind(proto::KeyStatus::KeyActive as i32)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
 pub async fn create_key(
     pool: &PgPool,
     org_id: &str,

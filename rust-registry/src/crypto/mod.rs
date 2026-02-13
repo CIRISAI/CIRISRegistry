@@ -221,6 +221,12 @@ impl HybridCrypto {
         self.ed25519_signing_key.verifying_key().as_bytes().to_vec()
     }
 
+    /// Get Ed25519 private key bytes (32-byte seed)
+    /// WARNING: Only use for one-time key export at generation. Never persist.
+    pub fn ed25519_private_key_bytes(&self) -> Vec<u8> {
+        self.ed25519_signing_key.to_bytes().to_vec()
+    }
+
     /// Get ML-DSA-65 public key bytes
     pub fn mldsa_public_key(&self) -> Vec<u8> {
         self.mldsa_public_key.as_bytes().to_vec()
