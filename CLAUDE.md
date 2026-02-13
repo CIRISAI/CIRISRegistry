@@ -450,6 +450,34 @@ grpcurl -plaintext -d '{
 - Test capability intersection logic: `effective = agent ∩ partner.granted - partner.denied`
 - **Test Portal integration** - verify API endpoints work correctly with Portal
 
+## E2E QA Notes (2026-02-13)
+
+### Known Issues Fixed
+
+**BUG-001: NULL column decode on `permitted_actions` and `allowed_identity_templates`**
+
+Migration `003_identity_template.sql` added these columns without `DEFAULT` or `NOT NULL`. Pre-v1.2.0 rows have NULL. Rust `FromRow` can't decode NULL into `Vec<String>`.
+
+**Fix** (commit `f56b712`): Changed to `Option<Vec<String>>` with `.unwrap_or_default()` in:
+- `src/db/agents.rs` — `permitted_actions`
+- `src/db/partners.rs` — `allowed_identity_templates`
+- `src/services/registry.rs` — `VerifyDeployment` references
+
+**Pattern**: Any future `TEXT[]` or `BYTEA[]` column added via migration MUST use `Option<Vec<T>>` in the Rust struct, or add `DEFAULT '{}'` in the migration SQL. This avoids decode failures on pre-existing rows.
+
+### Deployment Notes
+
+- **Watchtower** polls every 60s but may need manual restart if it gets stuck
+- Registry runs US+EU — both instances must be updated
+- Image: `ghcr.io/cirisai/cirisregistry:latest`
+- Tags: `latest` (rolling) + `main` + short SHA (immutable)
+
+### Architecture Clarifications
+
+- **Registry is single source of truth for keys**. Everything else verifies against Registry.
+- **Signing keys for agents** are generated at CIRISPortal → stored in Registry. Provided to agent at install time. Agent cannot self-generate keys that will pass verification.
+- **CIRISNode** verifies agent signatures against Registry, does NOT store keys independently.
+
 ## Related Projects
 
 | Component | Purpose | Integration |
