@@ -149,9 +149,10 @@ pub async fn register_agent(pool: &PgPool, record: &proto::AgentRecord) -> Resul
             agent_hash, agent_type, version_major, version_minor, version_patch,
             version_prerelease, version_build_metadata, base_capabilities,
             max_autonomy_tier, build_timestamp, source_repo, source_commit,
-            builder_attestation, status, is_test_record, test_tag
+            builder_attestation, status, is_test_record, test_tag,
+            identity_template, stewardship_tier, permitted_actions, template_hash
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10), $11, $12, $13, $14, $15, $16)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10), $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         "#,
     )
     .bind(record.agent_hash.as_ref() as &[u8])
@@ -193,6 +194,23 @@ pub async fn register_agent(pool: &PgPool, record: &proto::AgentRecord) -> Resul
         None
     } else {
         Some(&record.test_tag)
+    })
+    // Identity template fields (v1.2.0)
+    .bind(if record.identity_template.is_empty() {
+        None
+    } else {
+        Some(&record.identity_template)
+    })
+    .bind(if record.stewardship_tier == 0 {
+        None
+    } else {
+        Some(record.stewardship_tier)
+    })
+    .bind(&record.permitted_actions)
+    .bind(if record.template_hash.is_empty() {
+        None::<&[u8]>
+    } else {
+        Some(record.template_hash.as_ref() as &[u8])
     })
     .execute(pool)
     .await?;
