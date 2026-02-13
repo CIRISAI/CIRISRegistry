@@ -308,14 +308,14 @@ impl RegistryServiceTrait for RegistryService {
             match (&agent_row, &partner_row) {
                 (Some(agent), Some(partner)) => {
                     let template = agent.identity_template.clone().unwrap_or_default();
-                    let template_allowed = partner.allowed_identity_templates.is_empty()
-                        || partner
-                            .allowed_identity_templates
+                    let allowed_templates = partner.allowed_identity_templates.clone().unwrap_or_default();
+                    let template_allowed = allowed_templates.is_empty()
+                        || allowed_templates
                             .contains(&template);
                     if template_allowed {
                         (
                             template,
-                            agent.permitted_actions.clone(),
+                            agent.permitted_actions.clone().unwrap_or_default(),
                             agent.stewardship_tier.unwrap_or(0),
                         )
                     } else {

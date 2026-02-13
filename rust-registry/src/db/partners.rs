@@ -30,7 +30,7 @@ pub struct PartnerRow {
     pub revocation_reason: Option<String>,
     pub status_changed_at: Option<OffsetDateTime>,
     // Identity template enforcement (v1.2.0)
-    pub allowed_identity_templates: Vec<String>,
+    pub allowed_identity_templates: Option<Vec<String>>,
 }
 
 impl PartnerRow {
@@ -61,7 +61,7 @@ impl PartnerRow {
                 .unwrap_or(0),
             license_signature: None,
             registry_signature: None,
-            allowed_identity_templates: self.allowed_identity_templates.clone(),
+            allowed_identity_templates: self.allowed_identity_templates.clone().unwrap_or_default(),
         }
     }
 }

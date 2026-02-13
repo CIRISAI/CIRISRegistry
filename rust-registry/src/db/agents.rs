@@ -33,7 +33,7 @@ pub struct AgentRow {
     // Identity template (CIRISVerify enforcement, v1.2.0)
     pub identity_template: Option<String>,
     pub stewardship_tier: Option<i32>,
-    pub permitted_actions: Vec<String>,
+    pub permitted_actions: Option<Vec<String>>,
     pub template_hash: Option<Vec<u8>>,
 }
 
@@ -74,7 +74,7 @@ impl AgentRow {
             test_tag: self.test_tag.clone().unwrap_or_default(),
             // Identity template (v1.2.0)
             identity_template: self.identity_template.clone().unwrap_or_default(),
-            permitted_actions: self.permitted_actions.clone(),
+            permitted_actions: self.permitted_actions.clone().unwrap_or_default(),
             stewardship_tier: self.stewardship_tier.unwrap_or(0),
             template_hash: self.template_hash.clone().unwrap_or_default().into(),
         }
