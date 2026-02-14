@@ -50,7 +50,10 @@ impl PartnerKeyRow {
             activated_at: self.activated_at.map(|t| t.unix_timestamp()).unwrap_or(0),
             rotated_at: self.rotated_at.map(|t| t.unix_timestamp()).unwrap_or(0),
             revoked_at: self.revoked_at.map(|t| t.unix_timestamp()).unwrap_or(0),
-            grace_period_expires_at: self.grace_period_expires_at.map(|t| t.unix_timestamp()).unwrap_or(0),
+            grace_period_expires_at: self
+                .grace_period_expires_at
+                .map(|t| t.unix_timestamp())
+                .unwrap_or(0),
             created_by: self.created_by.clone().unwrap_or_default(),
             rotated_by: self.rotated_by.clone().unwrap_or_default(),
             revoked_by: self.revoked_by.clone().unwrap_or_default(),
@@ -99,7 +102,10 @@ pub async fn get_key(pool: &PgPool, key_id: &str) -> Result<Option<PartnerKeyRow
     Ok(row)
 }
 
-pub async fn get_key_by_fingerprint(pool: &PgPool, fingerprint: &str) -> Result<Option<PartnerKeyRow>> {
+pub async fn get_key_by_fingerprint(
+    pool: &PgPool,
+    fingerprint: &str,
+) -> Result<Option<PartnerKeyRow>> {
     let row = sqlx::query_as::<_, PartnerKeyRow>(
         r#"
         SELECT key_id, org_id, partner_id, ed25519_public_key, ml_dsa_65_public_key,
@@ -286,11 +292,7 @@ pub async fn rotate_key(
 }
 
 /// Complete staged rotation - activates new key and marks old as rotated
-pub async fn complete_rotation(
-    pool: &PgPool,
-    old_key_id: &str,
-    new_key_id: &str,
-) -> Result<bool> {
+pub async fn complete_rotation(pool: &PgPool, old_key_id: &str, new_key_id: &str) -> Result<bool> {
     let mut tx = pool.begin().await?;
 
     // Activate new key

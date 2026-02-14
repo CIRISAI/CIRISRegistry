@@ -2,22 +2,26 @@
 //!
 //! These strategies generate arbitrary test data, similar to Hypothesis strategies.
 
-use proptest::prelude::*;
 use super::fixtures::capabilities;
+use proptest::prelude::*;
 
 /// Strategy for generating valid capability strings
 pub fn capability_strategy() -> impl Strategy<Value = String> {
-    prop::sample::select(capabilities::all().into_iter().map(String::from).collect::<Vec<_>>())
+    prop::sample::select(
+        capabilities::all()
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>(),
+    )
 }
 
 /// Strategy for generating a set of capabilities (0-10 items)
 pub fn capability_set_strategy() -> impl Strategy<Value = Vec<String>> {
-    prop::collection::vec(capability_strategy(), 0..10)
-        .prop_map(|mut v| {
-            v.sort();
-            v.dedup();
-            v
-        })
+    prop::collection::vec(capability_strategy(), 0..10).prop_map(|mut v| {
+        v.sort();
+        v.dedup();
+        v
+    })
 }
 
 /// Strategy for generating agent hashes (32 bytes)
@@ -27,8 +31,7 @@ pub fn agent_hash_strategy() -> impl Strategy<Value = Vec<u8>> {
 
 /// Strategy for generating partner IDs
 pub fn partner_id_strategy() -> impl Strategy<Value = String> {
-    "[a-z]{3,8}-[0-9]{4}"
-        .prop_map(|s| format!("partner-{}", s))
+    "[a-z]{3,8}-[0-9]{4}".prop_map(|s| format!("partner-{}", s))
 }
 
 /// Strategy for valid agent types
@@ -58,8 +61,7 @@ pub fn version_strategy() -> impl Strategy<Value = (u32, u32, u32)> {
 
 /// Strategy for test data that should be cleaned up
 pub fn test_tag_strategy() -> impl Strategy<Value = String> {
-    "[a-z]{5,10}"
-        .prop_map(|s| format!("proptest-{}", s))
+    "[a-z]{5,10}".prop_map(|s| format!("proptest-{}", s))
 }
 
 /// Strategy for arbitrary binary data (for signature testing)

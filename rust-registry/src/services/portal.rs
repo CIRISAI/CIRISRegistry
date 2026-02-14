@@ -6,25 +6,34 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tonic::{Request, Response, Status};
 use tracing::info;
 
+use crate::config::Environment;
 use crate::crypto::HybridCrypto;
 use crate::db::{self, Database};
 use crate::proto::portal_service_server::PortalService as PortalServiceTrait;
 use crate::proto::{
-    AuditActionType, AuditEntry, AuditExportFormat, KeyRotationMode, KeyStatus, OrgType, User,
-    *,
+    AuditActionType, AuditEntry, AuditExportFormat, KeyRotationMode, KeyStatus, OrgType, User, *,
 };
 
 pub struct PortalService {
     db: Database,
     crypto: Arc<HybridCrypto>,
+    environment: i32,
 }
 
 impl PortalService {
-    pub fn new(db: Database, crypto: Arc<HybridCrypto>) -> Self {
-        Self { db, crypto }
+    pub fn new(db: Database, crypto: Arc<HybridCrypto>, environment: Environment) -> Self {
+        Self {
+            db,
+            crypto,
+            environment: environment.to_proto_i32(),
+        }
     }
 
-    fn response_context(&self, request_id: Option<String>, start_time: Option<Instant>) -> ResponseContext {
+    fn response_context(
+        &self,
+        request_id: Option<String>,
+        start_time: Option<Instant>,
+    ) -> ResponseContext {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -39,11 +48,16 @@ impl PortalService {
             server_timestamp: now,
             processing_time_ms,
             server_version: format!("registry-v{}", env!("CARGO_PKG_VERSION")),
-            environment: RegistryEnvironment::EnvDevelopment as i32,
+            environment: self.environment,
         }
     }
 
-    fn admin_response(&self, success: bool, message: &str, request_id: Option<String>) -> AdminResponse {
+    fn admin_response(
+        &self,
+        success: bool,
+        message: &str,
+        request_id: Option<String>,
+    ) -> AdminResponse {
         AdminResponse {
             success,
             message: message.to_string(),
@@ -62,15 +76,18 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let org = req.organization.ok_or_else(|| Status::invalid_argument("organization required"))?;
+        let org = req
+            .organization
+            .ok_or_else(|| Status::invalid_argument("organization required"))?;
 
         // Check if initial_admin is provided - use transactional creation to avoid race condition
         if let Some(admin_user) = req.initial_admin {
             info!(name = %org.name, admin_email = %admin_user.email, "Creating organization with initial admin");
 
-            let (org_id, user_id) = db::create_organization_with_admin(self.db.pool(), &org, &admin_user)
-                .await
-                .map_err(|e| Status::internal(e.to_string()))?;
+            let (org_id, user_id) =
+                db::create_organization_with_admin(self.db.pool(), &org, &admin_user)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?;
 
             // Fetch the created records to return full objects
             let created_org = db::get_organization(self.db.pool(), &org_id)
@@ -194,7 +211,9 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let org = req.organization.ok_or_else(|| Status::invalid_argument("organization required"))?;
+        let org = req
+            .organization
+            .ok_or_else(|| Status::invalid_argument("organization required"))?;
 
         info!(org_id = %org.org_id, "Updating organization");
 
@@ -240,17 +259,17 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let page_size = if req.page_size == 0 {
+            50
+        } else {
+            req.page_size
+        };
         let offset: i32 = req.page_token.parse().unwrap_or(0);
 
-        let (orgs, total) = db::list_organizations(
-            self.db.pool(),
-            page_size,
-            offset,
-            req.include_inactive,
-        )
-        .await
-        .map_err(|e| Status::internal(e.to_string()))?;
+        let (orgs, total) =
+            db::list_organizations(self.db.pool(), page_size, offset, req.include_inactive)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
 
         let next_offset = offset + orgs.len() as i32;
         let next_page_token = if next_offset < total {
@@ -278,7 +297,10 @@ impl PortalServiceTrait for PortalService {
             return Err(Status::invalid_argument("Maximum batch size is 100"));
         }
 
-        info!(count = req.organizations.len(), "Batch creating organizations");
+        info!(
+            count = req.organizations.len(),
+            "Batch creating organizations"
+        );
 
         let mut results = Vec::new();
         let mut successful_count = 0;
@@ -288,7 +310,10 @@ impl PortalServiceTrait for PortalService {
             match db::create_organization(self.db.pool(), org).await {
                 Ok(org_id) => {
                     // Fetch the created org to return
-                    let created_org = db::get_organization(self.db.pool(), &org_id).await.ok().flatten();
+                    let created_org = db::get_organization(self.db.pool(), &org_id)
+                        .await
+                        .ok()
+                        .flatten();
                     results.push(batch_create_organizations_response::Result {
                         success: true,
                         organization: created_org.map(|o| o.to_proto()),
@@ -332,7 +357,9 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+        let user = req
+            .user
+            .ok_or_else(|| Status::invalid_argument("user required"))?;
 
         info!(email = %user.email, org_id = %user.org_id, "Creating user");
 
@@ -412,7 +439,9 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+        let user = req
+            .user
+            .ok_or_else(|| Status::invalid_argument("user required"))?;
 
         info!(user_id = %user.user_id, "Updating user");
 
@@ -461,7 +490,11 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let page_size = if req.page_size == 0 {
+            50
+        } else {
+            req.page_size
+        };
         let offset: i32 = req.page_token.parse().unwrap_or(0);
 
         let (users, total) = db::list_org_users(
@@ -563,8 +596,8 @@ impl PortalServiceTrait for PortalService {
         info!(org_id = %req.org_id, "Generating key pair");
 
         // Generate ephemeral keys for this organization
-        let key_pair = HybridCrypto::generate_ephemeral()
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let key_pair =
+            HybridCrypto::generate_ephemeral().map_err(|e| Status::internal(e.to_string()))?;
 
         let ed25519_pubkey = key_pair.ed25519_public_key();
         let mldsa_pubkey = key_pair.mldsa_public_key();
@@ -677,7 +710,11 @@ impl PortalServiceTrait for PortalService {
 
         if activated {
             // Create audit entry
-            let requester = if req.requester_user_id.is_empty() { None } else { Some(req.requester_user_id.as_str()) };
+            let requester = if req.requester_user_id.is_empty() {
+                None
+            } else {
+                Some(req.requester_user_id.as_str())
+            };
             let _ = db::create_audit_entry(
                 self.db.pool(),
                 AuditActionType::AuditKeyActivated,
@@ -693,9 +730,17 @@ impl PortalServiceTrait for PortalService {
             )
             .await;
 
-            Ok(Response::new(self.admin_response(true, "Key activated", request_id)))
+            Ok(Response::new(self.admin_response(
+                true,
+                "Key activated",
+                request_id,
+            )))
         } else {
-            Ok(Response::new(self.admin_response(false, "Key not found or already active", request_id)))
+            Ok(Response::new(self.admin_response(
+                false,
+                "Key not found or already active",
+                request_id,
+            )))
         }
     }
 
@@ -715,8 +760,8 @@ impl PortalServiceTrait for PortalService {
             .ok_or_else(|| Status::failed_precondition("No active key to rotate"))?;
 
         // Generate new key pair
-        let key_pair = HybridCrypto::generate_ephemeral()
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let key_pair =
+            HybridCrypto::generate_ephemeral().map_err(|e| Status::internal(e.to_string()))?;
 
         let ed25519_pubkey = key_pair.ed25519_public_key();
         let mldsa_pubkey = key_pair.mldsa_public_key();
@@ -812,7 +857,9 @@ impl PortalServiceTrait for PortalService {
             .ok_or_else(|| Status::not_found("Key not found"))?;
 
         if key.org_id != req.org_id {
-            return Err(Status::permission_denied("Key does not belong to organization"));
+            return Err(Status::permission_denied(
+                "Key does not belong to organization",
+            ));
         }
 
         if key.status == KeyStatus::KeyRevoked as i32 {
@@ -881,7 +928,9 @@ impl PortalServiceTrait for PortalService {
             .ok_or_else(|| Status::not_found("Key not found"))?;
 
         if key.org_id != req.org_id {
-            return Err(Status::permission_denied("Key does not belong to organization"));
+            return Err(Status::permission_denied(
+                "Key does not belong to organization",
+            ));
         }
 
         // Create escrow entry (use "steward" as default custodian)
@@ -923,7 +972,9 @@ impl PortalServiceTrait for PortalService {
             .ok_or_else(|| Status::not_found("Escrow not found"))?;
 
         if escrow.org_id != req.org_id {
-            return Err(Status::permission_denied("Escrow does not belong to organization"));
+            return Err(Status::permission_denied(
+                "Escrow does not belong to organization",
+            ));
         }
 
         // Update escrow status to "RECOVERY_REQUESTED"
@@ -940,7 +991,8 @@ impl PortalServiceTrait for PortalService {
             expires_at: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
-                .as_secs() as i64 + 86400, // 24 hours from now
+                .as_secs() as i64
+                + 86400, // 24 hours from now
             context: Some(self.response_context(request_id, None)),
         }))
     }
@@ -969,7 +1021,9 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let sign_request = req.sign_request.ok_or_else(|| Status::invalid_argument("sign_request required"))?;
+        let sign_request = req
+            .sign_request
+            .ok_or_else(|| Status::invalid_argument("sign_request required"))?;
 
         // Get active key for org
         let key = db::get_active_key(self.db.pool(), &sign_request.org_id)
@@ -978,7 +1032,9 @@ impl PortalServiceTrait for PortalService {
             .ok_or_else(|| Status::failed_precondition("No active key for organization"))?;
 
         // Sign using the registry's crypto provider (for custodied keys)
-        let signature = self.crypto.sign(&sign_request.data)
+        let signature = self
+            .crypto
+            .sign(&sign_request.data)
             .map_err(|e| Status::internal(e.to_string()))?;
 
         let now = SystemTime::now()
@@ -1005,7 +1061,11 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let page_size = if req.page_size == 0 {
+            50
+        } else {
+            req.page_size
+        };
         let offset: i32 = req.page_token.parse().unwrap_or(0);
 
         let action_types: Vec<i32> = req.action_types.iter().map(|a| *a as i32).collect();
@@ -1158,7 +1218,7 @@ impl PortalServiceTrait for PortalService {
         };
 
         // Compute SHA256 checksum
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(&data);
         let checksum = hex::encode(hasher.finalize());
@@ -1204,11 +1264,31 @@ impl PortalServiceTrait for PortalService {
         let entry_id = db::create_audit_entry(
             self.db.pool(),
             action,
-            if req.actor_user_id.is_empty() { None } else { Some(&req.actor_user_id) },
-            if req.actor_org_id.is_empty() { None } else { Some(&req.actor_org_id) },
-            if req.actor_ip_address.is_empty() { None } else { Some(&req.actor_ip_address) },
-            if req.target_type.is_empty() { None } else { Some(&req.target_type) },
-            if req.target_id.is_empty() { None } else { Some(&req.target_id) },
+            if req.actor_user_id.is_empty() {
+                None
+            } else {
+                Some(&req.actor_user_id)
+            },
+            if req.actor_org_id.is_empty() {
+                None
+            } else {
+                Some(&req.actor_org_id)
+            },
+            if req.actor_ip_address.is_empty() {
+                None
+            } else {
+                Some(&req.actor_ip_address)
+            },
+            if req.target_type.is_empty() {
+                None
+            } else {
+                Some(&req.target_type)
+            },
+            if req.target_id.is_empty() {
+                None
+            } else {
+                Some(&req.target_id)
+            },
             &req.description,
             metadata,
         )
@@ -1245,7 +1325,10 @@ impl PortalServiceTrait for PortalService {
 
         let keys_generated = keys.len() as i32;
         let keys_rotated = keys.iter().filter(|k| k.rotated_at.is_some()).count() as i32;
-        let keys_revoked = keys.iter().filter(|k| k.status == KeyStatus::KeyRevoked as i32).count() as i32;
+        let keys_revoked = keys
+            .iter()
+            .filter(|k| k.status == KeyStatus::KeyRevoked as i32)
+            .count() as i32;
 
         // Calculate oldest active key age
         let oldest_active_key_age_days = keys
@@ -1284,8 +1367,16 @@ impl PortalServiceTrait for PortalService {
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
-        let earliest_event = audit_entries.iter().map(|e| e.timestamp.unix_timestamp()).min().unwrap_or(0);
-        let latest_event = audit_entries.iter().map(|e| e.timestamp.unix_timestamp()).max().unwrap_or(0);
+        let earliest_event = audit_entries
+            .iter()
+            .map(|e| e.timestamp.unix_timestamp())
+            .min()
+            .unwrap_or(0);
+        let latest_event = audit_entries
+            .iter()
+            .map(|e| e.timestamp.unix_timestamp())
+            .max()
+            .unwrap_or(0);
         let audit_trail_continuous = total_events > 0;
 
         let report_id = uuid::Uuid::new_v4().to_string();
@@ -1304,7 +1395,11 @@ impl PortalServiceTrait for PortalService {
                     keys_generated,
                     keys_rotated,
                     keys_revoked,
-                    if rotation_policy_compliant { "COMPLIANT" } else { "NON-COMPLIANT" },
+                    if rotation_policy_compliant {
+                        "COMPLIANT"
+                    } else {
+                        "NON-COMPLIANT"
+                    },
                     total_users,
                     mfa_enabled_users
                 )
@@ -1330,8 +1425,13 @@ impl PortalServiceTrait for PortalService {
         };
 
         // Sign the report
-        let report_data = format!("{}:{}:{}:{}", report_id, req.org_id, req.start_time, req.end_time);
-        let report_signature = self.crypto.sign(report_data.as_bytes())
+        let report_data = format!(
+            "{}:{}:{}:{}",
+            report_id, req.org_id, req.start_time, req.end_time
+        );
+        let report_signature = self
+            .crypto
+            .sign(report_data.as_bytes())
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(ComplianceReport {
@@ -1377,7 +1477,9 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+        let user = req
+            .user
+            .ok_or_else(|| Status::invalid_argument("user required"))?;
 
         info!(email = %user.email, "Creating multi-org user");
 
@@ -1398,7 +1500,8 @@ impl PortalServiceTrait for PortalService {
             success: true,
             message: "User created".to_string(),
             user_id: user_id.clone(),
-            user: created_user.map(|u| u.to_proto(memberships.iter().map(|m| m.to_proto()).collect())),
+            user: created_user
+                .map(|u| u.to_proto(memberships.iter().map(|m| m.to_proto()).collect())),
             error: None,
             context: Some(self.response_context(request_id, None)),
         }))
@@ -1411,7 +1514,9 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+        let user = req
+            .user
+            .ok_or_else(|| Status::invalid_argument("user required"))?;
 
         info!(email = %user.email, org_id = %req.org_id, role = req.role, "Creating user with membership");
 
@@ -1457,7 +1562,8 @@ impl PortalServiceTrait for PortalService {
             success: true,
             message: "User created with membership".to_string(),
             user_id: user_id.clone(),
-            user: created_user.map(|u| u.to_proto(memberships.iter().map(|m| m.to_proto()).collect())),
+            user: created_user
+                .map(|u| u.to_proto(memberships.iter().map(|m| m.to_proto()).collect())),
             error: None,
             context: Some(self.response_context(request_id, None)),
         }))
@@ -1537,7 +1643,11 @@ impl PortalServiceTrait for PortalService {
             &req.user_id,
             &req.org_id,
             req.role,
-            if req.invited_by.is_empty() { None } else { Some(&req.invited_by) },
+            if req.invited_by.is_empty() {
+                None
+            } else {
+                Some(&req.invited_by)
+            },
         )
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
@@ -1586,9 +1696,10 @@ impl PortalServiceTrait for PortalService {
 
         info!(user_id = %req.user_id, org_id = %req.org_id, new_role = req.new_role, "Updating user org role");
 
-        let updated = db::update_user_org_role(self.db.pool(), &req.user_id, &req.org_id, req.new_role)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let updated =
+            db::update_user_org_role(self.db.pool(), &req.user_id, &req.org_id, req.new_role)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
 
         if updated {
             Ok(Response::new(self.admin_response(
@@ -1612,7 +1723,11 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let page_size = if req.page_size == 0 {
+            50
+        } else {
+            req.page_size
+        };
         let offset: i32 = req.page_token.parse().unwrap_or(0);
 
         let (members, total) = db::list_org_members(
@@ -1657,11 +1772,15 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+        let user = req
+            .user
+            .ok_or_else(|| Status::invalid_argument("user required"))?;
 
         // SYSTEM_ADMIN (role=1) requires @ciris.ai email
         if user.role == 1 && !user.email.ends_with("@ciris.ai") {
-            return Err(Status::invalid_argument("SYSTEM_ADMIN role requires @ciris.ai email"));
+            return Err(Status::invalid_argument(
+                "SYSTEM_ADMIN role requires @ciris.ai email",
+            ));
         }
 
         info!(email = %user.email, role = user.role, "Creating system user");
@@ -1735,17 +1854,17 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let page_size = if req.page_size == 0 {
+            50
+        } else {
+            req.page_size
+        };
         let offset: i32 = req.page_token.parse().unwrap_or(0);
 
-        let (users, total) = db::list_system_users(
-            self.db.pool(),
-            page_size,
-            offset,
-            req.include_inactive,
-        )
-        .await
-        .map_err(|e| Status::internal(e.to_string()))?;
+        let (users, total) =
+            db::list_system_users(self.db.pool(), page_size, offset, req.include_inactive)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
 
         let next_offset = offset + users.len() as i32;
         let next_page_token = if next_offset < total {
@@ -1769,7 +1888,9 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let user = req.user.ok_or_else(|| Status::invalid_argument("user required"))?;
+        let user = req
+            .user
+            .ok_or_else(|| Status::invalid_argument("user required"))?;
 
         info!(user_id = %user.user_id, "Updating system user");
 
@@ -1803,7 +1924,11 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let page_size = if req.page_size == 0 { 50 } else { req.page_size };
+        let page_size = if req.page_size == 0 {
+            50
+        } else {
+            req.page_size
+        };
         let offset: i32 = req.page_token.parse().unwrap_or(0);
 
         let (orgs, total) = db::list_child_organizations(
@@ -1838,7 +1963,9 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let mut org = req.organization.ok_or_else(|| Status::invalid_argument("organization required"))?;
+        let mut org = req
+            .organization
+            .ok_or_else(|| Status::invalid_argument("organization required"))?;
 
         // Verify parent org exists and is a PARTNER type
         let parent = db::get_organization(self.db.pool(), &req.parent_org_id)
@@ -1847,7 +1974,9 @@ impl PortalServiceTrait for PortalService {
             .ok_or_else(|| Status::not_found("Parent organization not found"))?;
 
         if parent.org_type != OrgType::OrgPartner as i32 {
-            return Err(Status::invalid_argument("Only PARTNER organizations can create licensees"));
+            return Err(Status::invalid_argument(
+                "Only PARTNER organizations can create licensees",
+            ));
         }
 
         // Set licensee org fields
@@ -1938,7 +2067,9 @@ impl PortalServiceTrait for PortalService {
 
         // Must be COMMUNITY type to upgrade
         if org.org_type != OrgType::OrgCommunity as i32 {
-            return Err(Status::invalid_argument("Only COMMUNITY organizations can be upgraded to PARTNER"));
+            return Err(Status::invalid_argument(
+                "Only COMMUNITY organizations can be upgraded to PARTNER",
+            ));
         }
 
         info!(org_id = %req.org_id, "Upgrading organization to PARTNER");
@@ -1956,7 +2087,7 @@ impl PortalServiceTrait for PortalService {
             let _ = db::create_audit_entry(
                 self.db.pool(),
                 AuditActionType::AuditOrgCreated, // Could add AUDIT_ORG_UPGRADED
-                None, // upgraded_by not in proto
+                None,                             // upgraded_by not in proto
                 Some(&req.org_id),
                 None,
                 Some("organization"),

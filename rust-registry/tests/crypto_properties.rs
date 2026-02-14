@@ -6,8 +6,8 @@
 
 mod common;
 
-use proptest::prelude::*;
 use common::strategies::*;
+use proptest::prelude::*;
 
 // Cryptographic constant tests
 proptest! {
@@ -75,7 +75,7 @@ proptest! {
 /// Ed25519 signature tests (using ed25519-dalek directly)
 mod ed25519_tests {
     use super::*;
-    use ed25519_dalek::{SigningKey, Signer, Verifier};
+    use ed25519_dalek::{Signer, SigningKey, Verifier};
     use rand::rngs::OsRng;
 
     proptest! {
@@ -183,7 +183,7 @@ mod nonce_tests {
 
 #[cfg(test)]
 mod unit_tests {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
 
     #[test]
     fn test_sha256_empty() {
@@ -196,7 +196,10 @@ mod unit_tests {
         let hash = Sha256::digest(b"Hello, World!");
         let hex = hex::encode(hash);
         // Known SHA-256 of "Hello, World!"
-        assert_eq!(hex, "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f");
+        assert_eq!(
+            hex,
+            "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f"
+        );
     }
 
     #[test]

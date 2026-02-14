@@ -121,20 +121,22 @@ pub async fn list_system_users(
         .fetch_all(pool)
         .await?;
 
-    let total: (i64,) = sqlx::query_as(
-        if include_inactive {
-            "SELECT COUNT(*) FROM system_users"
-        } else {
-            "SELECT COUNT(*) FROM system_users WHERE active = true"
-        },
-    )
+    let total: (i64,) = sqlx::query_as(if include_inactive {
+        "SELECT COUNT(*) FROM system_users"
+    } else {
+        "SELECT COUNT(*) FROM system_users WHERE active = true"
+    })
     .fetch_one(pool)
     .await?;
 
     Ok((rows, total.0 as i32))
 }
 
-pub async fn update_system_user(pool: &PgPool, user_id: &str, user: &proto::SystemUser) -> Result<bool> {
+pub async fn update_system_user(
+    pool: &PgPool,
+    user_id: &str,
+    user: &proto::SystemUser,
+) -> Result<bool> {
     let result = sqlx::query(
         r#"
         UPDATE system_users SET

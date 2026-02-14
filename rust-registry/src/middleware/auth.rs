@@ -8,7 +8,7 @@
 use std::task::{Context, Poll};
 
 use http::{Request, Response, StatusCode};
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use tower::{Layer, Service};
 
@@ -80,7 +80,6 @@ fn classify_path(path: &str) -> AuthRequirement {
     // Unknown paths — require auth by default (fail-secure)
     AuthRequirement::Authenticated
 }
-
 
 #[derive(Clone)]
 pub struct AuthLayer {
@@ -242,10 +241,7 @@ mod tests {
             classify_path("/ciris.registry.v1.PortalService/CreateOrganization"),
             AuthRequirement::Authenticated,
         );
-        assert_eq!(
-            classify_path("/health"),
-            AuthRequirement::None,
-        );
+        assert_eq!(classify_path("/health"), AuthRequirement::None,);
         assert_eq!(
             classify_path("/unknown/path"),
             AuthRequirement::Authenticated,

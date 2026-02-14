@@ -5,8 +5,8 @@
 
 mod common;
 
-use proptest::prelude::*;
 use common::strategies::*;
+use proptest::prelude::*;
 use std::collections::HashSet;
 
 // ============================================================================
@@ -18,10 +18,7 @@ fn intersect(a: &[String], b: &[String]) -> Vec<String> {
     let set_a: HashSet<_> = a.iter().collect();
     let set_b: HashSet<_> = b.iter().collect();
 
-    let mut result: Vec<String> = set_a
-        .intersection(&set_b)
-        .map(|s| (*s).clone())
-        .collect();
+    let mut result: Vec<String> = set_a.intersection(&set_b).map(|s| (*s).clone()).collect();
 
     result.sort();
     result
@@ -340,7 +337,10 @@ mod edge_cases {
         let denied = agent.clone();
 
         let effective = calculate_effective(&agent, &granted, &denied);
-        assert!(effective.is_empty(), "All capabilities denied should result in empty set");
+        assert!(
+            effective.is_empty(),
+            "All capabilities denied should result in empty set"
+        );
     }
 
     #[test]
@@ -350,7 +350,10 @@ mod edge_cases {
         let denied: Vec<String> = vec![];
 
         let effective = calculate_effective(&agent, &granted, &denied);
-        assert!(effective.is_empty(), "No overlap should result in empty set");
+        assert!(
+            effective.is_empty(),
+            "No overlap should result in empty set"
+        );
     }
 
     #[test]

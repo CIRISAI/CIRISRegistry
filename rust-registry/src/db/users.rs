@@ -44,7 +44,10 @@ impl OrgUserRow {
             // ISO 8601 timestamp strings for JavaScript compatibility
             created_at_iso: self.created_at.format(&Rfc3339).unwrap_or_default(),
             updated_at_iso: self.updated_at.format(&Rfc3339).unwrap_or_default(),
-            last_login_at_iso: self.last_login_at.map(|t| t.format(&Rfc3339).unwrap_or_default()).unwrap_or_default(),
+            last_login_at_iso: self
+                .last_login_at
+                .map(|t| t.format(&Rfc3339).unwrap_or_default())
+                .unwrap_or_default(),
             mfa_enabled: self.mfa_enabled,
             mfa_method: self.mfa_method.clone().unwrap_or_default(),
         }
@@ -109,11 +112,23 @@ pub async fn create_user(pool: &PgPool, user: &proto::OrgUser) -> Result<String>
     .bind(&user_id)
     .bind(&user.email)
     .bind(&user.name)
-    .bind(if user.oauth_provider.is_empty() { None } else { Some(&user.oauth_provider) })
-    .bind(if user.oauth_subject.is_empty() { None } else { Some(&user.oauth_subject) })
+    .bind(if user.oauth_provider.is_empty() {
+        None
+    } else {
+        Some(&user.oauth_provider)
+    })
+    .bind(if user.oauth_subject.is_empty() {
+        None
+    } else {
+        Some(&user.oauth_subject)
+    })
     .bind(user.active)
     .bind(user.mfa_enabled)
-    .bind(if user.mfa_method.is_empty() { None } else { Some(&user.mfa_method) })
+    .bind(if user.mfa_method.is_empty() {
+        None
+    } else {
+        Some(&user.mfa_method)
+    })
     .execute(&mut *tx)
     .await?;
 
@@ -127,7 +142,11 @@ pub async fn create_user(pool: &PgPool, user: &proto::OrgUser) -> Result<String>
     .bind(&user_id)
     .bind(&user.org_id)
     .bind(user.role)
-    .bind(if user.invited_by.is_empty() { None } else { Some(&user.invited_by) })
+    .bind(if user.invited_by.is_empty() {
+        None
+    } else {
+        Some(&user.invited_by)
+    })
     .execute(&mut *tx)
     .await?;
 
@@ -175,17 +194,15 @@ pub async fn list_org_users(
         .fetch_all(pool)
         .await?;
 
-    let total: (i64,) = sqlx::query_as(
-        if include_inactive {
-            "SELECT COUNT(*) FROM user_org_memberships WHERE org_id = $1"
-        } else {
-            r#"
+    let total: (i64,) = sqlx::query_as(if include_inactive {
+        "SELECT COUNT(*) FROM user_org_memberships WHERE org_id = $1"
+    } else {
+        r#"
             SELECT COUNT(*) FROM user_org_memberships m
             JOIN users u ON m.user_id = u.user_id
             WHERE m.org_id = $1 AND u.active = true
             "#
-        },
-    )
+    })
     .bind(org_id)
     .fetch_one(pool)
     .await?;
@@ -213,7 +230,11 @@ pub async fn update_user(pool: &PgPool, user_id: &str, user: &proto::OrgUser) ->
     .bind(&user.name)
     .bind(user.active)
     .bind(user.mfa_enabled)
-    .bind(if user.mfa_method.is_empty() { None } else { Some(&user.mfa_method) })
+    .bind(if user.mfa_method.is_empty() {
+        None
+    } else {
+        Some(&user.mfa_method)
+    })
     .execute(&mut *tx)
     .await?;
 

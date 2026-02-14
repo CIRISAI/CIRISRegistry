@@ -28,7 +28,10 @@ impl WebhookConfigRow {
             signing_secret: self.signing_secret.clone(),
             active: self.active,
             created_at: self.created_at.unix_timestamp(),
-            last_triggered_at: self.last_triggered_at.map(|t| t.unix_timestamp()).unwrap_or(0),
+            last_triggered_at: self
+                .last_triggered_at
+                .map(|t| t.unix_timestamp())
+                .unwrap_or(0),
             consecutive_failures: self.consecutive_failures,
         }
     }
@@ -43,7 +46,10 @@ pub async fn register_webhook(
 ) -> Result<(String, String)> {
     let webhook_id = uuid::Uuid::new_v4().to_string();
     // Generate a secure signing secret
-    let signing_secret = format!("whsec_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+    let signing_secret = format!(
+        "whsec_{}",
+        uuid::Uuid::new_v4().to_string().replace("-", "")
+    );
 
     sqlx::query(
         r#"
@@ -115,11 +121,7 @@ pub async fn delete_webhook(pool: &PgPool, webhook_id: &str, org_id: &str) -> Re
 }
 
 /// Update webhook after a delivery attempt
-pub async fn update_webhook_delivery(
-    pool: &PgPool,
-    webhook_id: &str,
-    success: bool,
-) -> Result<()> {
+pub async fn update_webhook_delivery(pool: &PgPool, webhook_id: &str, success: bool) -> Result<()> {
     if success {
         sqlx::query(
             r#"

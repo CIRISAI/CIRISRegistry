@@ -74,9 +74,9 @@ impl HybridCrypto {
                 "Ed25519 key must be 32 bytes (raw seed format)".to_string(),
             ));
         }
-        let ed25519_seed: [u8; 32] = ed25519_bytes.try_into().map_err(|_| {
-            RegistryError::HsmUnavailable("Invalid Ed25519 key format".to_string())
-        })?;
+        let ed25519_seed: [u8; 32] = ed25519_bytes
+            .try_into()
+            .map_err(|_| RegistryError::HsmUnavailable("Invalid Ed25519 key format".to_string()))?;
         let ed25519_signing_key = SigningKey::from_bytes(&ed25519_seed);
 
         // Read ML-DSA-65 private key
@@ -89,10 +89,23 @@ impl HybridCrypto {
             RegistryError::HsmUnavailable("Invalid ML-DSA-65 secret key format".to_string())
         })?;
 
-        // Derive public key from secret key (ML-DSA-65 keys are self-contained)
-        // For now, we regenerate the public key from the secret key data
-        // In production, you'd store/load the public key separately
-        let (mldsa_public_key, _) = dilithium3::keypair();
+        // Load ML-DSA-65 public key from separate file
+        let mldsa_pk_path = settings.mldsa_public_key_path.as_ref().ok_or_else(|| {
+            RegistryError::HsmUnavailable(
+                "mldsa_public_key_path is required for file mode. \
+                 The ML-DSA-65 public key must be stored separately."
+                    .to_string(),
+            )
+        })?;
+
+        let mldsa_pk_bytes = fs::read(mldsa_pk_path).map_err(|e| {
+            RegistryError::HsmUnavailable(format!("Failed to read ML-DSA-65 public key: {}", e))
+        })?;
+
+        let mldsa_public_key =
+            dilithium3::PublicKey::from_bytes(&mldsa_pk_bytes).map_err(|_| {
+                RegistryError::HsmUnavailable("Invalid ML-DSA-65 public key format".to_string())
+            })?;
 
         // Generate key ID from Ed25519 public key fingerprint
         let ed25519_pubkey = ed25519_signing_key.verifying_key();
@@ -135,20 +148,32 @@ impl HybridCrypto {
             },
             "file" => {
                 // Check if key files exist and are readable
-                let ed25519_ok = settings.ed25519_key_path.as_ref()
+                let ed25519_ok = settings
+                    .ed25519_key_path
+                    .as_ref()
                     .map(|p| Path::new(p).exists())
                     .unwrap_or(false);
-                let mldsa_ok = settings.mldsa_key_path.as_ref()
+                let mldsa_sk_ok = settings
+                    .mldsa_key_path
+                    .as_ref()
+                    .map(|p| Path::new(p).exists())
+                    .unwrap_or(false);
+                let mldsa_pk_ok = settings
+                    .mldsa_public_key_path
+                    .as_ref()
                     .map(|p| Path::new(p).exists())
                     .unwrap_or(false);
 
-                let (connected, status) = if ed25519_ok && mldsa_ok {
+                let (connected, status) = if ed25519_ok && mldsa_sk_ok && mldsa_pk_ok {
                     (true, "Key files found and accessible".to_string())
                 } else {
-                    (false, format!(
-                        "Key files missing: ed25519={}, mldsa={}",
-                        ed25519_ok, mldsa_ok
-                    ))
+                    (
+                        false,
+                        format!(
+                            "Key files missing: ed25519={}, mldsa_sk={}, mldsa_pk={}",
+                            ed25519_ok, mldsa_sk_ok, mldsa_pk_ok
+                        ),
+                    )
                 };
 
                 HsmConnectionTest {
@@ -158,7 +183,7 @@ impl HybridCrypto {
                     hsm_model: "File-based Keys".to_string(),
                     available_slots: if connected { 2 } else { 0 },
                 }
-            },
+            }
             "vault" => {
                 // Would make HTTP health check to Vault
                 HsmConnectionTest {
@@ -168,7 +193,7 @@ impl HybridCrypto {
                     hsm_model: "HashiCorp Vault".to_string(),
                     available_slots: 0,
                 }
-            },
+            }
             "hsm" => {
                 // Would use PKCS#11 to test HSM connection
                 HsmConnectionTest {
@@ -178,7 +203,7 @@ impl HybridCrypto {
                     hsm_model: "Hardware Security Module".to_string(),
                     available_slots: 0,
                 }
-            },
+            }
             mode => HsmConnectionTest {
                 connected: false,
                 status: format!("Unknown storage mode: {}", mode),
@@ -299,11 +324,9 @@ impl HybridCrypto {
             .map_err(|e| RegistryError::InvalidSignature(e.to_string()))?;
 
         let sig_bytes: &[u8] = signature.classical_signature.as_ref();
-        let classical_sig = Ed25519Signature::from_bytes(
-            sig_bytes.try_into().map_err(|_| {
-                RegistryError::InvalidSignature("Invalid Ed25519 signature".to_string())
-            })?,
-        );
+        let classical_sig = Ed25519Signature::from_bytes(sig_bytes.try_into().map_err(|_| {
+            RegistryError::InvalidSignature("Invalid Ed25519 signature".to_string())
+        })?);
 
         ed25519_verifying_key
             .verify_strict(&data_hash, &classical_sig)
@@ -321,13 +344,19 @@ impl HybridCrypto {
         let mut signed_message = signature.post_quantum_signature.to_vec();
         signed_message.extend_from_slice(&pq_message);
 
-        let mldsa_pk = dilithium3::PublicKey::from_bytes(mldsa_pubkey)
-            .map_err(|_| RegistryError::InvalidSignature("Invalid ML-DSA-65 public key".to_string()))?;
+        let mldsa_pk = dilithium3::PublicKey::from_bytes(mldsa_pubkey).map_err(|_| {
+            RegistryError::InvalidSignature("Invalid ML-DSA-65 public key".to_string())
+        })?;
 
-        dilithium3::open(&dilithium3::SignedMessage::from_bytes(&signed_message)
-            .map_err(|_| RegistryError::InvalidSignature("Invalid ML-DSA-65 signed message".to_string()))?,
-            &mldsa_pk)
-            .map_err(|_| RegistryError::InvalidSignature("ML-DSA-65 signature verification failed".to_string()))?;
+        dilithium3::open(
+            &dilithium3::SignedMessage::from_bytes(&signed_message).map_err(|_| {
+                RegistryError::InvalidSignature("Invalid ML-DSA-65 signed message".to_string())
+            })?,
+            &mldsa_pk,
+        )
+        .map_err(|_| {
+            RegistryError::InvalidSignature("ML-DSA-65 signature verification failed".to_string())
+        })?;
 
         Ok(true)
     }

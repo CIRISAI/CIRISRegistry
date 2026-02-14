@@ -64,26 +64,25 @@ impl BuildAttestationRow {
         };
 
         // Build the builder signature sub-message
-        let builder_signature = if self.signature_classical.is_some()
-            || self.signature_post_quantum.is_some()
-        {
-            Some(proto::HybridSignature {
-                classical_signature: self
-                    .signature_classical
-                    .clone()
-                    .map(|s| s.into())
-                    .unwrap_or_default(),
-                post_quantum_signature: self
-                    .signature_post_quantum
-                    .clone()
-                    .map(|s| s.into())
-                    .unwrap_or_default(),
-                timestamp: self.signature_timestamp.unwrap_or(0),
-                key_id: self.signature_key_id.clone().unwrap_or_default(),
-            })
-        } else {
-            None
-        };
+        let builder_signature =
+            if self.signature_classical.is_some() || self.signature_post_quantum.is_some() {
+                Some(proto::HybridSignature {
+                    classical_signature: self
+                        .signature_classical
+                        .clone()
+                        .map(|s| s.into())
+                        .unwrap_or_default(),
+                    post_quantum_signature: self
+                        .signature_post_quantum
+                        .clone()
+                        .map(|s| s.into())
+                        .unwrap_or_default(),
+                    timestamp: self.signature_timestamp.unwrap_or(0),
+                    key_id: self.signature_key_id.clone().unwrap_or_default(),
+                })
+            } else {
+                None
+            };
 
         proto::BuildAttestation {
             provenance: Some(provenance),
@@ -240,7 +239,11 @@ pub async fn register_attestation(
     .bind(agent_hash)
     .bind(builder_id)
     .bind(invocation_id)
-    .bind(if started_at > 0 { started_at as f64 } else { 0.0 })
+    .bind(if started_at > 0 {
+        started_at as f64
+    } else {
+        0.0
+    })
     .bind(if finished_at > 0 {
         finished_at as f64
     } else {

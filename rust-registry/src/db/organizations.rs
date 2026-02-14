@@ -93,18 +93,54 @@ pub async fn create_organization(pool: &PgPool, org: &proto::Organization) -> Re
     .bind(&org_id)
     .bind(&org.name)
     .bind(&org.legal_name)
-    .bind(if org.tax_id.is_empty() { None } else { Some(&org.tax_id) })
-    .bind(if org.partner_id.is_empty() { None } else { Some(&org.partner_id) })
+    .bind(if org.tax_id.is_empty() {
+        None
+    } else {
+        Some(&org.tax_id)
+    })
+    .bind(if org.partner_id.is_empty() {
+        None
+    } else {
+        Some(&org.partner_id)
+    })
     .bind(&org.primary_email)
-    .bind(if org.billing_email.is_empty() { None } else { Some(&org.billing_email) })
-    .bind(if org.technical_contact_email.is_empty() { None } else { Some(&org.technical_contact_email) })
-    .bind(if org.compliance_contact_email.is_empty() { None } else { Some(&org.compliance_contact_email) })
-    .bind(if org.oauth_provider.is_empty() { None } else { Some(&org.oauth_provider) })
-    .bind(if org.oauth_domain.is_empty() { None } else { Some(&org.oauth_domain) })
+    .bind(if org.billing_email.is_empty() {
+        None
+    } else {
+        Some(&org.billing_email)
+    })
+    .bind(if org.technical_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.technical_contact_email)
+    })
+    .bind(if org.compliance_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.compliance_contact_email)
+    })
+    .bind(if org.oauth_provider.is_empty() {
+        None
+    } else {
+        Some(&org.oauth_provider)
+    })
+    .bind(if org.oauth_domain.is_empty() {
+        None
+    } else {
+        Some(&org.oauth_domain)
+    })
     .bind(org.active)
-    .bind(if org.created_by.is_empty() { None } else { Some(&org.created_by) })
+    .bind(if org.created_by.is_empty() {
+        None
+    } else {
+        Some(&org.created_by)
+    })
     .bind(org.org_type)
-    .bind(if org.parent_org_id.is_empty() { None } else { Some(&org.parent_org_id) })
+    .bind(if org.parent_org_id.is_empty() {
+        None
+    } else {
+        Some(&org.parent_org_id)
+    })
     .execute(pool)
     .await?;
 
@@ -146,13 +182,11 @@ pub async fn list_organizations(
         .fetch_all(pool)
         .await?;
 
-    let total: (i64,) = sqlx::query_as(
-        if include_inactive {
-            "SELECT COUNT(*) FROM organizations"
-        } else {
-            "SELECT COUNT(*) FROM organizations WHERE active = true"
-        },
-    )
+    let total: (i64,) = sqlx::query_as(if include_inactive {
+        "SELECT COUNT(*) FROM organizations"
+    } else {
+        "SELECT COUNT(*) FROM organizations WHERE active = true"
+    })
     .fetch_one(pool)
     .await?;
 
@@ -185,18 +219,54 @@ pub async fn create_organization_with_admin(
     .bind(&org_id)
     .bind(&org.name)
     .bind(&org.legal_name)
-    .bind(if org.tax_id.is_empty() { None } else { Some(&org.tax_id) })
-    .bind(if org.partner_id.is_empty() { None } else { Some(&org.partner_id) })
+    .bind(if org.tax_id.is_empty() {
+        None
+    } else {
+        Some(&org.tax_id)
+    })
+    .bind(if org.partner_id.is_empty() {
+        None
+    } else {
+        Some(&org.partner_id)
+    })
     .bind(&org.primary_email)
-    .bind(if org.billing_email.is_empty() { None } else { Some(&org.billing_email) })
-    .bind(if org.technical_contact_email.is_empty() { None } else { Some(&org.technical_contact_email) })
-    .bind(if org.compliance_contact_email.is_empty() { None } else { Some(&org.compliance_contact_email) })
-    .bind(if org.oauth_provider.is_empty() { None } else { Some(&org.oauth_provider) })
-    .bind(if org.oauth_domain.is_empty() { None } else { Some(&org.oauth_domain) })
+    .bind(if org.billing_email.is_empty() {
+        None
+    } else {
+        Some(&org.billing_email)
+    })
+    .bind(if org.technical_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.technical_contact_email)
+    })
+    .bind(if org.compliance_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.compliance_contact_email)
+    })
+    .bind(if org.oauth_provider.is_empty() {
+        None
+    } else {
+        Some(&org.oauth_provider)
+    })
+    .bind(if org.oauth_domain.is_empty() {
+        None
+    } else {
+        Some(&org.oauth_domain)
+    })
     .bind(org.active)
-    .bind(if org.created_by.is_empty() { None } else { Some(&org.created_by) })
+    .bind(if org.created_by.is_empty() {
+        None
+    } else {
+        Some(&org.created_by)
+    })
     .bind(org.org_type)
-    .bind(if org.parent_org_id.is_empty() { None } else { Some(&org.parent_org_id) })
+    .bind(if org.parent_org_id.is_empty() {
+        None
+    } else {
+        Some(&org.parent_org_id)
+    })
     .execute(&mut *tx)
     .await?;
 
@@ -214,13 +284,29 @@ pub async fn create_organization_with_admin(
     .bind(&org_id)
     .bind(&admin_user.email)
     .bind(&admin_user.name)
-    .bind(if admin_user.oauth_provider.is_empty() { None } else { Some(&admin_user.oauth_provider) })
-    .bind(if admin_user.oauth_subject.is_empty() { None } else { Some(&admin_user.oauth_subject) })
+    .bind(if admin_user.oauth_provider.is_empty() {
+        None
+    } else {
+        Some(&admin_user.oauth_provider)
+    })
+    .bind(if admin_user.oauth_subject.is_empty() {
+        None
+    } else {
+        Some(&admin_user.oauth_subject)
+    })
     .bind(admin_user.role)
     .bind(admin_user.active)
-    .bind(if admin_user.invited_by.is_empty() { None } else { Some(&admin_user.invited_by) })
+    .bind(if admin_user.invited_by.is_empty() {
+        None
+    } else {
+        Some(&admin_user.invited_by)
+    })
     .bind(admin_user.mfa_enabled)
-    .bind(if admin_user.mfa_method.is_empty() { None } else { Some(&admin_user.mfa_method) })
+    .bind(if admin_user.mfa_method.is_empty() {
+        None
+    } else {
+        Some(&admin_user.mfa_method)
+    })
     .execute(&mut *tx)
     .await?;
 
@@ -230,7 +316,11 @@ pub async fn create_organization_with_admin(
 }
 
 /// Update an organization
-pub async fn update_organization(pool: &PgPool, org_id: &str, org: &proto::Organization) -> Result<bool> {
+pub async fn update_organization(
+    pool: &PgPool,
+    org_id: &str,
+    org: &proto::Organization,
+) -> Result<bool> {
     let result = sqlx::query(
         r#"
         UPDATE organizations SET
@@ -254,17 +344,49 @@ pub async fn update_organization(pool: &PgPool, org_id: &str, org: &proto::Organ
     .bind(org_id)
     .bind(&org.name)
     .bind(&org.legal_name)
-    .bind(if org.tax_id.is_empty() { None } else { Some(&org.tax_id) })
-    .bind(if org.partner_id.is_empty() { None } else { Some(&org.partner_id) })
+    .bind(if org.tax_id.is_empty() {
+        None
+    } else {
+        Some(&org.tax_id)
+    })
+    .bind(if org.partner_id.is_empty() {
+        None
+    } else {
+        Some(&org.partner_id)
+    })
     .bind(&org.primary_email)
-    .bind(if org.billing_email.is_empty() { None } else { Some(&org.billing_email) })
-    .bind(if org.technical_contact_email.is_empty() { None } else { Some(&org.technical_contact_email) })
-    .bind(if org.compliance_contact_email.is_empty() { None } else { Some(&org.compliance_contact_email) })
-    .bind(if org.oauth_provider.is_empty() { None } else { Some(&org.oauth_provider) })
-    .bind(if org.oauth_domain.is_empty() { None } else { Some(&org.oauth_domain) })
+    .bind(if org.billing_email.is_empty() {
+        None
+    } else {
+        Some(&org.billing_email)
+    })
+    .bind(if org.technical_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.technical_contact_email)
+    })
+    .bind(if org.compliance_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.compliance_contact_email)
+    })
+    .bind(if org.oauth_provider.is_empty() {
+        None
+    } else {
+        Some(&org.oauth_provider)
+    })
+    .bind(if org.oauth_domain.is_empty() {
+        None
+    } else {
+        Some(&org.oauth_domain)
+    })
     .bind(org.active)
     .bind(org.org_type)
-    .bind(if org.parent_org_id.is_empty() { None } else { Some(&org.parent_org_id) })
+    .bind(if org.parent_org_id.is_empty() {
+        None
+    } else {
+        Some(&org.parent_org_id)
+    })
     .execute(pool)
     .await?;
 
@@ -310,13 +432,11 @@ pub async fn list_child_organizations(
         .fetch_all(pool)
         .await?;
 
-    let total: (i64,) = sqlx::query_as(
-        if include_inactive {
-            "SELECT COUNT(*) FROM organizations WHERE parent_org_id = $1"
-        } else {
-            "SELECT COUNT(*) FROM organizations WHERE parent_org_id = $1 AND active = true"
-        },
-    )
+    let total: (i64,) = sqlx::query_as(if include_inactive {
+        "SELECT COUNT(*) FROM organizations WHERE parent_org_id = $1"
+    } else {
+        "SELECT COUNT(*) FROM organizations WHERE parent_org_id = $1 AND active = true"
+    })
     .bind(parent_org_id)
     .fetch_one(pool)
     .await?;
@@ -363,13 +483,11 @@ pub async fn list_organizations_by_type(
         .fetch_all(pool)
         .await?;
 
-    let total: (i64,) = sqlx::query_as(
-        if include_inactive {
-            "SELECT COUNT(*) FROM organizations WHERE org_type = $1"
-        } else {
-            "SELECT COUNT(*) FROM organizations WHERE org_type = $1 AND active = true"
-        },
-    )
+    let total: (i64,) = sqlx::query_as(if include_inactive {
+        "SELECT COUNT(*) FROM organizations WHERE org_type = $1"
+    } else {
+        "SELECT COUNT(*) FROM organizations WHERE org_type = $1 AND active = true"
+    })
     .bind(org_type)
     .fetch_one(pool)
     .await?;

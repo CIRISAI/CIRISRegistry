@@ -62,7 +62,11 @@ pub mod capabilities {
 
 /// Test tag generator for cleanup
 pub fn test_tag(suite: &str) -> String {
-    format!("test-{}-{}", suite, uuid::Uuid::new_v4().to_string().split('-').next().unwrap())
+    format!(
+        "test-{}-{}",
+        suite,
+        uuid::Uuid::new_v4().to_string().split('-').next().unwrap()
+    )
 }
 
 /// Agent status constants (matching proto enums)

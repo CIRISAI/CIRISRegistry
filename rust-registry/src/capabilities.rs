@@ -17,10 +17,7 @@ pub fn intersect(a: &[String], b: &[String]) -> Vec<String> {
     let set_a: HashSet<_> = a.iter().collect();
     let set_b: HashSet<_> = b.iter().collect();
 
-    let mut result: Vec<String> = set_a
-        .intersection(&set_b)
-        .map(|s| (*s).clone())
-        .collect();
+    let mut result: Vec<String> = set_a.intersection(&set_b).map(|s| (*s).clone()).collect();
 
     result.sort();
     result

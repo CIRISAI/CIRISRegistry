@@ -80,9 +80,7 @@ impl Database {
 
     /// Check database health
     pub async fn health_check(&self) -> Result<bool> {
-        sqlx::query("SELECT 1")
-            .execute(self.pool.as_ref())
-            .await?;
+        sqlx::query("SELECT 1").execute(self.pool.as_ref()).await?;
         Ok(true)
     }
 

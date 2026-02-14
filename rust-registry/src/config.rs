@@ -4,6 +4,20 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::env;
 
+impl Environment {
+    /// Convert config environment to proto RegistryEnvironment i32 value.
+    /// Proto values: ENV_UNSPECIFIED=0, ENV_PRODUCTION=1, ENV_STAGING=2,
+    ///               ENV_CANARY=3, ENV_DEVELOPMENT=4
+    pub fn to_proto_i32(self) -> i32 {
+        match self {
+            Environment::Production => 1,  // ENV_PRODUCTION
+            Environment::Staging => 2,     // ENV_STAGING
+            Environment::Canary => 3,      // ENV_CANARY
+            Environment::Development => 4, // ENV_DEVELOPMENT
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     pub environment: Environment,
@@ -50,6 +64,8 @@ pub struct CryptoSettings {
     pub ed25519_key_path: Option<String>,
     /// Path to ML-DSA-65 private key
     pub mldsa_key_path: Option<String>,
+    /// Path to ML-DSA-65 public key
+    pub mldsa_public_key_path: Option<String>,
     /// Key storage mode: memory, vault, cloudkms, etc.
     pub storage_mode: String,
     /// Vault address (if using HashiCorp Vault)
@@ -89,7 +105,10 @@ impl Settings {
         };
 
         let is_production = environment == Environment::Production;
-        let is_production_like = matches!(environment, Environment::Production | Environment::Staging | Environment::Canary);
+        let is_production_like = matches!(
+            environment,
+            Environment::Production | Environment::Staging | Environment::Canary
+        );
 
         // Get database password with production validation
         let db_password = env::var("DB_PASSWORD").unwrap_or_else(|_| "ciris_dev".to_string());
@@ -122,7 +141,11 @@ impl Settings {
         }
 
         // Default SSL mode based on environment
-        let default_sslmode = if is_production_like { "require" } else { "disable" };
+        let default_sslmode = if is_production_like {
+            "require"
+        } else {
+            "disable"
+        };
         let sslmode = env::var("DB_SSLMODE").unwrap_or_else(|_| default_sslmode.to_string());
 
         // Warn if SSL is disabled in production-like environments
@@ -166,14 +189,13 @@ impl Settings {
             crypto: CryptoSettings {
                 ed25519_key_path: env::var("ED25519_KEY_PATH").ok(),
                 mldsa_key_path: env::var("MLDSA_KEY_PATH").ok(),
-                storage_mode: env::var("KEY_STORAGE_MODE")
-                    .unwrap_or_else(|_| "memory".to_string()),
+                mldsa_public_key_path: env::var("MLDSA_PUBLIC_KEY_PATH").ok(),
+                storage_mode: env::var("KEY_STORAGE_MODE").unwrap_or_else(|_| "memory".to_string()),
                 vault_addr: env::var("VAULT_ADDR").ok(),
             },
             auth: AuthSettings {
                 jwt_secret,
-                jwt_issuer: env::var("JWT_ISSUER")
-                    .unwrap_or_else(|_| "ciris-registry".to_string()),
+                jwt_issuer: env::var("JWT_ISSUER").unwrap_or_else(|_| "ciris-registry".to_string()),
                 mtls_enabled: env::var("MTLS_ENABLED")
                     .map(|v| v == "true" || v == "1")
                     .unwrap_or(false),

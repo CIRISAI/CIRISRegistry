@@ -11,12 +11,16 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tonic::{Request, Response, Status};
 use tracing::info;
 
+use crate::config::Environment;
 use crate::crypto::HybridCrypto;
 use crate::db::Database;
 use crate::middleware::auth::Claims;
 use crate::proto::registry_service_server::RegistryService as RegistryServiceTrait;
 use crate::proto::*;
 use crate::{db, error::RegistryError};
+
+/// SHA-256 hash length in bytes.
+const SHA256_HASH_LEN: usize = 32;
 
 /// Caller access tier for agent metadata
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,14 +45,23 @@ fn resolve_caller_tier<T>(request: &Request<T>) -> CallerTier {
 pub struct RegistryService {
     db: Database,
     crypto: Arc<HybridCrypto>,
+    environment: i32,
 }
 
 impl RegistryService {
-    pub fn new(db: Database, crypto: Arc<HybridCrypto>) -> Self {
-        Self { db, crypto }
+    pub fn new(db: Database, crypto: Arc<HybridCrypto>, environment: Environment) -> Self {
+        Self {
+            db,
+            crypto,
+            environment: environment.to_proto_i32(),
+        }
     }
 
-    fn response_context(&self, request_id: Option<String>, start_time: Option<Instant>) -> ResponseContext {
+    fn response_context(
+        &self,
+        request_id: Option<String>,
+        start_time: Option<Instant>,
+    ) -> ResponseContext {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -63,7 +76,7 @@ impl RegistryService {
             server_timestamp: now,
             processing_time_ms,
             server_version: format!("registry-v{}", env!("CARGO_PKG_VERSION")),
-            environment: RegistryEnvironment::EnvDevelopment as i32, // TODO: From config
+            environment: self.environment,
         }
     }
 }
@@ -86,23 +99,21 @@ impl RegistryServiceTrait for RegistryService {
         };
 
         let components = if req.include_diagnostics {
-            vec![
-                ComponentHealth {
-                    name: "database".to_string(),
-                    status: if db_healthy {
-                        HealthStatus::HealthServing as i32
-                    } else {
-                        HealthStatus::HealthNotServing as i32
-                    },
-                    message: "PostgreSQL".to_string(),
-                    metrics: [
-                        ("active_connections".to_string(), stats.active.to_string()),
-                        ("idle_connections".to_string(), stats.idle.to_string()),
-                    ]
-                    .into_iter()
-                    .collect(),
+            vec![ComponentHealth {
+                name: "database".to_string(),
+                status: if db_healthy {
+                    HealthStatus::HealthServing as i32
+                } else {
+                    HealthStatus::HealthNotServing as i32
                 },
-            ]
+                message: "PostgreSQL".to_string(),
+                metrics: [
+                    ("active_connections".to_string(), stats.active.to_string()),
+                    ("idle_connections".to_string(), stats.idle.to_string()),
+                ]
+                .into_iter()
+                .collect(),
+            }]
         } else {
             vec![]
         };
@@ -176,6 +187,15 @@ impl RegistryServiceTrait for RegistryService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
+        // Validate agent hash is exactly 32 bytes (SHA-256)
+        if req.agent_hash.len() != SHA256_HASH_LEN {
+            return Err(Status::invalid_argument(format!(
+                "agent_hash must be exactly {} bytes (SHA-256), got {}",
+                SHA256_HASH_LEN,
+                req.agent_hash.len()
+            )));
+        }
+
         info!(
             agent_hash = hex::encode(&req.agent_hash),
             tier = ?tier,
@@ -238,6 +258,18 @@ impl RegistryServiceTrait for RegistryService {
             return Err(Status::invalid_argument("Maximum batch size is 100"));
         }
 
+        // Validate all agent hashes are exactly 32 bytes (SHA-256)
+        for (i, hash) in req.agent_hashes.iter().enumerate() {
+            if hash.len() != SHA256_HASH_LEN {
+                return Err(Status::invalid_argument(format!(
+                    "agent_hashes[{}] must be exactly {} bytes (SHA-256), got {}",
+                    i,
+                    SHA256_HASH_LEN,
+                    hash.len()
+                )));
+            }
+        }
+
         let hashes: Vec<Vec<u8>> = req.agent_hashes.iter().map(|b| b.to_vec()).collect();
         let results = db::batch_lookup_agents(self.db.pool(), &hashes)
             .await
@@ -245,10 +277,12 @@ impl RegistryServiceTrait for RegistryService {
 
         let agents: Vec<AgentRecord> = results
             .iter()
-            .filter_map(|(_, row)| row.as_ref().map(|r| match tier {
-                CallerTier::Service => r.to_proto(),
-                CallerTier::Public => r.to_proto_public(),
-            }))
+            .filter_map(|(_, row)| {
+                row.as_ref().map(|r| match tier {
+                    CallerTier::Service => r.to_proto(),
+                    CallerTier::Public => r.to_proto_public(),
+                })
+            })
             .collect();
 
         let found: Vec<bool> = results.iter().map(|(_, row)| row.is_some()).collect();
@@ -310,6 +344,15 @@ impl RegistryServiceTrait for RegistryService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
+        // Validate agent hash is exactly 32 bytes (SHA-256)
+        if req.agent_hash.len() != SHA256_HASH_LEN {
+            return Err(Status::invalid_argument(format!(
+                "agent_hash must be exactly {} bytes (SHA-256), got {}",
+                SHA256_HASH_LEN,
+                req.agent_hash.len()
+            )));
+        }
+
         // Lookup agent
         let agent_row = db::lookup_agent(self.db.pool(), &req.agent_hash)
             .await
@@ -324,22 +367,21 @@ impl RegistryServiceTrait for RegistryService {
         let partner_found = partner_row.is_some();
 
         // Calculate effective capabilities
-        let (effective_capabilities, effective_autonomy_tier) =
-            match (&agent_row, &partner_row) {
-                (Some(agent), Some(partner)) => {
-                    let caps: Vec<String> = agent
-                        .base_capabilities
-                        .iter()
-                        .filter(|c| partner.capabilities_granted.contains(c))
-                        .filter(|c| !partner.capabilities_denied.contains(c))
-                        .cloned()
-                        .collect();
+        let (effective_capabilities, effective_autonomy_tier) = match (&agent_row, &partner_row) {
+            (Some(agent), Some(partner)) => {
+                let caps: Vec<String> = agent
+                    .base_capabilities
+                    .iter()
+                    .filter(|c| partner.capabilities_granted.contains(c))
+                    .filter(|c| !partner.capabilities_denied.contains(c))
+                    .cloned()
+                    .collect();
 
-                    let tier = std::cmp::min(agent.max_autonomy_tier, partner.max_autonomy_tier);
-                    (caps, tier)
-                }
-                _ => (vec![], 0),
-            };
+                let tier = std::cmp::min(agent.max_autonomy_tier, partner.max_autonomy_tier);
+                (caps, tier)
+            }
+            _ => (vec![], 0),
+        };
 
         // Calculate effective identity template
         // Template is valid if partner allows it (empty allowed list = allow all)
@@ -347,10 +389,12 @@ impl RegistryServiceTrait for RegistryService {
             match (&agent_row, &partner_row) {
                 (Some(agent), Some(partner)) => {
                     let template = agent.identity_template.clone().unwrap_or_default();
-                    let allowed_templates = partner.allowed_identity_templates.clone().unwrap_or_default();
-                    let template_allowed = allowed_templates.is_empty()
-                        || allowed_templates
-                            .contains(&template);
+                    let allowed_templates = partner
+                        .allowed_identity_templates
+                        .clone()
+                        .unwrap_or_default();
+                    let template_allowed =
+                        allowed_templates.is_empty() || allowed_templates.contains(&template);
                     if template_allowed {
                         (
                             template,
@@ -414,14 +458,15 @@ impl RegistryServiceTrait for RegistryService {
             .unwrap()
             .as_secs() as i64;
 
-        let revocation_entries: Vec<RevocationEntry> = entries.iter().map(|e| e.to_proto()).collect();
+        let revocation_entries: Vec<RevocationEntry> =
+            entries.iter().map(|e| e.to_proto()).collect();
 
         let revocations = RevocationList {
             entries: revocation_entries,
             list_version: list_version as i64,
             generated_at: now,
             next_update: now + 3600, // 1 hour from now
-            list_signature: None, // Would need to sign the list
+            list_signature: None,    // Would need to sign the list
         };
 
         Ok(Response::new(GetRevocationListResponse {
@@ -508,51 +553,70 @@ impl RegistryServiceTrait for RegistryService {
         // Serialize and compress data
         let agents_proto: Vec<AgentRecord> = agents.iter().map(|a| a.to_proto()).collect();
         let partners_proto: Vec<PartnerRecord> = partners.iter().map(|p| p.to_proto()).collect();
-        let revocations_proto: Vec<RevocationEntry> = revocations.iter().map(|r| r.to_proto()).collect();
+        let revocations_proto: Vec<RevocationEntry> =
+            revocations.iter().map(|r| r.to_proto()).collect();
 
         // For now, just serialize as JSON and compress (could use protobuf serialization)
         use flate2::write::GzEncoder;
         use flate2::Compression;
         use std::io::Write;
 
-        let agents_json = serde_json::to_vec(&agents_proto.iter().map(|a| {
-            serde_json::json!({
-                "agent_hash": hex::encode(&a.agent_hash),
-                "agent_type": a.agent_type,
-                "status": a.status
-            })
-        }).collect::<Vec<_>>()).unwrap_or_default();
+        let agents_json = serde_json::to_vec(
+            &agents_proto
+                .iter()
+                .map(|a| {
+                    serde_json::json!({
+                        "agent_hash": hex::encode(&a.agent_hash),
+                        "agent_type": a.agent_type,
+                        "status": a.status
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap_or_default();
 
         let mut agents_encoder = GzEncoder::new(Vec::new(), Compression::default());
         agents_encoder.write_all(&agents_json).ok();
         let agents_data = agents_encoder.finish().unwrap_or_default();
 
-        let partners_json = serde_json::to_vec(&partners_proto.iter().map(|p| {
-            serde_json::json!({
-                "partner_id": &p.partner_id,
-                "organization_name": &p.organization_name,
-                "status": p.status
-            })
-        }).collect::<Vec<_>>()).unwrap_or_default();
+        let partners_json = serde_json::to_vec(
+            &partners_proto
+                .iter()
+                .map(|p| {
+                    serde_json::json!({
+                        "partner_id": &p.partner_id,
+                        "organization_name": &p.organization_name,
+                        "status": p.status
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap_or_default();
 
         let mut partners_encoder = GzEncoder::new(Vec::new(), Compression::default());
         partners_encoder.write_all(&partners_json).ok();
         let partners_data = partners_encoder.finish().unwrap_or_default();
 
-        let revocations_json = serde_json::to_vec(&revocations_proto.iter().map(|r| {
-            serde_json::json!({
-                "target_type": r.target_type,
-                "target_id": &r.target_id,
-                "revoked_at": r.revoked_at,
-                "reason_code": r.reason_code
-            })
-        }).collect::<Vec<_>>()).unwrap_or_default();
+        let revocations_json = serde_json::to_vec(
+            &revocations_proto
+                .iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "target_type": r.target_type,
+                        "target_id": &r.target_id,
+                        "revoked_at": r.revoked_at,
+                        "reason_code": r.reason_code
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap_or_default();
         let mut revocations_encoder = GzEncoder::new(Vec::new(), Compression::default());
         revocations_encoder.write_all(&revocations_json).ok();
         let revocations_data = revocations_encoder.finish().unwrap_or_default();
 
         // Compute simple SHA-256 roots (proper Merkle tree would be better)
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let agents_root = Sha256::digest(&agents_data).to_vec();
         let partners_root = Sha256::digest(&partners_data).to_vec();
         let revocations_root = Sha256::digest(&revocations_data).to_vec();
@@ -701,6 +765,15 @@ impl RegistryServiceTrait for RegistryService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
+        // Validate agent hash is exactly 32 bytes (SHA-256)
+        if req.agent_hash.len() != SHA256_HASH_LEN {
+            return Err(Status::invalid_argument(format!(
+                "agent_hash must be exactly {} bytes (SHA-256), got {}",
+                SHA256_HASH_LEN,
+                req.agent_hash.len()
+            )));
+        }
+
         let attestation_row = db::get_attestation(self.db.pool(), &req.agent_hash)
             .await
             .map_err(RegistryError::from)?;
@@ -710,7 +783,10 @@ impl RegistryServiceTrait for RegistryService {
                 attestation: Some(row.to_proto()),
                 found: true,
                 independent_verification_count: row.verification_count,
-                last_verified_at: row.last_verified_at.map(|t| t.unix_timestamp()).unwrap_or(0),
+                last_verified_at: row
+                    .last_verified_at
+                    .map(|t| t.unix_timestamp())
+                    .unwrap_or(0),
                 context: Some(self.response_context(request_id, None)),
             })),
             None => Ok(Response::new(GetBuildAttestationResponse {
@@ -740,4 +816,3 @@ impl RegistryServiceTrait for RegistryService {
         Ok(Response::new(response))
     }
 }
-

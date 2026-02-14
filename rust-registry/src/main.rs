@@ -26,9 +26,9 @@ mod services;
 
 use crate::config::Settings;
 use crate::db::Database;
-use crate::services::registry::RegistryService;
 use crate::services::admin::AdminService;
 use crate::services::portal::PortalService;
+use crate::services::registry::RegistryService;
 
 /// Include generated protobuf code
 pub mod proto {
@@ -55,7 +55,10 @@ async fn main() -> Result<()> {
 
     // Load configuration
     let settings = Settings::from_env()?;
-    info!("Loaded configuration for environment: {:?}", settings.environment);
+    info!(
+        "Loaded configuration for environment: {:?}",
+        settings.environment
+    );
 
     // Initialize database connection pool
     let db = Database::connect(&settings.database).await?;
@@ -70,9 +73,9 @@ async fn main() -> Result<()> {
     info!("Initialized hybrid cryptography provider");
 
     // Create gRPC services
-    let registry_service = RegistryService::new(db.clone(), crypto.clone());
-    let admin_service = AdminService::new(db.clone(), crypto.clone());
-    let portal_service = PortalService::new(db.clone(), crypto.clone());
+    let registry_service = RegistryService::new(db.clone(), crypto.clone(), settings.environment);
+    let admin_service = AdminService::new(db.clone(), crypto.clone(), settings.environment);
+    let portal_service = PortalService::new(db.clone(), crypto.clone(), settings.environment);
 
     // Build gRPC server
     let grpc_addr: SocketAddr = format!("0.0.0.0:{}", settings.grpc_port).parse()?;
@@ -91,9 +94,9 @@ async fn main() -> Result<()> {
         .add_service(proto::registry_service_server::RegistryServiceServer::new(
             registry_service,
         ))
-        .add_service(proto::registry_admin_service_server::RegistryAdminServiceServer::new(
-            admin_service,
-        ))
+        .add_service(
+            proto::registry_admin_service_server::RegistryAdminServiceServer::new(admin_service),
+        )
         .add_service(proto::portal_service_server::PortalServiceServer::new(
             portal_service,
         ))
@@ -124,8 +127,7 @@ async fn main() -> Result<()> {
 }
 
 fn init_tracing() {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     tracing_subscriber::registry()
         .with(filter)

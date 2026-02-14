@@ -101,7 +101,10 @@ pub async fn get_multiorg_user(pool: &PgPool, user_id: &str) -> Result<Option<Mu
     Ok(row)
 }
 
-pub async fn get_multiorg_user_by_email(pool: &PgPool, email: &str) -> Result<Option<MultiOrgUserRow>> {
+pub async fn get_multiorg_user_by_email(
+    pool: &PgPool,
+    email: &str,
+) -> Result<Option<MultiOrgUserRow>> {
     let row = sqlx::query_as::<_, MultiOrgUserRow>(
         r#"
         SELECT user_id, email, name, oauth_provider, oauth_subject,
@@ -279,7 +282,12 @@ pub async fn remove_user_from_org(pool: &PgPool, user_id: &str, org_id: &str) ->
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn update_user_org_role(pool: &PgPool, user_id: &str, org_id: &str, role: i32) -> Result<bool> {
+pub async fn update_user_org_role(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+    role: i32,
+) -> Result<bool> {
     let result = sqlx::query(
         r#"
         UPDATE user_org_memberships SET role = $3, updated_at = NOW()
@@ -382,17 +390,15 @@ pub async fn list_org_members(
         })
         .collect();
 
-    let total: (i64,) = sqlx::query_as(
-        if include_inactive {
-            "SELECT COUNT(*) FROM user_org_memberships WHERE org_id = $1"
-        } else {
-            r#"
+    let total: (i64,) = sqlx::query_as(if include_inactive {
+        "SELECT COUNT(*) FROM user_org_memberships WHERE org_id = $1"
+    } else {
+        r#"
             SELECT COUNT(*) FROM user_org_memberships m
             JOIN users u ON m.user_id = u.user_id
             WHERE m.org_id = $1 AND u.active = true
             "#
-        },
-    )
+    })
     .bind(org_id)
     .fetch_one(pool)
     .await?;
@@ -401,7 +407,11 @@ pub async fn list_org_members(
 }
 
 /// Get user's role in a specific org (for authorization)
-pub async fn get_user_role_in_org(pool: &PgPool, user_id: &str, org_id: &str) -> Result<Option<i32>> {
+pub async fn get_user_role_in_org(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+) -> Result<Option<i32>> {
     let result: Option<(i32,)> = sqlx::query_as(
         r#"
         SELECT role FROM user_org_memberships

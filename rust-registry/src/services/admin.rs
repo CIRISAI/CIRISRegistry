@@ -6,22 +6,55 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tonic::{Request, Response, Status};
 use tracing::info;
 
+use crate::config::Environment;
 use crate::crypto::HybridCrypto;
 use crate::db::{self, Database};
+use crate::middleware::auth::Claims;
 use crate::proto::registry_admin_service_server::RegistryAdminService as AdminServiceTrait;
 use crate::proto::*;
 
 pub struct AdminService {
     db: Database,
     crypto: Arc<HybridCrypto>,
+    environment: i32,
 }
 
 impl AdminService {
-    pub fn new(db: Database, crypto: Arc<HybridCrypto>) -> Self {
-        Self { db, crypto }
+    pub fn new(db: Database, crypto: Arc<HybridCrypto>, environment: Environment) -> Self {
+        Self {
+            db,
+            crypto,
+            environment: environment.to_proto_i32(),
+        }
     }
 
-    fn response_context(&self, request_id: Option<String>, start_time: Option<Instant>) -> ResponseContext {
+    /// Extract operator ID from JWT claims stored in request extensions.
+    /// Falls back to "unknown" if claims are not present (should not happen
+    /// on admin endpoints since auth middleware enforces JWT).
+    fn extract_operator_id<T>(request: &Request<T>) -> String {
+        request
+            .extensions()
+            .get::<Claims>()
+            .map(|c| c.sub.clone())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    /// Extract org_id from JWT claims stored in request extensions.
+    /// Falls back to "default" if no org_id claim is present.
+    fn extract_org_id<T>(request: &Request<T>) -> String {
+        request
+            .extensions()
+            .get::<Claims>()
+            .map(|c| c.org_id.clone())
+            .filter(|id| !id.is_empty())
+            .unwrap_or_else(|| "default".to_string())
+    }
+
+    fn response_context(
+        &self,
+        request_id: Option<String>,
+        start_time: Option<Instant>,
+    ) -> ResponseContext {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -36,22 +69,31 @@ impl AdminService {
             server_timestamp: now,
             processing_time_ms,
             server_version: format!("registry-v{}", env!("CARGO_PKG_VERSION")),
-            environment: RegistryEnvironment::EnvDevelopment as i32,
+            environment: self.environment,
         }
     }
 
-    fn admin_response(&self, success: bool, message: &str, request_id: Option<String>) -> AdminResponse {
+    fn admin_response(
+        &self,
+        success: bool,
+        message: &str,
+        request_id: Option<String>,
+    ) -> AdminResponse {
         AdminResponse {
             success,
             message: message.to_string(),
-            error: if success { None } else { Some(ErrorDetail {
-                code: RegistryErrorCode::RegistryErrorInternal as i32,
-                message: message.to_string(),
-                retry_status: Retryable::RetryNo as i32,
-                retry_after_seconds: 0,
-                metadata: Default::default(),
-                cause: None,
-            })},
+            error: if success {
+                None
+            } else {
+                Some(ErrorDetail {
+                    code: RegistryErrorCode::RegistryErrorInternal as i32,
+                    message: message.to_string(),
+                    retry_status: Retryable::RetryNo as i32,
+                    retry_after_seconds: 0,
+                    metadata: Default::default(),
+                    cause: None,
+                })
+            },
             context: Some(self.response_context(request_id, None)),
         }
     }
@@ -66,7 +108,9 @@ impl AdminServiceTrait for AdminService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let agent = req.agent.ok_or_else(|| Status::invalid_argument("agent is required"))?;
+        let agent = req
+            .agent
+            .ok_or_else(|| Status::invalid_argument("agent is required"))?;
 
         info!(
             agent_hash = hex::encode(&agent.agent_hash),
@@ -219,7 +263,9 @@ impl AdminServiceTrait for AdminService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let partner = req.partner.ok_or_else(|| Status::invalid_argument("partner is required"))?;
+        let partner = req
+            .partner
+            .ok_or_else(|| Status::invalid_argument("partner is required"))?;
 
         info!(partner_id = %partner.partner_id, "Registering partner");
 
@@ -265,6 +311,7 @@ impl AdminServiceTrait for AdminService {
         &self,
         request: Request<MassRevokeRequest>,
     ) -> Result<Response<MassRevokeResponse>, Status> {
+        let operator_id = Self::extract_operator_id(&request);
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -290,7 +337,8 @@ impl AdminServiceTrait for AdminService {
         // Revoke by agent hashes
         if !req.agent_hashes.is_empty() && !req.is_dry_run {
             let hashes: Vec<Vec<u8>> = req.agent_hashes.iter().map(|h| h.to_vec()).collect();
-            match db::mass_revoke_agents(self.db.pool(), &hashes, reason_code, reason_detail).await {
+            match db::mass_revoke_agents(self.db.pool(), &hashes, reason_code, reason_detail).await
+            {
                 Ok(count) => revoked_count += count,
                 Err(e) => errors.push(format!("Failed to revoke agents by hash: {}", e)),
             }
@@ -314,7 +362,9 @@ impl AdminServiceTrait for AdminService {
             }
         } else if !req.agent_version_prefix.is_empty() {
             // Dry run - count matching agents
-            match db::count_agents_by_version_prefix(self.db.pool(), &req.agent_version_prefix).await {
+            match db::count_agents_by_version_prefix(self.db.pool(), &req.agent_version_prefix)
+                .await
+            {
                 Ok(count) => revoked_count += count,
                 Err(e) => errors.push(format!("Failed to count agents for dry run: {}", e)),
             }
@@ -322,7 +372,14 @@ impl AdminServiceTrait for AdminService {
 
         // Revoke by partner IDs
         if !req.partner_ids.is_empty() && !req.is_dry_run {
-            match db::mass_revoke_partners(self.db.pool(), &req.partner_ids, reason_code, reason_detail).await {
+            match db::mass_revoke_partners(
+                self.db.pool(),
+                &req.partner_ids,
+                reason_code,
+                reason_detail,
+            )
+            .await
+            {
                 Ok(count) => revoked_count += count,
                 Err(e) => errors.push(format!("Failed to revoke partners: {}", e)),
             }
@@ -340,7 +397,8 @@ impl AdminServiceTrait for AdminService {
             revoked_count,
             affected_deployments: 0, // Would need to track this
             dry_run_count: if req.is_dry_run { revoked_count } else { 0 },
-            agents_revoked: if !req.agent_hashes.is_empty() || !req.agent_version_prefix.is_empty() {
+            agents_revoked: if !req.agent_hashes.is_empty() || !req.agent_version_prefix.is_empty()
+            {
                 revoked_count
             } else {
                 0
@@ -353,7 +411,7 @@ impl AdminServiceTrait for AdminService {
             licenses_revoked: 0, // License revocation not implemented
             incident_id: req.incident_id.clone(),
             executed_at: now,
-            operator_id: "admin".to_string(), // TODO: Extract from auth
+            operator_id,
             audit_log_entry_id: uuid::Uuid::new_v4().to_string(),
             response_signature: None, // Would need to sign
             context: Some(self.response_context(request_id, None)),
@@ -364,6 +422,7 @@ impl AdminServiceTrait for AdminService {
         &self,
         request: Request<EmergencyShutdownRequest>,
     ) -> Result<Response<EmergencyShutdownResponse>, Status> {
+        let operator_id = Self::extract_operator_id(&request);
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -379,7 +438,7 @@ impl AdminServiceTrait for AdminService {
             req.severity,
             req.lock_duration_seconds,
             &req.allowed_operations,
-            "admin", // TODO: Extract from auth context
+            &operator_id,
         )
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
@@ -397,7 +456,7 @@ impl AdminServiceTrait for AdminService {
             } else {
                 0
             },
-            operator_id: "admin".to_string(), // TODO: Extract from auth
+            operator_id,
             context: Some(self.response_context(request_id, None)),
         }))
     }
@@ -426,6 +485,7 @@ impl AdminServiceTrait for AdminService {
         &self,
         request: Request<RotateSigningKeyRequest>,
     ) -> Result<Response<RotateSigningKeyResponse>, Status> {
+        let operator_id = Self::extract_operator_id(&request);
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -438,8 +498,8 @@ impl AdminServiceTrait for AdminService {
             .ok_or_else(|| Status::failed_precondition("No active signing key to rotate"))?;
 
         // Generate new key pair
-        let new_crypto = HybridCrypto::generate_ephemeral()
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let new_crypto =
+            HybridCrypto::generate_ephemeral().map_err(|e| Status::internal(e.to_string()))?;
 
         let ed25519_pubkey = new_crypto.ed25519_public_key();
         let mldsa_pubkey = new_crypto.mldsa_public_key();
@@ -461,14 +521,9 @@ impl AdminServiceTrait for AdminService {
         .map_err(|e| Status::internal(e.to_string()))?;
 
         // Perform rotation
-        db::rotate_signing_key(
-            self.db.pool(),
-            &old_key.key_id,
-            &new_key_id,
-            "admin", // TODO: Extract from auth context
-        )
-        .await
-        .map_err(|e| Status::internal(e.to_string()))?;
+        db::rotate_signing_key(self.db.pool(), &old_key.key_id, &new_key_id, &operator_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
 
         // Fetch the new key
         let new_key = db::get_signing_key(self.db.pool(), &new_key_id)
@@ -554,7 +609,9 @@ impl AdminServiceTrait for AdminService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let attestation = req.attestation.ok_or_else(|| Status::invalid_argument("attestation required"))?;
+        let attestation = req
+            .attestation
+            .ok_or_else(|| Status::invalid_argument("attestation required"))?;
 
         info!(
             agent_hash = hex::encode(&req.agent_hash),
@@ -576,19 +633,15 @@ impl AdminServiceTrait for AdminService {
         &self,
         request: Request<RegisterWebhookRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let org_id = Self::extract_org_id(&request);
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let config = req.config.ok_or_else(|| Status::invalid_argument("config is required"))?;
+        let config = req
+            .config
+            .ok_or_else(|| Status::invalid_argument("config is required"))?;
 
-        info!(url = %config.url, "Registering webhook");
-
-        // TODO: org_id should come from auth context in production
-        // For now, extract from client_version field as a workaround, or use default
-        let org_id = req.context.as_ref()
-            .map(|c| c.client_version.clone())
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| "default".to_string());
+        info!(url = %config.url, org_id = %org_id, "Registering webhook");
 
         let (webhook_id, _signing_secret) = db::register_webhook(
             self.db.pool(),
@@ -610,14 +663,9 @@ impl AdminServiceTrait for AdminService {
         &self,
         request: Request<ListWebhooksRequest>,
     ) -> Result<Response<ListWebhooksResponse>, Status> {
+        let org_id = Self::extract_org_id(&request);
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
-
-        // TODO: org_id should come from auth context in production
-        let org_id = req.context.as_ref()
-            .map(|c| c.client_version.clone())
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| "default".to_string());
 
         let webhooks = db::list_webhooks(self.db.pool(), &org_id)
             .await

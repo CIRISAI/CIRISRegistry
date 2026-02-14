@@ -189,9 +189,10 @@ pub async fn batch_lookup_agents(
 
 /// Register a new agent
 pub async fn register_agent(pool: &PgPool, record: &proto::AgentRecord) -> Result<()> {
-    let version = record.version.as_ref().ok_or_else(|| {
-        RegistryError::InvalidArgument("version is required".to_string())
-    })?;
+    let version = record
+        .version
+        .as_ref()
+        .ok_or_else(|| RegistryError::InvalidArgument("version is required".to_string()))?;
 
     sqlx::query(
         r#"
@@ -277,11 +278,7 @@ pub async fn register_agent(pool: &PgPool, record: &proto::AgentRecord) -> Resul
 }
 
 /// Revoke an agent
-pub async fn revoke_agent(
-    pool: &PgPool,
-    agent_hash: &[u8],
-    reason: &str,
-) -> Result<bool> {
+pub async fn revoke_agent(pool: &PgPool, agent_hash: &[u8], reason: &str) -> Result<bool> {
     let result = sqlx::query(
         r#"
         UPDATE agents

@@ -128,7 +128,9 @@ impl RegistryError {
             Self::InvalidAgentHash(_) => RegistryErrorCode::RegistryErrorAgentHashInvalid as i32,
 
             // Partner errors
-            Self::PartnerNotLicensed(_) => RegistryErrorCode::RegistryErrorPartnerNotLicensed as i32,
+            Self::PartnerNotLicensed(_) => {
+                RegistryErrorCode::RegistryErrorPartnerNotLicensed as i32
+            }
             Self::PartnerSuspended(_) => RegistryErrorCode::RegistryErrorPartnerSuspended as i32,
             Self::PartnerExpired(_) => RegistryErrorCode::RegistryErrorPartnerExpired as i32,
             Self::LicenseRevoked(_) => RegistryErrorCode::RegistryErrorLicenseRevoked as i32,
