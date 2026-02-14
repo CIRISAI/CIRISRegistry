@@ -16,6 +16,7 @@ The registry is the **trust backbone** that distinguishes licensed professional 
 **Framework:** Tonic (gRPC) + Axum (HTTP)
 **Database:** PostgreSQL with SQLx
 **Cryptography:** Ed25519 (ed25519-dalek) + ML-DSA-65 (pqcrypto-dilithium)
+**License:** AGPL-3.0-or-later
 
 ### Build & Run
 
@@ -50,7 +51,7 @@ docker compose up -d
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌──────────────────┐         ┌──────────────────────────────────────┐  │
-│  │ CIRISVerify      │         │ CIRISPortal (portal.ciris.ai)        │  │
+│  │ CIRISVerify      │         │ CIRISPortal                          │  │
 │  │ (Read-only)      │         │ (Read + Write)                       │  │
 │  │                  │         │                                      │  │
 │  │ • Agent lookup   │         │ • Organization management            │  │
@@ -65,7 +66,6 @@ docker compose up -d
 │                          ▼                                              │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │                    CIRISRegistry API (Rust)                        │  │
-│  │                  api.registry.ciris.ai                             │  │
 │  │                                                                    │  │
 │  │  gRPC Services:                                                    │  │
 │  │  • RegistryService      - Public read-only lookups (14 methods)   │  │
@@ -80,7 +80,7 @@ docker compose up -d
 │                          ▼                                              │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │                    Multi-Source Validation                         │  │
-│  │  DNS US (registry-us.ciris.ai) + DNS EU + HTTPS API                │  │
+│  │  DNS (multiple regions) + HTTPS API                                │  │
 │  │  2-of-3 agreement required for positive verification               │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 │                                                                          │
@@ -129,7 +129,7 @@ CIRISRegistry/
 │   └── docker-compose.yml        # Local dev stack
 │
 ├── protocol/                      # Protocol definitions
-│   └── ciris_registry.proto      # gRPC/protobuf (1876 lines, v1.1.0)
+│   └── ciris_registry.proto      # gRPC/protobuf (v1.1.0)
 │
 ├── FSD/                          # Functional Specifications
 │   ├── FSD-001_CIRISREGISTRY_PROTOCOL.md  # Protocol spec
@@ -144,6 +144,7 @@ CIRISRegistry/
 ├── docker-compose.yml            # Root orchestration
 ├── Dockerfile                    # Root container build
 ├── CLAUDE.md                     # This file
+├── LICENSE                       # AGPL-3.0-or-later
 └── README.md                     # Project README
 ```
 
@@ -151,93 +152,93 @@ CIRISRegistry/
 
 ### RegistryService (Public, Read-Only)
 
-| Method | Purpose | Proto Line |
-|--------|---------|------------|
-| `HealthCheck` | System health and diagnostics | 1767 |
-| `GetCapabilities` | API feature discovery | 1768 |
-| `GetMetrics` | Prometheus metrics | 1769 |
-| `LookupAgent` | Lookup agent by hash | 1772 |
-| `BatchLookupAgents` | Batch agent lookup (max 100) | 1773 |
-| `LookupPartner` | Lookup partner by ID | 1776 |
-| `VerifyDeployment` | Combined agent+partner verification | 1779 |
-| `GetRevocationList` | Get revocation list (full or delta) | 1782 |
-| `GetPublicKeys` | Get organization public keys | 1785 |
-| `GetOfflinePackage` | Full offline verification package | 1788 |
-| `GetOfflineDelta` | Incremental snapshot delta | 1789 |
-| `GetBuildAttestation` | SLSA build provenance | 1792 |
-| `GetEmergencyStatus` | Emergency shutdown status | 1795 |
+| Method | Purpose |
+|--------|---------|
+| `HealthCheck` | System health and diagnostics |
+| `GetCapabilities` | API feature discovery |
+| `GetMetrics` | Prometheus metrics |
+| `LookupAgent` | Lookup agent by hash |
+| `BatchLookupAgents` | Batch agent lookup (max 100) |
+| `LookupPartner` | Lookup partner by ID |
+| `VerifyDeployment` | Combined agent+partner verification |
+| `GetRevocationList` | Get revocation list (full or delta) |
+| `GetPublicKeys` | Get organization public keys |
+| `GetOfflinePackage` | Full offline verification package |
+| `GetOfflineDelta` | Incremental snapshot delta |
+| `GetBuildAttestation` | SLSA build provenance |
+| `GetEmergencyStatus` | Emergency shutdown status |
 
 ### PortalService (Authenticated)
 
-| Method | Purpose | Proto Line |
-|--------|---------|------------|
-| `CreateOrganization` | Create organization | 1840 |
-| `GetOrganization` | Get organization details | 1841 |
-| `UpdateOrganization` | Update organization | 1842 |
-| `ListOrganizations` | List organizations (paginated) | 1843 |
-| `BatchCreateOrganizations` | Batch create (max 100) | 1844 |
-| `CreateOrgUser` | Create user | 1847 |
-| `GetOrgUser` | Get user by ID | 1848 |
-| `GetOrgUserByEmail` | Get user by email | 1849 |
-| `UpdateOrgUser` | Update user | 1850 |
-| `ListOrgUsers` | List organization users | 1851 |
-| `BatchCreateOrgUsers` | Batch create users (max 100) | 1852 |
-| `GenerateKeyPair` | Generate Ed25519+ML-DSA-65 keypair | 1855 |
-| `ListKeys` | List organization keys | 1856 |
-| `ActivateKey` | Activate pending key | 1857 |
-| `RotateKey` | Rotate active key | 1858 |
-| `RevokeKey` | Revoke key | 1859 |
-| `RequestKeyEscrow` | Create key escrow | 1862 |
-| `RequestKeyRecovery` | Request key recovery | 1863 |
-| `ListKeyEscrows` | List key escrows | 1864 |
-| `RequestSignature` | Sign data with custodied key | 1867 |
-| `GetAuditLog` | Get audit log (paginated) | 1870 |
-| `ExportAuditLog` | Export audit log (JSON/CSV/JSONL/Splunk) | 1871 |
-| `GenerateComplianceReport` | SOC2/HIPAA/GDPR reports | 1874 |
+| Method | Purpose |
+|--------|---------|
+| `CreateOrganization` | Create organization |
+| `GetOrganization` | Get organization details |
+| `UpdateOrganization` | Update organization |
+| `ListOrganizations` | List organizations (paginated) |
+| `BatchCreateOrganizations` | Batch create (max 100) |
+| `CreateOrgUser` | Create user |
+| `GetOrgUser` | Get user by ID |
+| `GetOrgUserByEmail` | Get user by email |
+| `UpdateOrgUser` | Update user |
+| `ListOrgUsers` | List organization users |
+| `BatchCreateOrgUsers` | Batch create users (max 100) |
+| `GenerateKeyPair` | Generate Ed25519+ML-DSA-65 keypair |
+| `ListKeys` | List organization keys |
+| `ActivateKey` | Activate pending key |
+| `RotateKey` | Rotate active key |
+| `RevokeKey` | Revoke key |
+| `RequestKeyEscrow` | Create key escrow |
+| `RequestKeyRecovery` | Request key recovery |
+| `ListKeyEscrows` | List key escrows |
+| `RequestSignature` | Sign data with custodied key |
+| `GetAuditLog` | Get audit log (paginated) |
+| `ExportAuditLog` | Export audit log (JSON/CSV/JSONL/Splunk) |
+| `GenerateComplianceReport` | SOC2/HIPAA/GDPR reports |
 
 ### RegistryAdminService (Admin Only)
 
-| Method | Purpose | Proto Line |
-|--------|---------|------------|
-| `RegisterAgent` | Register new agent build | 1801 |
-| `BatchRegisterAgents` | Batch register (max 1000) | 1802 |
-| `RegisterPartner` | Register new partner | 1805 |
-| `RevokeEntity` | Revoke agent/partner/license | 1808 |
-| `MassRevoke` | Mass revocation (incident response) | 1811 |
-| `SetEmergencyShutdown` | Enable emergency lockdown | 1812 |
-| `ClearEmergencyShutdown` | Clear emergency lockdown | 1813 |
-| `RotateSigningKey` | Rotate registry signing key | 1816 |
-| `GetActiveSigningKey` | Get active signing key | 1817 |
-| `ListSigningKeys` | List all signing keys | 1818 |
-| `TestHSMConnection` | Test HSM/Vault connection | 1819 |
-| `RegisterBuildAttestation` | Register SLSA attestation | 1822 |
-| `RegisterWebhook` | Register webhook | 1825 |
-| `ListWebhooks` | List webhooks | 1826 |
-| `DeleteWebhook` | Delete webhook | 1827 |
-| `ListExpiringLicenses` | License expiration tracking | 1830 |
-| `GetPartnerActivity` | Partner health assessment | 1831 |
-| `CleanupTestRecords` | Remove test records | 1834 |
+| Method | Purpose |
+|--------|---------|
+| `RegisterAgent` | Register new agent build |
+| `BatchRegisterAgents` | Batch register (max 1000) |
+| `RegisterPartner` | Register new partner |
+| `RevokeEntity` | Revoke agent/partner/license |
+| `MassRevoke` | Mass revocation (incident response) |
+| `SetEmergencyShutdown` | Enable emergency lockdown |
+| `ClearEmergencyShutdown` | Clear emergency lockdown |
+| `RotateSigningKey` | Rotate registry signing key |
+| `GetActiveSigningKey` | Get active signing key |
+| `ListSigningKeys` | List all signing keys |
+| `TestHSMConnection` | Test HSM/Vault connection |
+| `RegisterBuildAttestation` | Register SLSA attestation |
+| `RegisterWebhook` | Register webhook |
+| `ListWebhooks` | List webhooks |
+| `DeleteWebhook` | Delete webhook |
+| `ListExpiringLicenses` | License expiration tracking |
+| `GetPartnerActivity` | Partner health assessment |
+| `CleanupTestRecords` | Remove test records |
 
 ## CIRISPortal Integration
 
-**CIRISPortal** (portal.ciris.ai) is the administrative interface that writes to this registry.
+**CIRISPortal** is the administrative interface that writes to this registry.
 
-### Portal → Registry Data Flow
+### Portal -> Registry Data Flow
 
 ```
 1. Admin creates Organization in Portal
-   └─→ PortalService/CreateOrganization
+   └-> PortalService/CreateOrganization
 
 2. Admin onboards Partner (assigns license)
-   └─→ RegistryAdminService/RegisterPartner
+   └-> RegistryAdminService/RegisterPartner
 
 3. Partner generates custodied keys in Portal
-   └─→ Portal generates Ed25519 + ML-DSA-65 key pair
-   └─→ PortalService/GenerateKeyPair
+   └-> Portal generates Ed25519 + ML-DSA-65 key pair
+   └-> PortalService/GenerateKeyPair
 
 4. Partner rotates keys (zero-downtime)
-   └─→ PortalService/RotateKey (STAGED mode with grace period)
-   └─→ Old key marked as rotated (still valid during grace period)
+   └-> PortalService/RotateKey (STAGED mode with grace period)
+   └-> Old key marked as rotated (still valid during grace period)
 ```
 
 ## CIRIS Ecosystem Context
@@ -284,7 +285,7 @@ The Registry enables DSDMA by providing capability boundaries and license constr
 
 This project operates under the CIRIS Covenant v1.2-Beta. The foundational meta-goal is:
 
-> **M-1**: "Promote sustainable adaptive coherence — the living conditions under which diverse sentient beings may pursue their own flourishing."
+> **M-1**: "Promote sustainable adaptive coherence -- the living conditions under which diverse sentient beings may pursue their own flourishing."
 
 ### Core Principles (PDMA Framework)
 
@@ -332,22 +333,14 @@ Implementation in `rust-registry/src/crypto/mod.rs`:
 
 ### Multi-Source Validation
 
-Critical queries require 2-of-3 source agreement across geographically distributed endpoints:
-
-| Source | Endpoint | Purpose |
-|--------|----------|---------|
-| DNS US | registry-us.ciris.ai | Primary DNS |
-| DNS EU | registry-eu.ciris.ai | Geographic redundancy |
-| HTTPS | api.registry.ciris.ai | Full record access |
-
-Any REVOKED status from any source triggers immediate action.
+Critical queries require 2-of-3 source agreement across geographically distributed endpoints. Any REVOKED status from any source triggers immediate action.
 
 ### Fail-Secure Defaults
 
-- Unknown agents → Community tier only
-- Unknown partners → No capability grants
-- Network failures → Degradation, never escalation
-- Any revocation signal → Immediate enforcement
+- Unknown agents -> Community tier only
+- Unknown partners -> No capability grants
+- Network failures -> Degradation, never escalation
+- Any revocation signal -> Immediate enforcement
 
 ## Development Guidelines
 
@@ -450,50 +443,18 @@ grpcurl -plaintext -d '{
 - Test capability intersection logic: `effective = agent ∩ partner.granted - partner.denied`
 - **Test Portal integration** - verify API endpoints work correctly with Portal
 
-## E2E QA Notes (2026-02-13)
+### Database Migration Notes
 
-### Known Issues Fixed
-
-**BUG-001: NULL column decode on `permitted_actions` and `allowed_identity_templates`**
-
-Migration `003_identity_template.sql` added these columns without `DEFAULT` or `NOT NULL`. Pre-v1.2.0 rows have NULL. Rust `FromRow` can't decode NULL into `Vec<String>`.
-
-**Fix** (commit `f56b712`): Changed to `Option<Vec<String>>` with `.unwrap_or_default()` in:
-- `src/db/agents.rs` — `permitted_actions`
-- `src/db/partners.rs` — `allowed_identity_templates`
-- `src/services/registry.rs` — `VerifyDeployment` references
-
-**Pattern**: Any future `TEXT[]` or `BYTEA[]` column added via migration MUST use `Option<Vec<T>>` in the Rust struct, or add `DEFAULT '{}'` in the migration SQL. This avoids decode failures on pre-existing rows.
-
-### Deployment Notes
-
-- **Watchtower** polls every 60s but may need manual restart if it gets stuck
-- Registry runs US+EU — both instances must be updated
-- Image: `ghcr.io/cirisai/cirisregistry:latest`
-- Tags: `latest` (rolling) + `main` + short SHA (immutable)
-
-### Architecture Clarifications
-
-- **Registry is single source of truth for keys**. Everything else verifies against Registry.
-- **Signing keys for agents** are generated at CIRISPortal → stored in Registry. Private key downloaded once at generation via Portal UI, placed in agent's `data/agent_signing.key`.
-- **CIRISNode** auto-discovers org_id via fingerprint lookup: `GetPublicKeys(ed25519_fingerprint=SHA256(pubkey))` returns org_id + verification status. No org_id config needed on agents.
-- **Fingerprint lookup**: `GetPublicKeysRequest.ed25519_fingerprint` field added to proto. Handler in `registry.rs` calls `db::get_key_by_fingerprint()`. Returns active key matching the fingerprint with org_id in response.
-- **Private key export**: `GenerateKeyPairResponse.ed25519_private_key` field returns raw 32-byte Ed25519 seed. Returned ONCE at generation, never stored in Registry.
+Any future `TEXT[]` or `BYTEA[]` column added via migration MUST use `Option<Vec<T>>` in the Rust struct, or add `DEFAULT '{}'` in the migration SQL. This avoids decode failures on pre-existing rows.
 
 ## Related Projects
 
 | Component | Purpose | Integration |
 |-----------|---------|-------------|
-| **[CIRISPortal](../CIRISPortal)** | Partner portal and key custody | Writes to Registry API |
+| **CIRISPortal** | Partner portal and key custody | Writes to Registry API |
 | **CIRISVerify** | Hardware-rooted license verification | Reads from Registry API |
 | **CIRISAgent** | Core ethical governance framework | Uses CIRISVerify |
 | **CIRISLens** | Observability, trace collection | Logs Registry queries |
 | **CIRISProxy** | LLM routing with Zero Data Retention | N/A |
 | **CIRIS Medical** | Licensed professional healthcare module | Verified by Registry |
 | **Sage** | Wise Authority interface | May query Registry |
-
-## Contacts
-
-- Technical: registry@ciris.ai
-- Security: security@ciris.ai
-- Licensing: licensing@ciris.ai

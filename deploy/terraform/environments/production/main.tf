@@ -16,11 +16,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "ciris-terraform-state"
+    bucket         = "YOUR_TERRAFORM_STATE_BUCKET"
     key            = "registry/production/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
-    dynamodb_table = "ciris-terraform-locks"
+    dynamodb_table = "YOUR_TERRAFORM_LOCK_TABLE"
   }
 }
 
