@@ -17,6 +17,7 @@ pub struct OrganizationRow {
     pub billing_email: Option<String>,
     pub technical_contact_email: Option<String>,
     pub compliance_contact_email: Option<String>,
+    pub public_contact_email: Option<String>,
     pub oauth_provider: Option<String>,
     pub oauth_domain: Option<String>,
     pub active: bool,
@@ -42,6 +43,7 @@ impl OrganizationRow {
             billing_email: self.billing_email.clone().unwrap_or_default(),
             technical_contact_email: self.technical_contact_email.clone().unwrap_or_default(),
             compliance_contact_email: self.compliance_contact_email.clone().unwrap_or_default(),
+            public_contact_email: self.public_contact_email.clone().unwrap_or(self.primary_email.clone()),
             oauth_provider: self.oauth_provider.clone().unwrap_or_default(),
             oauth_domain: self.oauth_domain.clone().unwrap_or_default(),
             active: self.active,
@@ -64,8 +66,8 @@ pub async fn get_organization(pool: &PgPool, org_id: &str) -> Result<Option<Orga
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
-               org_type, parent_org_id
+               public_contact_email, oauth_provider, oauth_domain, active,
+               created_at, updated_at, created_by, org_type, parent_org_id
         FROM organizations
         WHERE org_id = $1
         "#,
@@ -85,9 +87,10 @@ pub async fn create_organization(pool: &PgPool, org: &proto::Organization) -> Re
         INSERT INTO organizations (
             org_id, name, legal_name, tax_id, partner_id, primary_email,
             billing_email, technical_contact_email, compliance_contact_email,
-            oauth_provider, oauth_domain, active, created_by, org_type, parent_org_id
+            public_contact_email, oauth_provider, oauth_domain, active,
+            created_by, org_type, parent_org_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         "#,
     )
     .bind(&org_id)
@@ -118,6 +121,11 @@ pub async fn create_organization(pool: &PgPool, org: &proto::Organization) -> Re
         None
     } else {
         Some(&org.compliance_contact_email)
+    })
+    .bind(if org.public_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.public_contact_email)
     })
     .bind(if org.oauth_provider.is_empty() {
         None
@@ -157,8 +165,8 @@ pub async fn list_organizations(
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
-               org_type, parent_org_id
+               public_contact_email, oauth_provider, oauth_domain, active,
+               created_at, updated_at, created_by, org_type, parent_org_id
         FROM organizations
         ORDER BY created_at DESC
         LIMIT $1 OFFSET $2
@@ -167,8 +175,8 @@ pub async fn list_organizations(
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
-               org_type, parent_org_id
+               public_contact_email, oauth_provider, oauth_domain, active,
+               created_at, updated_at, created_by, org_type, parent_org_id
         FROM organizations
         WHERE active = true
         ORDER BY created_at DESC
@@ -211,9 +219,10 @@ pub async fn create_organization_with_admin(
         INSERT INTO organizations (
             org_id, name, legal_name, tax_id, partner_id, primary_email,
             billing_email, technical_contact_email, compliance_contact_email,
-            oauth_provider, oauth_domain, active, created_by, org_type, parent_org_id
+            public_contact_email, oauth_provider, oauth_domain, active,
+            created_by, org_type, parent_org_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         "#,
     )
     .bind(&org_id)
@@ -244,6 +253,11 @@ pub async fn create_organization_with_admin(
         None
     } else {
         Some(&org.compliance_contact_email)
+    })
+    .bind(if org.public_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.public_contact_email)
     })
     .bind(if org.oauth_provider.is_empty() {
         None
@@ -370,6 +384,11 @@ pub async fn update_organization(
     } else {
         Some(&org.compliance_contact_email)
     })
+    .bind(if org.public_contact_email.is_empty() {
+        None
+    } else {
+        Some(&org.public_contact_email)
+    })
     .bind(if org.oauth_provider.is_empty() {
         None
     } else {
@@ -405,8 +424,8 @@ pub async fn list_child_organizations(
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
-               org_type, parent_org_id
+               public_contact_email, oauth_provider, oauth_domain, active,
+               created_at, updated_at, created_by, org_type, parent_org_id
         FROM organizations
         WHERE parent_org_id = $1
         ORDER BY created_at DESC
@@ -416,8 +435,8 @@ pub async fn list_child_organizations(
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
-               org_type, parent_org_id
+               public_contact_email, oauth_provider, oauth_domain, active,
+               created_at, updated_at, created_by, org_type, parent_org_id
         FROM organizations
         WHERE parent_org_id = $1 AND active = true
         ORDER BY created_at DESC
@@ -456,8 +475,8 @@ pub async fn list_organizations_by_type(
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
-               org_type, parent_org_id
+               public_contact_email, oauth_provider, oauth_domain, active,
+               created_at, updated_at, created_by, org_type, parent_org_id
         FROM organizations
         WHERE org_type = $1
         ORDER BY created_at DESC
@@ -467,8 +486,8 @@ pub async fn list_organizations_by_type(
         r#"
         SELECT org_id, name, legal_name, tax_id, partner_id, primary_email,
                billing_email, technical_contact_email, compliance_contact_email,
-               oauth_provider, oauth_domain, active, created_at, updated_at, created_by,
-               org_type, parent_org_id
+               public_contact_email, oauth_provider, oauth_domain, active,
+               created_at, updated_at, created_by, org_type, parent_org_id
         FROM organizations
         WHERE org_type = $1 AND active = true
         ORDER BY created_at DESC

@@ -456,6 +456,8 @@ message PartnerRecord {
   // Contact
   string technical_contact = 40;
   string compliance_contact = 41;
+  string responsible_party = 42;       // Name of the human accountable for this deployment
+  string public_contact_email = 43;    // Public-facing contact (defaults to org primary_email)
 
   // Status
   PartnerStatus status = 50;
@@ -521,6 +523,8 @@ message Organization {
   string billing_email = 21;
   string technical_contact_email = 22;
   string compliance_contact_email = 23;
+  string public_contact_email = 24;   // Public-facing org contact (defaults to primary_email if empty).
+                                       // Embedded in license JWTs as responsible_party_contact.
 
   // OAuth
   string oauth_provider = 30;           // e.g., "google"

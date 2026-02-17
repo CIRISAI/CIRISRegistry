@@ -25,6 +25,8 @@ pub struct PartnerRow {
     pub offline_grace_hours: i32,
     pub technical_contact: Option<String>,
     pub compliance_contact: Option<String>,
+    pub responsible_party: Option<String>,
+    pub public_contact_email: Option<String>,
     pub status: i32,
     pub suspension_reason: Option<String>,
     pub revocation_reason: Option<String>,
@@ -52,6 +54,8 @@ impl PartnerRow {
             offline_grace_hours: self.offline_grace_hours,
             technical_contact: self.technical_contact.clone().unwrap_or_default(),
             compliance_contact: self.compliance_contact.clone().unwrap_or_default(),
+            responsible_party: self.responsible_party.clone().unwrap_or_default(),
+            public_contact_email: self.public_contact_email.clone().unwrap_or_default(),
             status: self.status,
             suspension_reason: self.suspension_reason.clone().unwrap_or_default(),
             revocation_reason: self.revocation_reason.clone().unwrap_or_default(),
@@ -75,6 +79,7 @@ pub async fn lookup_partner(pool: &PgPool, partner_id: &str) -> Result<Option<Pa
             issued_at, expires_at, capabilities_granted, capabilities_denied,
             max_autonomy_tier, requires_supervisor, geographic_restrictions,
             deployment_limit, offline_grace_hours, technical_contact, compliance_contact,
+            responsible_party, public_contact_email,
             status, suspension_reason, revocation_reason, status_changed_at,
             allowed_identity_templates
         FROM partners
@@ -146,6 +151,7 @@ pub async fn list_expiring_licenses(
             issued_at, expires_at, capabilities_granted, capabilities_denied,
             max_autonomy_tier, requires_supervisor, geographic_restrictions,
             deployment_limit, offline_grace_hours, technical_contact, compliance_contact,
+            responsible_party, public_contact_email,
             status, suspension_reason, revocation_reason, status_changed_at,
             allowed_identity_templates
         FROM partners
@@ -160,6 +166,7 @@ pub async fn list_expiring_licenses(
             issued_at, expires_at, capabilities_granted, capabilities_denied,
             max_autonomy_tier, requires_supervisor, geographic_restrictions,
             deployment_limit, offline_grace_hours, technical_contact, compliance_contact,
+            responsible_party, public_contact_email,
             status, suspension_reason, revocation_reason, status_changed_at,
             allowed_identity_templates
         FROM partners
