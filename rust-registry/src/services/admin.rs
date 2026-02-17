@@ -862,4 +862,96 @@ impl AdminServiceTrait for AdminService {
             context: Some(self.response_context(request_id, None)),
         }))
     }
+
+    async fn register_build(
+        &self,
+        request: Request<RegisterBuildRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let build = req
+            .build
+            .ok_or_else(|| Status::invalid_argument("build is required"))?;
+
+        info!(
+            version = %build.version,
+            build_hash = %build.build_hash,
+            file_count = build.file_manifest_count,
+            "Registering build"
+        );
+
+        let build_id = db::register_build(self.db.pool(), &build)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(self.admin_response(
+            true,
+            &format!("Build registered successfully with ID: {}", build_id),
+            request_id,
+        )))
+    }
+
+    async fn get_build(
+        &self,
+        request: Request<GetBuildRequest>,
+    ) -> Result<Response<GetBuildResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let version = if req.version.is_empty() {
+            None
+        } else {
+            Some(req.version.as_str())
+        };
+        let build_hash = if req.build_hash.is_empty() {
+            None
+        } else {
+            Some(req.build_hash.as_str())
+        };
+
+        let row = db::get_build(self.db.pool(), version, build_hash)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(GetBuildResponse {
+            build: row.as_ref().map(|r| r.to_proto()),
+            found: row.is_some(),
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn list_builds(
+        &self,
+        request: Request<ListBuildsRequest>,
+    ) -> Result<Response<ListBuildsResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let status = if req.status.is_empty() {
+            None
+        } else {
+            Some(req.status.as_str())
+        };
+
+        let (rows, total) = db::list_builds(
+            self.db.pool(),
+            status,
+            req.page_size,
+            if req.page_token.is_empty() {
+                None
+            } else {
+                Some(req.page_token.as_str())
+            },
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(ListBuildsResponse {
+            builds: rows.iter().map(|r| r.to_proto()).collect(),
+            total_count: total as i32,
+            next_page_token: String::new(),
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
 }

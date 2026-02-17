@@ -5,6 +5,7 @@
 mod agents;
 mod audit;
 mod build_attestations;
+mod builds;
 mod emergency_status;
 mod escrows;
 mod keys;
@@ -29,6 +30,7 @@ use crate::error::Result;
 pub use agents::*;
 pub use audit::*;
 pub use build_attestations::*;
+pub use builds::*;
 pub use emergency_status::*;
 pub use escrows::*;
 pub use keys::*;

@@ -351,6 +351,62 @@ message AgentRecord {
 }
 
 // ============================================================================
+// BUILD REGISTRY (v1.3.0)
+// Purpose: Track verified builds and their Tripwire file integrity manifests
+// Rationale: Builds are separate from agent licenses. The core engine files are
+// the same for all agent types; professional modules (medical/legal/financial)
+// add additional templates and adapters that must also be integrity-checked.
+// ============================================================================
+
+message BuildRecord {
+  string build_id = 1;                      // UUID
+  string version = 2;                       // Semantic version string "2.0.0"
+  string build_hash = 3;                    // SHA-256 of all source files (identifies the build)
+  string file_manifest_hash = 4;            // SHA-256 of the manifest JSON
+  int32 file_manifest_count = 5;            // Number of files in manifest
+  bytes file_manifest_json = 6;             // Full manifest JSON blob
+  repeated string includes_modules = 7;     // {"core"} or {"core","medical","legal"}
+  string source_repo = 10;
+  string source_commit = 11;
+  int64 registered_at = 20;
+  string registered_by = 21;
+  string status = 30;                       // active, deprecated, revoked
+  string notes = 31;
+}
+
+message RegisterBuildRequest {
+  BuildRecord build = 1;
+  RequestContext context = 10;
+}
+
+message GetBuildRequest {
+  string version = 1;                       // Look up by version
+  string build_hash = 2;                    // Or by build hash
+  repeated string includes_modules = 3;     // Filter by module set
+  RequestContext context = 10;
+}
+
+message GetBuildResponse {
+  BuildRecord build = 1;
+  bool found = 2;
+  ResponseContext context = 50;
+}
+
+message ListBuildsRequest {
+  string status = 1;                        // Filter by status
+  int32 page_size = 2;
+  string page_token = 3;
+  RequestContext context = 10;
+}
+
+message ListBuildsResponse {
+  repeated BuildRecord builds = 1;
+  int32 total_count = 2;
+  string next_page_token = 3;
+  ResponseContext context = 50;
+}
+
+// ============================================================================
 // BUILD ATTESTATION (v1.1.0)
 // Purpose: Prove reproducible builds from CI/CD pipelines
 // Rationale: Systems integrators need verifiable build provenance (SLSA)
@@ -2198,6 +2254,11 @@ service RegistryAdminService {
 
   // Build attestation (v1.1.0)
   rpc RegisterBuildAttestation(RegisterBuildAttestationRequest) returns (AdminResponse);
+
+  // Build registry with file manifests (v1.3.0)
+  rpc RegisterBuild(RegisterBuildRequest) returns (AdminResponse);
+  rpc GetBuild(GetBuildRequest) returns (GetBuildResponse);
+  rpc ListBuilds(ListBuildsRequest) returns (ListBuildsResponse);
 
   // Webhooks (v1.1.0)
   rpc RegisterWebhook(RegisterWebhookRequest) returns (AdminResponse);
