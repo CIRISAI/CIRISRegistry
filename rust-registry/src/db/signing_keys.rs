@@ -216,6 +216,24 @@ pub async fn rotate_signing_key(
     Ok(())
 }
 
+/// Activate a signing key directly (for bootstrapping first key)
+pub async fn activate_signing_key(pool: &PgPool, key_id: &str) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE registry_signing_keys
+        SET status = $1, activated_at = NOW()
+        WHERE key_id = $2 AND status = $3
+        "#,
+    )
+    .bind(STATUS_ACTIVE)
+    .bind(key_id)
+    .bind(STATUS_PENDING)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
 /// Increment usage count and update last_used timestamp
 pub async fn increment_usage(pool: &PgPool, key_id: &str) -> Result<()> {
     sqlx::query(

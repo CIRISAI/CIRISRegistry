@@ -491,11 +491,10 @@ impl AdminServiceTrait for AdminService {
 
         info!(new_key_id = %req.new_key_id, "Rotating registry signing key");
 
-        // Get current active signing key
+        // Get current active signing key (may be None for bootstrap)
         let old_key = db::get_active_signing_key(self.db.pool())
             .await
-            .map_err(|e| Status::internal(e.to_string()))?
-            .ok_or_else(|| Status::failed_precondition("No active signing key to rotate"))?;
+            .map_err(|e| Status::internal(e.to_string()))?;
 
         // Generate new key pair
         let new_crypto =
@@ -520,10 +519,20 @@ impl AdminServiceTrait for AdminService {
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
-        // Perform rotation
-        db::rotate_signing_key(self.db.pool(), &old_key.key_id, &new_key_id, &operator_id)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+        // If we have an old key, rotate; otherwise bootstrap (activate directly)
+        let old_key_id = if let Some(ref old) = old_key {
+            db::rotate_signing_key(self.db.pool(), &old.key_id, &new_key_id, &operator_id)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+            old.key_id.clone()
+        } else {
+            // Bootstrap: activate the first key directly
+            info!("Bootstrapping first registry signing key");
+            db::activate_signing_key(self.db.pool(), &new_key_id)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+            String::new() // No old key
+        };
 
         // Fetch the new key
         let new_key = db::get_signing_key(self.db.pool(), &new_key_id)
@@ -538,7 +547,7 @@ impl AdminServiceTrait for AdminService {
 
         Ok(Response::new(RotateSigningKeyResponse {
             new_key_id: new_key_id.clone(),
-            old_key_id: old_key.key_id.clone(),
+            old_key_id,
             new_key: Some(new_key.to_proto()),
             cutover_time: now,
             is_dual_signing: false, // Immediate cutover
