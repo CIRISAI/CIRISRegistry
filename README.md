@@ -1,28 +1,32 @@
 # CIRISRegistry
 
-The authoritative trust registry for the CIRIS AI ecosystem. Deployed at **registry.ciris.ai** (dual-region US/EU).
+**The DMV Database — Source of Truth for Agent Identity, Integrity, and Licensing**
+
+Deployed at **ciris-services-1.ai** (dual-region US/EU).
 
 ## Overview
 
-CIRISRegistry is a Rust gRPC service that serves as the single source of truth for the CIRIS ecosystem:
+If CIRISVerify is the DMV office that checks your documents, CIRISRegistry is the **DMV database** — the authoritative backend that stores every agent's identity, every build's file manifest, and every license ever issued. CIRISPortal is the **clerk's window** where administrators manage it all.
 
-- **Agent Verification** - Lookup and validate registered agent builds by SHA-256 hash
-- **Build Registry** - Tripwire file integrity manifests for agent binary verification
-- **Partner Authorization** - License and capability management for professional tiers
-- **Revocation Tracking** - Real-time revocation list distribution
-- **Key Custody** - Hybrid Ed25519 + ML-DSA-65 key management with HSM support
-- **Audit Compliance** - SOC2/HIPAA/GDPR reporting with cryptographic audit trails
+CIRISRegistry is a Rust gRPC service that serves as the single source of truth:
+
+- **Agent Identity** — Every agent's Ed25519 public key hash, registered and verifiable (the driver's license record)
+- **Build Integrity** — Tripwire file manifests with SHA-256 hashes for every file in every release (the vehicle registration/VIN database)
+- **Licensing & Accountability** — Professional licenses with capability grants, linking agents to responsible humans and organizations (the insurance records)
+- **Revocation** — Real-time revocation list distribution; any revocation from any source is immediately enforced (suspended licenses)
+- **Key Custody** — Hybrid Ed25519 + ML-DSA-65 key management with HSM support
+- **Audit Compliance** — SOC2/HIPAA/GDPR reporting with cryptographic audit trails
 
 ## Production Deployment
 
 | Region | Domain | Purpose |
 |--------|--------|---------|
-| US | `registry-us.ciris.ai` | Primary US registry |
-| EU | `registry-eu.ciris.ai` | EU registry (GDPR) |
-| Global | `registry.ciris.ai` | Load-balanced endpoint |
+| US | `us.registry.ciris-services-1.ai` | Primary US registry (DNS) |
+| EU | `eu.registry.ciris-services-1.ai` | EU registry (DNS, GDPR) |
 | API | `api.registry.ciris-services-1.ai` | HTTPS verification API |
+| Portal | `portal.ciris.ai` | Admin web interface (CIRISPortal) |
 
-CIRISVerify validates against all three sources (DNS US + DNS EU + HTTPS API) for multi-source consensus.
+CIRISVerify validates against all three sources (DNS US + DNS EU + HTTPS API) for multi-source consensus. All production services are deployed via Docker with Watchtower for automatic updates.
 
 ## Quick Start
 
@@ -197,9 +201,9 @@ Both signatures are required for verification. This ensures:
 ### Multi-Source Validation
 
 Critical deployments can verify against multiple sources:
-- DNS US (registry-us.ciris.ai)
-- DNS EU (registry-eu.ciris.ai)
-- HTTPS API (api.registry.ciris.ai)
+- DNS US (`us.registry.ciris-services-1.ai`)
+- DNS EU (`eu.registry.ciris-services-1.ai`)
+- HTTPS API (`api.registry.ciris-services-1.ai`)
 
 2-of-3 agreement required for positive verification.
 
@@ -285,7 +289,7 @@ CIRISAgent (Python)          CIRISVerify (Rust)           CIRISPortal (Next.js)
         └────────────────────────────┼────────────────────────────┘
                                      ▼
                           CIRISRegistry (Rust gRPC)
-                          registry.ciris.ai
+                          *.registry.ciris-services-1.ai
                           Source of truth for agents,
                           licenses, builds, and keys
 ```
