@@ -1,16 +1,28 @@
 # CIRISRegistry
 
-The authoritative trust registry for the CIRIS AI ecosystem.
+The authoritative trust registry for the CIRIS AI ecosystem. Deployed at **registry.ciris.ai** (dual-region US/EU).
 
 ## Overview
 
-CIRISRegistry is a gRPC-based registry service that provides:
+CIRISRegistry is a Rust gRPC service that serves as the single source of truth for the CIRIS ecosystem:
 
-- **Agent Verification** - Lookup and validate registered agent builds
-- **Partner Authorization** - License and capability management
+- **Agent Verification** - Lookup and validate registered agent builds by SHA-256 hash
+- **Build Registry** - Tripwire file integrity manifests for agent binary verification
+- **Partner Authorization** - License and capability management for professional tiers
 - **Revocation Tracking** - Real-time revocation list distribution
-- **Key Custody** - Hybrid Ed25519 + ML-DSA-65 key management
-- **Audit Compliance** - SOC2/HIPAA/GDPR reporting
+- **Key Custody** - Hybrid Ed25519 + ML-DSA-65 key management with HSM support
+- **Audit Compliance** - SOC2/HIPAA/GDPR reporting with cryptographic audit trails
+
+## Production Deployment
+
+| Region | Domain | Purpose |
+|--------|--------|---------|
+| US | `registry-us.ciris.ai` | Primary US registry |
+| EU | `registry-eu.ciris.ai` | EU registry (GDPR) |
+| Global | `registry.ciris.ai` | Load-balanced endpoint |
+| API | `api.registry.ciris-services-1.ai` | HTTPS verification API |
+
+CIRISVerify validates against all three sources (DNS US + DNS EU + HTTPS API) for multi-source consensus.
 
 ## Quick Start
 
@@ -26,7 +38,7 @@ CIRISRegistry is a gRPC-based registry service that provides:
 docker compose up -d
 ```
 
-Services:
+Local development services:
 - gRPC API: `localhost:50052`
 - HTTP Health/Metrics: `localhost:8082`
 - PostgreSQL: `localhost:5434`
@@ -61,19 +73,20 @@ grpcurl -plaintext localhost:50052 ciris.registry.v1.RegistryService/HealthCheck
 │   CIRISVerify (Read)          CIRISPortal (Read+Write)          │
 │   • Agent lookups             • Organization management          │
 │   • Partner lookups           • User/key management             │
-│   • Revocation checks         • License management              │
+│   • Revocation checks         • License + build management      │
+│   • Build attestation         • Key custody + rotation          │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    CIRISRegistry API                             │
 │                                                                  │
-│   gRPC Services (port 50052):                                   │
-│   ├── RegistryService       - Public read-only (12 methods)    │
-│   ├── PortalService         - Portal operations (17 methods)   │
-│   └── RegistryAdminService  - Admin operations (18 methods)    │
+│   gRPC Services (port 50051 prod / 50052 dev):                  │
+│   ├── RegistryService       - Public read-only (13 methods)    │
+│   ├── PortalService         - Portal operations (21 methods)   │
+│   └── RegistryAdminService  - Admin operations (19 methods)    │
 │                                                                  │
-│   HTTP Endpoints (port 8082):                                   │
+│   HTTP Endpoints (port 8080 prod / 8082 dev):                   │
 │   ├── GET /health           - Health check                     │
 │   └── GET /metrics          - Prometheus metrics               │
 └─────────────────────────────────────────────────────────────────┘
@@ -82,10 +95,9 @@ grpcurl -plaintext localhost:50052 ciris.registry.v1.RegistryService/HealthCheck
 ┌─────────────────────────────────────────────────────────────────┐
 │   PostgreSQL Database        Hybrid Cryptography                │
 │   • Organizations            • Ed25519 (classical)              │
-│   • Users                    • ML-DSA-65 (post-quantum)         │
-│   • Agents                   • Dual signatures required         │
-│   • Partners                                                    │
-│   • Keys                                                        │
+│   • Users + Keys             • ML-DSA-65 (post-quantum)         │
+│   • Agents + Builds          • Dual signatures required         │
+│   • Partners + Licenses      • HashiCorp Vault (production)     │
 │   • Audit logs                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -153,6 +165,7 @@ grpcurl -plaintext localhost:50052 ciris.registry.v1.RegistryService/HealthCheck
 | `GetActiveSigningKey` | Get current signing key |
 | `ListSigningKeys` | List all signing keys |
 | `TestHSMConnection` | Test HSM/Vault connectivity |
+| `RegisterBuild` | Register build with Tripwire file manifest |
 | `RegisterBuildAttestation` | Register SLSA attestation |
 | `RegisterWebhook` | Configure event webhook |
 | `ListWebhooks` | List webhooks |
@@ -262,19 +275,31 @@ cargo build
 
 ## CIRIS Ecosystem
 
-CIRISRegistry is part of the CIRIS AI governance ecosystem:
+CIRISRegistry is the backend data authority for the CIRIS AI governance ecosystem:
 
-| Component | Purpose |
-|-----------|---------|
-| **CIRISRegistry** | Trust registry (this repo) |
-| **CIRISPortal** | Admin web interface |
-| **CIRISVerify** | Hardware-rooted verification |
-| **CIRISAgent** | Ethical AI framework |
-| **CIRISLens** | Observability platform |
+```
+CIRISAgent (Python)          CIRISVerify (Rust)           CIRISPortal (Next.js)
+ Ethical AI framework         License verification          Admin web interface
+ pip install ciris-agent      Hardware-rooted trust         portal.ciris.ai
+        │                            │                            │
+        └────────────────────────────┼────────────────────────────┘
+                                     ▼
+                          CIRISRegistry (Rust gRPC)
+                          registry.ciris.ai
+                          Source of truth for agents,
+                          licenses, builds, and keys
+```
+
+| Component | Repository | Purpose |
+|-----------|-----------|---------|
+| **CIRISRegistry** | This repo | Trust registry — agents, licenses, builds, keys |
+| **CIRISPortal** | [CIRISPortal](https://github.com/CIRISAI/CIRISPortal) | Admin web interface at portal.ciris.ai |
+| **CIRISVerify** | [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) | Hardware-rooted license verification binary |
+| **CIRISAgent** | [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) | Ethical AI agent framework |
 
 ## License
 
-Copyright 2025 CIRIS L3C. All rights reserved.
+Copyright 2025-2026 CIRIS L3C. All rights reserved.
 
 ## Contact
 
