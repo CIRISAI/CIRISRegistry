@@ -701,7 +701,80 @@ grpcurl -plaintext -d '{
 | E2E-022 | Register → Revoke → Lookup | Status: REVOKED | P0 |
 | E2E-023 | Mass revoke → Lookup all | All revoked | P1 |
 
-### 11.4 Incident Response
+### 11.4 CIRISPortal UI Test IDs (`data-testid`)
+
+All billing/pricing UI elements have `data-testid` attributes for browser automation.
+
+#### Login Page (`app/(auth)/login/page.tsx`)
+
+| Test ID | Element | Notes |
+|---------|---------|-------|
+| `btn-google-signin` | Google OAuth sign-in button | Always visible |
+| `community-info` | Community tier info box | Hidden in devtest mode |
+| `devtest-badge` | "Development Mode" badge | Only in devtest mode |
+| `login-error` | Login error message | Conditional |
+
+#### Activation Page (`app/(dashboard)/activate/page.tsx`)
+
+| Test ID | Element | Notes |
+|---------|---------|-------|
+| `activate-features` | Feature list (what you get) | |
+| `activate-pricing` | Pricing breakdown (fee + bond) | |
+| `btn-activate` | "Activate Identity" button | Triggers Stripe Checkout |
+| `activate-error` | Activation error message | Conditional |
+
+#### Pricing Page (`app/(dashboard)/pricing/page.tsx`)
+
+| Test ID | Element | Notes |
+|---------|---------|-------|
+| `pricing-page` | Page container | |
+| `tier-card-community` | Community tier card | |
+| `tier-card-professional` | Professional tier card | |
+| `tier-card-enterprise` | Enterprise tier card | |
+| `tier-card-safety_critical` | Safety-Critical tier card | |
+| `tier-current-badge` | "Current Tier" pill on active tier | |
+| `btn-current-plan-{tier}` | Disabled "Current Plan" button | e.g., `btn-current-plan-community` |
+| `btn-upgrade-{tier}` | "Upgrade" button on higher tiers | e.g., `btn-upgrade-professional` |
+
+#### Settings/Account Page (`app/(dashboard)/settings/page.tsx`)
+
+| Test ID | Element | Notes |
+|---------|---------|-------|
+| `billing-section` | Billing & Tier card | |
+| `btn-upgrade-tier` | "Upgrade Tier" link | Community users only |
+| `btn-manage-billing` | "Manage Billing" button | Opens Stripe Portal |
+| `btn-sign-out` | Sign out button | |
+
+#### Sidebar (`components/layouts/sidebar.tsx`)
+
+| Test ID | Element | Notes |
+|---------|---------|-------|
+| `sidebar` | Sidebar container | |
+| `nav-dashboard` | Dashboard nav link | |
+| `nav-keys` | Keys nav link | |
+| `nav-pricing` | Pricing nav link | |
+| `nav-settings` | Account nav link | |
+| `nav-{path}` | Other nav links | Path with leading `/` stripped |
+
+#### Tier Badge (`components/ui/tier-badge.tsx`)
+
+| Test ID | Element | Notes |
+|---------|---------|-------|
+| `tier-badge-{tier}` | Tier badge span | e.g., `tier-badge-professional` |
+| `tier-indicator` | Sidebar tier indicator container | |
+| `btn-sidebar-upgrade` | "Upgrade" link in tier indicator | Community users only |
+
+#### Previously Existing Test IDs (Agent Registration)
+
+| Test ID | Element | Location |
+|---------|---------|----------|
+| `register-agent-btn` | Register Agent button | Agent registry page |
+| `input-agent-hash` | Agent hash input | Registration dialog |
+| `select-agent-type` | Agent type dropdown | Registration dialog |
+| `select-autonomy-tier` | Autonomy tier dropdown | Registration dialog |
+| `select-identity-template` | Template dropdown | Registration dialog |
+
+### 11.5 Incident Response
 
 | Test ID | Flow | Expected | Priority |
 |---------|------|----------|----------|
