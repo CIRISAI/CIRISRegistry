@@ -29,6 +29,8 @@ pub struct HsmConnectionTest {
 /// Hybrid cryptographic provider
 pub struct HybridCrypto {
     ed25519_signing_key: SigningKey,
+    /// Cached Ed25519 public key (for Vault mode, this is the Vault key; otherwise derived from signing_key)
+    ed25519_cached_pubkey: Option<Vec<u8>>,
     mldsa_secret_key: dilithium3::SecretKey,
     mldsa_public_key: dilithium3::PublicKey,
     key_id: String,
@@ -113,6 +115,7 @@ impl HybridCrypto {
 
         Ok(Self {
             ed25519_signing_key,
+            ed25519_cached_pubkey: None, // Derived from signing key
             mldsa_secret_key,
             mldsa_public_key,
             key_id,
@@ -174,6 +177,7 @@ impl HybridCrypto {
 
         Ok(Self {
             ed25519_signing_key: dummy_ed25519,
+            ed25519_cached_pubkey: Some(ed25519_pubkey), // Cache the Vault public key
             mldsa_secret_key,
             mldsa_public_key,
             key_id,
@@ -312,6 +316,7 @@ impl HybridCrypto {
 
         Ok(Self {
             ed25519_signing_key,
+            ed25519_cached_pubkey: None, // Derived from signing key
             mldsa_secret_key,
             mldsa_public_key,
             key_id,
@@ -325,7 +330,10 @@ impl HybridCrypto {
 
     /// Get Ed25519 public key bytes
     pub fn ed25519_public_key(&self) -> Vec<u8> {
-        self.ed25519_signing_key.verifying_key().as_bytes().to_vec()
+        // Use cached pubkey if available (Vault mode), otherwise derive from signing key
+        self.ed25519_cached_pubkey
+            .clone()
+            .unwrap_or_else(|| self.ed25519_signing_key.verifying_key().as_bytes().to_vec())
     }
 
     /// Get Ed25519 private key bytes (32-byte seed)
