@@ -23,6 +23,7 @@ mod db;
 mod error;
 mod middleware;
 mod services;
+pub mod vault;
 
 use crate::config::Settings;
 use crate::db::Database;

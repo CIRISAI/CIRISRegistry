@@ -266,3 +266,51 @@ pub async fn retire_signing_key(pool: &PgPool, key_id: &str) -> Result<bool> {
 
     Ok(result.rows_affected() > 0)
 }
+
+/// Create or update a Vault-backed signing key
+///
+/// This upserts a signing key record for a key stored in Vault Transit.
+/// The key_id should match the Vault key name for tracking purposes.
+pub async fn upsert_vault_signing_key(
+    pool: &PgPool,
+    vault_key_name: &str,
+    ed25519_pubkey: &[u8],
+    ed25519_fingerprint: &str,
+    mldsa_pubkey: &[u8],
+    mldsa_fingerprint: &str,
+) -> Result<String> {
+    // Use vault key name as the key_id for easier tracking
+    let key_id = format!("vault:{}", vault_key_name);
+
+    // Storage mode 3 = VAULT (matching proto SigningKeyStorage)
+    const STORAGE_VAULT: i32 = 3;
+
+    sqlx::query(
+        r#"
+        INSERT INTO registry_signing_keys (
+            key_id, storage_mode, ed25519_public_key, ed25519_fingerprint,
+            mldsa65_public_key, mldsa65_fingerprint, status,
+            hsm_slot_id, hsm_label
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (key_id) DO UPDATE SET
+            ed25519_public_key = EXCLUDED.ed25519_public_key,
+            ed25519_fingerprint = EXCLUDED.ed25519_fingerprint,
+            mldsa65_public_key = EXCLUDED.mldsa65_public_key,
+            mldsa65_fingerprint = EXCLUDED.mldsa65_fingerprint
+        "#,
+    )
+    .bind(&key_id)
+    .bind(STORAGE_VAULT)
+    .bind(ed25519_pubkey)
+    .bind(ed25519_fingerprint)
+    .bind(mldsa_pubkey)
+    .bind(mldsa_fingerprint)
+    .bind(STATUS_PENDING)
+    .bind(Some("vault-transit"))
+    .bind(Some(vault_key_name))
+    .execute(pool)
+    .await?;
+
+    Ok(key_id)
+}

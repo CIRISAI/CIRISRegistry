@@ -70,6 +70,12 @@ pub struct CryptoSettings {
     pub storage_mode: String,
     /// Vault address (if using HashiCorp Vault)
     pub vault_addr: Option<String>,
+    /// Vault token (if using HashiCorp Vault)
+    pub vault_token: Option<String>,
+    /// Vault Transit key name (default: registry-signing)
+    pub vault_key_name: Option<String>,
+    /// Skip TLS verification for Vault (for self-signed certs)
+    pub vault_skip_verify: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -192,6 +198,11 @@ impl Settings {
                 mldsa_public_key_path: env::var("MLDSA_PUBLIC_KEY_PATH").ok(),
                 storage_mode: env::var("KEY_STORAGE_MODE").unwrap_or_else(|_| "memory".to_string()),
                 vault_addr: env::var("VAULT_ADDR").ok(),
+                vault_token: env::var("VAULT_TOKEN").ok(),
+                vault_key_name: env::var("VAULT_KEY_NAME").ok(),
+                vault_skip_verify: env::var("VAULT_SKIP_VERIFY")
+                    .map(|v| v == "true" || v == "1")
+                    .unwrap_or(false),
             },
             auth: AuthSettings {
                 jwt_secret,
