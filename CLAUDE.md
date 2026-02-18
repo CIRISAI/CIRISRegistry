@@ -402,6 +402,30 @@ autonomy:<tier>:<action>          # e.g., autonomy:A2:moderate
 | PROFESSIONAL_FINANCIAL | Financial analysis | Yes |
 | PROFESSIONAL_FULL | All professional capabilities | Yes |
 
+### Billing & Activation (CIRISPortal)
+
+Identity activation uses a two-part cost per agent identity for Sybil resistance:
+
+| Tier | Issuance Fee/Key | Bond/Key | Monthly/Agent | Max Keys |
+|------|-----------------|----------|---------------|----------|
+| Community | $0.50 | $1.00 | Free | 5 |
+| Professional | $5.00 | $10.00 | $10/mo | 50 |
+| Enterprise | $25.00 | $100.00 | $100/mo | 500 |
+| Safety-Critical | $250.00 | $1,000.00 | Custom | Unlimited |
+
+- Bond forfeited on revocation by default; admin can manually refund via Stripe dashboard
+- Community tier provided AS-IS without warranty or guarantees
+- Paid tiers (Professional+) not yet available for self-service — contact sales@ciris.ai
+- All billing handled by CIRISPortal + Stripe; Registry has no billing logic
+
+### Node Access Control
+
+CIRISNode instances can restrict which org IDs they service via `allowed_org_ids` config:
+- `node.ciris.ai`: Restricted to CIRIS.ai org only (WBD routing, full features)
+- `ethicsengine.org`: Open to all orgs (benchmarking only, WBD routing disabled)
+
+WBD routing via node.ciris.ai will be an additional charge for community agents in a future release.
+
 ## Testing
 
 ### Run Tests
