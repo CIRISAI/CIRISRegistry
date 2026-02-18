@@ -49,7 +49,7 @@ Without a registry, CIRISVerify cannot distinguish between:
 
 ### Mission Alignment
 
-CIRISRegistry serves the CIRIS covenant by:
+CIRISRegistry serves the CIRIS accord by:
 
 - **Protecting humans** from unauthorized AI systems claiming professional authority
 - **Enabling legitimate operators** to prove their authorization status

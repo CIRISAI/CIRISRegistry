@@ -281,9 +281,9 @@ Every CIRIS agent thought passes through four parallel Decision-Making Algorithm
 
 The Registry enables DSDMA by providing capability boundaries and license constraints.
 
-## CIRIS Covenant Alignment
+## CIRIS Accord Alignment
 
-This project operates under the CIRIS Covenant v1.2-Beta. The foundational meta-goal is:
+This project operates under the CIRIS Accord v1.2-Beta. The foundational meta-goal is:
 
 > **M-1**: "Promote sustainable adaptive coherence -- the living conditions under which diverse sentient beings may pursue their own flourishing."
 
