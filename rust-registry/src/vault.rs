@@ -2,7 +2,7 @@
 //!
 //! This module provides integration with Vault Transit secrets engine
 //! for Ed25519 signing operations. ML-DSA-65 (post-quantum) keys are
-//! stored in the database since Vault doesn't support this algorithm.
+//! stored in Vault KV secrets engine since Transit doesn't support PQC.
 
 use base64::Engine;
 use reqwest::Client;
@@ -12,6 +12,13 @@ use tokio::sync::RwLock;
 
 use crate::config::CryptoSettings;
 use crate::error::{RegistryError, Result};
+
+/// ML-DSA keypair stored in Vault KV
+#[derive(Debug, Clone)]
+pub struct MldsaKeyPair {
+    pub secret_key: Vec<u8>,
+    pub public_key: Vec<u8>,
+}
 
 /// Vault Transit client for signing operations
 pub struct VaultClient {
@@ -227,6 +234,111 @@ impl VaultClient {
     pub fn key_name(&self) -> &str {
         &self.key_name
     }
+
+    /// Get ML-DSA keypair from Vault KV secrets engine
+    ///
+    /// Path: secret/data/registry/mldsa-keys
+    pub async fn get_mldsa_keys(&self) -> Result<Option<MldsaKeyPair>> {
+        let url = format!("{}/v1/secret/data/registry/mldsa-keys", self.addr);
+
+        let response = self
+            .client
+            .get(&url)
+            .header("X-Vault-Token", &self.token)
+            .send()
+            .await
+            .map_err(|e| RegistryError::HsmUnavailable(format!("Vault KV request failed: {}", e)))?;
+
+        // 404 means key doesn't exist yet
+        if response.status().as_u16() == 404 {
+            return Ok(None);
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(RegistryError::HsmUnavailable(format!(
+                "Vault KV returned {}: {}",
+                status, body
+            )));
+        }
+
+        let vault_response: VaultResponse<KvResponseData> = response
+            .json()
+            .await
+            .map_err(|e| RegistryError::HsmUnavailable(format!("Failed to parse KV response: {}", e)))?;
+
+        let data = vault_response.data.ok_or_else(|| {
+            RegistryError::HsmUnavailable("Vault KV response missing data".to_string())
+        })?;
+
+        let kv_data = data.data;
+        let b64 = base64::engine::general_purpose::STANDARD;
+
+        let secret_key = kv_data.get("secret_key").ok_or_else(|| {
+            RegistryError::HsmUnavailable("ML-DSA secret_key missing from Vault".to_string())
+        })?;
+        let public_key = kv_data.get("public_key").ok_or_else(|| {
+            RegistryError::HsmUnavailable("ML-DSA public_key missing from Vault".to_string())
+        })?;
+
+        let secret_key_bytes = b64.decode(secret_key).map_err(|e| {
+            RegistryError::HsmUnavailable(format!("Failed to decode ML-DSA secret key: {}", e))
+        })?;
+        let public_key_bytes = b64.decode(public_key).map_err(|e| {
+            RegistryError::HsmUnavailable(format!("Failed to decode ML-DSA public key: {}", e))
+        })?;
+
+        Ok(Some(MldsaKeyPair {
+            secret_key: secret_key_bytes,
+            public_key: public_key_bytes,
+        }))
+    }
+
+    /// Store ML-DSA keypair in Vault KV secrets engine
+    ///
+    /// Path: secret/data/registry/mldsa-keys
+    pub async fn store_mldsa_keys(&self, keypair: &MldsaKeyPair) -> Result<()> {
+        let url = format!("{}/v1/secret/data/registry/mldsa-keys", self.addr);
+        let b64 = base64::engine::general_purpose::STANDARD;
+
+        let mut kv_data = std::collections::HashMap::new();
+        kv_data.insert("secret_key", b64.encode(&keypair.secret_key));
+        kv_data.insert("public_key", b64.encode(&keypair.public_key));
+
+        let request = KvWriteRequest { data: kv_data };
+
+        let response = self
+            .client
+            .post(&url)
+            .header("X-Vault-Token", &self.token)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| RegistryError::HsmUnavailable(format!("Vault KV write failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(RegistryError::HsmUnavailable(format!(
+                "Vault KV write returned {}: {}",
+                status, body
+            )));
+        }
+
+        tracing::info!("Stored ML-DSA keypair in Vault KV");
+        Ok(())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct KvResponseData {
+    data: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize)]
+struct KvWriteRequest {
+    data: std::collections::HashMap<&'static str, String>,
 }
 
 #[cfg(test)]

@@ -124,26 +124,54 @@ impl HybridCrypto {
 
     /// Load keys from HashiCorp Vault
     ///
-    /// This creates a Vault-backed crypto provider. Ed25519 operations use
-    /// Vault Transit, while ML-DSA-65 keys are generated locally (Vault
-    /// doesn't support post-quantum algorithms).
+    /// This creates a Vault-backed crypto provider:
+    /// - Ed25519: Uses Vault Transit secrets engine
+    /// - ML-DSA-65: Uses Vault KV secrets engine (Transit doesn't support PQC)
     fn from_vault(settings: &CryptoSettings) -> Result<Self> {
-        use crate::vault::VaultClient;
+        use crate::vault::{MldsaKeyPair, VaultClient};
 
-        // Create Vault client and fetch public key
-        let vault_client = VaultClient::new(settings)?;
-
-        // Use a separate blocking runtime to fetch the public key
+        // Use a separate blocking runtime for all Vault operations
         // This avoids the "cannot block from within a runtime" panic
         let settings_clone = settings.clone();
-        let ed25519_pubkey = std::thread::spawn(move || {
+        let (ed25519_pubkey, mldsa_secret_key, mldsa_public_key) = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .map_err(|e| RegistryError::HsmUnavailable(format!("Failed to create runtime: {}", e)))?;
 
             let client = VaultClient::new(&settings_clone)?;
-            rt.block_on(async { client.get_public_key().await })
+
+            rt.block_on(async {
+                // Get Ed25519 public key from Transit
+                let ed25519_pubkey = client.get_public_key().await?;
+
+                // Get or create ML-DSA keys from KV
+                let mldsa_keys = match client.get_mldsa_keys().await? {
+                    Some(keys) => {
+                        tracing::info!("Retrieved ML-DSA keypair from Vault KV");
+                        keys
+                    }
+                    None => {
+                        // Generate new ML-DSA keys and store in Vault
+                        tracing::info!("Generating new ML-DSA keypair and storing in Vault KV");
+                        let (pk, sk) = dilithium3::keypair();
+                        let keypair = MldsaKeyPair {
+                            secret_key: sk.as_bytes().to_vec(),
+                            public_key: pk.as_bytes().to_vec(),
+                        };
+                        client.store_mldsa_keys(&keypair).await?;
+                        keypair
+                    }
+                };
+
+                // Parse ML-DSA keys
+                let mldsa_secret_key = dilithium3::SecretKey::from_bytes(&mldsa_keys.secret_key)
+                    .map_err(|_| RegistryError::HsmUnavailable("Invalid ML-DSA secret key from Vault".to_string()))?;
+                let mldsa_public_key = dilithium3::PublicKey::from_bytes(&mldsa_keys.public_key)
+                    .map_err(|_| RegistryError::HsmUnavailable("Invalid ML-DSA public key from Vault".to_string()))?;
+
+                Ok::<_, RegistryError>((ed25519_pubkey, mldsa_secret_key, mldsa_public_key))
+            })
         })
         .join()
         .map_err(|_| RegistryError::HsmUnavailable("Vault thread panicked".to_string()))??;
@@ -162,17 +190,18 @@ impl HybridCrypto {
         // Instead, use VaultClient::sign() directly for Ed25519 signatures.
         let dummy_ed25519 = SigningKey::generate(&mut rand::rngs::OsRng);
 
-        // Generate ML-DSA-65 keys locally (Vault doesn't support post-quantum)
-        let (mldsa_public_key, mldsa_secret_key) = dilithium3::keypair();
-
         // Key ID from Vault public key fingerprint
         let key_id = Self::fingerprint(&ed25519_pubkey);
+
+        // Compute ML-DSA fingerprint for logging
+        let mldsa_fp = Self::fingerprint(mldsa_public_key.as_bytes());
 
         tracing::info!(
             vault_addr = settings.vault_addr.as_deref().unwrap_or("unknown"),
             key_name = settings.vault_key_name.as_deref().unwrap_or("registry-signing"),
             key_id = %key_id,
-            "Initialized Vault-backed crypto provider"
+            mldsa_fingerprint = %mldsa_fp,
+            "Initialized Vault-backed crypto provider (Ed25519 Transit + ML-DSA KV)"
         );
 
         Ok(Self {
