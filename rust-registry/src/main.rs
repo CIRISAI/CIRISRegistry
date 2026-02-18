@@ -110,6 +110,7 @@ async fn main() -> Result<()> {
         Some(tokio::spawn(api::http::serve(
             http_addr,
             db.clone(),
+            crypto.clone(),
             metrics_handle,
         )))
     } else {

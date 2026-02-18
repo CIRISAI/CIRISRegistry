@@ -10,6 +10,7 @@ use metrics_exporter_prometheus::PrometheusHandle;
 use serde::Serialize;
 use tracing::warn;
 
+use crate::crypto::HybridCrypto;
 use crate::db::{self, Database};
 
 /// Global start time for uptime tracking
@@ -28,6 +29,7 @@ pub fn get_uptime_seconds() -> u64 {
 #[derive(Clone)]
 struct AppState {
     db: Database,
+    crypto: Arc<HybridCrypto>,
     metrics_handle: Arc<PrometheusHandle>,
 }
 
@@ -136,26 +138,16 @@ async fn metrics(State(state): State<AppState>) -> String {
 async fn steward_key(
     State(state): State<AppState>,
 ) -> Result<Json<StewardKeyResponse>, (StatusCode, Json<StewardKeyError>)> {
-    // Get active signing key from database
-    let key = db::get_active_signing_key(state.db.pool())
-        .await
-        .map_err(|e| {
-            warn!("Failed to query active signing key: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(StewardKeyError {
-                    error: "Failed to retrieve signing key".to_string(),
-                }),
-            )
-        })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(StewardKeyError {
-                    error: "No active signing key configured".to_string(),
-                }),
-            )
-        })?;
+    // Use the crypto provider's keys directly (works with Vault, file, or memory mode)
+    let ed25519_pubkey = state.crypto.ed25519_public_key();
+    let mldsa_pubkey = state.crypto.mldsa_public_key();
+    let key_id = state.crypto.key_id().to_string();
+
+    // Compute fingerprint for ML-DSA-65 public key
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(&mldsa_pubkey);
+    let mldsa_fingerprint = hex::encode(hasher.finalize());
 
     // Get revocation list revision (max id)
     let revision: u64 = sqlx::query_scalar::<_, Option<i32>>("SELECT MAX(id) FROM revocations")
@@ -170,14 +162,14 @@ async fn steward_key(
     Ok(Json(StewardKeyResponse {
         classical: ClassicalKeyInfo {
             algorithm: "Ed25519".to_string(),
-            key: b64.encode(&key.ed25519_public_key),
-            key_id: key.key_id.clone(),
+            key: b64.encode(&ed25519_pubkey),
+            key_id: key_id.clone(),
         },
         pqc: PqcKeyInfo {
             algorithm: "ML-DSA-65".to_string(),
-            key: b64.encode(&key.mldsa65_public_key),
-            key_id: key.key_id.clone(),
-            fingerprint: format!("sha256:{}", key.mldsa65_fingerprint),
+            key: b64.encode(&mldsa_pubkey),
+            key_id: key_id.clone(),
+            fingerprint: format!("sha256:{}", mldsa_fingerprint),
         },
         signature_mode: "HYBRID_REQUIRED".to_string(),
         revision,
@@ -245,10 +237,12 @@ struct RevocationHit {
 pub async fn serve(
     addr: SocketAddr,
     db: Database,
+    crypto: Arc<HybridCrypto>,
     metrics_handle: PrometheusHandle,
 ) -> Result<(), std::io::Error> {
     let state = AppState {
         db,
+        crypto,
         metrics_handle: Arc::new(metrics_handle),
     };
 
