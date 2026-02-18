@@ -127,18 +127,23 @@ impl HybridCrypto {
     fn from_vault(settings: &CryptoSettings) -> Result<Self> {
         use crate::vault::VaultClient;
 
-        // Create Vault client and fetch public key synchronously
-        // Note: This blocks the async runtime briefly during startup
+        // Create Vault client and fetch public key
         let vault_client = VaultClient::new(settings)?;
 
-        // Use tokio runtime to fetch the public key
-        let runtime = tokio::runtime::Handle::try_current().map_err(|_| {
-            RegistryError::HsmUnavailable("Vault mode requires tokio runtime".to_string())
-        })?;
+        // Use a separate blocking runtime to fetch the public key
+        // This avoids the "cannot block from within a runtime" panic
+        let settings_clone = settings.clone();
+        let ed25519_pubkey = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| RegistryError::HsmUnavailable(format!("Failed to create runtime: {}", e)))?;
 
-        let ed25519_pubkey = runtime.block_on(async {
-            vault_client.get_public_key().await
-        })?;
+            let client = VaultClient::new(&settings_clone)?;
+            rt.block_on(async { client.get_public_key().await })
+        })
+        .join()
+        .map_err(|_| RegistryError::HsmUnavailable("Vault thread panicked".to_string()))??;
 
         // Parse Ed25519 public key (Vault returns raw 32-byte key)
         if ed25519_pubkey.len() != 32 {
