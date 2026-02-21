@@ -391,6 +391,218 @@ async fn register_binary_manifest(
     }
 }
 
+// =============================================================================
+// Function Manifests (Function-level integrity verification)
+// =============================================================================
+
+/// Request to register a function manifest (from CI)
+#[derive(serde::Deserialize)]
+struct RegisterFunctionManifestRequest {
+    version: String,
+    target: String,
+    binary_hash: String,
+    binary_version: String,
+    generated_at: String,
+    functions: serde_json::Value,
+    manifest_hash: String,
+    #[serde(default)]
+    signature: Option<FunctionManifestSignatureRequest>,
+}
+
+#[derive(serde::Deserialize)]
+struct FunctionManifestSignatureRequest {
+    classical: String,
+    #[serde(default)]
+    classical_algorithm: Option<String>,
+    pqc: String,
+    #[serde(default)]
+    pqc_algorithm: Option<String>,
+    key_id: String,
+}
+
+/// Response for function manifest errors
+#[derive(Serialize)]
+struct FunctionManifestError {
+    error: String,
+    message: String,
+}
+
+/// Response for registering a function manifest
+#[derive(Serialize)]
+struct RegisterFunctionManifestResponse {
+    success: bool,
+    id: i32,
+    message: String,
+}
+
+/// Public endpoint: GET /v1/verify/function-manifest/{version}/{target}
+///
+/// Returns a function manifest for runtime verification.
+async fn function_manifest(
+    State(state): State<AppState>,
+    axum::extract::Path((version, target)): axum::extract::Path<(String, String)>,
+) -> Result<Json<db::FunctionManifestResponse>, (StatusCode, Json<FunctionManifestError>)> {
+    match db::get_function_manifest(state.db.pool(), &version, &target).await {
+        Ok(Some(manifest)) => Ok(Json(manifest.to_response())),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(FunctionManifestError {
+                error: "not_found".to_string(),
+                message: format!(
+                    "Function manifest not found for version {} target {}",
+                    version, target
+                ),
+            }),
+        )),
+        Err(e) => {
+            warn!("Error fetching function manifest: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(FunctionManifestError {
+                    error: "internal_error".to_string(),
+                    message: "Failed to fetch function manifest".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
+/// Public endpoint: GET /v1/verify/function-manifests/{version}
+///
+/// Lists available targets for a version.
+async fn list_function_manifest_targets(
+    State(state): State<AppState>,
+    axum::extract::Path(version): axum::extract::Path<String>,
+) -> Result<Json<db::AvailableTargetsResponse>, (StatusCode, Json<FunctionManifestError>)> {
+    match db::list_function_manifest_targets(state.db.pool(), &version).await {
+        Ok(targets) => {
+            if targets.is_empty() {
+                Err((
+                    StatusCode::NOT_FOUND,
+                    Json(FunctionManifestError {
+                        error: "not_found".to_string(),
+                        message: format!("No function manifests found for version {}", version),
+                    }),
+                ))
+            } else {
+                Ok(Json(db::AvailableTargetsResponse { version, targets }))
+            }
+        }
+        Err(e) => {
+            warn!("Error listing function manifest targets: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(FunctionManifestError {
+                    error: "internal_error".to_string(),
+                    message: "Failed to list function manifest targets".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
+/// Admin endpoint: POST /v1/verify/function-manifest
+///
+/// Register a new function manifest from CI. Requires REGISTRY_ADMIN_TOKEN.
+async fn register_function_manifest(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<RegisterFunctionManifestRequest>,
+) -> Result<Json<RegisterFunctionManifestResponse>, (StatusCode, Json<FunctionManifestError>)> {
+    // Check authorization
+    let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
+    if admin_token.is_empty() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(FunctionManifestError {
+                error: "configuration_error".to_string(),
+                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
+            }),
+        ));
+    }
+
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+
+    let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
+
+    if provided_token != admin_token {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(FunctionManifestError {
+                error: "unauthorized".to_string(),
+                message: "Invalid or missing authorization token".to_string(),
+            }),
+        ));
+    }
+
+    // Parse generated_at timestamp
+    let generated_at = time::OffsetDateTime::parse(
+        &req.generated_at,
+        &time::format_description::well_known::Rfc3339,
+    )
+    .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+
+    // Build manifest JSON (store the full manifest for serving)
+    let manifest_json = serde_json::json!({
+        "version": req.version,
+        "target": req.target,
+        "binary_hash": req.binary_hash,
+        "binary_version": req.binary_version,
+        "generated_at": req.generated_at,
+        "functions": req.functions,
+    });
+
+    // Extract signature fields
+    let (sig_classical, sig_pqc, sig_key_id) = if let Some(sig) = &req.signature {
+        (
+            Some(sig.classical.as_str()),
+            Some(sig.pqc.as_str()),
+            Some(sig.key_id.as_str()),
+        )
+    } else {
+        (None, None, None)
+    };
+
+    // Register the manifest
+    match db::register_function_manifest(
+        state.db.pool(),
+        &req.binary_version,
+        &req.target,
+        &req.version,
+        &req.binary_hash,
+        &req.manifest_hash,
+        &manifest_json,
+        sig_classical,
+        sig_pqc,
+        sig_key_id,
+        generated_at,
+    )
+    .await
+    {
+        Ok(id) => Ok(Json(RegisterFunctionManifestResponse {
+            success: true,
+            id,
+            message: format!(
+                "Function manifest registered for version {} target {}",
+                req.binary_version, req.target
+            ),
+        })),
+        Err(e) => {
+            warn!("Error registering function manifest: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(FunctionManifestError {
+                    error: "internal_error".to_string(),
+                    message: "Failed to register function manifest".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
 pub async fn serve(
     addr: SocketAddr,
     db: Database,
@@ -411,9 +623,22 @@ pub async fn serve(
         // Public verification endpoints (consumed by CIRISVerify)
         .route("/v1/steward-key", get(steward_key))
         .route("/v1/revocation/{target_id}", get(check_revocation))
+        // Binary manifests (whole-binary hashes for Level 2 self-check)
         .route("/v1/verify/binary-manifest/{version}", get(binary_manifest))
-        // Admin endpoint for registering binary manifests (requires REGISTRY_ADMIN_TOKEN)
         .route("/v1/verify/binary-manifest", post(register_binary_manifest))
+        // Function manifests (function-level hashes for runtime verification)
+        .route(
+            "/v1/verify/function-manifest/{version}/{target}",
+            get(function_manifest),
+        )
+        .route(
+            "/v1/verify/function-manifests/{version}",
+            get(list_function_manifest_targets),
+        )
+        .route(
+            "/v1/verify/function-manifest",
+            post(register_function_manifest),
+        )
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
