@@ -4,6 +4,7 @@
 
 mod agents;
 mod audit;
+mod binary_manifests;
 mod build_attestations;
 mod builds;
 mod emergency_status;
@@ -29,6 +30,7 @@ use crate::error::Result;
 
 pub use agents::*;
 pub use audit::*;
+pub use binary_manifests::*;
 pub use build_attestations::*;
 pub use builds::*;
 pub use emergency_status::*;

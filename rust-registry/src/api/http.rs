@@ -4,7 +4,12 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
-use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    routing::{get, post},
+    Json, Router,
+};
 use base64::Engine;
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::Serialize;
@@ -234,6 +239,158 @@ struct RevocationHit {
     reason_detail: Option<String>,
 }
 
+/// Response for binary manifest not found
+#[derive(Serialize)]
+struct BinaryManifestNotFound {
+    error: String,
+    message: String,
+}
+
+/// Request to register a binary manifest (from CI)
+#[derive(serde::Deserialize)]
+struct RegisterBinaryManifestRequest {
+    version: String,
+    binaries: std::collections::HashMap<String, String>,
+    generated_at: String,
+    #[serde(default)]
+    notes: Option<String>,
+}
+
+/// Response for registering a binary manifest
+#[derive(Serialize)]
+struct RegisterBinaryManifestResponse {
+    success: bool,
+    manifest_id: String,
+    message: String,
+}
+
+/// Error response for register endpoint
+#[derive(Serialize)]
+struct RegisterBinaryManifestError {
+    error: String,
+    message: String,
+}
+
+/// Public endpoint: GET /v1/verify/binary-manifest/{version}
+///
+/// Returns SHA-256 hashes of CIRISVerify binaries for self-verification (Level 2).
+/// This endpoint is unauthenticated.
+async fn binary_manifest(
+    State(state): State<AppState>,
+    axum::extract::Path(version): axum::extract::Path<String>,
+) -> Result<Json<db::BinaryManifestResponse>, (StatusCode, Json<BinaryManifestNotFound>)> {
+    // Validate version format (basic semver check)
+    if version.is_empty() || !version.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(BinaryManifestNotFound {
+                error: "bad_request".to_string(),
+                message: "Invalid version format".to_string(),
+            }),
+        ));
+    }
+
+    match db::get_binary_manifest(state.db.pool(), &version).await {
+        Ok(Some(manifest)) => Ok(Json(manifest.to_response())),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(BinaryManifestNotFound {
+                error: "not_found".to_string(),
+                message: format!("Binary manifest not found for version {}", version),
+            }),
+        )),
+        Err(e) => {
+            warn!("Error fetching binary manifest: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(BinaryManifestNotFound {
+                    error: "internal_error".to_string(),
+                    message: "Failed to fetch binary manifest".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
+/// Admin endpoint: POST /v1/verify/binary-manifest
+///
+/// Register a new binary manifest from CI. Requires REGISTRY_ADMIN_TOKEN.
+async fn register_binary_manifest(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<RegisterBinaryManifestRequest>,
+) -> Result<Json<RegisterBinaryManifestResponse>, (StatusCode, Json<RegisterBinaryManifestError>)> {
+    // Check authorization
+    let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
+    if admin_token.is_empty() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(RegisterBinaryManifestError {
+                error: "configuration_error".to_string(),
+                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
+            }),
+        ));
+    }
+
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+
+    let provided_token = auth_header
+        .strip_prefix("Bearer ")
+        .unwrap_or(auth_header);
+
+    if provided_token != admin_token {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(RegisterBinaryManifestError {
+                error: "unauthorized".to_string(),
+                message: "Invalid or missing authorization token".to_string(),
+            }),
+        ));
+    }
+
+    // Parse generated_at timestamp
+    let generated_at = time::OffsetDateTime::parse(
+        &req.generated_at,
+        &time::format_description::well_known::Rfc3339,
+    )
+    .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+
+    // Convert binaries map to JSON
+    let binaries_json = serde_json::to_value(&req.binaries).unwrap_or(serde_json::json!({}));
+
+    // Register the manifest
+    match db::register_binary_manifest(
+        state.db.pool(),
+        &req.version,
+        &binaries_json,
+        generated_at,
+        Some("ci_push"),
+        Some("ci_push"),
+        req.notes.as_deref(),
+    )
+    .await
+    {
+        Ok(manifest_id) => Ok(Json(RegisterBinaryManifestResponse {
+            success: true,
+            manifest_id,
+            message: format!("Binary manifest registered for version {}", req.version),
+        })),
+        Err(e) => {
+            warn!("Error registering binary manifest: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(RegisterBinaryManifestError {
+                    error: "internal_error".to_string(),
+                    message: "Failed to register binary manifest".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
 pub async fn serve(
     addr: SocketAddr,
     db: Database,
@@ -254,6 +411,9 @@ pub async fn serve(
         // Public verification endpoints (consumed by CIRISVerify)
         .route("/v1/steward-key", get(steward_key))
         .route("/v1/revocation/{target_id}", get(check_revocation))
+        .route("/v1/verify/binary-manifest/{version}", get(binary_manifest))
+        // Admin endpoint for registering binary manifests (requires REGISTRY_ADMIN_TOKEN)
+        .route("/v1/verify/binary-manifest", post(register_binary_manifest))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
