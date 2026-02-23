@@ -416,6 +416,64 @@ Supported Rust target triples for manifests:
 
 ---
 
+## Key Verification by Fingerprint
+
+### GET /v1/verify/key/{fingerprint}
+
+Verify a signing key by its Ed25519 fingerprint (SHA-256 hex).
+
+**Parameters:**
+- `fingerprint` - SHA-256 hex of the Ed25519 public key (64 hex characters)
+
+**Response (found):**
+```json
+{
+  "found": true,
+  "key_id": "abc123-...",
+  "org_id": "org-456",
+  "status": "KEY_ACTIVE",
+  "status_code": 1,
+  "ed25519_fingerprint": "abc123...",
+  "ml_dsa_65_fingerprint": "def456...",
+  "ed25519_public_key": "<base64>",
+  "ml_dsa_65_public_key": "<base64>",
+  "activated_at": 1740100000,
+  "revoked_at": null,
+  "revocation_reason": null
+}
+```
+
+**Response (not found):**
+```json
+{
+  "found": false,
+  "key_id": null,
+  "org_id": null,
+  "status": "NOT_FOUND",
+  "status_code": -1
+}
+```
+
+**Status Values:**
+| Status | Code | Description |
+|--------|------|-------------|
+| `KEY_PENDING` | 0 | Key created but not yet activated |
+| `KEY_ACTIVE` | 1 | Key is active and valid for signing |
+| `KEY_ROTATED` | 2 | Key has been rotated (may still be valid during grace period) |
+| `KEY_REVOKED` | 3 | Key has been revoked |
+| `NOT_FOUND` | -1 | Key not found in registry |
+
+**CIRISVerify Flow:**
+```
+1. Agent provides signed data with public key
+2. CIRISVerify computes fingerprint: SHA-256(ed25519_public_key) → hex
+3. GET /v1/verify/key/{fingerprint}
+4. Check: found=true AND status="KEY_ACTIVE"
+5. If valid, use public key to verify signature
+```
+
+---
+
 ## Registering Agent Builds
 
 CIRISAgent binaries are registered differently from CIRISVerify manifests. Agent registration uses gRPC and tracks individual build artifacts by their SHA-256 hash.

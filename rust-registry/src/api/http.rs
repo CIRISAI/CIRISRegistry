@@ -749,6 +749,117 @@ async fn register_function_manifest(
 }
 
 // =============================================================================
+// Key Verification (CIRISVerify agent signing key validation)
+// =============================================================================
+
+/// Response for key verification by fingerprint
+#[derive(Serialize)]
+struct KeyVerifyResponse {
+    found: bool,
+    key_id: Option<String>,
+    org_id: Option<String>,
+    status: String,
+    status_code: i32,
+    ed25519_fingerprint: Option<String>,
+    ml_dsa_65_fingerprint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ed25519_public_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ml_dsa_65_public_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    activated_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revoked_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revocation_reason: Option<String>,
+}
+
+/// Error response for key verification
+#[derive(Serialize)]
+struct KeyVerifyError {
+    error: String,
+    message: String,
+}
+
+/// Public endpoint: GET /v1/verify/key/{fingerprint}
+///
+/// Verify a signing key by its Ed25519 fingerprint (SHA-256 hex).
+/// Used by CIRISVerify to validate agent signing keys.
+///
+/// Returns:
+/// - found: true if key exists
+/// - status: KEY_ACTIVE, KEY_REVOKED, KEY_ROTATED, KEY_PENDING
+/// - public keys and metadata
+async fn verify_key_by_fingerprint(
+    State(state): State<AppState>,
+    axum::extract::Path(fingerprint): axum::extract::Path<String>,
+) -> Result<Json<KeyVerifyResponse>, (StatusCode, Json<KeyVerifyError>)> {
+    // Validate fingerprint format (64 hex chars = SHA-256)
+    if fingerprint.len() != 64 || !fingerprint.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(KeyVerifyError {
+                error: "bad_request".to_string(),
+                message: "Invalid fingerprint format (expected 64 hex characters)".to_string(),
+            }),
+        ));
+    }
+
+    match db::lookup_key_by_fingerprint(state.db.pool(), &fingerprint).await {
+        Ok(Some(key)) => {
+            let status_str = match key.status {
+                0 => "KEY_PENDING",
+                1 => "KEY_ACTIVE",
+                2 => "KEY_ROTATED",
+                3 => "KEY_REVOKED",
+                _ => "KEY_UNKNOWN",
+            };
+
+            let b64 = base64::engine::general_purpose::STANDARD;
+
+            Ok(Json(KeyVerifyResponse {
+                found: true,
+                key_id: Some(key.key_id),
+                org_id: Some(key.org_id),
+                status: status_str.to_string(),
+                status_code: key.status,
+                ed25519_fingerprint: Some(key.ed25519_fingerprint),
+                ml_dsa_65_fingerprint: Some(key.ml_dsa_65_fingerprint),
+                ed25519_public_key: Some(b64.encode(&key.ed25519_public_key)),
+                ml_dsa_65_public_key: Some(b64.encode(&key.ml_dsa_65_public_key)),
+                activated_at: key.activated_at.map(|t| t.unix_timestamp()),
+                revoked_at: key.revoked_at.map(|t| t.unix_timestamp()),
+                revocation_reason: key.revocation_reason,
+            }))
+        }
+        Ok(None) => Ok(Json(KeyVerifyResponse {
+            found: false,
+            key_id: None,
+            org_id: None,
+            status: "NOT_FOUND".to_string(),
+            status_code: -1,
+            ed25519_fingerprint: None,
+            ml_dsa_65_fingerprint: None,
+            ed25519_public_key: None,
+            ml_dsa_65_public_key: None,
+            activated_at: None,
+            revoked_at: None,
+            revocation_reason: None,
+        })),
+        Err(e) => {
+            warn!("Error looking up key by fingerprint: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(KeyVerifyError {
+                    error: "internal_error".to_string(),
+                    message: "Failed to lookup key".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
+// =============================================================================
 // Play Integrity Verification
 // =============================================================================
 
@@ -907,6 +1018,8 @@ pub async fn serve(
         // Build records (CIRISAgent file integrity manifests for CIRISVerify)
         .route("/v1/builds/{version}", get(get_build_by_version))
         .route("/v1/builds/hash/{build_hash}", get(get_build_by_hash))
+        // Key verification (agent signing key validation by fingerprint)
+        .route("/v1/verify/key/{fingerprint}", get(verify_key_by_fingerprint))
         // Play Integrity verification (Android device/app attestation)
         .route("/v1/integrity/nonce", get(integrity_nonce))
         .route("/v1/integrity/verify", post(integrity_verify))
