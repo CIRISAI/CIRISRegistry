@@ -22,6 +22,7 @@ pub mod crypto;
 mod db;
 mod error;
 mod middleware;
+pub mod play_integrity;
 mod services;
 pub mod vault;
 

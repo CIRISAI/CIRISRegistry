@@ -17,6 +17,10 @@ use tracing::warn;
 
 use crate::crypto::HybridCrypto;
 use crate::db::{self, BuildRow, Database, get_build};
+use crate::play_integrity::{
+    IntegrityAuthRequest, IntegrityAuthResponse, IntegrityVerifyRequest, PlayIntegrityConfig,
+    PlayIntegrityService,
+};
 
 /// Global start time for uptime tracking
 static START_TIME: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
@@ -744,6 +748,126 @@ async fn register_function_manifest(
     }
 }
 
+// =============================================================================
+// Play Integrity Verification
+// =============================================================================
+
+/// Error response for Play Integrity endpoints
+#[derive(Serialize)]
+struct IntegrityError {
+    error: String,
+    message: String,
+}
+
+/// Public endpoint: GET /v1/integrity/nonce
+///
+/// Generate a cryptographically secure nonce for Play Integrity verification.
+/// The nonce is single-use and expires in 5 minutes.
+async fn integrity_nonce(
+    axum::extract::Query(params): axum::extract::Query<IntegrityNonceParams>,
+) -> Json<crate::play_integrity::IntegrityNonceResponse> {
+    let config = PlayIntegrityConfig::default();
+    let service = PlayIntegrityService::new(config);
+    Json(service.generate_nonce(params.context.as_deref()))
+}
+
+#[derive(serde::Deserialize)]
+struct IntegrityNonceParams {
+    context: Option<String>,
+}
+
+/// Public endpoint: POST /v1/integrity/verify
+///
+/// Verify a Play Integrity token. Decodes the token via Google's API
+/// and returns device/app/account verdicts.
+async fn integrity_verify(
+    Json(req): Json<IntegrityVerifyRequest>,
+) -> Result<Json<crate::play_integrity::IntegrityVerifyResponse>, (StatusCode, Json<IntegrityError>)>
+{
+    let config = PlayIntegrityConfig::default();
+
+    if config.service_account_json.is_none() {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(IntegrityError {
+                error: "not_configured".to_string(),
+                message: "Play Integrity API not configured (PLAY_INTEGRITY_SERVICE_ACCOUNT missing)".to_string(),
+            }),
+        ));
+    }
+
+    let service = PlayIntegrityService::new(config);
+    let result = service
+        .verify_token(&req.integrity_token, &req.nonce, false)
+        .await;
+
+    Ok(Json(result))
+}
+
+/// Public endpoint: POST /v1/integrity/auth
+///
+/// Combined JWT + Play Integrity verification for high-security operations.
+/// Requires both user authentication and device/app integrity.
+///
+/// Note: This endpoint expects a Bearer token for JWT auth, but since
+/// Registry doesn't have user auth, it just validates the integrity token
+/// and returns auth status based on any provided context.
+async fn integrity_auth(
+    headers: HeaderMap,
+    Json(req): Json<IntegrityAuthRequest>,
+) -> Result<Json<IntegrityAuthResponse>, (StatusCode, Json<IntegrityError>)> {
+    let config = PlayIntegrityConfig::default();
+
+    if config.service_account_json.is_none() {
+        return Ok(Json(IntegrityAuthResponse {
+            authenticated: false,
+            integrity_verified: false,
+            user_id: None,
+            email: None,
+            device_integrity: None,
+            app_integrity: None,
+            authorized: false,
+            reason: Some("Play Integrity API not configured".to_string()),
+        }));
+    }
+
+    // Check for bearer token (optional - for logging/context only in Registry)
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let has_bearer = auth_header.starts_with("Bearer ");
+
+    let service = PlayIntegrityService::new(config);
+    let result = service
+        .verify_token(&req.integrity_token, &req.nonce, false)
+        .await;
+
+    let integrity_verified = result.verified;
+    let authorized = has_bearer && integrity_verified;
+
+    Ok(Json(IntegrityAuthResponse {
+        authenticated: has_bearer,
+        integrity_verified,
+        user_id: None,  // Registry doesn't decode user JWTs
+        email: None,
+        device_integrity: result.device_integrity,
+        app_integrity: result.app_integrity,
+        authorized,
+        reason: if !authorized {
+            Some(result.error.unwrap_or_else(|| {
+                if !has_bearer {
+                    "Missing Bearer token".to_string()
+                } else {
+                    "Integrity verification failed".to_string()
+                }
+            }))
+        } else {
+            None
+        },
+    }))
+}
+
 pub async fn serve(
     addr: SocketAddr,
     db: Database,
@@ -783,6 +907,10 @@ pub async fn serve(
         // Build records (CIRISAgent file integrity manifests for CIRISVerify)
         .route("/v1/builds/{version}", get(get_build_by_version))
         .route("/v1/builds/hash/{build_hash}", get(get_build_by_hash))
+        // Play Integrity verification (Android device/app attestation)
+        .route("/v1/integrity/nonce", get(integrity_nonce))
+        .route("/v1/integrity/verify", post(integrity_verify))
+        .route("/v1/integrity/auth", post(integrity_auth))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

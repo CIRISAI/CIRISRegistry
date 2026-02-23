@@ -38,6 +38,7 @@ http = "1.2"
 ed25519-dalek = { version = "2.1", features = ["rand_core", "hazmat"] }
 sha2 = "0.10"
 rand = "0.8"
+rsa = { version = "0.9", features = ["sha2"] }
 
 # Cryptography - Post-Quantum (ML-DSA-65)
 pqcrypto-dilithium = "0.5"
