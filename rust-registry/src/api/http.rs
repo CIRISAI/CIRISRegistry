@@ -16,7 +16,7 @@ use serde::Serialize;
 use tracing::warn;
 
 use crate::crypto::HybridCrypto;
-use crate::db::{self, Database};
+use crate::db::{self, BuildRow, Database, get_build};
 
 /// Global start time for uptime tracking
 static START_TIME: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
@@ -435,6 +435,133 @@ struct RegisterFunctionManifestResponse {
     message: String,
 }
 
+// =============================================================================
+// Build Records (CIRISAgent file integrity manifests)
+// =============================================================================
+
+/// Build record response for CIRISVerify file verification.
+/// Matches the BuildRecord struct expected by CIRISVerify.
+#[derive(Serialize)]
+struct BuildRecordResponse {
+    build_id: String,
+    version: String,
+    build_hash: String,
+    file_manifest_hash: String,
+    file_manifest_count: i32,
+    file_manifest_json: serde_json::Value,
+    includes_modules: Vec<String>,
+    source_repo: Option<String>,
+    source_commit: Option<String>,
+    registered_at: i64,
+    status: String,
+}
+
+impl From<BuildRow> for BuildRecordResponse {
+    fn from(row: BuildRow) -> Self {
+        Self {
+            build_id: row.build_id.to_string(),
+            version: row.version,
+            build_hash: row.build_hash,
+            file_manifest_hash: row.file_manifest_hash,
+            file_manifest_count: row.file_manifest_count,
+            file_manifest_json: row.file_manifest_json,
+            includes_modules: row.includes_modules,
+            source_repo: row.source_repo,
+            source_commit: row.source_commit,
+            registered_at: row.registered_at.unix_timestamp(),
+            status: row.status,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct BuildNotFound {
+    error: String,
+    message: String,
+}
+
+/// Public endpoint: GET /v1/builds/{version}
+///
+/// Returns a build record by version. Used by CIRISVerify for file integrity verification.
+/// This endpoint is unauthenticated.
+async fn get_build_by_version(
+    State(state): State<AppState>,
+    axum::extract::Path(version): axum::extract::Path<String>,
+) -> Result<Json<BuildRecordResponse>, (StatusCode, Json<BuildNotFound>)> {
+    // Validate version format
+    if version.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(BuildNotFound {
+                error: "bad_request".to_string(),
+                message: "Version is required".to_string(),
+            }),
+        ));
+    }
+
+    match get_build(state.db.pool(), Some(&version), None).await {
+        Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(BuildNotFound {
+                error: "not_found".to_string(),
+                message: format!("Build not found for version {}", version),
+            }),
+        )),
+        Err(e) => {
+            warn!("Error fetching build by version: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(BuildNotFound {
+                    error: "internal_error".to_string(),
+                    message: "Failed to fetch build".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
+/// Public endpoint: GET /v1/builds/hash/{build_hash}
+///
+/// Returns a build record by build hash. Used by CIRISVerify for file integrity verification.
+/// This endpoint is unauthenticated.
+async fn get_build_by_hash(
+    State(state): State<AppState>,
+    axum::extract::Path(build_hash): axum::extract::Path<String>,
+) -> Result<Json<BuildRecordResponse>, (StatusCode, Json<BuildNotFound>)> {
+    // Validate hash format (should be hex)
+    if build_hash.is_empty() || build_hash.len() != 64 || !build_hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(BuildNotFound {
+                error: "bad_request".to_string(),
+                message: "Invalid build hash format (expected 64 hex characters)".to_string(),
+            }),
+        ));
+    }
+
+    match get_build(state.db.pool(), None, Some(&build_hash)).await {
+        Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(BuildNotFound {
+                error: "not_found".to_string(),
+                message: format!("Build not found for hash {}", &build_hash[..16]),
+            }),
+        )),
+        Err(e) => {
+            warn!("Error fetching build by hash: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(BuildNotFound {
+                    error: "internal_error".to_string(),
+                    message: "Failed to fetch build".to_string(),
+                }),
+            ))
+        }
+    }
+}
+
 /// Public endpoint: GET /v1/verify/function-manifest/{version}/{target}
 ///
 /// Returns a function manifest for runtime verification.
@@ -639,6 +766,9 @@ pub async fn serve(
             "/v1/verify/function-manifest",
             post(register_function_manifest),
         )
+        // Build records (CIRISAgent file integrity manifests for CIRISVerify)
+        .route("/v1/builds/{version}", get(get_build_by_version))
+        .route("/v1/builds/hash/{build_hash}", get(get_build_by_hash))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
