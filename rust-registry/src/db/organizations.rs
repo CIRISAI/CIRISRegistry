@@ -309,7 +309,7 @@ pub async fn create_organization_with_admin(
         Some(&admin_user.oauth_subject)
     })
     .bind(admin_user.role)
-    .bind(admin_user.active)
+    .bind(true)  // New users are always active (community-level orgs)
     .bind(if admin_user.invited_by.is_empty() {
         None
     } else {

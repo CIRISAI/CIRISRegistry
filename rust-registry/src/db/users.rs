@@ -148,7 +148,7 @@ pub async fn create_user(pool: &PgPool, user: &proto::OrgUser) -> Result<String>
     } else {
         Some(&user.oauth_subject)
     })
-    .bind(user.active)
+    .bind(true)  // New users are always active (community-level orgs)
     .bind(user.mfa_enabled)
     .bind(if user.mfa_method.is_empty() {
         None
