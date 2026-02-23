@@ -419,9 +419,15 @@ impl PortalServiceTrait for PortalService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
-        let user = db::get_user_by_email(self.db.pool(), &req.email)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+        // Use org-specific lookup to avoid returning wrong org's user
+        let user = if req.org_id.is_empty() {
+            // Fallback for backward compatibility (returns arbitrary first match)
+            db::get_user_by_email(self.db.pool(), &req.email).await
+        } else {
+            // Correct: filter by both org_id AND email
+            db::get_org_user_by_email(self.db.pool(), &req.org_id, &req.email).await
+        }
+        .map_err(|e| Status::internal(e.to_string()))?;
 
         let found = user.is_some();
         Ok(Response::new(GetOrgUserResponse {

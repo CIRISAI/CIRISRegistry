@@ -1781,7 +1781,8 @@ message GetOrgUserRequest {
 }
 
 message GetOrgUserByEmailRequest {
-  string email = 1;
+  string org_id = 1;           // Organization to search within
+  string email = 2;            // User email to find
   RequestContext context = 10;
 }
 

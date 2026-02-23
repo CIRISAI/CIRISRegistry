@@ -77,6 +77,7 @@ pub async fn get_user(pool: &PgPool, user_id: &str) -> Result<Option<OrgUserRow>
 
 pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<OrgUserRow>> {
     // Query from new tables (users + user_org_memberships)
+    // WARNING: Returns arbitrary first match if user has multiple org memberships
     let row = sqlx::query_as::<_, OrgUserRow>(
         r#"
         SELECT u.user_id, m.org_id, u.email, u.name, u.oauth_provider, u.oauth_subject,
@@ -88,6 +89,31 @@ pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<OrgU
         LIMIT 1
         "#,
     )
+    .bind(email)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
+/// Get user by email within a specific organization
+/// This is the correct function to use when you need org-specific lookup
+pub async fn get_org_user_by_email(
+    pool: &PgPool,
+    org_id: &str,
+    email: &str,
+) -> Result<Option<OrgUserRow>> {
+    let row = sqlx::query_as::<_, OrgUserRow>(
+        r#"
+        SELECT u.user_id, m.org_id, u.email, u.name, u.oauth_provider, u.oauth_subject,
+               m.role, u.active, u.created_at, u.updated_at, u.last_login_at, m.invited_by,
+               u.mfa_enabled, u.mfa_method
+        FROM users u
+        JOIN user_org_memberships m ON u.user_id = m.user_id
+        WHERE m.org_id = $1 AND u.email = $2
+        "#,
+    )
+    .bind(org_id)
     .bind(email)
     .fetch_optional(pool)
     .await?;
