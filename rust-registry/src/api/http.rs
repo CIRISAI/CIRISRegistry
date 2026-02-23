@@ -458,13 +458,27 @@ struct BuildRecordResponse {
 
 impl From<BuildRow> for BuildRecordResponse {
     fn from(row: BuildRow) -> Self {
+        // CIRISVerify expects: {"version": "...", "files": {"path": "hash"}}
+        // Database stores flat: {"path": "hash"}
+        // Wrap if needed for compatibility
+        let file_manifest_json = if row.file_manifest_json.get("files").is_some() {
+            // Already in correct format
+            row.file_manifest_json
+        } else {
+            // Wrap flat manifest in expected structure
+            serde_json::json!({
+                "version": row.version,
+                "files": row.file_manifest_json
+            })
+        };
+
         Self {
             build_id: row.build_id.to_string(),
-            version: row.version,
+            version: row.version.clone(),
             build_hash: row.build_hash,
             file_manifest_hash: row.file_manifest_hash,
             file_manifest_count: row.file_manifest_count,
-            file_manifest_json: row.file_manifest_json,
+            file_manifest_json,
             includes_modules: row.includes_modules,
             source_repo: row.source_repo,
             source_commit: row.source_commit,
