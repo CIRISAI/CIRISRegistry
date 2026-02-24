@@ -17,6 +17,9 @@ use tracing::warn;
 
 use crate::crypto::HybridCrypto;
 use crate::db::{self, BuildRow, Database, get_build};
+use crate::app_attest::{
+    AppAttestAssertRequest, AppAttestConfig, AppAttestService, AppAttestVerifyRequest,
+};
 use crate::play_integrity::{
     IntegrityAuthRequest, IntegrityAuthResponse, IntegrityVerifyRequest, PlayIntegrityConfig,
     PlayIntegrityService,
@@ -986,6 +989,85 @@ async fn integrity_auth(
     }))
 }
 
+// =============================================================================
+// iOS App Attest Verification
+// =============================================================================
+
+/// Error response for App Attest endpoints
+#[derive(Serialize)]
+struct AppAttestError {
+    error: String,
+    message: String,
+}
+
+/// Public endpoint: GET /v1/integrity/ios/nonce
+///
+/// Generate a cryptographically secure nonce for App Attest attestation.
+/// The nonce is single-use and expires in 5 minutes.
+async fn ios_attest_nonce(
+    axum::extract::Query(params): axum::extract::Query<IntegrityNonceParams>,
+) -> Json<crate::app_attest::AppAttestNonceResponse> {
+    let config = AppAttestConfig::default();
+    let service = AppAttestService::new(config);
+    Json(service.generate_nonce(params.context.as_deref()))
+}
+
+/// Public endpoint: POST /v1/integrity/ios/verify
+///
+/// Verify an App Attest attestation. This validates the device/app attestation
+/// and stores the public key for future assertion verification.
+async fn ios_attest_verify(
+    Json(req): Json<AppAttestVerifyRequest>,
+) -> Result<Json<crate::app_attest::AppAttestVerifyResponse>, (StatusCode, Json<AppAttestError>)> {
+    let config = AppAttestConfig::default();
+
+    // Check if App Attest is configured
+    if config.app_id.starts_with("TEAMID") {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(AppAttestError {
+                error: "not_configured".to_string(),
+                message: "iOS App Attest not configured (IOS_APP_ID, IOS_TEAM_ID missing)".to_string(),
+            }),
+        ));
+    }
+
+    let service = AppAttestService::new(config);
+    let result = service
+        .verify_attestation(&req.attestation, &req.key_id, &req.nonce)
+        .await;
+
+    Ok(Json(result))
+}
+
+/// Public endpoint: POST /v1/integrity/ios/assert
+///
+/// Verify an App Attest assertion. This validates that subsequent requests
+/// come from the same attested device using the stored public key.
+async fn ios_attest_assert(
+    Json(req): Json<AppAttestAssertRequest>,
+) -> Result<Json<crate::app_attest::AppAttestAssertResponse>, (StatusCode, Json<AppAttestError>)> {
+    let config = AppAttestConfig::default();
+
+    // Check if App Attest is configured
+    if config.app_id.starts_with("TEAMID") {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(AppAttestError {
+                error: "not_configured".to_string(),
+                message: "iOS App Attest not configured (IOS_APP_ID, IOS_TEAM_ID missing)".to_string(),
+            }),
+        ));
+    }
+
+    let service = AppAttestService::new(config);
+    let result = service
+        .verify_assertion(&req.assertion, &req.key_id, &req.client_data, req.expected_counter)
+        .await;
+
+    Ok(Json(result))
+}
+
 pub async fn serve(
     addr: SocketAddr,
     db: Database,
@@ -1031,6 +1113,10 @@ pub async fn serve(
         .route("/v1/integrity/nonce", get(integrity_nonce))
         .route("/v1/integrity/verify", post(integrity_verify))
         .route("/v1/integrity/auth", post(integrity_auth))
+        // iOS App Attest verification (iOS device/app attestation)
+        .route("/v1/integrity/ios/nonce", get(ios_attest_nonce))
+        .route("/v1/integrity/ios/verify", post(ios_attest_verify))
+        .route("/v1/integrity/ios/assert", post(ios_attest_assert))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

@@ -16,6 +16,7 @@ use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 mod api;
+pub mod app_attest;
 pub mod capabilities;
 mod config;
 pub mod crypto;
