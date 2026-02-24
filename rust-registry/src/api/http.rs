@@ -411,6 +411,9 @@ struct RegisterFunctionManifestRequest {
     manifest_hash: String,
     #[serde(default)]
     signature: Option<FunctionManifestSignatureRequest>,
+    /// Metadata containing text_section_offset for address calculation
+    #[serde(default)]
+    metadata: Option<serde_json::Value>,
 }
 
 #[derive(serde::Deserialize)]
@@ -691,7 +694,8 @@ async fn register_function_manifest(
     .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
 
     // Build manifest JSON (store the full manifest for serving)
-    let manifest_json = serde_json::json!({
+    // Include metadata if present (contains text_section_offset for address calculation)
+    let mut manifest_json = serde_json::json!({
         "version": req.version,
         "target": req.target,
         "binary_hash": req.binary_hash,
@@ -699,6 +703,9 @@ async fn register_function_manifest(
         "generated_at": req.generated_at,
         "functions": req.functions,
     });
+    if let Some(metadata) = &req.metadata {
+        manifest_json["metadata"] = metadata.clone();
+    }
 
     // Extract signature fields
     let (sig_classical, sig_pqc, sig_key_id) = if let Some(sig) = &req.signature {
