@@ -11,7 +11,6 @@ use crate::error::Result;
 
 #[derive(Debug, Clone, FromRow)]
 pub struct FunctionManifestRow {
-    pub id: i32,
     pub binary_version: String,
     pub target: String,
     pub manifest_version: String,
@@ -105,7 +104,7 @@ pub async fn get_function_manifest(
 ) -> Result<Option<FunctionManifestRow>> {
     let row = sqlx::query_as::<_, FunctionManifestRow>(
         r#"
-        SELECT id, binary_version, target, manifest_version, binary_hash, manifest_hash,
+        SELECT binary_version, target, manifest_version, binary_hash, manifest_hash,
                manifest_json, signature_classical, signature_pqc, signature_key_id,
                generated_at, created_at
         FROM function_manifests
@@ -140,6 +139,7 @@ pub async fn list_function_manifest_targets(
 }
 
 /// Register a new function manifest
+/// Returns the manifest_hash on success
 pub async fn register_function_manifest(
     pool: &PgPool,
     binary_version: &str,
@@ -152,8 +152,8 @@ pub async fn register_function_manifest(
     signature_pqc: Option<&str>,
     signature_key_id: Option<&str>,
     generated_at: OffsetDateTime,
-) -> Result<i32> {
-    let row: (i32,) = sqlx::query_as(
+) -> Result<String> {
+    let row: (String,) = sqlx::query_as(
         r#"
         INSERT INTO function_manifests (
             binary_version, target, manifest_version, binary_hash, manifest_hash,
@@ -170,7 +170,7 @@ pub async fn register_function_manifest(
             signature_key_id = EXCLUDED.signature_key_id,
             generated_at = EXCLUDED.generated_at,
             created_at = NOW()
-        RETURNING id
+        RETURNING manifest_hash
         "#,
     )
     .bind(binary_version)
@@ -198,7 +198,7 @@ pub async fn list_function_manifests(
 
     let rows = sqlx::query_as::<_, FunctionManifestRow>(
         r#"
-        SELECT id, binary_version, target, manifest_version, binary_hash, manifest_hash,
+        SELECT binary_version, target, manifest_version, binary_hash, manifest_hash,
                manifest_json, signature_classical, signature_pqc, signature_key_id,
                generated_at, created_at
         FROM function_manifests

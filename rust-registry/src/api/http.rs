@@ -435,7 +435,7 @@ struct FunctionManifestError {
 #[derive(Serialize)]
 struct RegisterFunctionManifestResponse {
     success: bool,
-    id: i32,
+    manifest_hash: String,
     message: String,
 }
 
@@ -727,9 +727,9 @@ async fn register_function_manifest(
     )
     .await
     {
-        Ok(id) => Ok(Json(RegisterFunctionManifestResponse {
+        Ok(manifest_hash) => Ok(Json(RegisterFunctionManifestResponse {
             success: true,
-            id,
+            manifest_hash,
             message: format!(
                 "Function manifest registered for version {} target {}",
                 req.binary_version, req.target
