@@ -36,6 +36,9 @@ pub struct FunctionManifestResponse {
     pub manifest_hash: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<ManifestSignature>,
+    /// Metadata containing text_section_offset for address calculation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +66,9 @@ impl FunctionManifestRow {
             .get("functions")
             .cloned()
             .unwrap_or(serde_json::json!({}));
+
+        // Extract metadata (contains text_section_offset for address calculation)
+        let metadata = self.manifest_json.get("metadata").cloned();
 
         let signature = if let (Some(classical), Some(pqc), Some(key_id)) = (
             &self.signature_classical,
@@ -92,6 +98,7 @@ impl FunctionManifestRow {
             functions,
             manifest_hash: self.manifest_hash.clone(),
             signature,
+            metadata,
         }
     }
 }
