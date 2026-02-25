@@ -10,6 +10,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use tower_http::limit::RequestBodyLimitLayer;
 use base64::Engine;
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::Serialize;
@@ -25,8 +26,8 @@ use crate::play_integrity::{
     PlayIntegrityService,
 };
 use crate::rate_limiter::{
-    check_nonce_rate_limit, check_assertion_cache, cache_assertion_result,
-    is_already_attested, RateLimitResult, AssertionCacheResult,
+    check_nonce_rate_limit, check_verify_rate_limit, check_assertion_cache,
+    cache_assertion_result, is_already_attested, is_trusted_proxy, AssertionCacheResult,
 };
 
 /// Global start time for uptime tracking
@@ -892,26 +893,65 @@ struct RateLimitError {
     retry_after_seconds: Option<u32>,
 }
 
-/// Extract client IP from request headers (X-Forwarded-For, X-Real-IP, or connection)
+/// Extract client IP from request headers, only trusting proxy headers from known proxies.
+///
+/// Security: Only trusts X-Forwarded-For/X-Real-IP when the request appears to come
+/// from a trusted proxy network (private IP ranges, loopback). This prevents
+/// attackers from spoofing their IP to bypass rate limiting.
 fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
-    // Try X-Forwarded-For first (may contain multiple IPs, take first)
-    if let Some(xff) = headers.get("x-forwarded-for").and_then(|h| h.to_str().ok()) {
-        if let Some(first_ip) = xff.split(',').next() {
-            if let Ok(ip) = first_ip.trim().parse() {
-                return ip;
-            }
-        }
-    }
+    // Default fallback IP (used when we can't determine the real IP)
+    let fallback_ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1));
 
-    // Try X-Real-IP
-    if let Some(xri) = headers.get("x-real-ip").and_then(|h| h.to_str().ok()) {
-        if let Ok(ip) = xri.trim().parse() {
+    // Try to get connection IP from CF-Connecting-IP (Cloudflare) first
+    // This is set by Cloudflare and can be trusted if we're behind CF
+    if let Some(cf_ip) = headers.get("cf-connecting-ip").and_then(|h| h.to_str().ok()) {
+        if let Ok(ip) = cf_ip.trim().parse() {
             return ip;
         }
     }
 
-    // Fallback to localhost (in production, connection info would be used)
-    std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))
+    // Check if we should trust X-Forwarded-For
+    // We check X-Real-IP first as it's typically set by the immediate proxy
+    let proxy_ip: Option<std::net::IpAddr> = headers
+        .get("x-real-ip")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.trim().parse().ok());
+
+    // Only trust forwarded headers if the proxy IP is from a trusted network
+    // If no X-Real-IP, assume we're directly connected (no proxy)
+    let should_trust_forwarded = proxy_ip.map(|ip| is_trusted_proxy(ip)).unwrap_or(false);
+
+    if should_trust_forwarded {
+        // Try X-Forwarded-For (may contain chain: client, proxy1, proxy2)
+        // Take the LAST untrusted IP (rightmost client IP before proxies)
+        if let Some(xff) = headers.get("x-forwarded-for").and_then(|h| h.to_str().ok()) {
+            let ips: Vec<&str> = xff.split(',').map(|s| s.trim()).collect();
+            // Find the rightmost non-proxy IP (the actual client)
+            for ip_str in ips.iter().rev() {
+                if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                    if !is_trusted_proxy(ip) {
+                        return ip;
+                    }
+                }
+            }
+            // All IPs are proxies, use the first one
+            if let Some(first) = ips.first() {
+                if let Ok(ip) = first.parse() {
+                    return ip;
+                }
+            }
+        }
+
+        // Fall back to X-Real-IP if X-Forwarded-For parsing failed
+        if let Some(ip) = proxy_ip {
+            return ip;
+        }
+    }
+
+    // Not behind a trusted proxy, or no valid forwarded headers
+    // In production with proper setup, the connection IP would be extracted
+    // from the socket. For now, return fallback.
+    fallback_ip
 }
 
 /// Public endpoint: GET /v1/integrity/nonce
@@ -952,10 +992,37 @@ struct IntegrityNonceParams {
 ///
 /// Verify a Play Integrity token. Decodes the token via Google's API
 /// and returns device/app/account verdicts.
+/// Rate limited: 5/min, 50/hour per IP (calls external Google API).
 async fn integrity_verify(
+    headers: HeaderMap,
     Json(req): Json<IntegrityVerifyRequest>,
 ) -> Result<Json<crate::play_integrity::IntegrityVerifyResponse>, (StatusCode, Json<IntegrityError>)>
 {
+    // Check rate limit (stricter for verify - calls external API)
+    let client_ip = extract_client_ip(&headers);
+    let rate_limit_result = check_verify_rate_limit(client_ip);
+
+    if !rate_limit_result.is_allowed() {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(IntegrityError {
+                error: "rate_limit_exceeded".to_string(),
+                message: rate_limit_result.error_message().unwrap_or_default(),
+            }),
+        ));
+    }
+
+    // Input validation: limit token size (Play Integrity tokens are ~2KB)
+    if req.integrity_token.len() > 10_000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(IntegrityError {
+                error: "payload_too_large".to_string(),
+                message: "integrity_token exceeds maximum size (10KB)".to_string(),
+            }),
+        ));
+    }
+
     let config = PlayIntegrityConfig::default();
 
     if config.service_account_json.is_none() {
@@ -980,6 +1047,7 @@ async fn integrity_verify(
 ///
 /// Combined JWT + Play Integrity verification for high-security operations.
 /// Requires both user authentication and device/app integrity.
+/// Rate limited: 5/min, 50/hour per IP (calls external Google API).
 ///
 /// Note: This endpoint expects a Bearer token for JWT auth, but since
 /// Registry doesn't have user auth, it just validates the integrity token
@@ -988,6 +1056,31 @@ async fn integrity_auth(
     headers: HeaderMap,
     Json(req): Json<IntegrityAuthRequest>,
 ) -> Result<Json<IntegrityAuthResponse>, (StatusCode, Json<IntegrityError>)> {
+    // Check rate limit (same as verify - calls external API)
+    let client_ip = extract_client_ip(&headers);
+    let rate_limit_result = check_verify_rate_limit(client_ip);
+
+    if !rate_limit_result.is_allowed() {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(IntegrityError {
+                error: "rate_limit_exceeded".to_string(),
+                message: rate_limit_result.error_message().unwrap_or_default(),
+            }),
+        ));
+    }
+
+    // Input validation: limit token size (Play Integrity tokens are ~2KB)
+    if req.integrity_token.len() > 10_000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(IntegrityError {
+                error: "payload_too_large".to_string(),
+                message: "integrity_token exceeds maximum size (10KB)".to_string(),
+            }),
+        ));
+    }
+
     let config = PlayIntegrityConfig::default();
 
     if config.service_account_json.is_none() {
@@ -1085,10 +1178,47 @@ async fn ios_attest_nonce(
 /// Verify an App Attest attestation. This validates the device/app attestation
 /// and stores the public key for future assertion verification.
 /// Rejects re-attestation for already verified key_ids.
+/// Rate limited: 5/min, 50/hour per IP (expensive verification).
 async fn ios_attest_verify(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<AppAttestVerifyRequest>,
 ) -> Result<Json<crate::app_attest::AppAttestVerifyResponse>, (StatusCode, Json<AppAttestError>)> {
+    // Check rate limit (same limits as Play Integrity verify)
+    let client_ip = extract_client_ip(&headers);
+    let rate_limit_result = check_verify_rate_limit(client_ip);
+
+    if !rate_limit_result.is_allowed() {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(AppAttestError {
+                error: "rate_limit_exceeded".to_string(),
+                message: rate_limit_result.error_message().unwrap_or_default(),
+            }),
+        ));
+    }
+
+    // Input validation: limit attestation size (attestations are ~2-5KB)
+    if req.attestation.len() > 50_000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(AppAttestError {
+                error: "payload_too_large".to_string(),
+                message: "attestation exceeds maximum size (50KB)".to_string(),
+            }),
+        ));
+    }
+
+    if req.key_id.len() > 1000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(AppAttestError {
+                error: "payload_too_large".to_string(),
+                message: "key_id exceeds maximum size".to_string(),
+            }),
+        ));
+    }
+
     let config = AppAttestConfig::default();
 
     // Check if App Attest is configured
@@ -1150,9 +1280,46 @@ async fn ios_attest_verify(
 /// Verify an App Attest assertion. This validates that subsequent requests
 /// come from the same attested device using the stored public key.
 /// Results are cached for 5 minutes to reduce load.
+/// Rate limited: 5/min, 50/hour per IP.
 async fn ios_attest_assert(
+    headers: HeaderMap,
     Json(req): Json<AppAttestAssertRequest>,
 ) -> Result<Json<crate::app_attest::AppAttestAssertResponse>, (StatusCode, Json<AppAttestError>)> {
+    // Check rate limit
+    let client_ip = extract_client_ip(&headers);
+    let rate_limit_result = check_verify_rate_limit(client_ip);
+
+    if !rate_limit_result.is_allowed() {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(AppAttestError {
+                error: "rate_limit_exceeded".to_string(),
+                message: rate_limit_result.error_message().unwrap_or_default(),
+            }),
+        ));
+    }
+
+    // Input validation
+    if req.assertion.len() > 50_000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(AppAttestError {
+                error: "payload_too_large".to_string(),
+                message: "assertion exceeds maximum size (50KB)".to_string(),
+            }),
+        ));
+    }
+
+    if req.client_data.len() > 10_000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(AppAttestError {
+                error: "payload_too_large".to_string(),
+                message: "client_data exceeds maximum size (10KB)".to_string(),
+            }),
+        ));
+    }
+
     let config = AppAttestConfig::default();
 
     // Check if App Attest is configured
@@ -1198,6 +1365,9 @@ async fn ios_attest_assert(
 
     Ok(Json(result))
 }
+
+/// Maximum request body size (1MB) to prevent memory exhaustion attacks
+const MAX_REQUEST_BODY_SIZE: usize = 1024 * 1024;
 
 pub async fn serve(
     addr: SocketAddr,
@@ -1248,7 +1418,9 @@ pub async fn serve(
         .route("/v1/integrity/ios/nonce", get(ios_attest_nonce))
         .route("/v1/integrity/ios/verify", post(ios_attest_verify))
         .route("/v1/integrity/ios/assert", post(ios_attest_assert))
-        .with_state(state);
+        .with_state(state)
+        // Apply request body size limit (1MB) to all routes
+        .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_SIZE));
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;

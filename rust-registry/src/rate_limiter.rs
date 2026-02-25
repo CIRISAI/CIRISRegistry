@@ -2,8 +2,10 @@
 //!
 //! Provides:
 //! - Per-IP rate limiting for nonce generation
+//! - Per-IP rate limiting for verify endpoints (stricter)
 //! - Attestation deduplication (one attestation per device)
 //! - Assertion result caching with TTL
+//! - Trusted proxy support for accurate IP extraction
 //!
 //! Based on Google Play Integrity and Apple App Attest best practices:
 //! - Google: 10,000 requests/day, 5/min warm-up
@@ -12,7 +14,7 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{info, warn};
 
 // =============================================================================
@@ -25,6 +27,18 @@ const NONCE_RATE_LIMIT_PER_MINUTE: u32 = 10;
 /// Maximum nonces per IP per hour
 const NONCE_RATE_LIMIT_PER_HOUR: u32 = 100;
 
+/// Maximum verify requests per IP per minute (stricter - calls external APIs)
+const VERIFY_RATE_LIMIT_PER_MINUTE: u32 = 5;
+
+/// Maximum verify requests per IP per hour
+const VERIFY_RATE_LIMIT_PER_HOUR: u32 = 50;
+
+/// Maximum public endpoint requests per IP per minute
+const PUBLIC_RATE_LIMIT_PER_MINUTE: u32 = 60;
+
+/// Maximum public endpoint requests per IP per hour
+const PUBLIC_RATE_LIMIT_PER_HOUR: u32 = 600;
+
 /// Assertion cache TTL (5 minutes)
 const ASSERTION_CACHE_TTL_SECONDS: u64 = 300;
 
@@ -33,6 +47,66 @@ const MAX_RATE_LIMIT_ENTRIES: usize = 10000;
 
 /// Maximum entries in assertion cache before cleanup
 const MAX_ASSERTION_CACHE_ENTRIES: usize = 50000;
+
+// =============================================================================
+// Trusted Proxy Configuration
+// =============================================================================
+
+/// Known trusted proxy CIDR ranges (internal networks, load balancers)
+/// These are the only sources we trust X-Forwarded-For from
+const TRUSTED_PROXY_RANGES: &[&str] = &[
+    "10.0.0.0/8",      // Private Class A
+    "172.16.0.0/12",   // Private Class B
+    "192.168.0.0/16",  // Private Class C
+    "127.0.0.0/8",     // Loopback
+    "::1/128",         // IPv6 loopback
+    "fc00::/7",        // IPv6 private
+];
+
+/// Check if an IP is from a trusted proxy network
+pub fn is_trusted_proxy(ip: IpAddr) -> bool {
+    for range in TRUSTED_PROXY_RANGES {
+        if ip_in_cidr(ip, range) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Simple CIDR matching (supports /8, /12, /16, /24, /128 etc.)
+fn ip_in_cidr(ip: IpAddr, cidr: &str) -> bool {
+    let parts: Vec<&str> = cidr.split('/').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+
+    let Ok(network) = parts[0].parse::<IpAddr>() else {
+        return false;
+    };
+    let Ok(prefix_len) = parts[1].parse::<u8>() else {
+        return false;
+    };
+
+    match (ip, network) {
+        (IpAddr::V4(ip), IpAddr::V4(net)) => {
+            if prefix_len > 32 {
+                return false;
+            }
+            let mask = if prefix_len == 0 { 0 } else { !0u32 << (32 - prefix_len) };
+            (u32::from(ip) & mask) == (u32::from(net) & mask)
+        }
+        (IpAddr::V6(ip), IpAddr::V6(net)) => {
+            if prefix_len > 128 {
+                return false;
+            }
+            let ip_bits = u128::from(ip);
+            let net_bits = u128::from(net);
+            let mask = if prefix_len == 0 { 0 } else { !0u128 << (128 - prefix_len) };
+            (ip_bits & mask) == (net_bits & mask)
+        }
+        _ => false, // IPv4/IPv6 mismatch
+    }
+}
 
 // =============================================================================
 // Rate Limiter for Nonce Generation
@@ -51,8 +125,18 @@ impl RateLimitEntry {
         }
     }
 
-    /// Clean old entries and check if request is allowed
+    /// Clean old entries and check if request is allowed (using default nonce limits)
     fn check_and_record(&mut self, now: u64) -> RateLimitResult {
+        self.check_and_record_with_limits(now, NONCE_RATE_LIMIT_PER_MINUTE, NONCE_RATE_LIMIT_PER_HOUR)
+    }
+
+    /// Clean old entries and check if request is allowed with custom limits
+    fn check_and_record_with_limits(
+        &mut self,
+        now: u64,
+        limit_per_minute: u32,
+        limit_per_hour: u32,
+    ) -> RateLimitResult {
         // Remove entries older than 1 hour
         let one_hour_ago = now.saturating_sub(3600);
         self.request_times.retain(|&t| t > one_hour_ago);
@@ -65,16 +149,16 @@ impl RateLimitEntry {
         let requests_last_hour = self.request_times.len() as u32;
 
         // Check limits
-        if requests_last_minute >= NONCE_RATE_LIMIT_PER_MINUTE {
+        if requests_last_minute >= limit_per_minute {
             return RateLimitResult::ExceededMinute {
-                limit: NONCE_RATE_LIMIT_PER_MINUTE,
+                limit: limit_per_minute,
                 retry_after_seconds: 60,
             };
         }
 
-        if requests_last_hour >= NONCE_RATE_LIMIT_PER_HOUR {
+        if requests_last_hour >= limit_per_hour {
             return RateLimitResult::ExceededHour {
-                limit: NONCE_RATE_LIMIT_PER_HOUR,
+                limit: limit_per_hour,
                 retry_after_seconds: 3600,
             };
         }
@@ -83,8 +167,8 @@ impl RateLimitEntry {
         self.request_times.push(now);
 
         RateLimitResult::Allowed {
-            remaining_minute: NONCE_RATE_LIMIT_PER_MINUTE - requests_last_minute - 1,
-            remaining_hour: NONCE_RATE_LIMIT_PER_HOUR - requests_last_hour - 1,
+            remaining_minute: limit_per_minute - requests_last_minute - 1,
+            remaining_hour: limit_per_hour - requests_last_hour - 1,
         }
     }
 }
@@ -208,6 +292,94 @@ fn cleanup_rate_limiter(limiter: &mut HashMap<IpAddr, RateLimitEntry>, now: u64)
         remaining_entries = limiter.len(),
         "rate_limiter_cleanup_complete"
     );
+}
+
+// =============================================================================
+// Verify Endpoint Rate Limiter (Stricter - calls external APIs)
+// =============================================================================
+
+/// Global rate limiter for verify endpoints
+static VERIFY_RATE_LIMITER: std::sync::OnceLock<Mutex<HashMap<IpAddr, RateLimitEntry>>> =
+    std::sync::OnceLock::new();
+
+fn get_verify_rate_limiter() -> &'static Mutex<HashMap<IpAddr, RateLimitEntry>> {
+    VERIFY_RATE_LIMITER.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Check if an IP is allowed to call verify endpoints (stricter limits)
+pub fn check_verify_rate_limit(ip: IpAddr) -> RateLimitResult {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let mut limiter = get_verify_rate_limiter().lock().unwrap();
+
+    // Cleanup if too many entries
+    if limiter.len() > MAX_RATE_LIMIT_ENTRIES {
+        cleanup_rate_limiter(&mut limiter, now);
+    }
+
+    let entry = limiter.entry(ip).or_insert_with(RateLimitEntry::new);
+    let result = entry.check_and_record_with_limits(
+        now,
+        VERIFY_RATE_LIMIT_PER_MINUTE,
+        VERIFY_RATE_LIMIT_PER_HOUR,
+    );
+
+    if !result.is_allowed() {
+        warn!(
+            ip = %ip,
+            error = ?result.error_message(),
+            "verify_rate_limit_exceeded"
+        );
+    }
+
+    result
+}
+
+// =============================================================================
+// Public Endpoint Rate Limiter (General protection)
+// =============================================================================
+
+/// Global rate limiter for public endpoints
+static PUBLIC_RATE_LIMITER: std::sync::OnceLock<Mutex<HashMap<IpAddr, RateLimitEntry>>> =
+    std::sync::OnceLock::new();
+
+fn get_public_rate_limiter() -> &'static Mutex<HashMap<IpAddr, RateLimitEntry>> {
+    PUBLIC_RATE_LIMITER.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Check if an IP is allowed to call public endpoints
+pub fn check_public_rate_limit(ip: IpAddr) -> RateLimitResult {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let mut limiter = get_public_rate_limiter().lock().unwrap();
+
+    // Cleanup if too many entries
+    if limiter.len() > MAX_RATE_LIMIT_ENTRIES {
+        cleanup_rate_limiter(&mut limiter, now);
+    }
+
+    let entry = limiter.entry(ip).or_insert_with(RateLimitEntry::new);
+    let result = entry.check_and_record_with_limits(
+        now,
+        PUBLIC_RATE_LIMIT_PER_MINUTE,
+        PUBLIC_RATE_LIMIT_PER_HOUR,
+    );
+
+    if !result.is_allowed() {
+        warn!(
+            ip = %ip,
+            error = ?result.error_message(),
+            "public_rate_limit_exceeded"
+        );
+    }
+
+    result
 }
 
 // =============================================================================
