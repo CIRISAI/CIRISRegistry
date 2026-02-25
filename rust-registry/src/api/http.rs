@@ -24,6 +24,10 @@ use crate::play_integrity::{
     IntegrityAuthRequest, IntegrityAuthResponse, IntegrityVerifyRequest, PlayIntegrityConfig,
     PlayIntegrityService,
 };
+use crate::rate_limiter::{
+    check_nonce_rate_limit, check_assertion_cache, cache_assertion_result,
+    is_already_attested, RateLimitResult, AssertionCacheResult,
+};
 
 /// Global start time for uptime tracking
 static START_TIME: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
@@ -880,16 +884,63 @@ struct IntegrityError {
     message: String,
 }
 
+/// Rate limit error response
+#[derive(Serialize)]
+struct RateLimitError {
+    error: String,
+    message: String,
+    retry_after_seconds: Option<u32>,
+}
+
+/// Extract client IP from request headers (X-Forwarded-For, X-Real-IP, or connection)
+fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
+    // Try X-Forwarded-For first (may contain multiple IPs, take first)
+    if let Some(xff) = headers.get("x-forwarded-for").and_then(|h| h.to_str().ok()) {
+        if let Some(first_ip) = xff.split(',').next() {
+            if let Ok(ip) = first_ip.trim().parse() {
+                return ip;
+            }
+        }
+    }
+
+    // Try X-Real-IP
+    if let Some(xri) = headers.get("x-real-ip").and_then(|h| h.to_str().ok()) {
+        if let Ok(ip) = xri.trim().parse() {
+            return ip;
+        }
+    }
+
+    // Fallback to localhost (in production, connection info would be used)
+    std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))
+}
+
 /// Public endpoint: GET /v1/integrity/nonce
 ///
 /// Generate a cryptographically secure nonce for Play Integrity verification.
 /// The nonce is single-use and expires in 5 minutes.
+/// Rate limited: 10/min, 100/hour per IP.
 async fn integrity_nonce(
+    headers: HeaderMap,
     axum::extract::Query(params): axum::extract::Query<IntegrityNonceParams>,
-) -> Json<crate::play_integrity::IntegrityNonceResponse> {
+) -> Result<Json<crate::play_integrity::IntegrityNonceResponse>, (StatusCode, Json<RateLimitError>)> {
+    // Check rate limit
+    let client_ip = extract_client_ip(&headers);
+    let rate_limit_result = check_nonce_rate_limit(client_ip);
+
+    if !rate_limit_result.is_allowed() {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(RateLimitError {
+                error: "rate_limit_exceeded".to_string(),
+                message: rate_limit_result.error_message().unwrap_or_default(),
+                retry_after_seconds: rate_limit_result.retry_after(),
+            }),
+        ));
+    }
+
     let config = PlayIntegrityConfig::default();
     let service = PlayIntegrityService::new(config);
-    Json(service.generate_nonce(params.context.as_deref()))
+    Ok(Json(service.generate_nonce(params.context.as_deref())))
 }
 
 #[derive(serde::Deserialize)]
@@ -1004,19 +1055,38 @@ struct AppAttestError {
 ///
 /// Generate a cryptographically secure nonce for App Attest attestation.
 /// The nonce is single-use and expires in 5 minutes.
+/// Rate limited: 10/min, 100/hour per IP.
 async fn ios_attest_nonce(
+    headers: HeaderMap,
     axum::extract::Query(params): axum::extract::Query<IntegrityNonceParams>,
-) -> Json<crate::app_attest::AppAttestNonceResponse> {
+) -> Result<Json<crate::app_attest::AppAttestNonceResponse>, (StatusCode, Json<RateLimitError>)> {
+    // Check rate limit
+    let client_ip = extract_client_ip(&headers);
+    let rate_limit_result = check_nonce_rate_limit(client_ip);
+
+    if !rate_limit_result.is_allowed() {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(RateLimitError {
+                error: "rate_limit_exceeded".to_string(),
+                message: rate_limit_result.error_message().unwrap_or_default(),
+                retry_after_seconds: rate_limit_result.retry_after(),
+            }),
+        ));
+    }
+
     let config = AppAttestConfig::default();
     let service = AppAttestService::new(config);
-    Json(service.generate_nonce(params.context.as_deref()))
+    Ok(Json(service.generate_nonce(params.context.as_deref())))
 }
 
 /// Public endpoint: POST /v1/integrity/ios/verify
 ///
 /// Verify an App Attest attestation. This validates the device/app attestation
 /// and stores the public key for future assertion verification.
+/// Rejects re-attestation for already verified key_ids.
 async fn ios_attest_verify(
+    State(state): State<AppState>,
     Json(req): Json<AppAttestVerifyRequest>,
 ) -> Result<Json<crate::app_attest::AppAttestVerifyResponse>, (StatusCode, Json<AppAttestError>)> {
     let config = AppAttestConfig::default();
@@ -1032,10 +1102,45 @@ async fn ios_attest_verify(
         ));
     }
 
+    // Check for attestation deduplication - reject if already attested
+    match is_already_attested(state.db.pool(), &req.key_id).await {
+        Ok(true) => {
+            return Err((
+                StatusCode::CONFLICT,
+                Json(AppAttestError {
+                    error: "already_attested".to_string(),
+                    message: "This key_id has already been attested. Use /assert for subsequent requests.".to_string(),
+                }),
+            ));
+        }
+        Err(e) => {
+            warn!("Database error checking attestation: {}", e);
+            // Continue - don't block on DB errors
+        }
+        Ok(false) => {
+            // Not yet attested, proceed
+        }
+    }
+
     let service = AppAttestService::new(config);
     let result = service
         .verify_attestation(&req.attestation, &req.key_id, &req.nonce)
         .await;
+
+    // If verification succeeded, store in database for persistence
+    if result.verified {
+        if let Err(e) = crate::app_attest::store_attested_key(
+            state.db.pool(),
+            &req.key_id,
+            &[], // Public key extracted by service and stored in memory
+            result.counter.unwrap_or(0),
+            &hex::decode(result.app_id_hash.as_deref().unwrap_or("")).unwrap_or_default(),
+            result.environment.as_deref().unwrap_or("production"),
+        ).await {
+            warn!("Failed to persist attested key: {}", e);
+            // Don't fail - in-memory storage still works
+        }
+    }
 
     Ok(Json(result))
 }
@@ -1044,6 +1149,7 @@ async fn ios_attest_verify(
 ///
 /// Verify an App Attest assertion. This validates that subsequent requests
 /// come from the same attested device using the stored public key.
+/// Results are cached for 5 minutes to reduce load.
 async fn ios_attest_assert(
     Json(req): Json<AppAttestAssertRequest>,
 ) -> Result<Json<crate::app_attest::AppAttestAssertResponse>, (StatusCode, Json<AppAttestError>)> {
@@ -1060,10 +1166,35 @@ async fn ios_attest_assert(
         ));
     }
 
+    // Compute client_data hash for cache key
+    use sha2::{Sha256, Digest};
+    let client_data_hash = hex::encode(Sha256::digest(req.client_data.as_bytes()));
+
+    // Check assertion cache first
+    match check_assertion_cache(&req.key_id, &client_data_hash) {
+        AssertionCacheResult::Hit { verified, counter, .. } => {
+            // Return cached result
+            return Ok(Json(crate::app_attest::AppAttestAssertResponse {
+                verified,
+                key_id: Some(req.key_id.clone()),
+                counter: Some(counter),
+                error: None,
+            }));
+        }
+        AssertionCacheResult::Miss | AssertionCacheResult::Expired => {
+            // Need to verify
+        }
+    }
+
     let service = AppAttestService::new(config);
     let result = service
         .verify_assertion(&req.assertion, &req.key_id, &req.client_data, req.expected_counter)
         .await;
+
+    // Cache the result if verification was attempted (success or failure)
+    if let Some(counter) = result.counter {
+        cache_assertion_result(&req.key_id, &client_data_hash, result.verified, counter);
+    }
 
     Ok(Json(result))
 }
