@@ -11,7 +11,8 @@ use crate::crypto::HybridCrypto;
 use crate::db::{self, Database};
 use crate::proto::portal_service_server::PortalService as PortalServiceTrait;
 use crate::proto::{
-    AuditActionType, AuditEntry, AuditExportFormat, KeyRotationMode, KeyStatus, OrgType, User, *,
+    AuditActionType, AuditEntry, AuditExportFormat, KeyRotationMode, KeyStatus, OAuthIdentity,
+    OrgType, User, *,
 };
 
 pub struct PortalService {
@@ -1917,6 +1918,304 @@ impl PortalServiceTrait for PortalService {
                 request_id,
             )))
         }
+    }
+
+    // =============================================================================
+    // OAuth Identity Management (v1.2.1)
+    // =============================================================================
+
+    async fn lookup_user_by_o_auth(
+        &self,
+        request: Request<LookupUserByOAuthRequest>,
+    ) -> Result<Response<LookupUserByOAuthResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(
+            oauth_provider = %req.oauth_provider,
+            email = %req.email,
+            "Looking up user by OAuth"
+        );
+
+        // Use the combined lookup function
+        let result = db::lookup_user_for_login(
+            self.db.pool(),
+            &req.oauth_provider,
+            &req.oauth_subject,
+            &req.email,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        match result {
+            db::OAuthLookupResult::FoundByOAuth(user_id) => {
+                // Found by OAuth identity
+                let user = db::get_multiorg_user(self.db.pool(), &user_id)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?;
+                let memberships = if user.is_some() {
+                    db::get_user_memberships(self.db.pool(), &user_id)
+                        .await
+                        .map_err(|e| Status::internal(e.to_string()))?
+                } else {
+                    Vec::new()
+                };
+
+                Ok(Response::new(LookupUserByOAuthResponse {
+                    found: true,
+                    user: user.map(|u| u.to_proto(memberships.iter().map(|m| m.to_proto()).collect())),
+                    lookup_method: "oauth".to_string(),
+                    should_link_oauth: false,
+                    error: None,
+                    context: Some(self.response_context(request_id, None)),
+                }))
+            }
+            db::OAuthLookupResult::FoundByEmail(user_id) => {
+                // Found by email - OAuth should be linked
+                let user = db::get_multiorg_user(self.db.pool(), &user_id)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?;
+                let memberships = if user.is_some() {
+                    db::get_user_memberships(self.db.pool(), &user_id)
+                        .await
+                        .map_err(|e| Status::internal(e.to_string()))?
+                } else {
+                    Vec::new()
+                };
+
+                Ok(Response::new(LookupUserByOAuthResponse {
+                    found: true,
+                    user: user.map(|u| u.to_proto(memberships.iter().map(|m| m.to_proto()).collect())),
+                    lookup_method: "email".to_string(),
+                    should_link_oauth: true, // Caller should link the new OAuth identity
+                    error: None,
+                    context: Some(self.response_context(request_id, None)),
+                }))
+            }
+            db::OAuthLookupResult::NotFound => {
+                Ok(Response::new(LookupUserByOAuthResponse {
+                    found: false,
+                    user: None,
+                    lookup_method: "not_found".to_string(),
+                    should_link_oauth: false,
+                    error: None,
+                    context: Some(self.response_context(request_id, None)),
+                }))
+            }
+        }
+    }
+
+    async fn link_user_o_auth(
+        &self,
+        request: Request<LinkUserOAuthRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(
+            user_id = %req.user_id,
+            oauth_provider = %req.oauth_provider,
+            "Linking OAuth identity to user"
+        );
+
+        db::link_user_oauth(
+            self.db.pool(),
+            &req.user_id,
+            &req.oauth_provider,
+            &req.oauth_subject,
+            if req.email.is_empty() { None } else { Some(&req.email) },
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Create audit entry
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditUserUpdated,
+            Some(&req.user_id),
+            None,
+            None,
+            Some("user_oauth"),
+            Some(&req.user_id),
+            &format!("OAuth identity linked: {} via {}", req.user_id, req.oauth_provider),
+            Some(serde_json::json!({
+                "oauth_provider": req.oauth_provider,
+                "email": req.email,
+            })),
+        )
+        .await;
+
+        Ok(Response::new(self.admin_response(
+            true,
+            "OAuth identity linked successfully",
+            request_id,
+        )))
+    }
+
+    async fn list_user_o_auth_identities(
+        &self,
+        request: Request<ListUserOAuthIdentitiesRequest>,
+    ) -> Result<Response<ListUserOAuthIdentitiesResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let identities = db::list_user_oauth_identities(self.db.pool(), &req.user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(ListUserOAuthIdentitiesResponse {
+            identities: identities
+                .iter()
+                .map(|i| OAuthIdentity {
+                    user_id: i.user_id.clone(),
+                    oauth_provider: i.oauth_provider.clone(),
+                    oauth_subject: i.oauth_subject.clone(),
+                    email_at_link: i.email_at_link.clone().unwrap_or_default(),
+                    created_at: i.created_at.unix_timestamp(),
+                    created_at_iso: i.created_at.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                })
+                .collect(),
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn lookup_system_user_by_o_auth(
+        &self,
+        request: Request<LookupSystemUserByOAuthRequest>,
+    ) -> Result<Response<LookupSystemUserByOAuthResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(
+            oauth_provider = %req.oauth_provider,
+            email = %req.email,
+            "Looking up system user by OAuth"
+        );
+
+        let result = db::lookup_system_user_for_login(
+            self.db.pool(),
+            &req.oauth_provider,
+            &req.oauth_subject,
+            &req.email,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        match result {
+            db::OAuthLookupResult::FoundByOAuth(user_id) => {
+                let user = db::get_system_user(self.db.pool(), &user_id)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?;
+
+                Ok(Response::new(LookupSystemUserByOAuthResponse {
+                    found: true,
+                    user: user.map(|u| u.to_proto()),
+                    lookup_method: "oauth".to_string(),
+                    should_link_oauth: false,
+                    error: None,
+                    context: Some(self.response_context(request_id, None)),
+                }))
+            }
+            db::OAuthLookupResult::FoundByEmail(user_id) => {
+                let user = db::get_system_user(self.db.pool(), &user_id)
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?;
+
+                Ok(Response::new(LookupSystemUserByOAuthResponse {
+                    found: true,
+                    user: user.map(|u| u.to_proto()),
+                    lookup_method: "email".to_string(),
+                    should_link_oauth: true,
+                    error: None,
+                    context: Some(self.response_context(request_id, None)),
+                }))
+            }
+            db::OAuthLookupResult::NotFound => {
+                Ok(Response::new(LookupSystemUserByOAuthResponse {
+                    found: false,
+                    user: None,
+                    lookup_method: "not_found".to_string(),
+                    should_link_oauth: false,
+                    error: None,
+                    context: Some(self.response_context(request_id, None)),
+                }))
+            }
+        }
+    }
+
+    async fn link_system_user_o_auth(
+        &self,
+        request: Request<LinkSystemUserOAuthRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(
+            user_id = %req.user_id,
+            oauth_provider = %req.oauth_provider,
+            "Linking OAuth identity to system user"
+        );
+
+        db::link_system_user_oauth(
+            self.db.pool(),
+            &req.user_id,
+            &req.oauth_provider,
+            &req.oauth_subject,
+            if req.email.is_empty() { None } else { Some(&req.email) },
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Create audit entry
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditUserUpdated,
+            Some(&req.user_id),
+            None,
+            None,
+            Some("system_user_oauth"),
+            Some(&req.user_id),
+            &format!("System user OAuth identity linked: {} via {}", req.user_id, req.oauth_provider),
+            Some(serde_json::json!({
+                "oauth_provider": req.oauth_provider,
+                "email": req.email,
+                "is_system_user": true,
+            })),
+        )
+        .await;
+
+        Ok(Response::new(self.admin_response(
+            true,
+            "System user OAuth identity linked successfully",
+            request_id,
+        )))
+    }
+
+    async fn list_system_user_o_auth_identities(
+        &self,
+        request: Request<ListSystemUserOAuthIdentitiesRequest>,
+    ) -> Result<Response<ListSystemUserOAuthIdentitiesResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        let identities = db::list_system_user_oauth_identities(self.db.pool(), &req.user_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(ListSystemUserOAuthIdentitiesResponse {
+            identities: identities
+                .iter()
+                .map(|i| OAuthIdentity {
+                    user_id: i.user_id.clone(),
+                    oauth_provider: i.oauth_provider.clone(),
+                    oauth_subject: i.oauth_subject.clone(),
+                    email_at_link: i.email_at_link.clone().unwrap_or_default(),
+                    created_at: i.created_at.unix_timestamp(),
+                    created_at_iso: i.created_at.format(&time::format_description::well_known::Rfc3339).unwrap_or_default(),
+                })
+                .collect(),
+            context: Some(self.response_context(request_id, None)),
+        }))
     }
 
     // =============================================================================

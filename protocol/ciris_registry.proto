@@ -1959,6 +1959,95 @@ message UpdateSystemUserRequest {
 }
 
 // ============================================================================
+// OAUTH IDENTITY API MESSAGES (v1.2.1)
+// Purpose: Support multi-provider OAuth login while maintaining single account
+// ============================================================================
+
+// OAuth identity record
+message OAuthIdentity {
+  string user_id = 1;
+  string oauth_provider = 2;              // e.g., "google", "apple", "github"
+  string oauth_subject = 3;               // Provider's unique user ID (sub claim)
+  string email_at_link = 4;               // Email when identity was linked
+  int64 created_at = 5;
+  string created_at_iso = 6;
+}
+
+// Look up a user by OAuth provider + subject
+message LookupUserByOAuthRequest {
+  string oauth_provider = 1;              // e.g., "google"
+  string oauth_subject = 2;               // Provider's unique user ID
+  string email = 3;                       // For fallback lookup/auto-link
+  RequestContext context = 10;
+}
+
+message LookupUserByOAuthResponse {
+  bool found = 1;
+  User user = 2;                          // Populated if found
+  string lookup_method = 3;               // "oauth", "email", or "not_found"
+  bool should_link_oauth = 4;             // True if found by email (new OAuth should be linked)
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
+// Link an OAuth identity to an existing user
+message LinkUserOAuthRequest {
+  string user_id = 1;                     // Existing user to link to
+  string oauth_provider = 2;              // e.g., "google"
+  string oauth_subject = 3;               // Provider's unique user ID
+  string email = 4;                       // Email at time of link
+  RequestContext context = 10;
+}
+
+// List all OAuth identities for a user
+message ListUserOAuthIdentitiesRequest {
+  string user_id = 1;
+  RequestContext context = 10;
+}
+
+message ListUserOAuthIdentitiesResponse {
+  repeated OAuthIdentity identities = 1;
+  ResponseContext context = 50;
+}
+
+// System user OAuth lookup
+message LookupSystemUserByOAuthRequest {
+  string oauth_provider = 1;
+  string oauth_subject = 2;
+  string email = 3;                       // For fallback lookup
+  RequestContext context = 10;
+}
+
+message LookupSystemUserByOAuthResponse {
+  bool found = 1;
+  SystemUser user = 2;
+  string lookup_method = 3;               // "oauth", "email", or "not_found"
+  bool should_link_oauth = 4;
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
+// Link OAuth to system user
+message LinkSystemUserOAuthRequest {
+  string user_id = 1;
+  string oauth_provider = 2;
+  string oauth_subject = 3;
+  string email = 4;
+  RequestContext context = 10;
+}
+
+// List system user OAuth identities
+message ListSystemUserOAuthIdentitiesRequest {
+  string user_id = 1;
+  RequestContext context = 10;
+}
+
+message ListSystemUserOAuthIdentitiesResponse {
+  repeated OAuthIdentity identities = 1;
+  ResponseContext context = 50;
+}
+
+// ============================================================================
 // ORGANIZATION HIERARCHY API MESSAGES
 // ============================================================================
 
@@ -2306,6 +2395,14 @@ service PortalService {
   rpc GetSystemUser(GetSystemUserRequest) returns (GetSystemUserResponse);
   rpc ListSystemUsers(ListSystemUsersRequest) returns (ListSystemUsersResponse);
   rpc UpdateSystemUser(UpdateSystemUserRequest) returns (AdminResponse);
+
+  // OAuth identity management (v1.2.1)
+  rpc LookupUserByOAuth(LookupUserByOAuthRequest) returns (LookupUserByOAuthResponse);
+  rpc LinkUserOAuth(LinkUserOAuthRequest) returns (AdminResponse);
+  rpc ListUserOAuthIdentities(ListUserOAuthIdentitiesRequest) returns (ListUserOAuthIdentitiesResponse);
+  rpc LookupSystemUserByOAuth(LookupSystemUserByOAuthRequest) returns (LookupSystemUserByOAuthResponse);
+  rpc LinkSystemUserOAuth(LinkSystemUserOAuthRequest) returns (AdminResponse);
+  rpc ListSystemUserOAuthIdentities(ListSystemUserOAuthIdentitiesRequest) returns (ListSystemUserOAuthIdentitiesResponse);
 
   // Organization hierarchy (v1.2.0)
   rpc ListChildOrganizations(ListChildOrganizationsRequest) returns (ListOrganizationsResponse);
