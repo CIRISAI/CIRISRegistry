@@ -748,35 +748,26 @@ async fn register_function_manifest(
         manifest_json["metadata"] = metadata.clone();
     }
 
-    // Extract or generate signature (registry-side signing if CI doesn't provide)
-    let (sig_classical, sig_pqc, sig_key_id) = if let Some(sig) = &req.signature {
-        // Use CI-provided signature
-        (
-            sig.classical.clone(),
-            sig.pqc.clone(),
-            sig.key_id.clone(),
-        )
-    } else {
-        // Registry-side signing: sign the manifest_hash with steward key
-        match state.crypto.sign(req.manifest_hash.as_bytes()) {
-            Ok(sig) => {
-                use base64::{engine::general_purpose::STANDARD, Engine};
-                (
-                    STANDARD.encode(&sig.classical_signature),
-                    STANDARD.encode(&sig.post_quantum_signature),
-                    state.crypto.key_id().to_string(),
-                )
-            }
-            Err(e) => {
-                warn!("Failed to sign function manifest: {}", e);
-                return Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(FunctionManifestError {
-                        error: "signing_error".to_string(),
-                        message: "Failed to sign function manifest".to_string(),
-                    }),
-                ));
-            }
+    // Registry-side signing: always sign with steward key
+    // CI doesn't have access to private key, so we sign server-side
+    let (sig_classical, sig_pqc, sig_key_id) = match state.crypto.sign(req.manifest_hash.as_bytes()) {
+        Ok(sig) => {
+            use base64::{engine::general_purpose::STANDARD, Engine};
+            (
+                STANDARD.encode(&sig.classical_signature),
+                STANDARD.encode(&sig.post_quantum_signature),
+                state.crypto.key_id().to_string(),
+            )
+        }
+        Err(e) => {
+            warn!("Failed to sign function manifest: {}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(FunctionManifestError {
+                    error: "signing_error".to_string(),
+                    message: "Failed to sign function manifest".to_string(),
+                }),
+            ));
         }
     };
 
