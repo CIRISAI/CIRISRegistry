@@ -19,6 +19,9 @@ pub struct BinaryManifestRow {
     pub registered_by: Option<String>,
     pub source: Option<String>,
     pub notes: Option<String>,
+    pub signature_classical: Option<String>,
+    pub signature_pqc: Option<String>,
+    pub signature_key_id: Option<String>,
 }
 
 /// Response format for the binary manifest API
@@ -27,6 +30,18 @@ pub struct BinaryManifestResponse {
     pub version: String,
     pub binaries: std::collections::HashMap<String, String>,
     pub generated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<BinaryManifestSignature>,
+}
+
+/// Signature for binary manifest (steward key)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BinaryManifestSignature {
+    pub classical: String,
+    pub classical_algorithm: String,
+    pub pqc: String,
+    pub pqc_algorithm: String,
+    pub key_id: String,
 }
 
 impl BinaryManifestRow {
@@ -43,6 +58,22 @@ impl BinaryManifestRow {
             })
             .unwrap_or_default();
 
+        let signature = if let (Some(classical), Some(pqc), Some(key_id)) = (
+            &self.signature_classical,
+            &self.signature_pqc,
+            &self.signature_key_id,
+        ) {
+            Some(BinaryManifestSignature {
+                classical: classical.clone(),
+                classical_algorithm: "Ed25519".to_string(),
+                pqc: pqc.clone(),
+                pqc_algorithm: "ML-DSA-65".to_string(),
+                key_id: key_id.clone(),
+            })
+        } else {
+            None
+        };
+
         BinaryManifestResponse {
             version: self.version.clone(),
             binaries,
@@ -50,6 +81,7 @@ impl BinaryManifestRow {
                 .generated_at
                 .format(&Rfc3339)
                 .unwrap_or_else(|_| self.generated_at.to_string()),
+            signature,
         }
     }
 }
@@ -62,7 +94,8 @@ pub async fn get_binary_manifest(
     let row = sqlx::query_as::<_, BinaryManifestRow>(
         r#"
         SELECT manifest_id, version, binaries, generated_at, registered_at,
-               registered_by, source, notes
+               registered_by, source, notes,
+               signature_classical, signature_pqc, signature_key_id
         FROM binary_manifests
         WHERE version = $1
         "#,
@@ -74,7 +107,7 @@ pub async fn get_binary_manifest(
     Ok(row)
 }
 
-/// Register a new binary manifest
+/// Register a new binary manifest with optional signature
 pub async fn register_binary_manifest(
     pool: &PgPool,
     version: &str,
@@ -83,17 +116,26 @@ pub async fn register_binary_manifest(
     registered_by: Option<&str>,
     source: Option<&str>,
     notes: Option<&str>,
+    signature_classical: Option<&str>,
+    signature_pqc: Option<&str>,
+    signature_key_id: Option<&str>,
 ) -> Result<String> {
     let row: (sqlx::types::Uuid,) = sqlx::query_as(
         r#"
-        INSERT INTO binary_manifests (version, binaries, generated_at, registered_by, source, notes)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO binary_manifests (
+            version, binaries, generated_at, registered_by, source, notes,
+            signature_classical, signature_pqc, signature_key_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (version) DO UPDATE SET
             binaries = EXCLUDED.binaries,
             generated_at = EXCLUDED.generated_at,
             registered_by = EXCLUDED.registered_by,
             source = EXCLUDED.source,
             notes = EXCLUDED.notes,
+            signature_classical = EXCLUDED.signature_classical,
+            signature_pqc = EXCLUDED.signature_pqc,
+            signature_key_id = EXCLUDED.signature_key_id,
             registered_at = NOW()
         RETURNING manifest_id
         "#,
@@ -104,6 +146,9 @@ pub async fn register_binary_manifest(
     .bind(registered_by)
     .bind(source)
     .bind(notes)
+    .bind(signature_classical)
+    .bind(signature_pqc)
+    .bind(signature_key_id)
     .fetch_one(pool)
     .await?;
 
@@ -120,7 +165,8 @@ pub async fn list_binary_manifests(
     let rows = sqlx::query_as::<_, BinaryManifestRow>(
         r#"
         SELECT manifest_id, version, binaries, generated_at, registered_at,
-               registered_by, source, notes
+               registered_by, source, notes,
+               signature_classical, signature_pqc, signature_key_id
         FROM binary_manifests
         ORDER BY registered_at DESC
         LIMIT $1

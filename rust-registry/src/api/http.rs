@@ -14,7 +14,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use base64::Engine;
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::Serialize;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::crypto::HybridCrypto;
 use crate::db::{self, BuildRow, Database, get_build};
@@ -373,7 +373,26 @@ async fn register_binary_manifest(
     // Convert binaries map to JSON
     let binaries_json = serde_json::to_value(&req.binaries).unwrap_or(serde_json::json!({}));
 
-    // Register the manifest
+    // Sign the manifest content with steward key (registry-side signing)
+    // Create canonical representation: version + sorted binaries JSON
+    let canonical_content = format!("{}:{}", req.version, binaries_json);
+    let (sig_classical, sig_pqc, sig_key_id) = match state.crypto.sign(canonical_content.as_bytes())
+    {
+        Ok(sig) => {
+            use base64::{engine::general_purpose::STANDARD, Engine};
+            (
+                Some(STANDARD.encode(&sig.classical_signature)),
+                Some(STANDARD.encode(&sig.post_quantum_signature)),
+                Some(state.crypto.key_id().to_string()),
+            )
+        }
+        Err(e) => {
+            warn!("Failed to sign binary manifest: {}", e);
+            (None, None, None)
+        }
+    };
+
+    // Register the manifest with signature
     match db::register_binary_manifest(
         state.db.pool(),
         &req.version,
@@ -382,14 +401,28 @@ async fn register_binary_manifest(
         Some("ci_push"),
         Some("ci_push"),
         req.notes.as_deref(),
+        sig_classical.as_deref(),
+        sig_pqc.as_deref(),
+        sig_key_id.as_deref(),
     )
     .await
     {
-        Ok(manifest_id) => Ok(Json(RegisterBinaryManifestResponse {
-            success: true,
-            manifest_id,
-            message: format!("Binary manifest registered for version {}", req.version),
-        })),
+        Ok(manifest_id) => {
+            info!(
+                "Binary manifest registered: version={}, signed={}",
+                req.version,
+                sig_key_id.is_some()
+            );
+            Ok(Json(RegisterBinaryManifestResponse {
+                success: true,
+                manifest_id,
+                message: format!(
+                    "Binary manifest registered for version {} (signed={})",
+                    req.version,
+                    sig_key_id.is_some()
+                ),
+            }))
+        }
         Err(e) => {
             warn!("Error registering binary manifest: {}", e);
             Err((
@@ -715,18 +748,39 @@ async fn register_function_manifest(
         manifest_json["metadata"] = metadata.clone();
     }
 
-    // Extract signature fields
+    // Extract or generate signature (registry-side signing if CI doesn't provide)
     let (sig_classical, sig_pqc, sig_key_id) = if let Some(sig) = &req.signature {
+        // Use CI-provided signature
         (
-            Some(sig.classical.as_str()),
-            Some(sig.pqc.as_str()),
-            Some(sig.key_id.as_str()),
+            sig.classical.clone(),
+            sig.pqc.clone(),
+            sig.key_id.clone(),
         )
     } else {
-        (None, None, None)
+        // Registry-side signing: sign the manifest_hash with steward key
+        match state.crypto.sign(req.manifest_hash.as_bytes()) {
+            Ok(sig) => {
+                use base64::{engine::general_purpose::STANDARD, Engine};
+                (
+                    STANDARD.encode(&sig.classical_signature),
+                    STANDARD.encode(&sig.post_quantum_signature),
+                    state.crypto.key_id().to_string(),
+                )
+            }
+            Err(e) => {
+                warn!("Failed to sign function manifest: {}", e);
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(FunctionManifestError {
+                        error: "signing_error".to_string(),
+                        message: "Failed to sign function manifest".to_string(),
+                    }),
+                ));
+            }
+        }
     };
 
-    // Register the manifest
+    // Register the manifest with signature
     match db::register_function_manifest(
         state.db.pool(),
         &req.binary_version,
@@ -735,21 +789,27 @@ async fn register_function_manifest(
         &req.binary_hash,
         &req.manifest_hash,
         &manifest_json,
-        sig_classical,
-        sig_pqc,
-        sig_key_id,
+        Some(&sig_classical),
+        Some(&sig_pqc),
+        Some(&sig_key_id),
         generated_at,
     )
     .await
     {
-        Ok(manifest_hash) => Ok(Json(RegisterFunctionManifestResponse {
-            success: true,
-            manifest_hash,
-            message: format!(
-                "Function manifest registered for version {} target {}",
-                req.binary_version, req.target
-            ),
-        })),
+        Ok(manifest_hash) => {
+            info!(
+                "Function manifest registered: version={}, target={}, key_id={}",
+                req.binary_version, req.target, sig_key_id
+            );
+            Ok(Json(RegisterFunctionManifestResponse {
+                success: true,
+                manifest_hash,
+                message: format!(
+                    "Function manifest registered for version {} target {} (signed)",
+                    req.binary_version, req.target
+                ),
+            }))
+        }
         Err(e) => {
             warn!("Error registering function manifest: {}", e);
             Err((
