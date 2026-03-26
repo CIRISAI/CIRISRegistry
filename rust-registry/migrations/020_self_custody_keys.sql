@@ -36,8 +36,14 @@ CREATE INDEX IF NOT EXISTS idx_partner_keys_public_key_hash ON partner_keys(publ
 
 -- Add unique constraint to prevent same public key registered to multiple orgs
 -- This is a critical security control for Sybil resistance
-ALTER TABLE partner_keys
-ADD CONSTRAINT IF NOT EXISTS unique_public_key_hash UNIQUE (public_key_hash);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'unique_public_key_hash'
+    ) THEN
+        ALTER TABLE partner_keys ADD CONSTRAINT unique_public_key_hash UNIQUE (public_key_hash);
+    END IF;
+END $$;
 
 -- Backfill public_key_hash for existing keys
 UPDATE partner_keys
