@@ -1,8 +1,12 @@
 // CIRISRegistry Protocol Buffer Definitions
-// Version: 1.1.0
+// Version: 1.3.0
 //
 // This file defines the data structures for the CIRIS Agent and Partner Registry.
 // See FSD-001_CIRISREGISTRY_PROTOCOL.md for full specification.
+//
+// v1.3.0 Changes:
+// - Added self-custody key registration (GetRegistrationChallenge, RegisterPublicKey,
+//   ActivateSelfCustodyKey, RotateSelfCustodyKey) - see FSD-002_SELF_CUSTODY_KEYS.md
 //
 // v1.1.0 Changes:
 // - Added standardized error codes (RegistryErrorCode, ErrorDetail)
@@ -2048,6 +2052,85 @@ message ListSystemUserOAuthIdentitiesResponse {
 }
 
 // ============================================================================
+// SELF-CUSTODY KEY REGISTRATION (v1.3.0)
+// Purpose: Enable agents to generate and register their own signing keys
+// Rationale: Eliminates custodial relationship, reduces regulatory risk
+// See FSD-002_SELF_CUSTODY_KEYS.md for full specification
+// ============================================================================
+
+// Get a registration challenge for proof-of-possession
+message GetRegistrationChallengeRequest {
+  string org_id = 1;
+  RequestContext context = 10;
+}
+
+message GetRegistrationChallengeResponse {
+  bytes challenge = 1;                 // 32-byte nonce
+  int64 expires_at = 2;                // Unix timestamp (5 min validity)
+  ResponseContext context = 50;
+}
+
+// Register an externally-generated public key
+message RegisterPublicKeyRequest {
+  string org_id = 1;
+
+  // Public keys (at least ed25519 required)
+  bytes ed25519_public_key = 2;        // 32 bytes
+  bytes ml_dsa_65_public_key = 3;      // ~1952 bytes (optional)
+
+  // Proof of possession (sign the server-provided challenge)
+  bytes registration_challenge = 10;   // Server-issued nonce
+  bytes ed25519_signature = 11;        // Signature over challenge
+  bytes ml_dsa_65_signature = 12;      // Optional PQ signature
+
+  // Metadata
+  string requester_user_id = 20;
+  string key_label = 21;               // Human-readable label
+
+  RequestContext context = 50;
+}
+
+message RegisterPublicKeyResponse {
+  PartnerKeyRecord key_record = 1;     // Created record (PENDING status)
+  bytes activation_challenge = 2;       // Challenge for activation step
+  ErrorDetail error = 40;
+  ResponseContext context = 50;
+}
+
+// Activate a self-custody key by proving possession
+message ActivateSelfCustodyKeyRequest {
+  string org_id = 1;
+  string key_id = 2;
+
+  // Sign the activation_challenge from registration response
+  bytes activation_challenge = 10;
+  bytes ed25519_signature = 11;
+  bytes ml_dsa_65_signature = 12;      // Required if PQ key was registered
+
+  // Bind to agent identity
+  string agent_hash = 20;              // SHA-256 of agent binary (hex)
+
+  RequestContext context = 50;
+}
+
+// Rotate a self-custody key (requires proof from both old and new keys)
+message RotateSelfCustodyKeyRequest {
+  string org_id = 1;
+  string new_key_id = 2;               // Key registered via RegisterPublicKey
+
+  // Prove ownership of BOTH old and new keys
+  bytes rotation_challenge = 10;
+  bytes old_key_signature = 11;        // Signed by current active key
+  bytes new_key_signature = 12;        // Signed by new key
+
+  KeyRotationMode mode = 20;
+  int32 grace_period_hours = 21;
+  string reason = 22;
+
+  RequestContext context = 50;
+}
+
+// ============================================================================
 // ORGANIZATION HIERARCHY API MESSAGES
 // ============================================================================
 
@@ -2416,6 +2499,12 @@ service PortalService {
   rpc ActivateKey(ActivateKeyRequest) returns (AdminResponse);
   rpc RotateKey(RotateKeyRequest) returns (RotateKeyResponse);
   rpc RevokeKey(RevokeKeyRequest) returns (AdminResponse);
+
+  // Self-custody key management (v1.3.0)
+  rpc GetRegistrationChallenge(GetRegistrationChallengeRequest) returns (GetRegistrationChallengeResponse);
+  rpc RegisterPublicKey(RegisterPublicKeyRequest) returns (RegisterPublicKeyResponse);
+  rpc ActivateSelfCustodyKey(ActivateSelfCustodyKeyRequest) returns (AdminResponse);
+  rpc RotateSelfCustodyKey(RotateSelfCustodyKeyRequest) returns (RotateKeyResponse);
 
   // Key escrow/recovery (v1.1.0)
   rpc RequestKeyEscrow(RequestKeyEscrowRequest) returns (RequestKeyEscrowResponse);

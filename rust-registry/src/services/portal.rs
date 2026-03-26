@@ -11,8 +11,8 @@ use crate::crypto::HybridCrypto;
 use crate::db::{self, Database};
 use crate::proto::portal_service_server::PortalService as PortalServiceTrait;
 use crate::proto::{
-    AuditActionType, AuditEntry, AuditExportFormat, KeyRotationMode, KeyStatus, OAuthIdentity,
-    OrgType, User, *,
+    AuditActionType, AuditEntry, AuditExportFormat, KeyCustodyModel, KeyRotationMode, KeyStatus,
+    OAuthIdentity, OrgType, User, *,
 };
 
 pub struct PortalService {
@@ -2416,5 +2416,456 @@ impl PortalServiceTrait for PortalService {
                 request_id,
             )))
         }
+    }
+
+    // =============================================================================
+    // Self-Custody Key Management (v1.3.0)
+    // =============================================================================
+
+    async fn get_registration_challenge(
+        &self,
+        request: Request<GetRegistrationChallengeRequest>,
+    ) -> Result<Response<GetRegistrationChallengeResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(org_id = %req.org_id, "Generating registration challenge for self-custody key");
+
+        // Verify org exists
+        let org = db::get_organization(self.db.pool(), &req.org_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::not_found("Organization not found"))?;
+
+        if !org.active {
+            return Err(Status::failed_precondition("Organization is not active"));
+        }
+
+        // Generate 32-byte challenge
+        use rand::RngCore;
+        let mut challenge = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut challenge);
+
+        // Store challenge with 5-minute expiry
+        let expires_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64
+            + 300;
+
+        db::store_registration_challenge(self.db.pool(), &req.org_id, &challenge, expires_at)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(GetRegistrationChallengeResponse {
+            challenge: challenge.to_vec(),
+            expires_at,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn register_public_key(
+        &self,
+        request: Request<RegisterPublicKeyRequest>,
+    ) -> Result<Response<RegisterPublicKeyResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(org_id = %req.org_id, "Registering self-custody public key");
+
+        // 1. Validate Ed25519 public key length
+        if req.ed25519_public_key.len() != 32 {
+            return Err(Status::invalid_argument(
+                "Ed25519 public key must be 32 bytes",
+            ));
+        }
+
+        // 2. Validate and consume the challenge
+        let stored_challenge = db::get_and_remove_registration_challenge(self.db.pool(), &req.org_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::invalid_argument("Invalid or expired challenge"))?;
+
+        if stored_challenge != req.registration_challenge {
+            return Err(Status::invalid_argument("Challenge mismatch"));
+        }
+
+        // 3. Verify signature over challenge
+        let public_key = ed25519_dalek::VerifyingKey::from_bytes(
+            req.ed25519_public_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| Status::invalid_argument("Invalid public key length"))?,
+        )
+        .map_err(|_| Status::invalid_argument("Invalid Ed25519 public key"))?;
+
+        if req.ed25519_signature.len() != 64 {
+            return Err(Status::invalid_argument(
+                "Ed25519 signature must be 64 bytes",
+            ));
+        }
+
+        let signature = ed25519_dalek::Signature::from_bytes(
+            req.ed25519_signature
+                .as_slice()
+                .try_into()
+                .map_err(|_| Status::invalid_argument("Invalid signature length"))?,
+        );
+
+        use ed25519_dalek::Verifier;
+        public_key
+            .verify(&req.registration_challenge, &signature)
+            .map_err(|_| Status::invalid_argument("Signature verification failed"))?;
+
+        // 4. Check for duplicate public key across all orgs
+        let pub_key_hash = HybridCrypto::fingerprint(&req.ed25519_public_key);
+        if db::public_key_exists(self.db.pool(), &pub_key_hash)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+        {
+            return Err(Status::already_exists("Public key already registered"));
+        }
+
+        // 5. Generate ML-DSA fingerprint if provided
+        let mldsa_fp = if !req.ml_dsa_65_public_key.is_empty() {
+            HybridCrypto::fingerprint(&req.ml_dsa_65_public_key)
+        } else {
+            String::new()
+        };
+
+        // 6. Create key record (PENDING status, SELF_SOVEREIGN custody)
+        let key_label = if req.key_label.is_empty() {
+            None
+        } else {
+            Some(req.key_label.as_str())
+        };
+        let key_id = db::create_self_custody_key(
+            self.db.pool(),
+            &req.org_id,
+            &req.ed25519_public_key,
+            &req.ml_dsa_65_public_key,
+            &pub_key_hash,
+            &mldsa_fp,
+            &req.requester_user_id,
+            key_label,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        // 7. Generate activation challenge
+        use rand::RngCore;
+        let mut activation_challenge = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut activation_challenge);
+
+        let activation_expires = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64
+            + 300; // 5 minutes
+
+        db::store_activation_challenge(
+            self.db.pool(),
+            &key_id,
+            &activation_challenge,
+            activation_expires,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        // 8. Fetch the created key record
+        let key_record = db::get_key(self.db.pool(), &key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::internal("Key not found after creation"))?;
+
+        // 9. Create audit entry
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditKeyGenerated,
+            Some(&req.requester_user_id),
+            Some(&req.org_id),
+            None,
+            Some("key"),
+            Some(&key_id),
+            &format!("Self-custody public key registered: {}", key_id),
+            Some(serde_json::json!({
+                "key_id": key_id,
+                "custody_model": "SELF_SOVEREIGN",
+                "ed25519_fingerprint": pub_key_hash,
+                "key_label": req.key_label,
+            })),
+        )
+        .await;
+
+        Ok(Response::new(RegisterPublicKeyResponse {
+            key_record: Some(key_record.to_proto()),
+            activation_challenge: activation_challenge.to_vec(),
+            error: None,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn activate_self_custody_key(
+        &self,
+        request: Request<ActivateSelfCustodyKeyRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(key_id = %req.key_id, org_id = %req.org_id, "Activating self-custody key");
+
+        // 1. Get pending key record
+        let key_record = db::get_key(self.db.pool(), &req.key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::not_found("Key not found"))?;
+
+        if key_record.org_id != req.org_id {
+            return Err(Status::permission_denied(
+                "Key does not belong to organization",
+            ));
+        }
+
+        if key_record.status != KeyStatus::KeyPending as i32 {
+            return Err(Status::failed_precondition("Key not in PENDING status"));
+        }
+
+        if key_record.custody_model != KeyCustodyModel::SelfSovereign as i32 {
+            return Err(Status::failed_precondition("Not a self-custody key"));
+        }
+
+        // 2. Validate and consume activation challenge
+        let stored_challenge = db::get_and_remove_activation_challenge(self.db.pool(), &req.key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::invalid_argument("Invalid or expired activation challenge"))?;
+
+        if stored_challenge != req.activation_challenge {
+            return Err(Status::invalid_argument("Challenge mismatch"));
+        }
+
+        // 3. Verify activation signature
+        let public_key = ed25519_dalek::VerifyingKey::from_bytes(
+            key_record
+                .ed25519_public_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| Status::internal("Invalid stored public key"))?,
+        )
+        .map_err(|_| Status::internal("Invalid stored public key"))?;
+
+        if req.ed25519_signature.len() != 64 {
+            return Err(Status::invalid_argument(
+                "Ed25519 signature must be 64 bytes",
+            ));
+        }
+
+        let signature = ed25519_dalek::Signature::from_bytes(
+            req.ed25519_signature
+                .as_slice()
+                .try_into()
+                .map_err(|_| Status::invalid_argument("Invalid signature"))?,
+        );
+
+        use ed25519_dalek::Verifier;
+        public_key
+            .verify(&req.activation_challenge, &signature)
+            .map_err(|_| Status::invalid_argument("Activation signature verification failed"))?;
+
+        // 4. Activate key
+        db::activate_key(self.db.pool(), &req.key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        // 5. Optionally bind to agent hash
+        if !req.agent_hash.is_empty() {
+            // Store agent binding - could add a column for this if needed
+            info!(key_id = %req.key_id, agent_hash = %req.agent_hash, "Key bound to agent");
+        }
+
+        // 6. Create audit entry
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditKeyActivated,
+            None,
+            Some(&req.org_id),
+            None,
+            Some("key"),
+            Some(&req.key_id),
+            &format!("Self-custody key activated: {}", req.key_id),
+            Some(serde_json::json!({
+                "key_id": req.key_id,
+                "custody_model": "SELF_SOVEREIGN",
+                "agent_hash": req.agent_hash,
+            })),
+        )
+        .await;
+
+        Ok(Response::new(self.admin_response(
+            true,
+            "Self-custody key activated",
+            request_id,
+        )))
+    }
+
+    async fn rotate_self_custody_key(
+        &self,
+        request: Request<RotateSelfCustodyKeyRequest>,
+    ) -> Result<Response<RotateKeyResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        info!(org_id = %req.org_id, new_key_id = %req.new_key_id, "Rotating self-custody key");
+
+        // 1. Get current active key
+        let old_key = db::get_active_key(self.db.pool(), &req.org_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::failed_precondition("No active key to rotate"))?;
+
+        if old_key.custody_model != KeyCustodyModel::SelfSovereign as i32 {
+            return Err(Status::failed_precondition(
+                "Current key is not self-custody; use RotateKey for custodied keys",
+            ));
+        }
+
+        // 2. Get new key (must be PENDING self-custody key)
+        let new_key = db::get_key(self.db.pool(), &req.new_key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .ok_or_else(|| Status::not_found("New key not found"))?;
+
+        if new_key.org_id != req.org_id {
+            return Err(Status::permission_denied(
+                "New key does not belong to organization",
+            ));
+        }
+
+        if new_key.status != KeyStatus::KeyPending as i32 {
+            return Err(Status::failed_precondition("New key not in PENDING status"));
+        }
+
+        if new_key.custody_model != KeyCustodyModel::SelfSovereign as i32 {
+            return Err(Status::failed_precondition("New key is not self-custody"));
+        }
+
+        // 3. Verify signatures from both old and new keys over rotation challenge
+        // Old key signature
+        let old_pubkey = ed25519_dalek::VerifyingKey::from_bytes(
+            old_key
+                .ed25519_public_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| Status::internal("Invalid old public key"))?,
+        )
+        .map_err(|_| Status::internal("Invalid old public key"))?;
+
+        if req.old_key_signature.len() != 64 {
+            return Err(Status::invalid_argument(
+                "Old key signature must be 64 bytes",
+            ));
+        }
+
+        let old_signature = ed25519_dalek::Signature::from_bytes(
+            req.old_key_signature
+                .as_slice()
+                .try_into()
+                .map_err(|_| Status::invalid_argument("Invalid old key signature"))?,
+        );
+
+        use ed25519_dalek::Verifier;
+        old_pubkey
+            .verify(&req.rotation_challenge, &old_signature)
+            .map_err(|_| Status::invalid_argument("Old key signature verification failed"))?;
+
+        // New key signature
+        let new_pubkey = ed25519_dalek::VerifyingKey::from_bytes(
+            new_key
+                .ed25519_public_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| Status::internal("Invalid new public key"))?,
+        )
+        .map_err(|_| Status::internal("Invalid new public key"))?;
+
+        if req.new_key_signature.len() != 64 {
+            return Err(Status::invalid_argument(
+                "New key signature must be 64 bytes",
+            ));
+        }
+
+        let new_signature = ed25519_dalek::Signature::from_bytes(
+            req.new_key_signature
+                .as_slice()
+                .try_into()
+                .map_err(|_| Status::invalid_argument("Invalid new key signature"))?,
+        );
+
+        new_pubkey
+            .verify(&req.rotation_challenge, &new_signature)
+            .map_err(|_| Status::invalid_argument("New key signature verification failed"))?;
+
+        // 4. Perform rotation
+        let grace_period = if req.grace_period_hours > 0 {
+            req.grace_period_hours
+        } else {
+            24 // Default 24 hour grace period
+        };
+
+        // Activate new key
+        db::activate_key(self.db.pool(), &req.new_key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Mark old key as rotated with grace period
+        db::mark_key_rotated(self.db.pool(), &old_key.key_id, grace_period)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        // 5. Create audit entry
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditKeyRotated,
+            None,
+            Some(&req.org_id),
+            None,
+            Some("key"),
+            Some(&old_key.key_id),
+            &format!(
+                "Self-custody key rotated: {} -> {}",
+                old_key.key_id, req.new_key_id
+            ),
+            Some(serde_json::json!({
+                "old_key_id": old_key.key_id,
+                "new_key_id": req.new_key_id,
+                "custody_model": "SELF_SOVEREIGN",
+                "reason": req.reason,
+                "grace_period_hours": grace_period,
+            })),
+        )
+        .await;
+
+        // 6. Fetch updated keys
+        let new_key_updated = db::get_key(self.db.pool(), &req.new_key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let old_key_updated = db::get_key(self.db.pool(), &old_key.key_id)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let grace_expires = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64
+            + (grace_period as i64 * 3600);
+
+        Ok(Response::new(RotateKeyResponse {
+            new_key: new_key_updated.map(|k| k.to_proto()),
+            old_key: old_key_updated.map(|k| k.to_proto()),
+            grace_period_expires_at: grace_expires,
+            rotation_id: uuid::Uuid::new_v4().to_string(),
+            context: Some(self.response_context(request_id, None)),
+        }))
     }
 }

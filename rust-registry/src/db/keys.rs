@@ -397,3 +397,185 @@ pub async fn list_keys(
 
     Ok(rows)
 }
+
+// =============================================================================
+// Self-Custody Key Management (v1.3.0)
+// =============================================================================
+
+/// Store a registration challenge for an organization
+pub async fn store_registration_challenge(
+    pool: &PgPool,
+    org_id: &str,
+    challenge: &[u8],
+    expires_at: i64,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO registration_challenges (org_id, challenge, expires_at)
+        VALUES ($1, $2, to_timestamp($3))
+        ON CONFLICT (org_id) DO UPDATE
+        SET challenge = EXCLUDED.challenge, expires_at = EXCLUDED.expires_at, created_at = NOW()
+        "#,
+    )
+    .bind(org_id)
+    .bind(challenge)
+    .bind(expires_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+/// Get and remove a registration challenge (single-use)
+pub async fn get_and_remove_registration_challenge(
+    pool: &PgPool,
+    org_id: &str,
+) -> Result<Option<Vec<u8>>> {
+    let row: Option<(Vec<u8>,)> = sqlx::query_as(
+        r#"
+        DELETE FROM registration_challenges
+        WHERE org_id = $1 AND expires_at > NOW()
+        RETURNING challenge
+        "#,
+    )
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|(challenge,)| challenge))
+}
+
+/// Store an activation challenge for a key
+pub async fn store_activation_challenge(
+    pool: &PgPool,
+    key_id: &str,
+    challenge: &[u8],
+    expires_at: i64,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO activation_challenges (key_id, challenge, expires_at)
+        VALUES ($1, $2, to_timestamp($3))
+        ON CONFLICT (key_id) DO UPDATE
+        SET challenge = EXCLUDED.challenge, expires_at = EXCLUDED.expires_at, created_at = NOW()
+        "#,
+    )
+    .bind(key_id)
+    .bind(challenge)
+    .bind(expires_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+/// Get and remove an activation challenge (single-use)
+pub async fn get_and_remove_activation_challenge(
+    pool: &PgPool,
+    key_id: &str,
+) -> Result<Option<Vec<u8>>> {
+    let row: Option<(Vec<u8>,)> = sqlx::query_as(
+        r#"
+        DELETE FROM activation_challenges
+        WHERE key_id = $1 AND expires_at > NOW()
+        RETURNING challenge
+        "#,
+    )
+    .bind(key_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|(challenge,)| challenge))
+}
+
+/// Check if a public key hash already exists (for duplicate detection)
+pub async fn public_key_exists(pool: &PgPool, public_key_hash: &str) -> Result<bool> {
+    let row: Option<(i64,)> = sqlx::query_as(
+        r#"
+        SELECT 1 FROM partner_keys WHERE public_key_hash = $1 LIMIT 1
+        "#,
+    )
+    .bind(public_key_hash)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.is_some())
+}
+
+/// Create a self-custody key (public key only, SELF_SOVEREIGN custody model)
+#[allow(clippy::too_many_arguments)]
+pub async fn create_self_custody_key(
+    pool: &PgPool,
+    org_id: &str,
+    ed25519_pubkey: &[u8],
+    mldsa_pubkey: &[u8],
+    public_key_hash: &str,
+    mldsa_fp: &str,
+    created_by: &str,
+    key_label: Option<&str>,
+) -> Result<String> {
+    let key_id = uuid::Uuid::new_v4().to_string();
+
+    sqlx::query(
+        r#"
+        INSERT INTO partner_keys (
+            key_id, org_id, ed25519_public_key, ml_dsa_65_public_key,
+            ed25519_fingerprint, ml_dsa_65_fingerprint, custody_model,
+            status, created_by, public_key_hash, kv_key_ref
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        "#,
+    )
+    .bind(&key_id)
+    .bind(org_id)
+    .bind(ed25519_pubkey)
+    .bind(mldsa_pubkey)
+    .bind(public_key_hash) // Use hash as fingerprint for self-custody
+    .bind(mldsa_fp)
+    .bind(proto::KeyCustodyModel::SelfSovereign as i32)
+    .bind(proto::KeyStatus::KeyPending as i32)
+    .bind(created_by)
+    .bind(public_key_hash)
+    .bind(key_label) // Store label in kv_key_ref field for self-custody keys
+    .execute(pool)
+    .await?;
+
+    Ok(key_id)
+}
+
+/// Mark a key as rotated with grace period
+pub async fn mark_key_rotated(pool: &PgPool, key_id: &str, grace_period_hours: i32) -> Result<()> {
+    let grace_interval = format!("{} hours", grace_period_hours);
+
+    sqlx::query(
+        r#"
+        UPDATE partner_keys
+        SET status = $1, rotated_at = NOW(),
+            grace_period_expires_at = NOW() + $2::interval
+        WHERE key_id = $3 AND status = $4
+        "#,
+    )
+    .bind(proto::KeyStatus::KeyRotated as i32)
+    .bind(&grace_interval)
+    .bind(key_id)
+    .bind(proto::KeyStatus::KeyActive as i32)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+/// Cleanup expired challenges (should be run periodically)
+pub async fn cleanup_expired_challenges(pool: &PgPool) -> Result<(i64, i64)> {
+    let reg_deleted = sqlx::query("DELETE FROM registration_challenges WHERE expires_at < NOW()")
+        .execute(pool)
+        .await?
+        .rows_affected();
+
+    let act_deleted = sqlx::query("DELETE FROM activation_challenges WHERE expires_at < NOW()")
+        .execute(pool)
+        .await?
+        .rows_affected();
+
+    Ok((reg_deleted as i64, act_deleted as i64))
+}
