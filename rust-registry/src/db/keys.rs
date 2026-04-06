@@ -167,9 +167,9 @@ pub async fn create_key(
         INSERT INTO partner_keys (
             key_id, org_id, ed25519_public_key, ml_dsa_65_public_key,
             ed25519_fingerprint, ml_dsa_65_fingerprint, custody_model,
-            status, created_by
+            status, created_by, public_key_hash
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         "#,
     )
     .bind(&key_id)
@@ -181,6 +181,7 @@ pub async fn create_key(
     .bind(custody_model)
     .bind(proto::KeyStatus::KeyPending as i32)
     .bind(created_by)
+    .bind(ed25519_fp) // public_key_hash = SHA256 fingerprint of ed25519 public key
     .execute(pool)
     .await?;
 
