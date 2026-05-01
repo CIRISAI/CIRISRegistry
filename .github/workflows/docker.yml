@@ -140,6 +140,25 @@ jobs:
             exit 1
           fi
 
+          # Compute the Ed25519 pubkey fingerprint that this seed will sign
+          # with — diagnostic for when verification fails registry-side.
+          # The fingerprint must match what's registered as the trusted key
+          # for project='ciris-registry' in the production registry.
+          python3 -c '
+          import hashlib, base64
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+          seed = open("/tmp/ed25519.seed", "rb").read()
+          pk = Ed25519PrivateKey.from_private_bytes(seed).public_key()
+          pub = pk.public_bytes(Encoding.Raw, PublicFormat.Raw)
+          print("Build-signing Ed25519 pubkey:")
+          print(f"  fingerprint (sha256 hex): {hashlib.sha256(pub).hexdigest()}")
+          print(f"  pubkey (base64):          {base64.b64encode(pub).decode()}")
+          print("If verification fails registry-side, this fingerprint must")
+          print("match the trusted key registered for project=\"ciris-registry\".")
+          print("Compare with output of ListTrustedPrimitiveKeys admin RPC.")
+          ' || echo "(python ed25519 pubkey derivation unavailable; cryptography lib not installed)"
+
           # Pick one of the metadata-action tags (use the first, which is
           # the branch tag — guaranteed to exist post-push). Pull it down
           # so we can extract the binary.
@@ -201,6 +220,25 @@ jobs:
             else
               echo "ERROR: publish failed after 5 attempts. Final response:" >&2
               cat /tmp/publish-response.json >&2
+              # If the failure is verification_failed for Ed25519, give a
+              # clear next-action message — most common cause is GHA
+              # build-signing pubkey doesn't match the trusted key
+              # registered for project=ciris-registry.
+              if grep -q "verification_failed.*Ed25519" /tmp/publish-response.json; then
+                echo "" >&2
+                echo "  This is the GHA build-signing pubkey vs trusted-key mismatch case." >&2
+                echo "  See the 'Build-signing Ed25519 pubkey' line above for the fingerprint" >&2
+                echo "  this seed produces. Two recovery paths:" >&2
+                echo "" >&2
+                echo "  (a) Swap the GHA secret CIRIS_BUILD_ED25519_SECRET (and MLDSA) to" >&2
+                echo "      match the production steward seeds at /etc/ciris-registry/" >&2
+                echo "      *.seed on the bridge nodes." >&2
+                echo "" >&2
+                echo "  (b) Register the GHA-derived pubkey via the admin RPC:" >&2
+                echo "      grpcurl -d '{...with the pubkey shown above...}' \\\\" >&2
+                echo "        api.registry.ciris-services-1.ai:443 \\\\" >&2
+                echo "        ciris.registry.v1.RegistryAdminService/RegisterTrustedPrimitiveKey" >&2
+              fi
               # Wipe seeds before exiting on failure
               shred -u /tmp/ed25519.seed /tmp/mldsa65.secret 2>/dev/null \
                 || rm -f /tmp/ed25519.seed /tmp/mldsa65.secret
