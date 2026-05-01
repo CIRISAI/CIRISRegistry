@@ -681,16 +681,20 @@ impl PortalServiceTrait for PortalService {
             &ed25519_fp,
             &mldsa_fp,
             KeyCustodyModel::Custodied as i32,
-            &req.requester_user_id,
+            &claims.sub,
         )
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
         // Create audit entry for key generation
+        // W1: actor identity derived from JWT claims.sub, NOT from
+        // req.requester_user_id (which is forgeable by any authenticated
+        // caller). The proto field is kept for wire-format compat but
+        // ignored on the server side.
         let _ = db::create_audit_entry(
             self.db.pool(),
             AuditActionType::AuditKeyGenerated,
-            Some(&req.requester_user_id),
+            Some(claims.sub.as_str()),
             Some(&req.org_id),
             None,
             Some("key"),
@@ -710,11 +714,11 @@ impl PortalServiceTrait for PortalService {
                 .await
                 .map_err(|e| Status::internal(e.to_string()))?;
 
-            // Create audit entry for key activation
+            // Create audit entry for key activation (W1: actor from claims.sub).
             let _ = db::create_audit_entry(
                 self.db.pool(),
                 AuditActionType::AuditKeyActivated,
-                Some(&req.requester_user_id),
+                Some(claims.sub.as_str()),
                 Some(&req.org_id),
                 None,
                 Some("key"),
@@ -785,16 +789,11 @@ impl PortalServiceTrait for PortalService {
             .map_err(|e| Status::internal(e.to_string()))?;
 
         if activated {
-            // Create audit entry
-            let requester = if req.requester_user_id.is_empty() {
-                None
-            } else {
-                Some(req.requester_user_id.as_str())
-            };
+            // W1: actor from claims.sub, not from forgeable req.requester_user_id.
             let _ = db::create_audit_entry(
                 self.db.pool(),
                 AuditActionType::AuditKeyActivated,
-                requester,
+                Some(claims.sub.as_str()),
                 key.as_ref().map(|k| k.org_id.as_str()),
                 None,
                 Some("key"),
@@ -867,18 +866,18 @@ impl PortalServiceTrait for PortalService {
             &ed25519_fp,
             &mldsa_fp,
             old_key.custody_model,
-            &req.requester_user_id,
+            &claims.sub,
             grace_period,
             immediate,
         )
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
-        // Create audit entry
+        // W1: actor from claims.sub, not from forgeable req.requester_user_id.
         let _ = db::create_audit_entry(
             self.db.pool(),
             AuditActionType::AuditKeyRotated,
-            Some(&req.requester_user_id),
+            Some(claims.sub.as_str()),
             Some(&req.org_id),
             None,
             Some("key"),
@@ -952,22 +951,22 @@ impl PortalServiceTrait for PortalService {
             )));
         }
 
-        // Revoke the key
+        // Revoke the key (W1: revoker identity from claims.sub).
         let revoked = db::revoke_key(
             self.db.pool(),
             &req.key_id,
             &req.reason,
-            &req.requester_user_id,
+            &claims.sub,
         )
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
         if revoked {
-            // Create audit entry
+            // W1: actor from claims.sub, not from forgeable req.requester_user_id.
             let _ = db::create_audit_entry(
                 self.db.pool(),
                 AuditActionType::AuditKeyRevoked,
-                Some(&req.requester_user_id),
+                Some(claims.sub.as_str()),
                 Some(&req.org_id),
                 None,
                 Some("key"),
@@ -1355,9 +1354,33 @@ impl PortalServiceTrait for PortalService {
             authorize_system_admin(self.db.pool(), &claims).await?;
         }
 
+        // W1: actor_user_id must be derivable. Two cases:
+        //   - SYSTEM_ADMIN may log on behalf of another user (CIRISPortal use
+        //     case: "user X logged in" where Portal-system is the caller).
+        //     Trust whatever req.actor_user_id is supplied (or fall back to
+        //     claims.sub if empty).
+        //   - Non-admin caller MUST log as themselves. If req.actor_user_id
+        //     is non-empty and != claims.sub, reject with PermissionDenied
+        //     (forge attempt). Otherwise force claims.sub.
+        let resolved_actor: String = if claims.role
+            == crate::middleware::authz::ROLE_SYSTEM_ADMIN
+        {
+            if req.actor_user_id.is_empty() {
+                claims.sub.clone()
+            } else {
+                req.actor_user_id.clone()
+            }
+        } else if req.actor_user_id.is_empty() || req.actor_user_id == claims.sub {
+            claims.sub.clone()
+        } else {
+            return Err(Status::permission_denied(
+                "actor_user_id must equal JWT subject (or caller must be SYSTEM_ADMIN)",
+            ));
+        };
+
         info!(
             action = ?req.action,
-            actor_user_id = %req.actor_user_id,
+            actor_user_id = %resolved_actor,
             actor_org_id = %req.actor_org_id,
             "Creating audit entry from Portal"
         );
@@ -1377,11 +1400,7 @@ impl PortalServiceTrait for PortalService {
         let entry_id = db::create_audit_entry(
             self.db.pool(),
             action,
-            if req.actor_user_id.is_empty() {
-                None
-            } else {
-                Some(&req.actor_user_id)
-            },
+            Some(resolved_actor.as_str()),
             if req.actor_org_id.is_empty() {
                 None
             } else {
@@ -2683,7 +2702,7 @@ impl PortalServiceTrait for PortalService {
             &req.ml_dsa_65_public_key,
             &pub_key_hash,
             &mldsa_fp,
-            &req.requester_user_id,
+            &claims.sub,
             key_label,
         )
         .await
@@ -2715,11 +2734,11 @@ impl PortalServiceTrait for PortalService {
             .map_err(|e| Status::internal(e.to_string()))?
             .ok_or_else(|| Status::internal("Key not found after creation"))?;
 
-        // 9. Create audit entry
+        // 9. Create audit entry (W1: actor from claims.sub).
         let _ = db::create_audit_entry(
             self.db.pool(),
             AuditActionType::AuditKeyGenerated,
-            Some(&req.requester_user_id),
+            Some(claims.sub.as_str()),
             Some(&req.org_id),
             None,
             Some("key"),

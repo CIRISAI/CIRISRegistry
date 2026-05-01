@@ -1315,6 +1315,63 @@ to new migrations. A mid-flight crash on migration 022+ that fails
 the second attempt would still surface as a deploy error rather than
 silent desync.
 
+#### AV-35: Audit-trail actor forgeability (W1, mitigated v1.3 Phase 5)
+
+**Original threat (pre-v1.3 Phase 5)**: PortalService handlers
+including `generate_key_pair`, `activate_key`, `rotate_key`,
+`revoke_key`, `register_public_key`, and `create_audit_entry` read
+`req.requester_user_id` (or `req.actor_user_id`) from the request body
+and wrote it directly to the `audit_log` row's `actor_user_id` column.
+Any authenticated caller could specify any string as the actor — the
+audit trail was forgeable across the entire registry. A forensic
+investigation tracing "who rotated this key" or "who revoked that key"
+would be reading attacker-controlled labels, not authenticated
+identities.
+
+This was W1 in Agent 3's AV-15 investigation report, surfaced
+alongside (but distinct from) the cross-org access gap. Higher
+practical severity than AV-15 alone because audit trails feed
+incident-response decisions.
+
+**Mitigation in v1.3 Phase 5 (commit pending)**:
+- All five handlers (generate_key_pair, activate_key, rotate_key,
+  revoke_key, register_public_key) derive `actor_user_id` from
+  `claims.sub` extracted via `claims_from_request` in the Phase 4
+  preamble. The `req.requester_user_id` proto field is preserved on
+  the wire (no breaking change) but ignored on the server side.
+- `db::rotate_key`, `db::revoke_key`, and `db::create_self_custody_key`
+  also receive `claims.sub` for their own per-row metadata columns
+  (`rotated_by`, `revoked_by`, `created_by`) — so the columns reflect
+  authenticated identity, not request-body claims.
+- `create_audit_entry` (Portal's "log on behalf" surface): SYSTEM_ADMIN
+  may supply any `actor_user_id` (legitimate cross-actor logging case
+  for Portal-mediated events like "user X logged in"); non-admin
+  callers must either omit `actor_user_id` (defaults to `claims.sub`)
+  or supply the SAME value as `claims.sub`. Mismatch returns
+  `PermissionDenied` with explicit "must equal JWT subject"
+  message. Forge attempts are no longer silent — they fail loudly.
+
+**Residual**:
+- Audit entries written before v1.3 Phase 5 ship may have forged
+  `actor_user_id` values. Pre-Phase-5 audit data should be treated as
+  "actor field is best-effort attribution, not authenticated
+  identity". Post-Phase-5 entries can be relied upon.
+- A SYSTEM_ADMIN can still log on behalf of any user via
+  `create_audit_entry` (intentional for Portal-mediated event
+  recording). Distinguishable in the audit log via the action type +
+  description, but not via the actor field alone. AV-13
+  (REGISTRY_ADMIN_TOKEN compromise) and AV-12 (JWT secret leak)
+  compound this — closing those tightens the SYSTEM_ADMIN-trust
+  envelope.
+- gRPC AuthLayer + Phase 4 `claims_from_request` enforcement remain
+  the floor of trust: a missing JWT means no claims, which means no
+  actor can be derived. Handlers that try `claims_from_request(...)?`
+  and fail return `Unauthenticated` before any write.
+
+**Detection** of pre-mitigation forge attempts: scan `audit_log` for
+rows where `actor_user_id` doesn't match a known JWT subject from
+the same time window. Not implemented; track for v1.4 if needed.
+
 #### AV-34: Build-signing key compromise (CI-side, post-Phase-A surface)
 
 **Attack surface introduced**: with v1.3 Phase A's BuildManifest
@@ -1446,6 +1503,7 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-25 | Steward signing-key compromise | File mode + FDE + 0400 perms (only working software-backed option) | Hybrid signatures (both must fall) | ⚠ Architectural | v1.3.x: HSM impl via ciris-keyring; v1.4.x: threshold sig |
 | AV-26 | ML-DSA-65 missing on uploaded manifests | `POST /v1/verify/build-manifest` parses BuildManifest, looks up trusted key by `manifest.primitive.project_name()`, calls `build_manifest::verify_uploaded_manifest` (Ed25519 + ML-DSA-65 hybrid bound-sig) before storing | Operationally validated: registry self-publishes its own BuildManifest on every push to main (since `cd95a9f` 2026-05-01) — full trust chain exercised continuously, recursive golden rule operational | ✓ Mitigated v1.3 (Phase A), validated v1.3 Phase A.1 | Legacy `POST /v1/verify/binary-manifest` / `function-manifest` paths remain admin-token-only for backwards compat — track v1.4 deprecation; AV-34 (build-signing key compromise) is a new surface introduced by this mitigation |
 | AV-34 | Build-signing key compromise (CI-side) | Two-secret co-requirement: attacker needs BOTH GHA build-signing seed AND `REGISTRY_ADMIN_TOKEN` to publish | Per-repo GHA isolation; `audit_log` writes with verifying-key fingerprint; CI round-trip integration test on every publish | ⚠ Architectural (defense-in-depth, not single-point) | v1.4: cosign verification on uploads + GitHub OIDC chain; multi-party signing for high-stakes primitives; rotation cadence; SLSA attestation in BuildManifest extras |
+| AV-35 | Audit-trail actor forgeability (W1) | All audit-writing handlers (generate/activate/rotate/revoke_key, register_public_key) derive actor from `claims.sub`; `req.requester_user_id` preserved on wire but ignored. `create_audit_entry`: SYSTEM_ADMIN may log on behalf; non-admin must match `claims.sub` or be rejected with `PermissionDenied`. | DB metadata columns (`rotated_by`, `revoked_by`, `created_by`) also receive `claims.sub`, not request body. Forge attempts on `create_audit_entry` fail loudly (no silent acceptance). | ✓ Mitigated v1.3 (Phase 5) | Pre-Phase-5 audit entries treated as best-effort attribution. Post-Phase-5 reliable. SYSTEM_ADMIN-on-behalf logging still allowed by design — couples to AV-12/13/14 closures. |
 | AV-27 | Vault-mode signing produces unverifiable sigs | (deleted — vault mode no longer exists) | ciris-crypto migration | ✓ Closed by deletion v1.2 (commit 70f737d) | — |
 | AV-28 | Ephemeral signing keys in production | `tracing::warn!` at boot; storage_mode=memory enum gone | Bridge ansible deployed persistent seeds 2026-05-01 evening (US + EU) | ⚠ Operationally mitigated; in-app hard-fail tracked | v1.3.x: hard-fail in production when paths unset |
 | AV-33 | Spock multi-master migration desync | `db/mod.rs::exclude_sqlx_migrations_from_spock_replication` runs at boot before `sqlx::migrate!` | Bridge ansible reconcile task as defense-in-depth | ✓ Mitigated v1.3 (in-repo fix shipped, closes Registry#2) | — |
@@ -1455,7 +1513,7 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-32 | Self-custody activation race | Activation challenge per-key + signature against registered pubkey | Single-use atomic consume | ✓ Mitigated | — |
 
 **Posture summary at a glance**:
-- ✓ Mitigated: 14 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-9 (rate limit, v1.3 Phase 2), AV-15 (cross-org access, v1.3 Phase 4), AV-16, AV-19, AV-22, AV-26 (BuildManifest verify, v1.3 Phase A), AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3 Phase 1)
+- ✓ Mitigated: 15 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-9 (rate limit, v1.3 Phase 2), AV-15 (cross-org access, v1.3 Phase 4), AV-16, AV-19, AV-22, AV-26 (BuildManifest verify, v1.3 Phase A), AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3 Phase 1), AV-35 (audit-actor forgeability, v1.3 Phase 5)
 - ⚠ Operationally mitigated; in-app fix tracked: AV-28 (persistent keys deployed 2026-05-01)
 - ⚠ Gap requiring v1.3: (none — all in-app gaps closed)
 - ⚠ **CRITICAL bugs**: 0 (AV-27 closed in v1.2)
@@ -1655,7 +1713,7 @@ baseline.
 v1.2 BASELINE THREAT POSTURE
   (shipped 2026-05-01: ciris-crypto v1.8.0 alignment + project namespace)
 
-  ✓ MITIGATED (14)
+  ✓ MITIGATED (15)
     AV-1   project≠ciris-agent acceptance (commit 254a89e — closes GH #1)
     AV-2   self-custody challenge replay (single-use atomic consume)
     AV-3   cross-org pubkey reuse (public_key_hash UNIQUE — migration 020)
@@ -1677,6 +1735,9 @@ v1.2 BASELINE THREAT POSTURE
     AV-32  self-custody activation race (per-key challenge + sig verify)
     AV-33  Spock multi-master migration desync (v1.3 Phase 1 — db/mod.rs
            Spock detection at boot; closes Registry#2)
+    AV-35  audit-trail actor forgeability (v1.3 Phase 5 — claims.sub
+           replaces req.requester_user_id in audit-writing handlers;
+           create_audit_entry validates non-admin actor matches JWT subject)
 
   ⚠ CRITICAL — REQUIRES v1.2.x HOTFIX (0)
     None outstanding. AV-27 closed in v1.2.
