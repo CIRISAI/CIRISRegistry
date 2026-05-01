@@ -59,7 +59,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          load: ${{ github.event_name != 'pull_request' }}
 
       # =====================================================================
       # Sign + publish the registry's BuildManifest to the production
@@ -88,7 +87,11 @@ jobs:
           CIRIS_BUILD_MLDSA_SECRET: ${{ secrets.CIRIS_BUILD_MLDSA_SECRET }}
           REGISTRY_ADMIN_TOKEN: ${{ secrets.REGISTRY_ADMIN_TOKEN }}
           REGISTRY_URL: ${{ vars.REGISTRY_URL }}
-          IMAGE_TAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # Use the first tag emitted by metadata-action (already
+          # lowercase-normalized by docker/metadata-action). Avoids the
+          # "repository name must be lowercase" error from constructing
+          # tags out of ${{ github.repository }} which retains case.
+          META_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
 
@@ -137,9 +140,13 @@ jobs:
             exit 1
           fi
 
-          # Extract the registry binary from the just-built image. With
-          # `load: true` on build-push-action, the image is in the local
-          # daemon under the SHA tag.
+          # Pick one of the metadata-action tags (use the first, which is
+          # the branch tag — guaranteed to exist post-push). Pull it down
+          # so we can extract the binary.
+          IMAGE_TAG=$(echo "$META_TAGS" | head -n1)
+          echo "Pulling image: $IMAGE_TAG"
+          docker pull "$IMAGE_TAG"
+
           CONTAINER_ID=$(docker create "$IMAGE_TAG")
           docker cp "$CONTAINER_ID":/app/ciris-registry /tmp/ciris-registry
           docker rm "$CONTAINER_ID" >/dev/null
