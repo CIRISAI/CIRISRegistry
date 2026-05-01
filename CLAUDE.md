@@ -469,7 +469,19 @@ grpcurl -plaintext -d '{
 
 ### Database Migration Notes
 
-Any future `TEXT[]` or `BYTEA[]` column added via migration MUST use `Option<Vec<T>>` in the Rust struct, or add `DEFAULT '{}'` in the migration SQL. This avoids decode failures on pre-existing rows.
+**Idempotency requirement (Spock multi-master)**: All schema-changing migrations MUST be idempotent — re-applying must yield identical state. The registry runs in a Spock multi-master cluster (US ↔ EU) where each node executes its own migrations independently (we exclude `_sqlx_migrations` from replication at boot in `db/mod.rs::exclude_sqlx_migrations_from_spock_replication`). A non-idempotent migration that crashes mid-flight cannot be retried.
+
+Required patterns:
+- `CREATE TABLE IF NOT EXISTS ...` for tables.
+- `ADD COLUMN IF NOT EXISTS ...` for columns.
+- `CREATE INDEX IF NOT EXISTS ...` for indexes.
+- `DROP ... IF EXISTS` for removals.
+- For constraint changes: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '...') THEN ALTER TABLE ... ADD CONSTRAINT ... END IF; END $$;` (see `migrations/021_project_namespace.sql` for the canonical example).
+- Naturally idempotent statements (`ALTER ... SET DEFAULT`, `UPDATE ... WHERE`) are acceptable.
+
+**Do NOT use `spock.replicate_ddl_command(...)`**: multi-master DDL is handled by per-node sqlx execution after `_sqlx_migrations` is excluded from replication. Wrapping DDL in Spock calls would error in single-node dev where Spock isn't loaded.
+
+**Array columns**: Any `TEXT[]` or `BYTEA[]` column added via migration MUST use `Option<Vec<T>>` in the Rust struct, or add `DEFAULT '{}'` in the migration SQL. This avoids decode failures on pre-existing rows.
 
 ## Related Projects
 

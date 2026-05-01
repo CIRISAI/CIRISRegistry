@@ -70,14 +70,73 @@ impl Database {
         })
     }
 
-    /// Run database migrations
+    /// Run database migrations.
+    ///
+    /// In a Spock multi-master cluster (current production: registry-us ↔
+    /// registry-eu), `_sqlx_migrations` would otherwise be replicated as DML,
+    /// causing peer nodes to see migrations as already-applied and skip the
+    /// DDL on their own postgres. We exclude `_sqlx_migrations` from
+    /// replication BEFORE running migrations so each node authoritatively
+    /// tracks what it locally executed. Single-node and non-Spock deployments
+    /// are unaffected.
+    ///
+    /// Migrations themselves must be idempotent — see CLAUDE.md "Database
+    /// Migration Notes". This is the in-repo half of CIRISRegistry#2.
     pub async fn migrate(&self) -> Result<()> {
+        self.exclude_sqlx_migrations_from_spock_replication().await?;
+
         sqlx::migrate!("./migrations")
             .run(self.pool.as_ref())
             .await
             .map_err(|e| crate::error::RegistryError::Database(e.into()))?;
 
         info!("Database migrations completed successfully");
+        Ok(())
+    }
+
+    /// If Spock is loaded, remove `public._sqlx_migrations` from the default
+    /// replication set so multi-master nodes each track their own migration
+    /// history. No-op when Spock isn't present (single-node dev / staging).
+    async fn exclude_sqlx_migrations_from_spock_replication(&self) -> Result<()> {
+        let spock_loaded: (bool,) = sqlx::query_as(
+            "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'spock')",
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+        .map_err(|e| crate::error::RegistryError::Database(e.into()))?;
+
+        if !spock_loaded.0 {
+            return Ok(());
+        }
+
+        // Spock is present. Try to remove _sqlx_migrations from the default
+        // repset. If it's already not in any repset (fresh node, or already
+        // reconciled by the bridge ansible task), the call returns an error
+        // we treat as benign.
+        match sqlx::query("SELECT spock.repset_remove_table('default', 'public._sqlx_migrations')")
+            .execute(self.pool.as_ref())
+            .await
+        {
+            Ok(_) => {
+                info!(
+                    "Spock detected: removed public._sqlx_migrations from default \
+                     replication set so each node tracks its own migration history."
+                );
+            }
+            Err(e) => {
+                // Spock raises an error if the table isn't a member of the repset.
+                // That's the desired end-state, so log and continue.
+                let msg = e.to_string();
+                if msg.contains("not a member") || msg.contains("does not exist") {
+                    info!(
+                        "Spock detected: public._sqlx_migrations already excluded from \
+                         default replication set (not a member)."
+                    );
+                } else {
+                    return Err(crate::error::RegistryError::Database(e.into()));
+                }
+            }
+        }
         Ok(())
     }
 

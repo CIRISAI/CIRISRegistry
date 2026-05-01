@@ -1226,37 +1226,40 @@ fleet returns 500s on the affected endpoints.
 Single-node deployments and single-master replicas (where DDL
 propagates via base-table replication) are unaffected.
 
-**Mitigation (bridge-side, deployed 2026-05-01)**: ansible role
-update mirrors the CIRISBilling fix for the same class of bug with
-alembic:
-- Manually applied migration 021 on EU (`psql -f` against the
-  container's migration file).
-- Removed `_sqlx_migrations` from Spock's default repset on both
-  nodes: `SELECT spock.repset_remove_table('default',
-  'public._sqlx_migrations')`.
-- Per-node reconcile task in `roles/registry/tasks/main.yml` keeps
-  `_sqlx_migrations` out of the repset after every deploy and adds
-  any new public tables created by a migration to the default repset
-  (so subsequent INSERTs replicate as intended).
+**Mitigation in v1.3 (in-repo, shipped)**: `Database::migrate`
+(`db/mod.rs`) now calls `exclude_sqlx_migrations_from_spock_replication`
+*before* running `sqlx::migrate!`. The helper:
+- Detects Spock via `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE
+  extname = 'spock')`. No-op when absent (single-node dev / staging /
+  test).
+- Calls `SELECT spock.repset_remove_table('default',
+  'public._sqlx_migrations')` to make the bookkeeping table node-local.
+- Treats "not a member" errors as benign (the desired end-state).
 
-This is a last-line invariant guard, not the primary fix.
+Each node's migration runner authoritatively tracks what it locally
+executed. The bridge ansible reconcile task is now redundant for
+new deployments (it remains as defense-in-depth for the original
+production cutover).
 
-**Tracked for in-repo fix at [CIRISRegistry#2](https://github.com/CIRISAI/CIRISRegistry/issues/2)**.
-Three options:
-- (A) Wrap each schema-changing migration's DDL in
-  `spock.replicate_ddl_command($$ ... $$)` — DDL flows through Spock's
-  ddl_sql replication set, peers see ALTER apply over the wire instead
-  of skipping based on stale bookkeeping.
-- (B) Exclude `_sqlx_migrations` from replication and run migrations on
-  every node. Migrations must be idempotent (`IF NOT EXISTS` /
-  `IF EXISTS` guards, which migration 021 already does).
-- (C) Combine: document the idempotency convention + auto-detect Spock
-  in the migration runner.
+**Convention enforced via `CLAUDE.md` "Database Migration Notes"**:
+all schema-changing migrations must be idempotent (`IF NOT EXISTS` /
+`IF EXISTS` / `DO $$ ... $$` constraint guards). Migration
+`021_project_namespace.sql` is the canonical example. `spock.replicate_ddl_command`
+is explicitly disallowed — single-node dev would error.
 
-**Residual**: until the in-repo fix lands, multi-master deployments
-depend on the bridge ansible reconcile task. New deployments that
-don't go through the bridge are exposed. Single-region or single-
-master deployments unaffected.
+**Original bridge-side mitigation (2026-05-01)** remains documented
+for historical context: ansible role removed `_sqlx_migrations` from
+Spock's default repset on both nodes and added a per-deploy reconcile
+task. With the in-repo fix, the reconcile task becomes belt-and-
+suspenders.
+
+**Residual**: existing migrations 001 and 020 contain bare `CREATE
+INDEX` statements (without `IF NOT EXISTS`). They are first-run-only
+in practice (every deployment that has migration 020 applied has
+already passed both successfully); the convention applies forward
+to new migrations. A mid-flight crash on migration 022+ that fails
+the second attempt would still surface as a deploy error rather than
+silent desync.
 
 #### AV-32: Race in self-custody key activation
 
@@ -1318,15 +1321,15 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-26 | ML-DSA-65 missing on uploaded manifests | Server-side hybrid re-sign by registry | (uploader signature not verified) | ⚠ Partial | v1.2.x: align with CIRISVerify v1.8 (in progress) |
 | AV-27 | Vault-mode signing produces unverifiable sigs | (deleted — vault mode no longer exists) | ciris-crypto migration | ✓ Closed by deletion v1.2 (commit 70f737d) | — |
 | AV-28 | Ephemeral signing keys in production | `tracing::warn!` at boot; storage_mode=memory enum gone | Bridge ansible deployed persistent seeds 2026-05-01 evening (US + EU) | ⚠ Operationally mitigated; in-app hard-fail tracked | v1.3.x: hard-fail in production when paths unset |
-| AV-33 | Spock multi-master migration desync | Bridge ansible removes `_sqlx_migrations` from repset; per-deploy reconcile task | Migration idempotency convention (`IF NOT EXISTS`) | ⚠ Operationally mitigated; in-repo fix tracked | [Registry#2](https://github.com/CIRISAI/CIRISRegistry/issues/2): wrap DDL in `spock.replicate_ddl_command` or exclude bookkeeping from replication at the runner |
+| AV-33 | Spock multi-master migration desync | `db/mod.rs::exclude_sqlx_migrations_from_spock_replication` runs at boot before `sqlx::migrate!` | Bridge ansible reconcile task as defense-in-depth | ✓ Mitigated v1.3 (in-repo fix shipped, closes Registry#2) | — |
 | AV-29 | Plaintext PG connection in production | `tracing::warn!` only | Default `sslmode=require` | ⚠ Warning-only | v1.2.x: hard-fail |
 | AV-30 | Unrotated REGISTRY_ADMIN_TOKEN | (none — couples to AV-13) | Operational rotation cadence | ⚠ Couples to AV-13 | (closes with AV-13) |
 | AV-31 | gRPC reflection in production | (none — enabled unconditionally) | Proto is public anyway | ⚠ Low impact | v1.2.x: env-gate |
 | AV-32 | Self-custody activation race | Activation challenge per-key + signature against registered pubkey | Single-use atomic consume | ✓ Mitigated | — |
 
 **Posture summary at a glance**:
-- ✓ Mitigated: 10 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-16, AV-19, AV-22, AV-27 (closed by deletion, v1.2), AV-32
-- ⚠ Operationally mitigated; in-app fix tracked: AV-28 (persistent keys deployed 2026-05-01), AV-33 (Spock migration desync, bridge reconcile task)
+- ✓ Mitigated: 11 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-16, AV-19, AV-22, AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3)
+- ⚠ Operationally mitigated; in-app fix tracked: AV-28 (persistent keys deployed 2026-05-01)
 - ⚠ Gap requiring v1.3: AV-15 (cross-org access), AV-9 (gRPC rate limiting)
 - ⚠ **CRITICAL bugs**: 0 (AV-27 closed in v1.2)
 - ⚠ Architectural deferrals: AV-12 / AV-13 / AV-14 / AV-30 (auth model rework), AV-18 / AV-25 (HSM + audit chain), AV-26 (CIRISVerify v1.8 inbound validation, in progress)
@@ -1525,7 +1528,7 @@ baseline.
 v1.2 BASELINE THREAT POSTURE
   (shipped 2026-05-01: ciris-crypto v1.8.0 alignment + project namespace)
 
-  ✓ MITIGATED (10)
+  ✓ MITIGATED (11)
     AV-1   project≠ciris-agent acceptance (commit 254a89e — closes GH #1)
     AV-2   self-custody challenge replay (single-use atomic consume)
     AV-3   cross-org pubkey reuse (public_key_hash UNIQUE — migration 020)
@@ -1536,6 +1539,8 @@ v1.2 BASELINE THREAT POSTURE
     AV-22  custodied private key in logs (no log/DB write paths)
     AV-27  vault-mode dummy-key bug (commit 70f737d — closed by deletion)
     AV-32  self-custody activation race (per-key challenge + sig verify)
+    AV-33  Spock multi-master migration desync (v1.3 — db/mod.rs Spock
+           detection at boot; closes Registry#2)
 
   ⚠ CRITICAL — REQUIRES v1.2.x HOTFIX (0)
     None outstanding. AV-27 closed in v1.2.
@@ -1544,13 +1549,10 @@ v1.2 BASELINE THREAT POSTURE
     AV-9   gRPC RegistryService unauthenticated rate-limit gap
     AV-15  PortalService cross-org access (handlers trust req.org_id)
 
-  ⚠ OPERATIONALLY MITIGATED; IN-APP / IN-REPO FIX TRACKED (2)
+  ⚠ OPERATIONALLY MITIGATED; IN-APP FIX TRACKED (1)
     AV-28  ephemeral signing keys in production — bridge ansible
            deployed persistent seeds 2026-05-01 evening (US + EU);
            in-app boot hard-fail still tracked for v1.3.x
-    AV-33  Spock multi-master migration desync — bridge ansible
-           reconcile task removes _sqlx_migrations from repset;
-           in-repo fix tracked at CIRISRegistry#2
 
   ⚠ ARCHITECTURAL DEFERRALS — v1.3.x ROADMAP (7)
     AV-12  HS256 → asymmetric JWT (EdDSA / RS256 + JWKS)
@@ -1583,12 +1585,11 @@ v1.2 BASELINE THREAT POSTURE
     [run `cargo audit` and record result here per release]
 ```
 
-The v1.2 baseline closes the v1.1 critical (AV-27) and the in-flight
-project namespace gap (AV-1) by deletion / shipping. **Two
-high-priority in-app gaps remain for v1.3**: AV-9 (gRPC rate limiting)
-and AV-15 (cross-org access). Two operationally-discovered vectors
-(AV-28 ephemeral keys, AV-33 Spock migration desync) are mitigated at
-the bridge ansible layer with in-app / in-repo follow-up tracked.
+The v1.2 baseline closed the v1.1 critical (AV-27) and the in-flight
+project namespace gap (AV-1) by deletion / shipping. The v1.3 Phase 1
+shipping closes AV-33 in-repo (Spock multi-master migration desync).
+**Two high-priority in-app gaps remain for v1.3**: AV-9 (gRPC rate
+limiting) and AV-15 (cross-org access).
 
 The rate-limit gap (AV-9) and the cross-org access gap (AV-15) together
 mean the deployment posture still assumes either single-tenant
@@ -1597,15 +1598,12 @@ should not deploy without compensating controls at the deployment edge
 (per-IP rate limiting, JWT issuance restricted to scoped per-org
 identities).
 
-The two operational vectors are mitigated for the production fleet but
-exposed to fresh deployments that don't go through the bridge runbook:
+One operational vector remains exposed to fresh deployments that don't
+go through the bridge runbook:
 - AV-28: persistent steward seeds are loaded via `ED25519_KEY_PATH` and
   `MLDSA_KEY_PATH`; ansible role's `runbooks/registry-keys-init.yml`
   generates and mirrors them across regions. In-app boot hard-fail
   still tracked for v1.3.x.
-- AV-33: Spock multi-master DDL replication is handled by the bridge's
-  per-deploy reconcile task. In-repo fix tracked at
-  [CIRISRegistry#2](https://github.com/CIRISAI/CIRISRegistry/issues/2).
 
 ---
 
@@ -1618,7 +1616,8 @@ This document is updated:
 - On every signing-key rotation or HSM/Vault config change: §5 / §6 review.
 - On every protocol-version bump: §3.4 schema-mismatch review.
 
-Last updated: 2026-05-01 (v1.2 — AV-1 and AV-27 mitigated via
-ciris-crypto v1.8.0 migration + project namespace shipping; AV-28 and
-AV-33 added with operational mitigations from same-day production
-hardening; bridge runbook + Spock reconcile task documented).
+Last updated: 2026-05-01 (v1.3 Phase 1 — AV-33 closed in-repo via
+`db/mod.rs::exclude_sqlx_migrations_from_spock_replication`; idempotency
+convention formalized in CLAUDE.md. v1.2 prior changes: AV-1 and AV-27
+mitigated via ciris-crypto v1.8.0 migration + project namespace; AV-28
+operationally mitigated via bridge ansible deployment).
