@@ -1337,7 +1337,7 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-12 | JWT forgery via leaked HS256 secret | Validation only; symmetric key | (no asymmetric option) | ⚠ Architectural | v1.2.x: EdDSA/RS256 + JWKS |
 | AV-13 | REGISTRY_ADMIN_TOKEN extraction | Bearer check; static env var | (no rotation, no scope, no audit identity) | ⚠ Architectural | v1.2.x: scoped JWT |
 | AV-14 | JWT role escalation | HMAC-signed claims (couples to AV-12) | Single binary admin flag | ⚠ Couples to AV-12 | v1.2.x: scoped sub-roles |
-| AV-15 | PortalService cross-org access | **None** — handlers trust `req.org_id`, ignore JWT claims | (auth middleware only validates JWT, not org binding) | ⚠ **Gap (high)** | **v1.2 REQUIRED** |
+| AV-15 | PortalService cross-org access | Per-handler `claims_from_request` + `authorize_org_access(db, claims, target_org_id, required_role)` preamble — applied to all ~30 PortalService methods that take `org_id`. SYSTEM_ADMIN bypass for cross-org by-design ops. Membership lookup via `db::get_user_role_in_org`. Audit-log denial via `AUDIT_ACCESS_DENIED`. | W3 inner-proto vigilance: handlers using `org.org_id` / `user.org_id` / `sign_request.org_id` authz against the same field used for the DB write. Batch RPCs reject mismatched per-record org_id with `invalid_argument` (fail-secure for whole batch). | ✓ Mitigated v1.3 (Phase 4) | Integration tests for cross-org denial — track follow-up |
 | AV-16 | Public-key cross-path re-registration | `public_key_hash UNIQUE` constraint enforces across paths | Pre-check in `register_public_key` | ✓ Mitigated | — |
 | AV-17 | Schema-version mismatch on uploaded manifest | (none — accepts any string) | CIRISVerify-side validates downstream | ⚠ Weak | v1.2.x: SUPPORTED_VERSIONS allowlist |
 | AV-18 | Audit-log tampering via DB access | Out of scope (PG trusted) | (no append-only enforcement) | ⚠ Architectural | v1.3.x: hash chain + Rekor mirror |
@@ -1358,9 +1358,9 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-32 | Self-custody activation race | Activation challenge per-key + signature against registered pubkey | Single-use atomic consume | ✓ Mitigated | — |
 
 **Posture summary at a glance**:
-- ✓ Mitigated: 13 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-9 (rate limit, v1.3 Phase 2), AV-16, AV-19, AV-22, AV-26 (BuildManifest verify, v1.3 Phase A), AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3 Phase 1)
+- ✓ Mitigated: 14 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-9 (rate limit, v1.3 Phase 2), AV-15 (cross-org access, v1.3 Phase 4), AV-16, AV-19, AV-22, AV-26 (BuildManifest verify, v1.3 Phase A), AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3 Phase 1)
 - ⚠ Operationally mitigated; in-app fix tracked: AV-28 (persistent keys deployed 2026-05-01)
-- ⚠ Gap requiring v1.3: AV-15 (cross-org access)
+- ⚠ Gap requiring v1.3: (none — all in-app gaps closed)
 - ⚠ **CRITICAL bugs**: 0 (AV-27 closed in v1.2)
 - ⚠ Architectural deferrals: AV-12 / AV-13 / AV-14 / AV-30 (auth model rework), AV-18 / AV-25 (HSM + audit chain)
 - ⚠ Lower-priority hardening: AV-4, AV-5, AV-6, AV-10, AV-11, AV-17, AV-20, AV-23, AV-24, AV-29, AV-31
@@ -1558,7 +1558,7 @@ baseline.
 v1.2 BASELINE THREAT POSTURE
   (shipped 2026-05-01: ciris-crypto v1.8.0 alignment + project namespace)
 
-  ✓ MITIGATED (13)
+  ✓ MITIGATED (14)
     AV-1   project≠ciris-agent acceptance (commit 254a89e — closes GH #1)
     AV-2   self-custody challenge replay (single-use atomic consume)
     AV-3   cross-org pubkey reuse (public_key_hash UNIQUE — migration 020)
@@ -1567,6 +1567,9 @@ v1.2 BASELINE THREAT POSTURE
     AV-9   gRPC + HTTP unauthenticated rate-limit gap (v1.3 Phase 2 —
            middleware/rate_limit.rs tower Layer + axum from_fn; tier
            mapping per classify_tier; 60s cleanup ticker)
+    AV-15  PortalService cross-org access (v1.3 Phase 4 — claims_from_request
+           + authorize_org_access on ~30 handlers; W3 inner-proto vigilance;
+           batch RPCs reject mismatched per-record org_id)
     AV-16  cross-path pubkey poisoning (UNIQUE constraint table-wide)
     AV-19  multi-replica migration race (sqlx pg_advisory_lock)
     AV-22  custodied private key in logs (no log/DB write paths)
@@ -1581,8 +1584,8 @@ v1.2 BASELINE THREAT POSTURE
   ⚠ CRITICAL — REQUIRES v1.2.x HOTFIX (0)
     None outstanding. AV-27 closed in v1.2.
 
-  ⚠ HIGH-PRIORITY GAP — REQUIRED FOR v1.3 (1)
-    AV-15  PortalService cross-org access (handlers trust req.org_id)
+  ⚠ HIGH-PRIORITY GAP — REQUIRED FOR v1.3 (0)
+    None outstanding. AV-15 closed in v1.3 Phase 4.
 
   ⚠ OPERATIONALLY MITIGATED; IN-APP FIX TRACKED (1)
     AV-28  ephemeral signing keys in production — bridge ansible

@@ -9,6 +9,9 @@ use tracing::info;
 use crate::config::Environment;
 use crate::crypto::HybridCrypto;
 use crate::db::{self, Database};
+use crate::middleware::authz::{
+    authorize_org_access, authorize_system_admin, claims_from_request, OrgRole,
+};
 use crate::proto::portal_service_server::PortalService as PortalServiceTrait;
 use crate::proto::{
     AuditActionType, AuditEntry, AuditExportFormat, KeyCustodyModel, KeyRotationMode, KeyStatus,
@@ -189,8 +192,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetOrganizationRequest>,
     ) -> Result<Response<GetOrganizationResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::Viewer).await?;
 
         let org = db::get_organization(self.db.pool(), &req.org_id)
             .await
@@ -209,12 +215,16 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<UpdateOrganizationRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
         let org = req
             .organization
             .ok_or_else(|| Status::invalid_argument("organization required"))?;
+
+        // W3: authz against the inner-proto org.org_id (the field used by the DB write).
+        authorize_org_access(self.db.pool(), &claims, &org.org_id, OrgRole::OrgAdmin).await?;
 
         info!(org_id = %org.org_id, "Updating organization");
 
@@ -355,12 +365,16 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<CreateOrgUserRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
         let user = req
             .user
             .ok_or_else(|| Status::invalid_argument("user required"))?;
+
+        // W3: authz against the inner-proto user.org_id (the field used by the DB write).
+        authorize_org_access(self.db.pool(), &claims, &user.org_id, OrgRole::OrgAdmin).await?;
 
         info!(email = %user.email, org_id = %user.org_id, "Creating user");
 
@@ -397,12 +411,23 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetOrgUserRequest>,
     ) -> Result<Response<GetOrgUserResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
         let user = db::get_user(self.db.pool(), &req.user_id)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Authz: derive target org from the user record itself. Self-lookup
+        // (claims.sub == req.user_id) is allowed regardless of org membership;
+        // otherwise the caller must have at least Viewer access in the
+        // target user's org.
+        if let Some(ref u) = user {
+            if claims.sub != req.user_id {
+                authorize_org_access(self.db.pool(), &claims, &u.org_id, OrgRole::Viewer).await?;
+            }
+        }
 
         let found = user.is_some();
         Ok(Response::new(GetOrgUserResponse {
@@ -417,8 +442,18 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetOrgUserByEmailRequest>,
     ) -> Result<Response<GetOrgUserResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // Authz against req.org_id when provided. Empty org_id (legacy
+        // backward-compat path) requires SYSTEM_ADMIN since it can return
+        // any user across orgs.
+        if req.org_id.is_empty() {
+            authorize_system_admin(self.db.pool(), &claims).await?;
+        } else {
+            authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::Viewer).await?;
+        }
 
         // Use org-specific lookup to avoid returning wrong org's user
         let user = if req.org_id.is_empty() {
@@ -443,12 +478,16 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<UpdateOrgUserRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
         let user = req
             .user
             .ok_or_else(|| Status::invalid_argument("user required"))?;
+
+        // W3: authz against the inner-proto user.org_id (the field used by the DB write).
+        authorize_org_access(self.db.pool(), &claims, &user.org_id, OrgRole::OrgAdmin).await?;
 
         info!(user_id = %user.user_id, "Updating user");
 
@@ -494,8 +533,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListOrgUsersRequest>,
     ) -> Result<Response<ListOrgUsersResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::Viewer).await?;
 
         let page_size = if req.page_size == 0 {
             50
@@ -533,11 +575,27 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<BatchCreateOrgUsersRequest>,
     ) -> Result<Response<BatchCreateOrgUsersResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
         if req.users.len() > 100 {
             return Err(Status::invalid_argument("Maximum batch size is 100"));
+        }
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
+
+        // Cascading authz: reject any per-user record whose explicit org_id
+        // doesn't match the batch-level org_id. Empty per-user org_id is
+        // allowed (filled in below); a non-empty mismatched value is a
+        // fail-secure rejection of the whole batch.
+        for (idx, u) in req.users.iter().enumerate() {
+            if !u.org_id.is_empty() && u.org_id != req.org_id {
+                return Err(Status::invalid_argument(format!(
+                    "user[{}] org_id={:?} does not match batch org_id={:?}",
+                    idx, u.org_id, req.org_id
+                )));
+            }
         }
 
         info!(org_id = %req.org_id, count = req.users.len(), "Batch creating users");
@@ -597,8 +655,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GenerateKeyPairRequest>,
     ) -> Result<Response<GenerateKeyPairResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::KeyManager).await?;
 
         info!(org_id = %req.org_id, "Generating key pair");
 
@@ -682,8 +743,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListKeysRequest>,
     ) -> Result<Response<ListKeysResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::Viewer).await?;
 
         let keys = db::list_keys(self.db.pool(), &req.org_id, req.include_revoked)
             .await
@@ -701,15 +765,20 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ActivateKeyRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
         info!(key_id = %req.key_id, "Activating key");
 
-        // Fetch the key to get org_id for audit logging
+        // Fetch the key first to derive its org for authz (no org_id in
+        // the request body — it must be inferred from the key record).
         let key = db::get_key(self.db.pool(), &req.key_id)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
+        if let Some(ref k) = key {
+            authorize_org_access(self.db.pool(), &claims, &k.org_id, OrgRole::KeyManager).await?;
+        }
 
         let activated = db::activate_key(self.db.pool(), &req.key_id)
             .await
@@ -755,8 +824,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<RotateKeyRequest>,
     ) -> Result<Response<RotateKeyResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::KeyManager).await?;
 
         info!(org_id = %req.org_id, mode = ?req.mode, "Rotating key");
 
@@ -852,8 +924,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<RevokeKeyRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::KeyManager).await?;
 
         info!(key_id = %req.key_id, org_id = %req.org_id, "Revoking key");
 
@@ -923,8 +998,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<RequestKeyEscrowRequest>,
     ) -> Result<Response<RequestKeyEscrowResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
 
         info!(key_id = %req.key_id, org_id = %req.org_id, "Requesting key escrow");
 
@@ -967,8 +1045,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<RequestKeyRecoveryRequest>,
     ) -> Result<Response<RequestKeyRecoveryResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
 
         info!(escrow_id = %req.escrow_id, org_id = %req.org_id, "Requesting key recovery");
 
@@ -1008,8 +1089,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListKeyEscrowsRequest>,
     ) -> Result<Response<ListKeyEscrowsResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::Viewer).await?;
 
         let escrows = db::list_escrows(self.db.pool(), &req.org_id)
             .await
@@ -1025,12 +1109,18 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<RequestSignatureRequest>,
     ) -> Result<Response<RequestSignatureResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
         let sign_request = req
             .sign_request
             .ok_or_else(|| Status::invalid_argument("sign_request required"))?;
+
+        // W3: authz against the inner-proto sign_request.org_id (the field used
+        // for the active-key lookup).
+        authorize_org_access(self.db.pool(), &claims, &sign_request.org_id, OrgRole::Operator)
+            .await?;
 
         // Get active key for org
         let key = db::get_active_key(self.db.pool(), &sign_request.org_id)
@@ -1065,8 +1155,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetAuditLogRequest>,
     ) -> Result<Response<GetAuditLogResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::Viewer).await?;
 
         let page_size = if req.page_size == 0 {
             50
@@ -1108,8 +1201,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ExportAuditLogRequest>,
     ) -> Result<Response<ExportAuditLogResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
 
         info!(org_id = %req.org_id, format = ?req.format, "Exporting audit log");
 
@@ -1246,8 +1342,18 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<CreateAuditEntryRequest>,
     ) -> Result<Response<CreateAuditEntryResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // Authz against the actor org being recorded (or system-admin
+        // override for cross-org Portal operations).
+        if !req.actor_org_id.is_empty() {
+            authorize_org_access(self.db.pool(), &claims, &req.actor_org_id, OrgRole::Operator)
+                .await?;
+        } else {
+            authorize_system_admin(self.db.pool(), &claims).await?;
+        }
 
         info!(
             action = ?req.action,
@@ -1315,8 +1421,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GenerateComplianceReportRequest>,
     ) -> Result<Response<ComplianceReport>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
 
         info!(org_id = %req.org_id, framework = ?req.framework, "Generating compliance report");
 
@@ -1518,8 +1627,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<CreateUserWithMembershipRequest>,
     ) -> Result<Response<CreateUserWithMembershipResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
 
         let user = req
             .user
@@ -1640,8 +1752,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<AddUserToOrgRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
 
         info!(user_id = %req.user_id, org_id = %req.org_id, role = req.role, "Adding user to org");
 
@@ -1670,8 +1785,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<RemoveUserFromOrgRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
 
         info!(user_id = %req.user_id, org_id = %req.org_id, "Removing user from org");
 
@@ -1698,8 +1816,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<UpdateUserOrgRoleRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::OrgAdmin).await?;
 
         info!(user_id = %req.user_id, org_id = %req.org_id, new_role = req.new_role, "Updating user org role");
 
@@ -1727,8 +1848,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListOrgMembersRequest>,
     ) -> Result<Response<ListOrgMembersResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::Viewer).await?;
 
         let page_size = if req.page_size == 0 {
             50
@@ -2226,8 +2350,12 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListChildOrganizationsRequest>,
     ) -> Result<Response<ListOrganizationsResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // Authz against parent_org_id — requires Viewer access to the parent.
+        authorize_org_access(self.db.pool(), &claims, &req.parent_org_id, OrgRole::Viewer).await?;
 
         let page_size = if req.page_size == 0 {
             50
@@ -2314,8 +2442,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetOrganizationHierarchyRequest>,
     ) -> Result<Response<GetOrganizationHierarchyResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::Viewer).await?;
 
         // Get the requested org
         let org = db::get_organization(self.db.pool(), &req.org_id)
@@ -2426,8 +2557,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetRegistrationChallengeRequest>,
     ) -> Result<Response<GetRegistrationChallengeResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::KeyManager).await?;
 
         info!(org_id = %req.org_id, "Generating registration challenge for self-custody key");
 
@@ -2468,8 +2602,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<RegisterPublicKeyRequest>,
     ) -> Result<Response<RegisterPublicKeyResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::KeyManager).await?;
 
         info!(org_id = %req.org_id, "Registering self-custody public key");
 
@@ -2609,8 +2746,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ActivateSelfCustodyKeyRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::KeyManager).await?;
 
         info!(key_id = %req.key_id, org_id = %req.org_id, "Activating self-custody key");
 
@@ -2712,8 +2852,11 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<RotateSelfCustodyKeyRequest>,
     ) -> Result<Response<RotateKeyResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        authorize_org_access(self.db.pool(), &claims, &req.org_id, OrgRole::KeyManager).await?;
 
         info!(org_id = %req.org_id, new_key_id = %req.new_key_id, "Rotating self-custody key");
 
