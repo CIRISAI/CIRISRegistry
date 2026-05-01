@@ -1251,9 +1251,20 @@ propagates via base-table replication) are unaffected.
 - Detects Spock via `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE
   extname = 'spock')`. No-op when absent (single-node dev / staging /
   test).
-- Calls `SELECT spock.repset_remove_table('default',
-  'public._sqlx_migrations')` to make the bookkeeping table node-local.
-- Treats "not a member" errors as benign (the desired end-state).
+- Wraps `SELECT spock.repset_remove_table('default',
+  'public._sqlx_migrations')` in a PL/pgSQL `DO $$ ... EXCEPTION WHEN
+  others ... $$` block. The second-and-subsequent boots (when the
+  table is already excluded) raise an error inside the Spock function
+  — the EXCEPTION handler catches it as a NOTICE and the DO block
+  returns success.
+
+**Hotfix history**: the v1.3 Phase 1 initial implementation matched
+on substrings of Spock's error message (`"not a member"`, `"does not
+exist"`); the actual wording differs in Spock 5.0.1, which caused
+production crash-loops on container restarts (observed evening
+2026-05-01 — three restart-induced crashes during the same session
+the fix shipped). Hotfix moved the exception handling into the SQL
+layer (DO block) so it's wording-independent.
 
 Each node's migration runner authoritatively tracks what it locally
 executed. The bridge ansible reconcile task is now redundant for
