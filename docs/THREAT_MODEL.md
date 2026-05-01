@@ -1,7 +1,8 @@
 # CIRISRegistry Threat Model
 
-**Status:** v1.2 baseline (FSD-001 v1.1.0; FSD-002 self-custody shipped 2026-04-30;
-project namespace + ciris-crypto v1.8.0 alignment shipped 2026-05-01).
+**Status:** v1.3 complete (FSD-001 v1.1.0; FSD-002 self-custody shipped 2026-04-30;
+project namespace + ciris-crypto v1.8.0 alignment + 7-phase hardening waterfall
+shipped 2026-05-01). All v1.3 high-priority in-app gaps closed.
 Updated each minor release.
 **Audience:** CIRISVerify integrators, CIRISPortal operators, federation peers, security reviewers.
 **Companion:** [`FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md`](../FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md), [`docs/MANIFEST_VALIDATION_API.md`](MANIFEST_VALIDATION_API.md), [`CLAUDE.md`](../CLAUDE.md).
@@ -1851,29 +1852,45 @@ This document is updated:
 - On every signing-key rotation or HSM/Vault config change: §5 / §6 review.
 - On every protocol-version bump: §3.4 schema-mismatch review.
 
-Last updated: 2026-05-01 (v1.3 complete — all high-priority in-app
-gaps closed.
+Last updated: 2026-05-01 (v1.3 hardening waterfall complete — all 7
+phases shipped; 15/32 vectors mitigated, 0 high-priority in-app gaps,
+0 critical bugs).
 
-- Phase 4 (`16deaa5`): AV-15 PortalService cross-org access closed
+Phase ledger:
+
+- Phase 1 (`afde1c6` + hotfix `6cf564f`): AV-33 — Spock multi-master
+  migration desync closed in-repo.
+- Phase 2 (`80adc79`): AV-9 — gRPC + HTTP rate limiting wired with
+  per-IP tier mapping.
+- Phase 3 (`0db3faa`): auth/policy module foundation
+  (`middleware/authz.rs`).
+- Phase A (`4adc224`): AV-26 — uploaded BuildManifest hybrid-sig
+  verification via `POST /v1/verify/build-manifest`.
+- Phase A.1 (`cd95a9f` / continuing): CI self-publication operational
+  on every push to main; recursive golden rule made executable.
+- Phase 4 (`16deaa5`): AV-15 — PortalService cross-org access closed
   via per-handler `claims_from_request` + `authorize_org_access`
-  preamble on ~30 handlers; W3 inner-proto vigilance applied; batch
-  RPCs reject mismatched per-record org_id.
-- Phase A.1 (`cd95a9f` / `16deaa5` continuing): CI self-publication
-  step operational on every push to main; recursive golden rule made
-  executable evidence — registry signs and uploads its own
-  BuildManifest, validates against its own POST endpoint via the same
-  trust chain federation peers use.
-- Phase A (`4adc224`): AV-26 mitigated; new endpoint
-  POST /v1/verify/build-manifest with hybrid-sig verification.
-- Phase 3 (`0db3faa`): auth/policy module foundation.
-- Phase 2 (`80adc79`): AV-9 closed.
-- Phase 1 (`afde1c6` + hotfix `6cf564f`): AV-33 closed in-repo.
-- v1.2 prior: AV-1 and AV-27 mitigated; AV-28 operationally mitigated
-  via bridge ansible.
+  preamble on ~30 handlers; W3 inner-proto vigilance; batch-RPC
+  cascading authz.
+- Phase 5 (`0226840`): AV-35 — audit-actor forgeability (W1) closed
+  by deriving actor from `claims.sub` instead of forgeable
+  request-body fields.
+- Phase 6 (`4ddb64d`): AV-14 W2 — SYSTEM_ADMIN gating on 13
+  PortalService god-mode methods.
+- Phase 7: handler-convention docs in CLAUDE.md + threat-model
+  finalization (this commit).
 
-New AV catalogued: AV-34 (build-signing key compromise) — surface
-introduced by self-publication, mitigated today via two-secret
-co-requirement, v1.4 hardenings tracked.
+New ledger entries from operational hardening:
+
+- AV-28 (ephemeral signing keys in production): operationally
+  mitigated via bridge ansible (`runbooks/registry-keys-init.yml`)
+  on 2026-05-01 evening; persistent steward seeds mounted in both
+  regions.
+- AV-34 (build-signing key compromise): surface introduced by
+  self-publication; mitigated today via two-secret co-requirement
+  defense-in-depth; v1.4 hardenings (cosign + GitHub OIDC chain +
+  multi-party signing + SLSA attestation) tracked.
 
 Verify-side trust contract documented at `docs/TRUST_CONTRACT.md`
-(closes CIRISRegistry#5 §1)).
+(closes CIRISRegistry#5 §1). Handler convention codified in
+`CLAUDE.md` (Phase 7).

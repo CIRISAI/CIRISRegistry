@@ -467,6 +467,81 @@ grpcurl -plaintext -d '{
 - Test capability intersection logic: `effective = agent ∩ partner.granted - partner.denied`
 - **Test Portal integration** - verify API endpoints work correctly with Portal
 
+### PortalService Handler Convention (v1.3 Phase 4-6)
+
+Every authenticated PortalService handler must follow this 4-step preamble before doing any work. The pattern was established by the v1.3 hardening waterfall (AV-15 Phase 4, AV-35 Phase 5, AV-14 W2 Phase 6) and is the floor of trust for the federation's per-tenant + per-actor guarantees.
+
+```rust
+async fn handler_name(
+    &self,
+    request: Request<XxxRequest>,
+) -> Result<Response<...>, Status> {
+    // 1. Extract claims BEFORE request.into_inner() (claims_from_request
+    //    needs &request, but into_inner() consumes the request).
+    let claims = claims_from_request(&request)?.clone();
+    let req = request.into_inner();
+    let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+    // 2. Authorize against the same field used for the DB write.
+    //    For inner-proto org_id (e.g., req.user.org_id, req.org.org_id,
+    //    req.sign_request.org_id), authz against the INNER value — not
+    //    a separate top-level req.org_id, which can be desynced from
+    //    the field that actually controls the write (W3 finding).
+    authorize_org_access(self.db.pool(), &claims, &req.<target_org_id>, OrgRole::<role>).await?;
+    // OR for cross-org god-mode operations:
+    // authorize_system_admin(self.db.pool(), &claims).await?;
+
+    // 3. Use claims.sub as the actor for any audit-log writes or
+    //    "set rotated_by / revoked_by / created_by" DB columns.
+    //    NEVER use req.requester_user_id or req.actor_user_id —
+    //    they're forgeable by any authenticated caller (W1 finding).
+    let _ = db::create_audit_entry(
+        self.db.pool(),
+        AuditActionType::AuditXxx,
+        Some(claims.sub.as_str()),  // ← actor from claims, not req
+        Some(&req.org_id),
+        ...
+    ).await;
+
+    // 4. The proto field req.requester_user_id (or req.actor_user_id)
+    //    is preserved on the wire for backwards compat but ignored on
+    //    the server side. Wire compat without trust compat.
+    Ok(Response::new(...))
+}
+```
+
+**Required-role mapping** (per-method, decided in Phase 4):
+
+| Operation type | OrgRole |
+|---|---|
+| Read (get/list) | `Viewer` (4) |
+| Sign / operate / log-on-behalf | `Operator` (3) |
+| Key management (generate/rotate/revoke/activate) | `KeyManager` (2) |
+| Org-admin actions (update org, manage users, escrow/recovery, compliance reports) | `OrgAdmin` (1) |
+| Cross-org god-mode (create_org, list_orgs, system-user ops, upgrade_to_partner) | `authorize_system_admin` |
+
+**Lower numeric value = higher privilege.** A caller with `OrgAdmin (1)` satisfies any `required_role >= 1`. SYSTEM_ADMIN bypass is built into `authorize_org_access` for cross-org-by-design operations.
+
+**Special cases**:
+
+- **Self-or-admin**: where the caller can act on their own user record (e.g., `link_user_o_auth` linking their own OAuth identity), check `claims.sub == req.user_id` OR `claims.role == ROLE_SYSTEM_ADMIN`. See `link_user_o_auth` for the canonical pattern.
+- **Inferred-org operations**: if the target org isn't in the request body (e.g., `activate_key` takes only `key_id`), look up the entity first to derive its org, then authz. See `activate_key` for the canonical pattern.
+- **Batch RPCs**: authorize once on the top-level `org_id`, then validate that any explicit per-record `org_id` matches the batch (fail-secure rejection of the whole batch on mismatch). See `batch_create_org_users` for the canonical pattern.
+- **`create_audit_entry`**: SYSTEM_ADMIN may supply any `actor_user_id` (Portal-mediated event logging). Non-admin callers must either omit `actor_user_id` (defaults to `claims.sub`) or supply the matching value — mismatch returns `PermissionDenied`.
+
+**Deliberately not auth-gated** (all in `RegistryService`, public read-only):
+
+- Health/probe/metrics, `LookupAgent`, `LookupPartner`, `GetRevocationList`, `GetPublicKeys`, `GetOfflinePackage`, `GetEmergencyStatus`, `VerifyDeployment`, `GetBuildAttestation`. These are public-by-design lookup paths.
+- All HTTP GET paths under `/v1/builds/`, `/v1/verify/*`, `/v1/revocation/*`, `/v1/steward-key`. Same.
+
+These remain rate-limited per Phase 2 but require no JWT.
+
+**See also**:
+- `middleware/authz.rs` — `claims_from_request`, `authorize_org_access`, `authorize_system_admin`, `OrgRole` enum.
+- `middleware/auth.rs` — `Claims` struct, JWT validation.
+- `migrations/002_role_hierarchy.sql:75` — canonical `OrgRole` numeric values.
+- `docs/THREAT_MODEL.md` AV-15, AV-35, AV-14 — threat model entries this convention closes.
+
 ### Database Migration Notes
 
 **Idempotency requirement (Spock multi-master)**: All schema-changing migrations MUST be idempotent — re-applying must yield identical state. The registry runs in a Spock multi-master cluster (US ↔ EU) where each node executes its own migrations independently (we exclude `_sqlx_migrations` from replication at boot in `db/mod.rs::exclude_sqlx_migrations_from_spock_replication`). A non-idempotent migration that crashes mid-flight cannot be retried.
