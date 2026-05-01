@@ -91,6 +91,9 @@ async fn main() -> Result<()> {
     info!("Starting gRPC server on {}", grpc_addr);
 
     let grpc_server = tonic::transport::Server::builder()
+        // Order matters: rate_limit FIRST so denied requests skip JWT decode +
+        // tracing + metrics overhead. Auth runs second.
+        .layer(middleware::rate_limit::RateLimitLayer::new())
         .layer(middleware::auth::AuthLayer::new(settings.auth.clone()))
         .layer(middleware::tracing::TracingLayer)
         .layer(middleware::metrics::MetricsLayer)
@@ -105,6 +108,22 @@ async fn main() -> Result<()> {
             portal_service,
         ))
         .serve_with_shutdown(grpc_addr, shutdown_signal());
+
+    // Background cleanup ticker for the rate-limit HashMaps. Without this,
+    // sustained high-cardinality traffic (botnets, IPv6 scans) lets the
+    // per-bucket maps grow to MAX_RATE_LIMIT_ENTRIES (10k each across three
+    // buckets) before the cap trips. The first request after the cap blocks
+    // on an O(N) sweep under the global mutex while every other request
+    // blocks. The 60s ticker keeps growth bounded and removes the latency
+    // cliff. AV-9 hardening.
+    let _cleanup_handle = tokio::spawn(async {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        interval.tick().await; // skip the immediate first tick
+        loop {
+            interval.tick().await;
+            crate::rate_limiter::cleanup_all();
+        }
+    });
 
     // Start HTTP gateway for health/metrics (optional)
     let http_handle = if settings.http_port > 0 {

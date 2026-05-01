@@ -437,36 +437,55 @@ Verified at `api/http.rs:949-996`.
 `GetPublicKeys`, `GetOfflinePackage`) — all unauthenticated by design —
 saturating the DB connection pool. Honest verifier traffic stalls.
 
-**Mitigation in v1.1**: **Partial / gap.** The `rate_limiter` module
-exists but is currently applied **only to HTTP `/v1/integrity/*`
-endpoints** (Play Integrity nonce/verify, iOS App Attest nonce/verify) —
-verified by `grep -n "check_rate" rust-registry/src/api/http.rs`. The
-gRPC `RegistryService` lookup RPCs have **no per-IP rate limiting**;
-they hit the DB on every call.
+**Mitigation in v1.3 (Phase 2 shipped)**:
+- New `middleware/rate_limit.rs` tower `Layer<S>` mirrors the
+  `AuthLayer` pattern. Wired in `main.rs` *before* `AuthLayer` so
+  denied requests skip JWT decode + tracing + metrics overhead.
+- Tier mapping (`classify_tier`):
+  - **Bypass**: `HealthCheck`, `GetCapabilities`, `GetMetrics`,
+    health/probe/metrics paths, gRPC reflection,
+    `RegistryAdminService` and `PortalService` (auth-gated upstream).
+  - **Public** (60/min, 600/hr per IP): single-row indexed lookups —
+    `LookupAgent`, `LookupPartner`, `GetEmergencyStatus`,
+    `GetPublicKeys`, `GetBuildAttestation`, `VerifyDeployment`,
+    `GetRevocationList` delta. Default for unknown gRPC paths.
+  - **Verify** (5/min, 50/hr per IP): DB-fanout-heavy —
+    `BatchLookupAgents` (max 100), `GetOfflinePackage`,
+    `GetOfflineDelta`.
+- HTTP unauthenticated public GETs (`/v1/steward-key`,
+  `/v1/revocation/{id}`, `/v1/verify/binary-manifest/{version}`,
+  `/v1/verify/function-manifest/{version}/{target}`,
+  `/v1/verify/function-manifests/{version}`, `/v1/builds/{version}`,
+  `/v1/builds/hash/{build_hash}`, `/v1/verify/key/{fingerprint}`)
+  are routed through a sub-router with `axum::middleware::from_fn(
+  rate_limit_public_http)` — same `Tier::Public` bucket as gRPC, so
+  an attacker can't multiply effective limits by switching protocols.
+- `extract_client_ip` lifted to `rate_limiter::extract_client_ip` and
+  reused by both gRPC interceptor and axum middleware. Honors
+  `cf-connecting-ip` (Cloudflare), `X-Forwarded-For` /
+  `X-Real-IP` only when the direct peer is from `TRUSTED_PROXY_RANGES`
+  (AV-8 mitigation preserved).
+- Background `tokio::interval(60s)` cleanup ticker calls
+  `rate_limiter::cleanup_all()` — closes the architectural smell that
+  per-bucket HashMaps would otherwise only sweep when exceeding the
+  10k-entry cap, blocking on an O(N) global-mutex sweep.
+- 8 new unit tests for rate_limiter (was zero) + 8 for the
+  classify_tier mapping. Production posture: 39/39 tests pass.
 
-The HTTP `/v1/builds/*`, `/v1/verify/*`, `/v1/revocation/*`,
-`/v1/steward-key`, `/v1/verify/key/{fp}` routes are also **not** rate-
-limited at the application layer.
+**Secondary**: deployment-edge rate limiting (nginx, Envoy) remains
+recommended as defense-in-depth. CIRISVerify multi-source consensus
+tolerates one source slow/unavailable.
 
-PostgreSQL connection pool size is configured via sqlx (default 10);
-exhaustion causes `Status::internal` responses. There is no circuit
-breaker.
-
-**Recommended for v1.2.x**:
-- Apply the public-tier rate limiter (60/min, 600/hour per IP) to the
-  unauthenticated gRPC RegistryService methods via a tonic interceptor.
-- Apply the same to the unauthenticated HTTP verify routes.
-- Add per-IP and per-`org_id` (when JWT present) bucket tracking.
-- Wire pool-exhaustion → fail-fast `RESOURCE_EXHAUSTED` with `Retry-After`
-  hint instead of silent stall.
-
-**Secondary**: deployment-edge rate limiting (nginx, Envoy) is the
-typical mitigation today. CIRISVerify multi-source consensus tolerates
-one source slow / unavailable — partial degradation in flood mitigates
-verifier impact.
-
-**Residual**: until the gap is closed, an unauthenticated attacker can
-flood the DB. High priority for v1.2.x.
+**Residual**:
+- In-memory globals are per-process, so an N-replica deployment yields
+  N× the effective limit per IP. Acceptable today (registry runs
+  single-instance per region in production); track distributed
+  rate-limiting (Redis-backed `RateLimitStore` trait) for v1.3.x.
+- Per-IP bucket only — no per-`org_id` tracking when JWT present.
+  Track for v1.3.x.
+- PostgreSQL pool-exhaustion circuit breaker: silent stall when pool
+  saturated under sustained legitimate load. Separate concern from
+  AV-9; track as v1.3.x.
 
 #### AV-10: Emergency-shutdown abuse (admin-level DoS)
 
@@ -1301,7 +1320,7 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-6 | Function manifest substitution by token holder | REGISTRY_ADMIN_TOKEN gate + server-side signing | (ON CONFLICT DO UPDATE allows overwrite) | ⚠ Couples to AV-13 | v1.2.x scoped JWT |
 | AV-7 | HTTP body-size flood | `RequestBodyLimitLayer(1 MiB)` global | Per-RPC list caps (Batch* limits) | ✓ Mitigated | — |
 | AV-8 | Rate-limiter X-Forwarded-For spoofing | `is_trusted_proxy` CIDR allowlist | Direct peer IP fallback | ✓ Mitigated | v1.2.x: loud-fail misconfig |
-| AV-9 | Mass-query DB pool saturation | Rate limiter exists; **NOT applied to gRPC RegistryService** | Deployment-edge rate limit | ⚠ **Gap** | **v1.2.x P0** |
+| AV-9 | Mass-query DB pool saturation | `middleware/rate_limit.rs` tower Layer applied to gRPC stack; axum public GETs wrapped via `from_fn(rate_limit_public_http)`; 60s cleanup ticker prevents unbounded HashMap growth | Tier mapping (Bypass/Public 60-min/Verify 5-min) per `classify_tier`; deployment-edge rate limit as defense-in-depth | ✓ Mitigated v1.3 (Phase 2) | Per-RPC pool-exhaustion circuit breaker — separate concern, track for v1.3.x |
 | AV-10 | Emergency-shutdown abuse | Admin role gate + audit log | (single-actor) | ⚠ Single-actor | v1.2.x: M-of-N + webhook fanout |
 | AV-11 | Mass-revoke abuse | Admin role gate + audit log + reason code | (no list-size cap) | ⚠ Single-actor | v1.2.x: list cap + webhook fanout |
 | AV-12 | JWT forgery via leaked HS256 secret | Validation only; symmetric key | (no asymmetric option) | ⚠ Architectural | v1.2.x: EdDSA/RS256 + JWKS |
@@ -1328,9 +1347,9 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-32 | Self-custody activation race | Activation challenge per-key + signature against registered pubkey | Single-use atomic consume | ✓ Mitigated | — |
 
 **Posture summary at a glance**:
-- ✓ Mitigated: 11 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-16, AV-19, AV-22, AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3)
+- ✓ Mitigated: 12 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-9 (rate limit, v1.3 Phase 2), AV-16, AV-19, AV-22, AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3 Phase 1)
 - ⚠ Operationally mitigated; in-app fix tracked: AV-28 (persistent keys deployed 2026-05-01)
-- ⚠ Gap requiring v1.3: AV-15 (cross-org access), AV-9 (gRPC rate limiting)
+- ⚠ Gap requiring v1.3: AV-15 (cross-org access)
 - ⚠ **CRITICAL bugs**: 0 (AV-27 closed in v1.2)
 - ⚠ Architectural deferrals: AV-12 / AV-13 / AV-14 / AV-30 (auth model rework), AV-18 / AV-25 (HSM + audit chain), AV-26 (CIRISVerify v1.8 inbound validation, in progress)
 - ⚠ Lower-priority hardening: AV-4, AV-5, AV-6, AV-10, AV-11, AV-17, AV-20, AV-23, AV-24, AV-29, AV-31
@@ -1528,25 +1547,27 @@ baseline.
 v1.2 BASELINE THREAT POSTURE
   (shipped 2026-05-01: ciris-crypto v1.8.0 alignment + project namespace)
 
-  ✓ MITIGATED (11)
+  ✓ MITIGATED (12)
     AV-1   project≠ciris-agent acceptance (commit 254a89e — closes GH #1)
     AV-2   self-custody challenge replay (single-use atomic consume)
     AV-3   cross-org pubkey reuse (public_key_hash UNIQUE — migration 020)
     AV-7   HTTP body-size flood (1 MiB RequestBodyLimitLayer)
     AV-8   X-Forwarded-For spoofing (trusted-proxy CIDR allowlist)
+    AV-9   gRPC + HTTP unauthenticated rate-limit gap (v1.3 Phase 2 —
+           middleware/rate_limit.rs tower Layer + axum from_fn; tier
+           mapping per classify_tier; 60s cleanup ticker)
     AV-16  cross-path pubkey poisoning (UNIQUE constraint table-wide)
     AV-19  multi-replica migration race (sqlx pg_advisory_lock)
     AV-22  custodied private key in logs (no log/DB write paths)
     AV-27  vault-mode dummy-key bug (commit 70f737d — closed by deletion)
     AV-32  self-custody activation race (per-key challenge + sig verify)
-    AV-33  Spock multi-master migration desync (v1.3 — db/mod.rs Spock
-           detection at boot; closes Registry#2)
+    AV-33  Spock multi-master migration desync (v1.3 Phase 1 — db/mod.rs
+           Spock detection at boot; closes Registry#2)
 
   ⚠ CRITICAL — REQUIRES v1.2.x HOTFIX (0)
     None outstanding. AV-27 closed in v1.2.
 
-  ⚠ HIGH-PRIORITY GAP — REQUIRED FOR v1.3 (2)
-    AV-9   gRPC RegistryService unauthenticated rate-limit gap
+  ⚠ HIGH-PRIORITY GAP — REQUIRED FOR v1.3 (1)
     AV-15  PortalService cross-org access (handlers trust req.org_id)
 
   ⚠ OPERATIONALLY MITIGATED; IN-APP FIX TRACKED (1)
@@ -1586,17 +1607,16 @@ v1.2 BASELINE THREAT POSTURE
 ```
 
 The v1.2 baseline closed the v1.1 critical (AV-27) and the in-flight
-project namespace gap (AV-1) by deletion / shipping. The v1.3 Phase 1
-shipping closes AV-33 in-repo (Spock multi-master migration desync).
-**Two high-priority in-app gaps remain for v1.3**: AV-9 (gRPC rate
-limiting) and AV-15 (cross-org access).
+project namespace gap (AV-1) by deletion / shipping. v1.3 Phase 1
+closed AV-33 in-repo (Spock multi-master migration desync). v1.3 Phase
+2 closed AV-9 (gRPC + HTTP rate limiting). **One high-priority in-app
+gap remains for v1.3**: AV-15 (cross-org access).
 
-The rate-limit gap (AV-9) and the cross-org access gap (AV-15) together
-mean the deployment posture still assumes either single-tenant
-operation or operator-trusted JWT issuance. Multi-tenant production
-should not deploy without compensating controls at the deployment edge
-(per-IP rate limiting, JWT issuance restricted to scoped per-org
-identities).
+The cross-org access gap (AV-15) means the deployment posture still
+assumes either single-tenant operation or operator-trusted JWT
+issuance. Multi-tenant production should not deploy without
+compensating controls at the deployment edge (JWT issuance restricted
+to scoped per-org identities).
 
 One operational vector remains exposed to fresh deployments that don't
 go through the bridge runbook:
@@ -1616,8 +1636,8 @@ This document is updated:
 - On every signing-key rotation or HSM/Vault config change: §5 / §6 review.
 - On every protocol-version bump: §3.4 schema-mismatch review.
 
-Last updated: 2026-05-01 (v1.3 Phase 1 — AV-33 closed in-repo via
-`db/mod.rs::exclude_sqlx_migrations_from_spock_replication`; idempotency
-convention formalized in CLAUDE.md. v1.2 prior changes: AV-1 and AV-27
-mitigated via ciris-crypto v1.8.0 migration + project namespace; AV-28
-operationally mitigated via bridge ansible deployment).
+Last updated: 2026-05-01 (v1.3 Phase 2 — AV-9 closed via
+`middleware/rate_limit.rs` tower Layer + axum from_fn middleware; tier
+mapping per `classify_tier`; 60s background cleanup ticker; 16 new
+tests. v1.3 Phase 1: AV-33 closed in-repo. v1.2 prior: AV-1 and AV-27
+mitigated; AV-28 operationally mitigated via bridge ansible).

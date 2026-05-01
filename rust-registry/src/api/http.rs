@@ -27,7 +27,7 @@ use crate::play_integrity::{
 };
 use crate::rate_limiter::{
     check_nonce_rate_limit, check_verify_rate_limit, check_assertion_cache,
-    cache_assertion_result, is_already_attested, is_trusted_proxy, AssertionCacheResult,
+    cache_assertion_result, is_already_attested, AssertionCacheResult,
 };
 
 /// Global start time for uptime tracking
@@ -1052,60 +1052,12 @@ struct RateLimitError {
 /// Security: Only trusts X-Forwarded-For/X-Real-IP when the request appears to come
 /// from a trusted proxy network (private IP ranges, loopback). This prevents
 /// attackers from spoofing their IP to bypass rate limiting.
+/// Local thin wrapper around `rate_limiter::extract_client_ip` for the axum
+/// handler call sites that don't have a peer-addr extractor wired up. Pass
+/// `None` for peer; trusted-proxy logic falls back to `X-Real-IP` membership
+/// in the trusted CIDR ranges.
 fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
-    // Default fallback IP (used when we can't determine the real IP)
-    let fallback_ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1));
-
-    // Try to get connection IP from CF-Connecting-IP (Cloudflare) first
-    // This is set by Cloudflare and can be trusted if we're behind CF
-    if let Some(cf_ip) = headers.get("cf-connecting-ip").and_then(|h| h.to_str().ok()) {
-        if let Ok(ip) = cf_ip.trim().parse() {
-            return ip;
-        }
-    }
-
-    // Check if we should trust X-Forwarded-For
-    // We check X-Real-IP first as it's typically set by the immediate proxy
-    let proxy_ip: Option<std::net::IpAddr> = headers
-        .get("x-real-ip")
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.trim().parse().ok());
-
-    // Only trust forwarded headers if the proxy IP is from a trusted network
-    // If no X-Real-IP, assume we're directly connected (no proxy)
-    let should_trust_forwarded = proxy_ip.map(|ip| is_trusted_proxy(ip)).unwrap_or(false);
-
-    if should_trust_forwarded {
-        // Try X-Forwarded-For (may contain chain: client, proxy1, proxy2)
-        // Take the LAST untrusted IP (rightmost client IP before proxies)
-        if let Some(xff) = headers.get("x-forwarded-for").and_then(|h| h.to_str().ok()) {
-            let ips: Vec<&str> = xff.split(',').map(|s| s.trim()).collect();
-            // Find the rightmost non-proxy IP (the actual client)
-            for ip_str in ips.iter().rev() {
-                if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
-                    if !is_trusted_proxy(ip) {
-                        return ip;
-                    }
-                }
-            }
-            // All IPs are proxies, use the first one
-            if let Some(first) = ips.first() {
-                if let Ok(ip) = first.parse() {
-                    return ip;
-                }
-            }
-        }
-
-        // Fall back to X-Real-IP if X-Forwarded-For parsing failed
-        if let Some(ip) = proxy_ip {
-            return ip;
-        }
-    }
-
-    // Not behind a trusted proxy, or no valid forwarded headers
-    // In production with proper setup, the connection IP would be extracted
-    // from the socket. For now, return fallback.
-    fallback_ip
+    crate::rate_limiter::extract_client_ip(headers, None)
 }
 
 /// Public endpoint: GET /v1/integrity/nonce
@@ -1535,18 +1487,18 @@ pub async fn serve(
         metrics_handle: Arc::new(metrics_handle),
     };
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/ready", get(readiness))
-        .route("/live", get(liveness))
-        .route("/metrics", get(metrics))
-        // Public verification endpoints (consumed by CIRISVerify)
+    // Public unauthenticated GET endpoints: rate-limited via the shared
+    // public-tier bucket (60/min, 600/hr per IP). AV-9 mitigation.
+    // POST endpoints (register_*) are REGISTRY_ADMIN_TOKEN-gated and skip
+    // rate limiting at this layer — admin auth + per-deployment trust is
+    // the primary control.
+    // Integrity endpoints (/v1/integrity/*) keep their inline verify-tier
+    // rate limit (5/min, 50/hr) — stricter because they call external
+    // device-attestation APIs.
+    let public_rate_limited = Router::new()
         .route("/v1/steward-key", get(steward_key))
         .route("/v1/revocation/{target_id}", get(check_revocation))
-        // Binary manifests (whole-binary hashes for Level 2 self-check)
         .route("/v1/verify/binary-manifest/{version}", get(binary_manifest))
-        .route("/v1/verify/binary-manifest", post(register_binary_manifest))
-        // Function manifests (function-level hashes for runtime verification)
         .route(
             "/v1/verify/function-manifest/{version}/{target}",
             get(function_manifest),
@@ -1555,15 +1507,24 @@ pub async fn serve(
             "/v1/verify/function-manifests/{version}",
             get(list_function_manifest_targets),
         )
+        .route("/v1/builds/{version}", get(get_build_by_version))
+        .route("/v1/builds/hash/{build_hash}", get(get_build_by_hash))
+        .route("/v1/verify/key/{fingerprint}", get(verify_key_by_fingerprint))
+        .layer(axum::middleware::from_fn(
+            crate::middleware::rate_limit::rate_limit_public_http,
+        ));
+
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/ready", get(readiness))
+        .route("/live", get(liveness))
+        .route("/metrics", get(metrics))
+        // Admin-gated POST endpoints — REGISTRY_ADMIN_TOKEN bearer check
+        .route("/v1/verify/binary-manifest", post(register_binary_manifest))
         .route(
             "/v1/verify/function-manifest",
             post(register_function_manifest),
         )
-        // Build records (CIRISAgent file integrity manifests for CIRISVerify)
-        .route("/v1/builds/{version}", get(get_build_by_version))
-        .route("/v1/builds/hash/{build_hash}", get(get_build_by_hash))
-        // Key verification (agent signing key validation by fingerprint)
-        .route("/v1/verify/key/{fingerprint}", get(verify_key_by_fingerprint))
         // Play Integrity verification (Android device/app attestation)
         .route("/v1/integrity/nonce", get(integrity_nonce))
         .route("/v1/integrity/verify", post(integrity_verify))
@@ -1572,6 +1533,7 @@ pub async fn serve(
         .route("/v1/integrity/ios/nonce", get(ios_attest_nonce))
         .route("/v1/integrity/ios/verify", post(ios_attest_verify))
         .route("/v1/integrity/ios/assert", post(ios_attest_assert))
+        .merge(public_rate_limited)
         .with_state(state)
         // Apply request body size limit (1MB) to all routes
         .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_SIZE));

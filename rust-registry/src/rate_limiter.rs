@@ -73,6 +73,70 @@ pub fn is_trusted_proxy(ip: IpAddr) -> bool {
     false
 }
 
+/// Extract the real client IP from request headers + the direct peer address.
+///
+/// Trust order:
+/// 1. `cf-connecting-ip` (set by Cloudflare; trusted when behind CF).
+/// 2. `X-Forwarded-For` (rightmost non-trusted-proxy IP), but only when the
+///    direct peer is from a `TRUSTED_PROXY_RANGES` network.
+/// 3. `X-Real-IP` (only when behind a trusted proxy).
+/// 4. The direct peer IP from the TCP connection.
+/// 5. `127.0.0.1` fallback (only when no peer addr is available).
+///
+/// This is the AV-8 mitigation: forged `X-Forwarded-For` from clients on
+/// public networks is ignored because the direct peer is not a trusted proxy.
+pub fn extract_client_ip(
+    headers: &http::HeaderMap,
+    peer: Option<IpAddr>,
+) -> IpAddr {
+    let fallback_ip = peer.unwrap_or(IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
+
+    // Cloudflare's cf-connecting-ip is set by CF edge and only present when
+    // we're actually behind CF. Trust it directly.
+    if let Some(cf_ip) = headers.get("cf-connecting-ip").and_then(|h| h.to_str().ok()) {
+        if let Ok(ip) = cf_ip.trim().parse() {
+            return ip;
+        }
+    }
+
+    // X-Real-IP / X-Forwarded-For are only honored when the direct peer
+    // (or, for HTTP without socket access, X-Real-IP itself) is from a
+    // trusted-proxy network.
+    let proxy_ip: Option<IpAddr> = headers
+        .get("x-real-ip")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.trim().parse().ok());
+
+    let should_trust_forwarded = peer
+        .map(is_trusted_proxy)
+        .or_else(|| proxy_ip.map(is_trusted_proxy))
+        .unwrap_or(false);
+
+    if should_trust_forwarded {
+        if let Some(xff) = headers.get("x-forwarded-for").and_then(|h| h.to_str().ok()) {
+            let ips: Vec<&str> = xff.split(',').map(|s| s.trim()).collect();
+            for ip_str in ips.iter().rev() {
+                if let Ok(ip) = ip_str.parse::<IpAddr>() {
+                    if !is_trusted_proxy(ip) {
+                        return ip;
+                    }
+                }
+            }
+            // All IPs are proxies — fall back to the leftmost.
+            if let Some(first) = ips.first() {
+                if let Ok(ip) = first.parse() {
+                    return ip;
+                }
+            }
+        }
+        if let Some(ip) = proxy_ip {
+            return ip;
+        }
+    }
+
+    fallback_ip
+}
+
 /// Simple CIDR matching (supports /8, /12, /16, /24, /128 etc.)
 fn ip_in_cidr(ip: IpAddr, cidr: &str) -> bool {
     let parts: Vec<&str> = cidr.split('/').collect();
@@ -583,4 +647,122 @@ pub fn get_rate_limiter_stats() -> RateLimiterStats {
 pub struct RateLimiterStats {
     pub nonce_tracked_ips: usize,
     pub assertion_cached_entries: usize,
+}
+
+/// Sweep all three rate-limit buckets (nonce, verify, public), removing
+/// entries with no activity in the last hour.
+///
+/// The per-bucket cleanup only runs when an individual bucket's `HashMap`
+/// exceeds `MAX_RATE_LIMIT_ENTRIES = 10_000`. Sustained high-cardinality
+/// traffic (botnets, IPv6 scans) would let three independent buckets each
+/// grow to 10k entries before the cap trips, with the first request after
+/// the cap blocking on an O(N) sweep under the global mutex while every
+/// other request blocks.
+///
+/// Call this from a background `tokio::interval(60s)` task to keep growth
+/// bounded and remove the post-cap latency cliff.
+pub fn cleanup_all() {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let mut nonce_limiter = get_nonce_rate_limiter().lock().unwrap();
+    cleanup_rate_limiter(&mut nonce_limiter, now);
+    drop(nonce_limiter);
+
+    let mut verify_limiter = get_verify_rate_limiter().lock().unwrap();
+    cleanup_rate_limiter(&mut verify_limiter, now);
+    drop(verify_limiter);
+
+    let mut public_limiter = get_public_rate_limiter().lock().unwrap();
+    cleanup_rate_limiter(&mut public_limiter, now);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn trusted_proxy_ipv4() {
+        assert!(is_trusted_proxy(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
+        assert!(is_trusted_proxy(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))));
+        assert!(is_trusted_proxy(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))));
+        assert!(is_trusted_proxy(IpAddr::V4(Ipv4Addr::new(172, 16, 0, 1))));
+    }
+
+    #[test]
+    fn untrusted_public_ipv4() {
+        assert!(!is_trusted_proxy(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
+        assert!(!is_trusted_proxy(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1))));
+    }
+
+    #[test]
+    fn extract_ip_falls_back_to_peer() {
+        let headers = http::HeaderMap::new();
+        let peer = IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8));
+        assert_eq!(extract_client_ip(&headers, Some(peer)), peer);
+    }
+
+    #[test]
+    fn extract_ip_ignores_xff_when_peer_is_public() {
+        // Adversarial client on public network sends forged X-Forwarded-For;
+        // we use the actual peer IP, ignore the header.
+        let mut headers = http::HeaderMap::new();
+        headers.insert("x-forwarded-for", "1.2.3.4".parse().unwrap());
+        let peer = IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8));
+        assert_eq!(extract_client_ip(&headers, Some(peer)), peer);
+    }
+
+    #[test]
+    fn extract_ip_honors_xff_when_behind_trusted_proxy() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert("x-forwarded-for", "1.2.3.4".parse().unwrap());
+        let peer = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        assert_eq!(
+            extract_client_ip(&headers, Some(peer)),
+            IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4))
+        );
+    }
+
+    #[test]
+    fn extract_ip_xff_chain_uses_rightmost_non_proxy() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert("x-forwarded-for", "1.2.3.4, 10.0.0.5, 10.0.0.6".parse().unwrap());
+        let peer = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        assert_eq!(
+            extract_client_ip(&headers, Some(peer)),
+            IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4))
+        );
+    }
+
+    #[test]
+    fn extract_ip_cf_connecting_ip_trusted() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert("cf-connecting-ip", "1.2.3.4".parse().unwrap());
+        let peer = IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8));
+        assert_eq!(
+            extract_client_ip(&headers, Some(peer)),
+            IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4))
+        );
+    }
+
+    #[test]
+    fn public_rate_limit_trips_at_61() {
+        let ip = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)); // TEST-NET-1
+        for _ in 0..PUBLIC_RATE_LIMIT_PER_MINUTE {
+            assert!(check_public_rate_limit(ip).is_allowed());
+        }
+        assert!(!check_public_rate_limit(ip).is_allowed());
+    }
+
+    #[test]
+    fn cleanup_all_runs_without_panic() {
+        let ip = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 99));
+        let _ = check_public_rate_limit(ip);
+        let _ = check_verify_rate_limit(ip);
+        let _ = check_nonce_rate_limit(ip);
+        cleanup_all();
+    }
 }
