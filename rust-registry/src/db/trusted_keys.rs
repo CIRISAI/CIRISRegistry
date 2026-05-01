@@ -48,6 +48,45 @@ pub async fn get_trusted_primitive_key(
     Ok(row)
 }
 
+/// Insert a trusted key only if no row exists for this project. Used
+/// by the boot-seed in `main.rs` to bootstrap the `ciris-registry`
+/// trusted key on a fresh install WITHOUT overwriting an operator-set
+/// or CI-published key on every restart.
+///
+/// Returns `true` if a row was inserted, `false` if a row already
+/// existed (no-op).
+pub async fn insert_trusted_primitive_key_if_absent(
+    pool: &PgPool,
+    project: &str,
+    ed25519_pk: &[u8],
+    mldsa_pk: &[u8],
+    ed25519_fp: &str,
+    mldsa_fp: &str,
+    added_by: Option<&str>,
+    notes: Option<&str>,
+) -> Result<bool> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO trusted_primitive_keys (
+            project, ed25519_public_key, ml_dsa_65_public_key,
+            ed25519_fingerprint, ml_dsa_65_fingerprint, added_by, notes
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (project) DO NOTHING
+        "#,
+    )
+    .bind(project)
+    .bind(ed25519_pk)
+    .bind(mldsa_pk)
+    .bind(ed25519_fp)
+    .bind(mldsa_fp)
+    .bind(added_by)
+    .bind(notes)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// Register a new trusted key. UPSERTs on conflict — call from the
 /// admin RPC handler, which is responsible for SYSTEM_ADMIN gating.
 /// Use `rotate_trusted_primitive_key` for rotation rather than calling

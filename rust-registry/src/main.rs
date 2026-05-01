@@ -78,14 +78,24 @@ async fn main() -> Result<()> {
     info!("Initialized hybrid cryptography provider");
 
     // Boot-seed the registry's own steward pubkey as a trusted primitive
-    // key (project='ciris-registry') so the registry can self-verify its
-    // own builds without manual SYSTEM_ADMIN intervention. AV-26 mitigation.
+    // key (project='ciris-registry') ONLY IF NO ROW EXISTS — gives a
+    // working default for fresh installs where the registry's runtime
+    // steward identity also signs build manifests, while NOT overwriting
+    // a SYSTEM_ADMIN- or CI-set key on every restart.
+    //
+    // The realistic production posture is for CI to sign build manifests
+    // with a separate build-signing identity (GHA secret) distinct from
+    // the runtime steward (production filesystem). In that posture the
+    // operator runs RegisterTrustedPrimitiveKey once with the GHA pubkey,
+    // and this boot-seed becomes a no-op on every subsequent restart.
+    //
+    // AV-26 mitigation foundation; see THREAT_MODEL.md.
     {
         let ed25519_pk = crypto.ed25519_public_key();
         let mldsa_pk = crypto.mldsa_public_key();
         let ed25519_fp = crypto::HybridCrypto::fingerprint(&ed25519_pk);
         let mldsa_fp = crypto::HybridCrypto::fingerprint(&mldsa_pk);
-        match db::upsert_trusted_primitive_key(
+        match db::insert_trusted_primitive_key_if_absent(
             db.pool(),
             "ciris-registry",
             &ed25519_pk,
@@ -93,14 +103,18 @@ async fn main() -> Result<()> {
             &ed25519_fp,
             &mldsa_fp,
             Some("boot-seed"),
-            Some("Auto-seeded at boot from steward keypair (AV-26 self-verify)"),
+            Some("Auto-seeded at boot from steward keypair (overwritten by RegisterTrustedPrimitiveKey)"),
         )
         .await
         {
-            Ok(()) => info!(
+            Ok(true) => info!(
                 ed25519_fp = %ed25519_fp,
                 mldsa_fp = %mldsa_fp,
-                "Boot-seeded trusted primitive key for project='ciris-registry'"
+                "Boot-seeded trusted primitive key for project='ciris-registry' (first install)"
+            ),
+            Ok(false) => info!(
+                "Trusted primitive key for project='ciris-registry' already registered \
+                 (boot-seed no-op — operator/CI key takes precedence)"
             ),
             Err(e) => tracing::warn!(
                 "Failed to boot-seed registry's own trusted primitive key: {}. \
