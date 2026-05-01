@@ -40,9 +40,10 @@ sha2 = "0.10"
 rand = "0.8"
 rsa = { version = "0.9", features = ["sha2"] }
 
-# Cryptography - Post-Quantum (ML-DSA-65)
-pqcrypto-dilithium = "0.5"
-pqcrypto-traits = "0.3"
+# Cryptography - Hybrid (Ed25519 + ML-DSA-65 / FIPS 204)
+# CIRISVerify v1.8.0 alignment: ciris-crypto provides Ed25519Signer + MlDsa65Signer
+# (the same primitives CIRISLens, CIRISAgent, and CIRISPersist consume).
+ciris-crypto = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v1.8.0", features = ["pqc-ml-dsa"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -93,7 +94,7 @@ der = "0.7"
 p256 = { version = "0.13", features = ["ecdsa"] }
 ring = "0.17"
 
-# HTTP client for Vault
+# HTTP client (used by Play Integrity verifier)
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 [build-dependencies]

@@ -26,7 +26,6 @@ mod middleware;
 pub mod play_integrity;
 pub mod rate_limiter;
 mod services;
-pub mod vault;
 
 use crate::config::Settings;
 use crate::db::Database;
