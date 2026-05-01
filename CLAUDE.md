@@ -481,6 +481,11 @@ Required patterns:
 
 **Do NOT use `spock.replicate_ddl_command(...)`**: multi-master DDL is handled by per-node sqlx execution after `_sqlx_migrations` is excluded from replication. Wrapping DDL in Spock calls would error in single-node dev where Spock isn't loaded.
 
+**Replication intent must be declared in the migration that creates the table.** Spock 5.x replicates DML only for tables enrolled in a replication set. Forgetting to enroll a new table means rows on US and EU diverge silently (CIRISRegistry#4 lesson). Every `CREATE TABLE` migration MUST pick one:
+
+- **Cross-region** (deployment-wide identity, public lookup data — e.g. `partner_keys`, `trusted_primitive_keys`): wrap `spock.repset_add_table('default', 'public.<name>', false)` in a `DO $$ ... EXCEPTION WHEN others ... $$` block guarded by `EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'spock')`. See `migrations/023_replicate_trusted_primitive_keys.sql` as the canonical example. The `synchronize_data=false` flag is correct when both nodes have functionally equivalent boot-seed rows; flip to `true` only for tables that should sync existing data on enrollment.
+- **Per-region** (node-local state, per-node steward identity, bookkeeping — e.g. `_sqlx_migrations`, `registry_signing_keys`): add a comment header to the migration explaining the intentional per-node scope so future operators don't try to "fix" the divergence.
+
 **Array columns**: Any `TEXT[]` or `BYTEA[]` column added via migration MUST use `Option<Vec<T>>` in the Rust struct, or add `DEFAULT '{}'` in the migration SQL. This avoids decode failures on pre-existing rows.
 
 ## Related Projects
