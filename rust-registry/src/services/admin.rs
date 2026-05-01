@@ -883,7 +883,11 @@ impl AdminServiceTrait for AdminService {
             .build
             .ok_or_else(|| Status::invalid_argument("build is required"))?;
 
+        crate::validation::validate_project_name(&build.project)
+            .map_err(Status::invalid_argument)?;
+
         info!(
+            project = %if build.project.is_empty() { "ciris-agent" } else { &build.project },
             version = %build.version,
             build_hash = %build.build_hash,
             file_count = build.file_manifest_count,
@@ -908,6 +912,9 @@ impl AdminServiceTrait for AdminService {
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
+        crate::validation::validate_project_name(&req.project)
+            .map_err(Status::invalid_argument)?;
+
         let version = if req.version.is_empty() {
             None
         } else {
@@ -918,8 +925,13 @@ impl AdminServiceTrait for AdminService {
         } else {
             Some(req.build_hash.as_str())
         };
+        let project = if req.project.is_empty() {
+            None
+        } else {
+            Some(req.project.as_str())
+        };
 
-        let row = db::get_build(self.db.pool(), version, build_hash)
+        let row = db::get_build(self.db.pool(), version, build_hash, project)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 

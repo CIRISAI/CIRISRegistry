@@ -9,8 +9,12 @@ use time::OffsetDateTime;
 
 use crate::error::Result;
 
+/// Default project name for function manifests where the caller did not specify one.
+pub const DEFAULT_PROJECT: &str = "ciris-agent";
+
 #[derive(Debug, Clone, FromRow)]
 pub struct FunctionManifestRow {
+    pub project: String,
     pub binary_version: String,
     pub target: String,
     pub manifest_version: String,
@@ -103,21 +107,26 @@ impl FunctionManifestRow {
     }
 }
 
-/// Get a function manifest by version and target
+/// Get a function manifest by project + version + target.
+/// `project=None` defaults to `ciris-agent` for backwards compat.
 pub async fn get_function_manifest(
     pool: &PgPool,
     binary_version: &str,
     target: &str,
+    project: Option<&str>,
 ) -> Result<Option<FunctionManifestRow>> {
+    let project = project.unwrap_or(DEFAULT_PROJECT);
+
     let row = sqlx::query_as::<_, FunctionManifestRow>(
         r#"
-        SELECT binary_version, target, manifest_version, binary_hash, manifest_hash,
+        SELECT project, binary_version, target, manifest_version, binary_hash, manifest_hash,
                manifest_json, signature_classical, signature_pqc, signature_key_id,
                generated_at, created_at
         FROM function_manifests
-        WHERE binary_version = $1 AND target = $2
+        WHERE project = $1 AND binary_version = $2 AND target = $3
         "#,
     )
+    .bind(project)
     .bind(binary_version)
     .bind(target)
     .fetch_optional(pool)
@@ -126,18 +135,22 @@ pub async fn get_function_manifest(
     Ok(row)
 }
 
-/// List available targets for a version
+/// List available targets for a project + version.
 pub async fn list_function_manifest_targets(
     pool: &PgPool,
     binary_version: &str,
+    project: Option<&str>,
 ) -> Result<Vec<String>> {
+    let project = project.unwrap_or(DEFAULT_PROJECT);
+
     let rows: Vec<(String,)> = sqlx::query_as(
         r#"
         SELECT target FROM function_manifests
-        WHERE binary_version = $1
+        WHERE project = $1 AND binary_version = $2
         ORDER BY target
         "#,
     )
+    .bind(project)
     .bind(binary_version)
     .fetch_all(pool)
     .await?;
@@ -145,10 +158,12 @@ pub async fn list_function_manifest_targets(
     Ok(rows.into_iter().map(|(t,)| t).collect())
 }
 
-/// Register a new function manifest
-/// Returns the manifest_hash on success
+/// Register a new function manifest. Returns the manifest_hash on success.
+/// `project` defaults to `ciris-agent` when empty.
+#[allow(clippy::too_many_arguments)]
 pub async fn register_function_manifest(
     pool: &PgPool,
+    project: &str,
     binary_version: &str,
     target: &str,
     manifest_version: &str,
@@ -160,14 +175,20 @@ pub async fn register_function_manifest(
     signature_key_id: Option<&str>,
     generated_at: OffsetDateTime,
 ) -> Result<String> {
+    let project = if project.is_empty() {
+        DEFAULT_PROJECT
+    } else {
+        project
+    };
+
     let row: (String,) = sqlx::query_as(
         r#"
         INSERT INTO function_manifests (
-            binary_version, target, manifest_version, binary_hash, manifest_hash,
+            project, binary_version, target, manifest_version, binary_hash, manifest_hash,
             manifest_json, signature_classical, signature_pqc, signature_key_id, generated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        ON CONFLICT (binary_version, target) DO UPDATE SET
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ON CONFLICT (project, binary_version, target) DO UPDATE SET
             manifest_version = EXCLUDED.manifest_version,
             binary_hash = EXCLUDED.binary_hash,
             manifest_hash = EXCLUDED.manifest_hash,
@@ -180,6 +201,7 @@ pub async fn register_function_manifest(
         RETURNING manifest_hash
         "#,
     )
+    .bind(project)
     .bind(binary_version)
     .bind(target)
     .bind(manifest_version)
@@ -205,7 +227,7 @@ pub async fn list_function_manifests(
 
     let rows = sqlx::query_as::<_, FunctionManifestRow>(
         r#"
-        SELECT binary_version, target, manifest_version, binary_hash, manifest_hash,
+        SELECT project, binary_version, target, manifest_version, binary_hash, manifest_hash,
                manifest_json, signature_classical, signature_pqc, signature_key_id,
                generated_at, created_at
         FROM function_manifests

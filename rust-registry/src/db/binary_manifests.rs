@@ -9,9 +9,13 @@ use time::OffsetDateTime;
 
 use crate::error::Result;
 
+/// Default project name for manifests where the caller did not specify one.
+pub const DEFAULT_PROJECT: &str = "ciris-agent";
+
 #[derive(Debug, Clone, FromRow)]
 pub struct BinaryManifestRow {
     pub manifest_id: sqlx::types::Uuid,
+    pub project: String,
     pub version: String,
     pub binaries: serde_json::Value,
     pub generated_at: OffsetDateTime,
@@ -86,20 +90,25 @@ impl BinaryManifestRow {
     }
 }
 
-/// Get a binary manifest by version
+/// Get a binary manifest by project + version. `project=None` defaults to
+/// `ciris-agent` for backwards compat with pre-v1.4.0 callers.
 pub async fn get_binary_manifest(
     pool: &PgPool,
     version: &str,
+    project: Option<&str>,
 ) -> Result<Option<BinaryManifestRow>> {
+    let project = project.unwrap_or(DEFAULT_PROJECT);
+
     let row = sqlx::query_as::<_, BinaryManifestRow>(
         r#"
-        SELECT manifest_id, version, binaries, generated_at, registered_at,
+        SELECT manifest_id, project, version, binaries, generated_at, registered_at,
                registered_by, source, notes,
                signature_classical, signature_pqc, signature_key_id
         FROM binary_manifests
-        WHERE version = $1
+        WHERE project = $1 AND version = $2
         "#,
     )
+    .bind(project)
     .bind(version)
     .fetch_optional(pool)
     .await?;
@@ -107,9 +116,12 @@ pub async fn get_binary_manifest(
     Ok(row)
 }
 
-/// Register a new binary manifest with optional signature
+/// Register a new binary manifest with optional signature.
+/// `project` defaults to `ciris-agent` when empty.
+#[allow(clippy::too_many_arguments)]
 pub async fn register_binary_manifest(
     pool: &PgPool,
+    project: &str,
     version: &str,
     binaries: &serde_json::Value,
     generated_at: OffsetDateTime,
@@ -120,14 +132,20 @@ pub async fn register_binary_manifest(
     signature_pqc: Option<&str>,
     signature_key_id: Option<&str>,
 ) -> Result<String> {
+    let project = if project.is_empty() {
+        DEFAULT_PROJECT
+    } else {
+        project
+    };
+
     let row: (sqlx::types::Uuid,) = sqlx::query_as(
         r#"
         INSERT INTO binary_manifests (
-            version, binaries, generated_at, registered_by, source, notes,
+            project, version, binaries, generated_at, registered_by, source, notes,
             signature_classical, signature_pqc, signature_key_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (version) DO UPDATE SET
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (project, version) DO UPDATE SET
             binaries = EXCLUDED.binaries,
             generated_at = EXCLUDED.generated_at,
             registered_by = EXCLUDED.registered_by,
@@ -140,6 +158,7 @@ pub async fn register_binary_manifest(
         RETURNING manifest_id
         "#,
     )
+    .bind(project)
     .bind(version)
     .bind(binaries)
     .bind(generated_at)
@@ -164,7 +183,7 @@ pub async fn list_binary_manifests(
 
     let rows = sqlx::query_as::<_, BinaryManifestRow>(
         r#"
-        SELECT manifest_id, version, binaries, generated_at, registered_at,
+        SELECT manifest_id, project, version, binaries, generated_at, registered_at,
                registered_by, source, notes,
                signature_classical, signature_pqc, signature_key_id
         FROM binary_manifests

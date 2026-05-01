@@ -266,6 +266,10 @@ struct RegisterBinaryManifestRequest {
     generated_at: String,
     #[serde(default)]
     notes: Option<String>,
+    /// CIRIS primitive name (kebab-case). Empty/missing → "ciris-agent".
+    /// Added v1.4.0 for federation peer support.
+    #[serde(default)]
+    project: String,
 }
 
 /// Response for registering a binary manifest
@@ -283,13 +287,32 @@ struct RegisterBinaryManifestError {
     message: String,
 }
 
-/// Public endpoint: GET /v1/verify/binary-manifest/{version}
+/// Optional `?project=` query string for project-aware lookups.
+/// Empty/missing → "ciris-agent" (backwards compat).
+#[derive(serde::Deserialize, Default)]
+struct ProjectQuery {
+    #[serde(default)]
+    project: String,
+}
+
+impl ProjectQuery {
+    fn as_opt(&self) -> Option<&str> {
+        if self.project.is_empty() { None } else { Some(self.project.as_str()) }
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        crate::validation::validate_project_name(&self.project)
+    }
+}
+
+/// Public endpoint: GET /v1/verify/binary-manifest/{version}?project=...
 ///
 /// Returns SHA-256 hashes of CIRISVerify binaries for self-verification (Level 2).
 /// This endpoint is unauthenticated.
 async fn binary_manifest(
     State(state): State<AppState>,
     axum::extract::Path(version): axum::extract::Path<String>,
+    axum::extract::Query(q): axum::extract::Query<ProjectQuery>,
 ) -> Result<Json<db::BinaryManifestResponse>, (StatusCode, Json<BinaryManifestNotFound>)> {
     // Validate version format (basic semver check)
     if version.is_empty() || !version.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
@@ -302,7 +325,17 @@ async fn binary_manifest(
         ));
     }
 
-    match db::get_binary_manifest(state.db.pool(), &version).await {
+    if let Err(reason) = q.validate() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(BinaryManifestNotFound {
+                error: "bad_request".to_string(),
+                message: reason,
+            }),
+        ));
+    }
+
+    match db::get_binary_manifest(state.db.pool(), &version, q.as_opt()).await {
         Ok(Some(manifest)) => Ok(Json(manifest.to_response())),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -363,6 +396,17 @@ async fn register_binary_manifest(
         ));
     }
 
+    // Validate project name (empty → "ciris-agent")
+    if let Err(reason) = crate::validation::validate_project_name(&req.project) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(RegisterBinaryManifestError {
+                error: "bad_request".to_string(),
+                message: reason,
+            }),
+        ));
+    }
+
     // Parse generated_at timestamp
     let generated_at = time::OffsetDateTime::parse(
         &req.generated_at,
@@ -374,8 +418,10 @@ async fn register_binary_manifest(
     let binaries_json = serde_json::to_value(&req.binaries).unwrap_or(serde_json::json!({}));
 
     // Sign the manifest content with steward key (registry-side signing)
-    // Create canonical representation: version + sorted binaries JSON
-    let canonical_content = format!("{}:{}", req.version, binaries_json);
+    // Canonical representation includes project so signatures don't collide
+    // across project namespaces with the same version string.
+    let project_for_sig = if req.project.is_empty() { "ciris-agent" } else { req.project.as_str() };
+    let canonical_content = format!("{}/{}:{}", project_for_sig, req.version, binaries_json);
     let (sig_classical, sig_pqc, sig_key_id) = match state.crypto.sign(canonical_content.as_bytes())
     {
         Ok(sig) => {
@@ -395,6 +441,7 @@ async fn register_binary_manifest(
     // Register the manifest with signature
     match db::register_binary_manifest(
         state.db.pool(),
+        &req.project,
         &req.version,
         &binaries_json,
         generated_at,
@@ -409,7 +456,8 @@ async fn register_binary_manifest(
     {
         Ok(manifest_id) => {
             info!(
-                "Binary manifest registered: version={}, signed={}",
+                "Binary manifest registered: project={}, version={}, signed={}",
+                project_for_sig,
                 req.version,
                 sig_key_id.is_some()
             );
@@ -455,6 +503,10 @@ struct RegisterFunctionManifestRequest {
     /// Metadata containing text_section_offset for address calculation
     #[serde(default)]
     metadata: Option<serde_json::Value>,
+    /// CIRIS primitive name (kebab-case). Empty/missing → "ciris-agent".
+    /// Added v1.4.0 for federation peer support.
+    #[serde(default)]
+    project: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -542,13 +594,15 @@ struct BuildNotFound {
     message: String,
 }
 
-/// Public endpoint: GET /v1/builds/{version}
+/// Public endpoint: GET /v1/builds/{version}?project=...
 ///
 /// Returns a build record by version. Used by CIRISVerify for file integrity verification.
+/// `?project=` is optional; defaults to "ciris-agent" for backwards compat.
 /// This endpoint is unauthenticated.
 async fn get_build_by_version(
     State(state): State<AppState>,
     axum::extract::Path(version): axum::extract::Path<String>,
+    axum::extract::Query(q): axum::extract::Query<ProjectQuery>,
 ) -> Result<Json<BuildRecordResponse>, (StatusCode, Json<BuildNotFound>)> {
     // Validate version format
     if version.is_empty() {
@@ -561,7 +615,17 @@ async fn get_build_by_version(
         ));
     }
 
-    match get_build(state.db.pool(), Some(&version), None).await {
+    if let Err(reason) = q.validate() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(BuildNotFound {
+                error: "bad_request".to_string(),
+                message: reason,
+            }),
+        ));
+    }
+
+    match get_build(state.db.pool(), Some(&version), None, q.as_opt()).await {
         Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -602,7 +666,8 @@ async fn get_build_by_hash(
         ));
     }
 
-    match get_build(state.db.pool(), None, Some(&build_hash)).await {
+    // Build hash is globally unique by SHA-256 construction; project is irrelevant.
+    match get_build(state.db.pool(), None, Some(&build_hash), None).await {
         Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -624,14 +689,25 @@ async fn get_build_by_hash(
     }
 }
 
-/// Public endpoint: GET /v1/verify/function-manifest/{version}/{target}
+/// Public endpoint: GET /v1/verify/function-manifest/{version}/{target}?project=...
 ///
 /// Returns a function manifest for runtime verification.
 async fn function_manifest(
     State(state): State<AppState>,
     axum::extract::Path((version, target)): axum::extract::Path<(String, String)>,
+    axum::extract::Query(q): axum::extract::Query<ProjectQuery>,
 ) -> Result<Json<db::FunctionManifestResponse>, (StatusCode, Json<FunctionManifestError>)> {
-    match db::get_function_manifest(state.db.pool(), &version, &target).await {
+    if let Err(reason) = q.validate() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(FunctionManifestError {
+                error: "bad_request".to_string(),
+                message: reason,
+            }),
+        ));
+    }
+
+    match db::get_function_manifest(state.db.pool(), &version, &target, q.as_opt()).await {
         Ok(Some(manifest)) => Ok(Json(manifest.to_response())),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -656,14 +732,25 @@ async fn function_manifest(
     }
 }
 
-/// Public endpoint: GET /v1/verify/function-manifests/{version}
+/// Public endpoint: GET /v1/verify/function-manifests/{version}?project=...
 ///
-/// Lists available targets for a version.
+/// Lists available targets for a project + version.
 async fn list_function_manifest_targets(
     State(state): State<AppState>,
     axum::extract::Path(version): axum::extract::Path<String>,
+    axum::extract::Query(q): axum::extract::Query<ProjectQuery>,
 ) -> Result<Json<db::AvailableTargetsResponse>, (StatusCode, Json<FunctionManifestError>)> {
-    match db::list_function_manifest_targets(state.db.pool(), &version).await {
+    if let Err(reason) = q.validate() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(FunctionManifestError {
+                error: "bad_request".to_string(),
+                message: reason,
+            }),
+        ));
+    }
+
+    match db::list_function_manifest_targets(state.db.pool(), &version, q.as_opt()).await {
         Ok(targets) => {
             if targets.is_empty() {
                 Err((
@@ -727,6 +814,17 @@ async fn register_function_manifest(
         ));
     }
 
+    // Validate project name (empty → "ciris-agent")
+    if let Err(reason) = crate::validation::validate_project_name(&req.project) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(FunctionManifestError {
+                error: "bad_request".to_string(),
+                message: reason,
+            }),
+        ));
+    }
+
     // Parse generated_at timestamp
     let generated_at = time::OffsetDateTime::parse(
         &req.generated_at,
@@ -737,6 +835,7 @@ async fn register_function_manifest(
     // Build manifest JSON (store the full manifest for serving)
     // Include metadata if present (contains text_section_offset for address calculation)
     let mut manifest_json = serde_json::json!({
+        "project": if req.project.is_empty() { "ciris-agent" } else { req.project.as_str() },
         "version": req.version,
         "target": req.target,
         "binary_hash": req.binary_hash,
@@ -774,6 +873,7 @@ async fn register_function_manifest(
     // Register the manifest with signature
     match db::register_function_manifest(
         state.db.pool(),
+        &req.project,
         &req.binary_version,
         &req.target,
         &req.version,
@@ -789,8 +889,11 @@ async fn register_function_manifest(
     {
         Ok(manifest_hash) => {
             info!(
-                "Function manifest registered: version={}, target={}, key_id={}",
-                req.binary_version, req.target, sig_key_id
+                "Function manifest registered: project={}, version={}, target={}, key_id={}",
+                if req.project.is_empty() { "ciris-agent" } else { req.project.as_str() },
+                req.binary_version,
+                req.target,
+                sig_key_id
             );
             Ok(Json(RegisterFunctionManifestResponse {
                 success: true,

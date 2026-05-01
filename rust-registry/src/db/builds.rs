@@ -9,9 +9,14 @@ use time::OffsetDateTime;
 use crate::error::Result;
 use crate::proto;
 
+/// Default project name for builds where the caller did not specify one.
+/// Preserves backwards compat with all pre-v1.4.0 registrations.
+pub const DEFAULT_PROJECT: &str = "ciris-agent";
+
 #[derive(Debug, Clone, FromRow)]
 pub struct BuildRow {
     pub build_id: sqlx::types::Uuid,
+    pub project: String,
     pub version: String,
     pub build_hash: String,
     pub file_manifest_hash: String,
@@ -38,6 +43,7 @@ impl BuildRow {
                 .unwrap_or_default()
                 .into(),
             includes_modules: self.includes_modules.clone(),
+            project: self.project.clone(),
             source_repo: self.source_repo.clone().unwrap_or_default(),
             source_commit: self.source_commit.clone().unwrap_or_default(),
             registered_at: self.registered_at.unix_timestamp(),
@@ -66,14 +72,20 @@ pub async fn register_build(
         build.includes_modules.clone()
     };
 
+    let project = if build.project.is_empty() {
+        DEFAULT_PROJECT.to_string()
+    } else {
+        build.project.clone()
+    };
+
     let row: (sqlx::types::Uuid,) = sqlx::query_as(
         r#"
         INSERT INTO builds (
-            version, build_hash, file_manifest_hash, file_manifest_count,
+            project, version, build_hash, file_manifest_hash, file_manifest_count,
             file_manifest_json, includes_modules, source_repo, source_commit,
             registered_by, notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (build_hash) DO UPDATE SET
             file_manifest_hash = EXCLUDED.file_manifest_hash,
             file_manifest_count = EXCLUDED.file_manifest_count,
@@ -82,6 +94,7 @@ pub async fn register_build(
         RETURNING build_id
         "#,
     )
+    .bind(&project)
     .bind(&build.version)
     .bind(&build.build_hash)
     .bind(&build.file_manifest_hash)
@@ -98,16 +111,24 @@ pub async fn register_build(
     Ok(row.0.to_string())
 }
 
-/// Get a build by version or build hash
+/// Get a build by version or build hash, scoped to a project.
+///
+/// `project=None` is treated as `Some(DEFAULT_PROJECT)` for backwards compat
+/// with pre-v1.4.0 callers (CIRISVerify and existing tooling that look up by
+/// agent version). Lookup by `build_hash` ignores the project (build hashes
+/// are globally unique by SHA-256 construction).
 pub async fn get_build(
     pool: &PgPool,
     version: Option<&str>,
     build_hash: Option<&str>,
+    project: Option<&str>,
 ) -> Result<Option<BuildRow>> {
+    let project = project.unwrap_or(DEFAULT_PROJECT);
+
     let row = if let Some(hash) = build_hash {
         sqlx::query_as::<_, BuildRow>(
             r#"
-            SELECT build_id, version, build_hash, file_manifest_hash, file_manifest_count,
+            SELECT build_id, project, version, build_hash, file_manifest_hash, file_manifest_count,
                    file_manifest_json, includes_modules, source_repo, source_commit,
                    registered_at, registered_by, status, notes
             FROM builds
@@ -120,15 +141,16 @@ pub async fn get_build(
     } else if let Some(ver) = version {
         sqlx::query_as::<_, BuildRow>(
             r#"
-            SELECT build_id, version, build_hash, file_manifest_hash, file_manifest_count,
+            SELECT build_id, project, version, build_hash, file_manifest_hash, file_manifest_count,
                    file_manifest_json, includes_modules, source_repo, source_commit,
                    registered_at, registered_by, status, notes
             FROM builds
-            WHERE version = $1 AND status = 'active'
+            WHERE project = $1 AND version = $2 AND status = 'active'
             ORDER BY registered_at DESC
             LIMIT 1
             "#,
         )
+        .bind(project)
         .bind(ver)
         .fetch_optional(pool)
         .await?
@@ -151,7 +173,7 @@ pub async fn list_builds(
     let rows = if let Some(s) = status {
         sqlx::query_as::<_, BuildRow>(
             r#"
-            SELECT build_id, version, build_hash, file_manifest_hash, file_manifest_count,
+            SELECT build_id, project, version, build_hash, file_manifest_hash, file_manifest_count,
                    file_manifest_json, includes_modules, source_repo, source_commit,
                    registered_at, registered_by, status, notes
             FROM builds
@@ -167,7 +189,7 @@ pub async fn list_builds(
     } else {
         sqlx::query_as::<_, BuildRow>(
             r#"
-            SELECT build_id, version, build_hash, file_manifest_hash, file_manifest_count,
+            SELECT build_id, project, version, build_hash, file_manifest_hash, file_manifest_count,
                    file_manifest_json, includes_modules, source_repo, source_commit,
                    registered_at, registered_by, status, notes
             FROM builds
