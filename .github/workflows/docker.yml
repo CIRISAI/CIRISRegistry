@@ -50,6 +50,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -58,3 +59,155 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          load: ${{ github.event_name != 'pull_request' }}
+
+      # =====================================================================
+      # Sign + publish the registry's BuildManifest to the production
+      # CIRISRegistry so federation peers can verify our binary integrity.
+      # Implements the v1.8.0 self-manifest consumer role per CIRISVerify
+      # umbrella issue #1; uses ciris-build-sign from the v1.8.0 build-tool
+      # tarball and POSTs to /v1/verify/build-manifest.
+      #
+      # Requires GHA secrets set on this repo:
+      #   - CIRIS_BUILD_ED25519_SECRET (base64 of 32-byte Ed25519 seed)
+      #   - CIRIS_BUILD_MLDSA_SECRET   (base64 of 32-byte ML-DSA-65 seed)
+      #   - REGISTRY_ADMIN_TOKEN
+      # And vars.REGISTRY_URL set to https://api.registry.ciris-services-1.ai
+      #
+      # The signing seeds must match the production registry's steward
+      # keys (boot-seeded into trusted_primitive_keys as project=
+      # 'ciris-registry'). If they differ, verification will fail; the
+      # operator must register the GHA-derived pubkey via
+      # RegisterTrustedPrimitiveKey admin RPC.
+      # =====================================================================
+
+      - name: Sign + publish registry BuildManifest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          CIRIS_BUILD_ED25519_SECRET: ${{ secrets.CIRIS_BUILD_ED25519_SECRET }}
+          CIRIS_BUILD_MLDSA_SECRET: ${{ secrets.CIRIS_BUILD_MLDSA_SECRET }}
+          REGISTRY_ADMIN_TOKEN: ${{ secrets.REGISTRY_ADMIN_TOKEN }}
+          REGISTRY_URL: ${{ vars.REGISTRY_URL }}
+          IMAGE_TAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Sanity-check secrets are populated and not the dash-byte trash
+          # (gh secret set --body - bug — see CIRISBilling#5 thread).
+          if [ -z "${CIRIS_BUILD_ED25519_SECRET:-}" ] \
+             || [ -z "${CIRIS_BUILD_MLDSA_SECRET:-}" ] \
+             || [ -z "${REGISTRY_ADMIN_TOKEN:-}" ]; then
+            echo "ERROR: build-signing secrets are missing on this repo." >&2
+            echo "  Set CIRIS_BUILD_ED25519_SECRET, CIRIS_BUILD_MLDSA_SECRET," >&2
+            echo "  REGISTRY_ADMIN_TOKEN as repo secrets." >&2
+            exit 1
+          fi
+          if [ "${#CIRIS_BUILD_ED25519_SECRET}" -lt 32 ] \
+             || [ "${#CIRIS_BUILD_MLDSA_SECRET}" -lt 32 ]; then
+            echo "ERROR: build-signing secrets are too short (got" \
+              "ed25519=${#CIRIS_BUILD_ED25519_SECRET}, mldsa=${#CIRIS_BUILD_MLDSA_SECRET})." >&2
+            echo "  Likely the gh-secret-set --body - bug. Re-upload using" \
+              "--body \"\$(cat /path/to/seed.b64)\" or stdin without --body." >&2
+            exit 1
+          fi
+          if [ -z "${REGISTRY_URL:-}" ]; then
+            echo "ERROR: vars.REGISTRY_URL is not set on this repo." >&2
+            exit 1
+          fi
+
+          # Download ciris-build-sign from the CIRISVerify v1.8.0 release.
+          # The tarball is signed (.sig + .pem) — we trust GHA's TLS to
+          # GitHub here; future hardening can verify the cosign signature.
+          curl -sLfo /tmp/build-tool.tgz \
+            https://github.com/CIRISAI/CIRISVerify/releases/download/v1.8.0/ciris-verify-v1.8.0-build-tool-linux-x86_64.tar.gz
+          tar -xzf /tmp/build-tool.tgz -C /tmp/
+          chmod +x /tmp/build-tool/ciris-build-sign
+
+          # Materialize raw 32-byte seeds from base64 GHA secrets.
+          # Use printf to avoid the trailing-newline issue echo introduces.
+          printf '%s' "$CIRIS_BUILD_ED25519_SECRET" | base64 -d > /tmp/ed25519.seed
+          printf '%s' "$CIRIS_BUILD_MLDSA_SECRET"   | base64 -d > /tmp/mldsa65.secret
+          chmod 0400 /tmp/ed25519.seed /tmp/mldsa65.secret
+
+          # Verify seed lengths after decode — catches base64-of-dash etc.
+          ED_LEN=$(stat -c '%s' /tmp/ed25519.seed)
+          ML_LEN=$(stat -c '%s' /tmp/mldsa65.secret)
+          if [ "$ED_LEN" -ne 32 ] || [ "$ML_LEN" -ne 32 ]; then
+            echo "ERROR: decoded seed lengths wrong (ed25519=$ED_LEN, mldsa=$ML_LEN, expected 32 each)" >&2
+            exit 1
+          fi
+
+          # Extract the registry binary from the just-built image. With
+          # `load: true` on build-push-action, the image is in the local
+          # daemon under the SHA tag.
+          CONTAINER_ID=$(docker create "$IMAGE_TAG")
+          docker cp "$CONTAINER_ID":/app/ciris-registry /tmp/ciris-registry
+          docker rm "$CONTAINER_ID" >/dev/null
+
+          # Determine binary version from Cargo.toml.
+          BINARY_VERSION=$(awk -F'"' '/^version/ {print $2; exit}' rust-registry/Cargo.toml)
+          BUILD_ID="$GITHUB_SHA"
+
+          echo "Signing BuildManifest:"
+          echo "  primitive:        registry"
+          echo "  build_id:         $BUILD_ID"
+          echo "  target:           x86_64-unknown-linux-gnu"
+          echo "  binary_version:   $BINARY_VERSION"
+          echo "  binary path:      /tmp/ciris-registry"
+          echo "  binary size:      $(stat -c '%s' /tmp/ciris-registry) bytes"
+          echo "  binary sha256:    $(sha256sum /tmp/ciris-registry | cut -d' ' -f1)"
+
+          /tmp/build-tool/ciris-build-sign sign \
+            --primitive registry \
+            --build-id "$BUILD_ID" \
+            --target x86_64-unknown-linux-gnu \
+            --binary /tmp/ciris-registry \
+            --binary-version "$BINARY_VERSION" \
+            --ed25519-seed /tmp/ed25519.seed \
+            --mldsa-secret /tmp/mldsa65.secret \
+            --key-id "ciris-registry-steward" \
+            --output /tmp/build-manifest.json
+
+          echo "Signed manifest:"
+          jq '. | del(.signature.classical, .signature.pqc)' /tmp/build-manifest.json || cat /tmp/build-manifest.json
+
+          # POST to the production registry. The 5x-with-2x-success
+          # retry pattern handles transient watchtower-restart 502s.
+          set +e
+          for attempt in 1 2 3 4 5; do
+            HTTP_CODE=$(curl -sS -o /tmp/publish-response.json -w '%{http_code}' \
+              -X POST "${REGISTRY_URL}/v1/verify/build-manifest" \
+              -H "Authorization: Bearer ${REGISTRY_ADMIN_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data-binary @/tmp/build-manifest.json)
+            echo "Attempt $attempt: HTTP $HTTP_CODE"
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+              echo "Publish succeeded:"
+              jq . /tmp/publish-response.json || cat /tmp/publish-response.json
+              break
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              echo "Response body:"
+              jq . /tmp/publish-response.json 2>/dev/null || cat /tmp/publish-response.json
+              echo "Retrying in $((attempt * 5))s..."
+              sleep $((attempt * 5))
+            else
+              echo "ERROR: publish failed after 5 attempts. Final response:" >&2
+              cat /tmp/publish-response.json >&2
+              # Wipe seeds before exiting on failure
+              shred -u /tmp/ed25519.seed /tmp/mldsa65.secret 2>/dev/null \
+                || rm -f /tmp/ed25519.seed /tmp/mldsa65.secret
+              exit 1
+            fi
+          done
+          set -e
+
+          # Wipe seed files from the runner.
+          shred -u /tmp/ed25519.seed /tmp/mldsa65.secret 2>/dev/null \
+            || rm -f /tmp/ed25519.seed /tmp/mldsa65.secret
+
+          # Round-trip verify: the registry should serve back what we just
+          # uploaded under project=ciris-registry.
+          GET_URL="${REGISTRY_URL}/v1/verify/function-manifest/${BINARY_VERSION}/x86_64-unknown-linux-gnu?project=ciris-registry"
+          echo "Round-trip verify: GET $GET_URL"
+          curl -sS "$GET_URL" | jq '.binary_hash // .' || true
