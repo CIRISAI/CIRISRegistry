@@ -5,6 +5,7 @@
 //! - Proptest strategies for property-based testing
 //! - Database test helpers
 
+pub mod auth_fixtures;
 pub mod fixtures;
 pub mod strategies;
 

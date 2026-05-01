@@ -2305,6 +2305,8 @@ enum AuditActionType {
   // Registry key actions (v1.1.0)
   AUDIT_SIGNING_KEY_ROTATED = 60;
   AUDIT_SIGNING_KEY_ACTIVATED = 61;
+  // Authorization (v1.4.1, AV-15 mitigation)
+  AUDIT_ACCESS_DENIED = 70;
 }
 
 message AuditEntry {

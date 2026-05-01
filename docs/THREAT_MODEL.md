@@ -1636,8 +1636,11 @@ This document is updated:
 - On every signing-key rotation or HSM/Vault config change: §5 / §6 review.
 - On every protocol-version bump: §3.4 schema-mismatch review.
 
-Last updated: 2026-05-01 (v1.3 Phase 2 — AV-9 closed via
-`middleware/rate_limit.rs` tower Layer + axum from_fn middleware; tier
-mapping per `classify_tier`; 60s background cleanup ticker; 16 new
-tests. v1.3 Phase 1: AV-33 closed in-repo. v1.2 prior: AV-1 and AV-27
+Last updated: 2026-05-01 (v1.3 Phase 3 — auth/policy module foundation:
+`middleware/authz.rs` (`claims_from_request`, `authorize_org_access`,
+`authorize_system_admin`, `OrgRole` constants); `tests/common/auth_fixtures.rs`
+JWT minting helper; new `AUDIT_ACCESS_DENIED = 70` proto enum value.
+Foundation only — no PortalService handler edits yet (Phase 4); AV-15
+status unchanged until enforcement sweep ships. v1.3 Phase 2: AV-9
+closed. v1.3 Phase 1: AV-33 closed in-repo. v1.2 prior: AV-1 and AV-27
 mitigated; AV-28 operationally mitigated via bridge ansible).
