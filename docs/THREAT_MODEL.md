@@ -1095,21 +1095,39 @@ process continued; CIRISVerify's cached pubkey was invalidated until
 operator intervention. Concrete demonstration that "warn but continue"
 is insufficient as a sole mitigation.
 
-**Recommended for v1.3.x (high priority after the production observation)**:
+**Operational mitigation deployed (2026-05-01 evening)**: CIRIS bridge
+ansible role updated:
+- `runbooks/registry-keys-init.yml` (one-shot, idempotent) generates
+  persistent 32-byte seeds, mirrors US seeds to EU for cross-region
+  identity, sets `0440 root:999` perms (container runs as uid 999),
+  recreates the container.
+- `inventory/production-refactored.yml` + `group_vars/registry_servers.yml`
+  set `registry_key_storage_mode: file`.
+- Both production registry deployments (US + EU) now serve identical
+  persistent steward identity:
+  - `classical.key_id`: `75c29fccd21f80e4ddf03f6dfdfd9d4d2ba40db5720717079c1297dea18d265a`
+  - `pqc.fingerprint`: `sha256:1c97265c775ab1ba186e50558cb25cb19949e2908ae66137a176868a64def4cc`
+
+**Still tracked for v1.3.x (high priority — operational mitigation is
+not a substitute for in-app enforcement)**:
 - Boot-time hard-fail when `ENVIRONMENT=production` (or
-  `production-like`) and either key path is unset.
+  `production-like`) and either key path is unset. Future operators
+  can still misconfigure; the registry should refuse to start rather
+  than silently degrade.
 - `/health` endpoint includes the current Ed25519 pubkey fingerprint
   so deployment scripts can compare against an expected value and
   alert on drift.
 - Operational addendum (deployment guide): generate persistent seeds
   with `head -c 32 /dev/urandom > ed25519.seed && head -c 32 /dev/urandom
   > mldsa.seed`, mount as Docker secrets / Kubernetes Secrets / bind-
-  mounted files with mode 0400 owned by the registry runtime user.
+  mounted files with mode 0400 (or 0440 when running as a non-root
+  user with a known uid).
 
-**Residual**: until the production hard-fail lands, a deployment that
-omits the env vars will silently degrade to ephemeral. Detection
-today: scrape boot logs for the warning string; check
-`/v1/steward-key` fingerprint stability across restarts.
+**Residual**: production deployments are now hardened operationally,
+but a *new* deployment that doesn't go through the bridge runbook
+remains exposed until the in-app hard-fail lands. Detection today:
+scrape boot logs for the warning string; check `/v1/steward-key`
+fingerprint stability across restarts.
 
 ### 3.7 Operational / Hardening — non-adversarial availability vectors
 
@@ -1186,6 +1204,60 @@ crafting exploitation payloads.
 **Residual**: low — proto is public. But a hardened production posture
 would not advertise reflection.
 
+#### AV-33: Spock multi-master migration desync (multi-region operational)
+
+**Attack surface (operational, not adversarial)**: in a Spock multi-
+master PostgreSQL cluster (US ↔ EU), sqlx's `_sqlx_migrations` table
+is in Spock's default replication set. When one node applies a new
+migration (e.g., the migration 021 deploy on 2026-05-01):
+1. Node A boots, sqlx runs the DDL locally + INSERTs `(version=21,
+   success=t)` into `_sqlx_migrations`.
+2. The bookkeeping row replicates to Node B via DML replication.
+3. Node B boots ~seconds later, sqlx checks `_sqlx_migrations`, sees
+   "21 already applied", **skips its own DDL run**.
+4. Node B's schema is silently desynced — `ALTER TABLE` never ran
+   on its postgres.
+
+Symptom: Node B's API logs immediately produce `Error fetching binary
+manifest: column "project" does not exist`. Half the multi-region
+fleet returns 500s on the affected endpoints.
+
+**Severity**: production-impacting in multi-master deployments.
+Single-node deployments and single-master replicas (where DDL
+propagates via base-table replication) are unaffected.
+
+**Mitigation (bridge-side, deployed 2026-05-01)**: ansible role
+update mirrors the CIRISBilling fix for the same class of bug with
+alembic:
+- Manually applied migration 021 on EU (`psql -f` against the
+  container's migration file).
+- Removed `_sqlx_migrations` from Spock's default repset on both
+  nodes: `SELECT spock.repset_remove_table('default',
+  'public._sqlx_migrations')`.
+- Per-node reconcile task in `roles/registry/tasks/main.yml` keeps
+  `_sqlx_migrations` out of the repset after every deploy and adds
+  any new public tables created by a migration to the default repset
+  (so subsequent INSERTs replicate as intended).
+
+This is a last-line invariant guard, not the primary fix.
+
+**Tracked for in-repo fix at [CIRISRegistry#2](https://github.com/CIRISAI/CIRISRegistry/issues/2)**.
+Three options:
+- (A) Wrap each schema-changing migration's DDL in
+  `spock.replicate_ddl_command($$ ... $$)` — DDL flows through Spock's
+  ddl_sql replication set, peers see ALTER apply over the wire instead
+  of skipping based on stale bookkeeping.
+- (B) Exclude `_sqlx_migrations` from replication and run migrations on
+  every node. Migrations must be idempotent (`IF NOT EXISTS` /
+  `IF EXISTS` guards, which migration 021 already does).
+- (C) Combine: document the idempotency convention + auto-detect Spock
+  in the migration runner.
+
+**Residual**: until the in-repo fix lands, multi-master deployments
+depend on the bridge ansible reconcile task. New deployments that
+don't go through the bridge are exposed. Single-region or single-
+master deployments unaffected.
+
 #### AV-32: Race in self-custody key activation
 
 **Attack**: Adversary observes a `RegisterPublicKey` succeed for a
@@ -1245,7 +1317,8 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-25 | Steward signing-key compromise | File mode + FDE + 0400 perms (only working software-backed option) | Hybrid signatures (both must fall) | ⚠ Architectural | v1.3.x: HSM impl via ciris-keyring; v1.4.x: threshold sig |
 | AV-26 | ML-DSA-65 missing on uploaded manifests | Server-side hybrid re-sign by registry | (uploader signature not verified) | ⚠ Partial | v1.2.x: align with CIRISVerify v1.8 (in progress) |
 | AV-27 | Vault-mode signing produces unverifiable sigs | (deleted — vault mode no longer exists) | ciris-crypto migration | ✓ Closed by deletion v1.2 (commit 70f737d) | — |
-| AV-28 | Ephemeral signing keys in production | `tracing::warn!` at boot; storage_mode=memory enum gone | Operational: set `ED25519_KEY_PATH` + `MLDSA_KEY_PATH` | ⚠ Partial — observed in production 2026-05-01 | **v1.3.x P0**: hard-fail in production when paths unset |
+| AV-28 | Ephemeral signing keys in production | `tracing::warn!` at boot; storage_mode=memory enum gone | Bridge ansible deployed persistent seeds 2026-05-01 evening (US + EU) | ⚠ Operationally mitigated; in-app hard-fail tracked | v1.3.x: hard-fail in production when paths unset |
+| AV-33 | Spock multi-master migration desync | Bridge ansible removes `_sqlx_migrations` from repset; per-deploy reconcile task | Migration idempotency convention (`IF NOT EXISTS`) | ⚠ Operationally mitigated; in-repo fix tracked | [Registry#2](https://github.com/CIRISAI/CIRISRegistry/issues/2): wrap DDL in `spock.replicate_ddl_command` or exclude bookkeeping from replication at the runner |
 | AV-29 | Plaintext PG connection in production | `tracing::warn!` only | Default `sslmode=require` | ⚠ Warning-only | v1.2.x: hard-fail |
 | AV-30 | Unrotated REGISTRY_ADMIN_TOKEN | (none — couples to AV-13) | Operational rotation cadence | ⚠ Couples to AV-13 | (closes with AV-13) |
 | AV-31 | gRPC reflection in production | (none — enabled unconditionally) | Proto is public anyway | ⚠ Low impact | v1.2.x: env-gate |
@@ -1253,7 +1326,8 @@ challenge issuance (v1.2.x) tightens the window.
 
 **Posture summary at a glance**:
 - ✓ Mitigated: 10 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-16, AV-19, AV-22, AV-27 (closed by deletion, v1.2), AV-32
-- ⚠ Gap requiring v1.3: AV-15 (cross-org access), AV-9 (gRPC rate limiting), AV-28 (production hard-fail on missing key paths)
+- ⚠ Operationally mitigated; in-app fix tracked: AV-28 (persistent keys deployed 2026-05-01), AV-33 (Spock migration desync, bridge reconcile task)
+- ⚠ Gap requiring v1.3: AV-15 (cross-org access), AV-9 (gRPC rate limiting)
 - ⚠ **CRITICAL bugs**: 0 (AV-27 closed in v1.2)
 - ⚠ Architectural deferrals: AV-12 / AV-13 / AV-14 / AV-30 (auth model rework), AV-18 / AV-25 (HSM + audit chain), AV-26 (CIRISVerify v1.8 inbound validation, in progress)
 - ⚠ Lower-priority hardening: AV-4, AV-5, AV-6, AV-10, AV-11, AV-17, AV-20, AV-23, AV-24, AV-29, AV-31
@@ -1466,12 +1540,17 @@ v1.2 BASELINE THREAT POSTURE
   ⚠ CRITICAL — REQUIRES v1.2.x HOTFIX (0)
     None outstanding. AV-27 closed in v1.2.
 
-  ⚠ HIGH-PRIORITY GAP — REQUIRED FOR v1.3 (3)
+  ⚠ HIGH-PRIORITY GAP — REQUIRED FOR v1.3 (2)
     AV-9   gRPC RegistryService unauthenticated rate-limit gap
     AV-15  PortalService cross-org access (handlers trust req.org_id)
-    AV-28  ephemeral signing keys in production — observed 2026-05-01;
-           hard-fail at boot when ENVIRONMENT=production and key paths
-           unset
+
+  ⚠ OPERATIONALLY MITIGATED; IN-APP / IN-REPO FIX TRACKED (2)
+    AV-28  ephemeral signing keys in production — bridge ansible
+           deployed persistent seeds 2026-05-01 evening (US + EU);
+           in-app boot hard-fail still tracked for v1.3.x
+    AV-33  Spock multi-master migration desync — bridge ansible
+           reconcile task removes _sqlx_migrations from repset;
+           in-repo fix tracked at CIRISRegistry#2
 
   ⚠ ARCHITECTURAL DEFERRALS — v1.3.x ROADMAP (7)
     AV-12  HS256 → asymmetric JWT (EdDSA / RS256 + JWKS)
@@ -1505,10 +1584,11 @@ v1.2 BASELINE THREAT POSTURE
 ```
 
 The v1.2 baseline closes the v1.1 critical (AV-27) and the in-flight
-project namespace gap (AV-1) by deletion / shipping. **Three
-high-priority gaps remain for v1.3**: AV-9 (gRPC rate limiting), AV-15
-(cross-org access), and AV-28 (ephemeral key fallback in production —
-discovered live on 2026-05-01).
+project namespace gap (AV-1) by deletion / shipping. **Two
+high-priority in-app gaps remain for v1.3**: AV-9 (gRPC rate limiting)
+and AV-15 (cross-org access). Two operationally-discovered vectors
+(AV-28 ephemeral keys, AV-33 Spock migration desync) are mitigated at
+the bridge ansible layer with in-app / in-repo follow-up tracked.
 
 The rate-limit gap (AV-9) and the cross-org access gap (AV-15) together
 mean the deployment posture still assumes either single-tenant
@@ -1517,14 +1597,15 @@ should not deploy without compensating controls at the deployment edge
 (per-IP rate limiting, JWT issuance restricted to scoped per-org
 identities).
 
-The ephemeral-key gap (AV-28) is operational: deployments must set
-`ED25519_KEY_PATH` and `MLDSA_KEY_PATH` to persistent files (raw 32-byte
-seeds, mode 0400, dedicated runtime user). Until the v1.3 boot hard-
-fail lands, deployment scripts should grep boot logs for the warning
-string and assert the `/v1/steward-key` fingerprint is stable across
-restarts.
-
----
+The two operational vectors are mitigated for the production fleet but
+exposed to fresh deployments that don't go through the bridge runbook:
+- AV-28: persistent steward seeds are loaded via `ED25519_KEY_PATH` and
+  `MLDSA_KEY_PATH`; ansible role's `runbooks/registry-keys-init.yml`
+  generates and mirrors them across regions. In-app boot hard-fail
+  still tracked for v1.3.x.
+- AV-33: Spock multi-master DDL replication is handled by the bridge's
+  per-deploy reconcile task. In-repo fix tracked at
+  [CIRISRegistry#2](https://github.com/CIRISAI/CIRISRegistry/issues/2).
 
 ---
 
@@ -1537,5 +1618,7 @@ This document is updated:
 - On every signing-key rotation or HSM/Vault config change: §5 / §6 review.
 - On every protocol-version bump: §3.4 schema-mismatch review.
 
-Last updated: 2026-05-01 (v1.2 — AV-1, AV-27, AV-28-partial closed via
-ciris-crypto v1.8.0 migration + project namespace shipping).
+Last updated: 2026-05-01 (v1.2 — AV-1 and AV-27 mitigated via
+ciris-crypto v1.8.0 migration + project namespace shipping; AV-28 and
+AV-33 added with operational mitigations from same-day production
+hardening; bridge runbook + Spock reconcile task documented).
