@@ -45,6 +45,18 @@ rsa = { version = "0.9", features = ["sha2"] }
 # (the same primitives CIRISLens, CIRISAgent, and CIRISPersist consume).
 ciris-crypto = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v1.8.0", features = ["pqc-ml-dsa"] }
 
+# NOTE on BuildManifest validation:
+# We do NOT pull ciris-verify-core. Reasons:
+#   1. ciris-verify-core has a hard rusqlite dep (license cache) that
+#      conflicts with sqlx-sqlite at the libsqlite3-sys linker level.
+#   2. Most of ciris-verify-core (transparency log, license cache,
+#      registry client, app_attest) is verifier-side and unused by the
+#      registry.
+#   3. The BuildManifest type is small (~80 lines) and stable enough to
+#      vendor + maintain wire-format parity via integration tests.
+# See `src/security/build_manifest.rs` for the vendored type. ciris-crypto
+# (above) provides the actual signature verifiers we use.
+
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

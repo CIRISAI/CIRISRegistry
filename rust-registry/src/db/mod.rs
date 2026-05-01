@@ -19,6 +19,7 @@ mod revocations;
 mod signing_keys;
 mod snapshots;
 mod system_users;
+mod trusted_keys;
 mod users;
 mod webhooks;
 
@@ -47,6 +48,7 @@ pub use revocations::*;
 pub use signing_keys::*;
 pub use snapshots::*;
 pub use system_users::*;
+pub use trusted_keys::*;
 pub use users::*;
 pub use webhooks::*;
 

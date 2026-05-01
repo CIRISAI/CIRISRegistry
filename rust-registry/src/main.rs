@@ -25,6 +25,7 @@ mod error;
 mod middleware;
 pub mod play_integrity;
 pub mod rate_limiter;
+pub mod build_manifest;
 mod services;
 mod validation;
 
@@ -75,6 +76,40 @@ async fn main() -> Result<()> {
     // Initialize crypto provider
     let crypto = Arc::new(crypto::HybridCrypto::new(&settings.crypto)?);
     info!("Initialized hybrid cryptography provider");
+
+    // Boot-seed the registry's own steward pubkey as a trusted primitive
+    // key (project='ciris-registry') so the registry can self-verify its
+    // own builds without manual SYSTEM_ADMIN intervention. AV-26 mitigation.
+    {
+        let ed25519_pk = crypto.ed25519_public_key();
+        let mldsa_pk = crypto.mldsa_public_key();
+        let ed25519_fp = crypto::HybridCrypto::fingerprint(&ed25519_pk);
+        let mldsa_fp = crypto::HybridCrypto::fingerprint(&mldsa_pk);
+        match db::upsert_trusted_primitive_key(
+            db.pool(),
+            "ciris-registry",
+            &ed25519_pk,
+            &mldsa_pk,
+            &ed25519_fp,
+            &mldsa_fp,
+            Some("boot-seed"),
+            Some("Auto-seeded at boot from steward keypair (AV-26 self-verify)"),
+        )
+        .await
+        {
+            Ok(()) => info!(
+                ed25519_fp = %ed25519_fp,
+                mldsa_fp = %mldsa_fp,
+                "Boot-seeded trusted primitive key for project='ciris-registry'"
+            ),
+            Err(e) => tracing::warn!(
+                "Failed to boot-seed registry's own trusted primitive key: {}. \
+                 Self-verify of registry builds will not work until a SYSTEM_ADMIN \
+                 calls RegisterTrustedPrimitiveKey for project='ciris-registry'.",
+                e
+            ),
+        }
+    }
 
     // Create gRPC services
     let registry_service = RegistryService::new(db.clone(), crypto.clone(), settings.environment);

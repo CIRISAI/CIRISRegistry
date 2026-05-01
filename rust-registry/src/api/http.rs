@@ -918,6 +918,208 @@ async fn register_function_manifest(
 }
 
 // =============================================================================
+// Verified BuildManifest (v1.4.2 — AV-26 mitigation, Phase A)
+// =============================================================================
+
+/// Response for /v1/verify/build-manifest POST.
+#[derive(Serialize)]
+struct VerifiedBuildManifestResponse {
+    success: bool,
+    project: String,
+    binary_version: String,
+    target: String,
+    manifest_hash: String,
+    /// Fingerprint of the trusted Ed25519 key that verified the upload.
+    /// Operators can compare against `ListTrustedPrimitiveKeys` output to
+    /// confirm which key authorized the registration.
+    verifying_key_fingerprint: String,
+    message: String,
+}
+
+#[derive(Serialize)]
+struct VerifiedBuildManifestError {
+    error: String,
+    message: String,
+}
+
+/// Admin endpoint: POST /v1/verify/build-manifest
+///
+/// Body: raw BuildManifest JSON (output of `ciris-build-sign --primitive
+/// <name>`). Hybrid-signed by the per-primitive build-signing key.
+///
+/// Process:
+/// 1. Parse the body as a `BuildManifest` (vendored from ciris-verify
+///    v1.8.0 wire format).
+/// 2. Look up the trusted Ed25519 + ML-DSA-65 pubkeys for
+///    `manifest.primitive.project_name()`.
+/// 3. Verify the hybrid signature (`build_manifest::verify_uploaded_manifest`).
+/// 4. On success, store via the existing `function_manifests` table
+///    (project-scoped; same shape as the legacy register_function_manifest
+///    POST handler).
+///
+/// Auth: REGISTRY_ADMIN_TOKEN (defense in depth — the signature is the
+/// primary trust anchor; the token gates *who can attempt* registration).
+///
+/// Closes THREAT_MODEL.md AV-26.
+async fn register_verified_build_manifest(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<Json<VerifiedBuildManifestResponse>, (StatusCode, Json<VerifiedBuildManifestError>)> {
+    // Auth gate (mirrors register_function_manifest pattern).
+    let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
+    if admin_token.is_empty() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(VerifiedBuildManifestError {
+                error: "configuration_error".to_string(),
+                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
+            }),
+        ));
+    }
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
+    if provided_token != admin_token {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(VerifiedBuildManifestError {
+                error: "unauthorized".to_string(),
+                message: "Invalid or missing authorization token".to_string(),
+            }),
+        ));
+    }
+
+    // 1. Parse without verifying first, so we can extract the project
+    //    name to look up the trusted key.
+    let manifest_preview: crate::build_manifest::BuildManifest =
+        match serde_json::from_slice(&body) {
+            Ok(m) => m,
+            Err(e) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(VerifiedBuildManifestError {
+                        error: "invalid_manifest".to_string(),
+                        message: format!("BuildManifest parse failed: {}", e),
+                    }),
+                ));
+            }
+        };
+    let project = manifest_preview.primitive.project_name();
+    let expected_primitive = manifest_preview.primitive.clone();
+
+    // 2. Look up the trusted key for this primitive.
+    let trusted = match db::get_trusted_primitive_key(state.db.pool(), &project).await {
+        Ok(Some(t)) => t,
+        Ok(None) => {
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(VerifiedBuildManifestError {
+                    error: "no_trusted_key".to_string(),
+                    message: format!(
+                        "No trusted primitive key registered for project='{}'. \
+                         A SYSTEM_ADMIN must call RegisterTrustedPrimitiveKey first.",
+                        project
+                    ),
+                }),
+            ));
+        }
+        Err(e) => {
+            warn!("trusted_primitive_key lookup failed for project={}: {}", project, e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(VerifiedBuildManifestError {
+                    error: "internal_error".to_string(),
+                    message: "Trusted-key lookup failed".to_string(),
+                }),
+            ));
+        }
+    };
+
+    // 3. Verify the hybrid signature.
+    let verified = crate::build_manifest::verify_uploaded_manifest(
+        &body,
+        expected_primitive,
+        &trusted.ed25519_public_key,
+        &trusted.ml_dsa_65_public_key,
+    );
+    let manifest = match verified {
+        Ok(m) => m,
+        Err(e) => {
+            warn!(
+                project = %project,
+                "BuildManifest verification rejected: {}",
+                e
+            );
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(VerifiedBuildManifestError {
+                    error: "verification_failed".to_string(),
+                    message: format!("BuildManifest verification failed: {}", e),
+                }),
+            ));
+        }
+    };
+
+    // 4. Store in function_manifests. The project-scoped (project,
+    //    binary_version, target) PK from migration 021 is the natural
+    //    home — function_manifests already carries hybrid signature
+    //    columns from migration 019.
+    let manifest_json = serde_json::to_value(&manifest).unwrap_or(serde_json::json!({}));
+    let generated_at = time::OffsetDateTime::parse(
+        &manifest.generated_at,
+        &time::format_description::well_known::Rfc3339,
+    )
+    .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+
+    if let Err(e) = db::register_function_manifest(
+        state.db.pool(),
+        &project,
+        &manifest.binary_version,
+        &manifest.target,
+        &manifest.manifest_schema_version,
+        &manifest.binary_hash,
+        &manifest.manifest_hash,
+        &manifest_json,
+        Some(&manifest.signature.classical),
+        Some(&manifest.signature.pqc),
+        Some(&manifest.signature.key_id),
+        generated_at,
+    )
+    .await
+    {
+        warn!("Failed to persist verified BuildManifest: {}", e);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(VerifiedBuildManifestError {
+                error: "persist_failed".to_string(),
+                message: "Failed to persist verified manifest".to_string(),
+            }),
+        ));
+    }
+
+    info!(
+        project = %project,
+        binary_version = %manifest.binary_version,
+        target = %manifest.target,
+        verifying_key_fp = %trusted.ed25519_fingerprint,
+        "verified_build_manifest_stored"
+    );
+
+    Ok(Json(VerifiedBuildManifestResponse {
+        success: true,
+        project,
+        binary_version: manifest.binary_version,
+        target: manifest.target,
+        manifest_hash: manifest.manifest_hash,
+        verifying_key_fingerprint: trusted.ed25519_fingerprint,
+        message: "BuildManifest verified and stored".to_string(),
+    }))
+}
+
+// =============================================================================
 // Key Verification (CIRISVerify agent signing key validation)
 // =============================================================================
 
@@ -1524,6 +1726,12 @@ pub async fn serve(
         .route(
             "/v1/verify/function-manifest",
             post(register_function_manifest),
+        )
+        // Hybrid-signed BuildManifest upload (v1.4.2 — AV-26 mitigation)
+        // Body: raw BuildManifest JSON; verified against trusted_primitive_keys
+        .route(
+            "/v1/verify/build-manifest",
+            post(register_verified_build_manifest),
         )
         // Play Integrity verification (Android device/app attestation)
         .route("/v1/integrity/nonce", get(integrity_nonce))

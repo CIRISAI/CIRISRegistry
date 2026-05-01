@@ -1,8 +1,21 @@
 // CIRISRegistry Protocol Buffer Definitions
-// Version: 1.4.0
+// Version: 1.4.2
 //
 // This file defines the data structures for the CIRIS Agent and Partner Registry.
 // See FSD-001_CIRISREGISTRY_PROTOCOL.md for full specification.
+//
+// v1.4.2 Changes:
+// - Added trusted primitive keys for inbound BuildManifest validation:
+//   RegisterTrustedPrimitiveKey, ListTrustedPrimitiveKeys,
+//   RevokeTrustedPrimitiveKey (RegistryAdminService, SYSTEM_ADMIN).
+//   Backs THREAT_MODEL.md AV-26 (uploaded-manifest hybrid-sig
+//   verification). Trusted keys live in `trusted_primitive_keys` table
+//   (migration 022); registry's own steward pubkey is auto-seeded at
+//   boot as project='ciris-registry' for self-verify.
+//
+// v1.4.1 Changes:
+// - Added AUDIT_ACCESS_DENIED = 70 to AuditActionType enum (AV-15
+//   mitigation foundation, Phase 3).
 //
 // v1.4.0 Changes:
 // - Added `project` field to BuildRecord and GetBuildRequest (gRPC). Same
@@ -1577,6 +1590,52 @@ message CleanupTestRecordsResponse {
   ResponseContext context = 50;
 }
 
+// =============================================================================
+// TRUSTED PRIMITIVE KEYS (v1.4.2 — for inbound BuildManifest validation)
+// =============================================================================
+
+// One trusted Ed25519 + ML-DSA-65 keypair the registry uses to verify
+// hybrid signatures on uploaded BuildManifests for a given primitive
+// (project = "ciris-agent", "ciris-persist", "ciris-lens", "ciris-registry",
+// "ciris-verify", or any "ciris-<name>" forward-compat string).
+message TrustedPrimitiveKey {
+  string project = 1;                    // CIRIS primitive name (kebab-case)
+  bytes ed25519_public_key = 2;          // 32 bytes
+  bytes ml_dsa_65_public_key = 3;        // ~1952 bytes (FIPS 204)
+  string ed25519_fingerprint = 4;        // sha256 hex
+  string ml_dsa_65_fingerprint = 5;      // sha256 hex
+  int64 added_at = 10;
+  string added_by = 11;
+  int64 rotated_at = 12;                 // 0 if never rotated
+  int64 revoked_at = 13;                 // 0 if active
+  string revocation_reason = 14;
+  string notes = 15;
+}
+
+message RegisterTrustedPrimitiveKeyRequest {
+  string project = 1;                    // Required; must pass project-name validator
+  bytes ed25519_public_key = 2;          // 32 bytes; required
+  bytes ml_dsa_65_public_key = 3;        // FIPS 204 pubkey; required
+  string notes = 4;                      // Optional human-readable note
+  RequestContext context = 10;
+}
+
+message ListTrustedPrimitiveKeysRequest {
+  bool include_revoked = 1;              // Default: active only
+  RequestContext context = 10;
+}
+
+message ListTrustedPrimitiveKeysResponse {
+  repeated TrustedPrimitiveKey keys = 1;
+  ResponseContext context = 50;
+}
+
+message RevokeTrustedPrimitiveKeyRequest {
+  string project = 1;                    // Required
+  string reason = 2;                     // Required; recorded in audit log
+  RequestContext context = 10;
+}
+
 // List registered agents with filtering and pagination
 message ListRegisteredAgentsRequest {
   // Filters
@@ -2460,6 +2519,11 @@ service RegistryAdminService {
 
   // Test cleanup (v1.1.0)
   rpc CleanupTestRecords(CleanupTestRecordsRequest) returns (CleanupTestRecordsResponse);
+
+  // Trusted primitive keys (v1.4.2 — for inbound BuildManifest validation, AV-26)
+  rpc RegisterTrustedPrimitiveKey(RegisterTrustedPrimitiveKeyRequest) returns (AdminResponse);
+  rpc ListTrustedPrimitiveKeys(ListTrustedPrimitiveKeysRequest) returns (ListTrustedPrimitiveKeysResponse);
+  rpc RevokeTrustedPrimitiveKey(RevokeTrustedPrimitiveKeyRequest) returns (AdminResponse);
 }
 
 // Portal service (CIRISPortal operations)

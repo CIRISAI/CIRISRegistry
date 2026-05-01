@@ -975,4 +975,187 @@ impl AdminServiceTrait for AdminService {
             context: Some(self.response_context(request_id, None)),
         }))
     }
+
+    // =========================================================================
+    // Trusted primitive keys (v1.4.2 — AV-26 mitigation, Phase A)
+    // =========================================================================
+
+    async fn register_trusted_primitive_key(
+        &self,
+        request: Request<RegisterTrustedPrimitiveKeyRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        crate::validation::validate_project_name(&req.project)
+            .map_err(Status::invalid_argument)?;
+        if req.project.is_empty() {
+            return Err(Status::invalid_argument("project is required"));
+        }
+        if req.ed25519_public_key.len() != 32 {
+            return Err(Status::invalid_argument(
+                "ed25519_public_key must be 32 bytes",
+            ));
+        }
+        if req.ml_dsa_65_public_key.len() < 1500 {
+            return Err(Status::invalid_argument(
+                "ml_dsa_65_public_key must be a FIPS 204 ML-DSA-65 pubkey (~1952 bytes)",
+            ));
+        }
+
+        let ed25519_fp = HybridCrypto::fingerprint(&req.ed25519_public_key);
+        let mldsa_fp = HybridCrypto::fingerprint(&req.ml_dsa_65_public_key);
+
+        // Capture caller from JWT claims if present (post-Phase-4 will use
+        // claims_from_request; today it's optional).
+        let added_by = request_extension_user_id(&request_id);
+
+        db::upsert_trusted_primitive_key(
+            self.db.pool(),
+            &req.project,
+            &req.ed25519_public_key,
+            &req.ml_dsa_65_public_key,
+            &ed25519_fp,
+            &mldsa_fp,
+            added_by.as_deref(),
+            if req.notes.is_empty() { None } else { Some(req.notes.as_str()) },
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        info!(
+            project = %req.project,
+            ed25519_fp = %ed25519_fp,
+            mldsa_fp = %mldsa_fp,
+            "trusted_primitive_key_registered"
+        );
+
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditSigningKeyRotated,
+            added_by.as_deref(),
+            None,
+            None,
+            Some("trusted_primitive_key"),
+            Some(&req.project),
+            &format!(
+                "Trusted primitive key registered: project={}, ed25519_fp={}",
+                req.project, ed25519_fp
+            ),
+            Some(serde_json::json!({
+                "ed25519_fingerprint": ed25519_fp,
+                "ml_dsa_65_fingerprint": mldsa_fp,
+            })),
+        )
+        .await;
+
+        Ok(Response::new(self.admin_response(
+            true,
+            &format!("Trusted primitive key registered for project={}", req.project),
+            request_id,
+        )))
+    }
+
+    async fn list_trusted_primitive_keys(
+        &self,
+        request: Request<ListTrustedPrimitiveKeysRequest>,
+    ) -> Result<Response<ListTrustedPrimitiveKeysResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // include_revoked is reserved for future use; current
+        // list_trusted_primitive_keys returns only active rows.
+        let _ = req.include_revoked;
+
+        let rows = db::list_trusted_primitive_keys(self.db.pool())
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let keys = rows
+            .into_iter()
+            .map(|r| TrustedPrimitiveKey {
+                project: r.project,
+                ed25519_public_key: r.ed25519_public_key.into(),
+                ml_dsa_65_public_key: r.ml_dsa_65_public_key.into(),
+                ed25519_fingerprint: r.ed25519_fingerprint,
+                ml_dsa_65_fingerprint: r.ml_dsa_65_fingerprint,
+                added_at: r.added_at.unix_timestamp(),
+                added_by: r.added_by.unwrap_or_default(),
+                rotated_at: r.rotated_at.map(|t| t.unix_timestamp()).unwrap_or(0),
+                revoked_at: r.revoked_at.map(|t| t.unix_timestamp()).unwrap_or(0),
+                revocation_reason: r.revocation_reason.unwrap_or_default(),
+                notes: r.notes.unwrap_or_default(),
+            })
+            .collect();
+
+        Ok(Response::new(ListTrustedPrimitiveKeysResponse {
+            keys,
+            context: Some(self.response_context(request_id, None)),
+        }))
+    }
+
+    async fn revoke_trusted_primitive_key(
+        &self,
+        request: Request<RevokeTrustedPrimitiveKeyRequest>,
+    ) -> Result<Response<AdminResponse>, Status> {
+        let req = request.into_inner();
+        let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        if req.project.is_empty() {
+            return Err(Status::invalid_argument("project is required"));
+        }
+        if req.reason.is_empty() {
+            return Err(Status::invalid_argument("reason is required"));
+        }
+
+        let revoked = db::revoke_trusted_primitive_key(
+            self.db.pool(),
+            &req.project,
+            &req.reason,
+        )
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+        if !revoked {
+            return Err(Status::not_found(format!(
+                "no active trusted key for project={}",
+                req.project
+            )));
+        }
+
+        info!(project = %req.project, reason = %req.reason, "trusted_primitive_key_revoked");
+
+        let added_by = request_extension_user_id(&request_id);
+        let _ = db::create_audit_entry(
+            self.db.pool(),
+            AuditActionType::AuditSigningKeyRotated,
+            added_by.as_deref(),
+            None,
+            None,
+            Some("trusted_primitive_key"),
+            Some(&req.project),
+            &format!(
+                "Trusted primitive key revoked: project={}, reason={}",
+                req.project, req.reason
+            ),
+            None,
+        )
+        .await;
+
+        Ok(Response::new(self.admin_response(
+            true,
+            &format!("Trusted primitive key revoked for project={}", req.project),
+            request_id,
+        )))
+    }
 }
+
+/// Best-effort caller-id extraction. Real claims plumbing arrives in
+/// Phase 4; today this returns None for handlers that don't have it
+/// wired.
+fn request_extension_user_id(_request_id: &Option<String>) -> Option<String> {
+    None
+}
+
+#[allow(unused_imports)]
+use crate::middleware::auth::Claims as _ClaimsHandle;

@@ -1337,7 +1337,7 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-23 | Email enumeration via timing | JWT auth gate; couples to AV-15 | NotFound vs Ok timing observable | ⚠ Couples to AV-15 | v1.2.x: rate limit + AV-15 fix |
 | AV-24 | Side-channel timing on verify | `verify_strict` constant-time | Endpoint-level short-circuit timing leaks | ⚠ Low impact | v1.2.x research |
 | AV-25 | Steward signing-key compromise | File mode + FDE + 0400 perms (only working software-backed option) | Hybrid signatures (both must fall) | ⚠ Architectural | v1.3.x: HSM impl via ciris-keyring; v1.4.x: threshold sig |
-| AV-26 | ML-DSA-65 missing on uploaded manifests | Server-side hybrid re-sign by registry | (uploader signature not verified) | ⚠ Partial | v1.2.x: align with CIRISVerify v1.8 (in progress) |
+| AV-26 | ML-DSA-65 missing on uploaded manifests | `POST /v1/verify/build-manifest` parses BuildManifest, looks up trusted key by `manifest.primitive.project_name()`, calls `build_manifest::verify_uploaded_manifest` (Ed25519 + ML-DSA-65 hybrid bound-sig) before storing | Trusted keys live in `trusted_primitive_keys` table (migration 022); registry's own steward pubkey auto-seeded at boot as project='ciris-registry'; admin RPCs RegisterTrustedPrimitiveKey/ListTrustedPrimitiveKeys/RevokeTrustedPrimitiveKey | ✓ Mitigated v1.3 (Phase A) | Legacy `POST /v1/verify/binary-manifest` and `/v1/verify/function-manifest` paths remain admin-token-only for backwards compat — track migration deprecation for v1.4 |
 | AV-27 | Vault-mode signing produces unverifiable sigs | (deleted — vault mode no longer exists) | ciris-crypto migration | ✓ Closed by deletion v1.2 (commit 70f737d) | — |
 | AV-28 | Ephemeral signing keys in production | `tracing::warn!` at boot; storage_mode=memory enum gone | Bridge ansible deployed persistent seeds 2026-05-01 evening (US + EU) | ⚠ Operationally mitigated; in-app hard-fail tracked | v1.3.x: hard-fail in production when paths unset |
 | AV-33 | Spock multi-master migration desync | `db/mod.rs::exclude_sqlx_migrations_from_spock_replication` runs at boot before `sqlx::migrate!` | Bridge ansible reconcile task as defense-in-depth | ✓ Mitigated v1.3 (in-repo fix shipped, closes Registry#2) | — |
@@ -1347,11 +1347,11 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-32 | Self-custody activation race | Activation challenge per-key + signature against registered pubkey | Single-use atomic consume | ✓ Mitigated | — |
 
 **Posture summary at a glance**:
-- ✓ Mitigated: 12 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-9 (rate limit, v1.3 Phase 2), AV-16, AV-19, AV-22, AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3 Phase 1)
+- ✓ Mitigated: 13 — AV-1 (project namespace, v1.2), AV-2, AV-3, AV-7, AV-8, AV-9 (rate limit, v1.3 Phase 2), AV-16, AV-19, AV-22, AV-26 (BuildManifest verify, v1.3 Phase A), AV-27 (closed by deletion, v1.2), AV-32, AV-33 (Spock fix, v1.3 Phase 1)
 - ⚠ Operationally mitigated; in-app fix tracked: AV-28 (persistent keys deployed 2026-05-01)
 - ⚠ Gap requiring v1.3: AV-15 (cross-org access)
 - ⚠ **CRITICAL bugs**: 0 (AV-27 closed in v1.2)
-- ⚠ Architectural deferrals: AV-12 / AV-13 / AV-14 / AV-30 (auth model rework), AV-18 / AV-25 (HSM + audit chain), AV-26 (CIRISVerify v1.8 inbound validation, in progress)
+- ⚠ Architectural deferrals: AV-12 / AV-13 / AV-14 / AV-30 (auth model rework), AV-18 / AV-25 (HSM + audit chain)
 - ⚠ Lower-priority hardening: AV-4, AV-5, AV-6, AV-10, AV-11, AV-17, AV-20, AV-23, AV-24, AV-29, AV-31
 
 ---
@@ -1547,7 +1547,7 @@ baseline.
 v1.2 BASELINE THREAT POSTURE
   (shipped 2026-05-01: ciris-crypto v1.8.0 alignment + project namespace)
 
-  ✓ MITIGATED (12)
+  ✓ MITIGATED (13)
     AV-1   project≠ciris-agent acceptance (commit 254a89e — closes GH #1)
     AV-2   self-custody challenge replay (single-use atomic consume)
     AV-3   cross-org pubkey reuse (public_key_hash UNIQUE — migration 020)
@@ -1559,6 +1559,9 @@ v1.2 BASELINE THREAT POSTURE
     AV-16  cross-path pubkey poisoning (UNIQUE constraint table-wide)
     AV-19  multi-replica migration race (sqlx pg_advisory_lock)
     AV-22  custodied private key in logs (no log/DB write paths)
+    AV-26  uploaded BuildManifest hybrid-sig verification (v1.3 Phase A —
+           POST /v1/verify/build-manifest + trusted_primitive_keys table +
+           admin RPCs; vendored BuildManifest type + ciris-crypto verifiers)
     AV-27  vault-mode dummy-key bug (commit 70f737d — closed by deletion)
     AV-32  self-custody activation race (per-key challenge + sig verify)
     AV-33  Spock multi-master migration desync (v1.3 Phase 1 — db/mod.rs
@@ -1575,14 +1578,11 @@ v1.2 BASELINE THREAT POSTURE
            deployed persistent seeds 2026-05-01 evening (US + EU);
            in-app boot hard-fail still tracked for v1.3.x
 
-  ⚠ ARCHITECTURAL DEFERRALS — v1.3.x ROADMAP (7)
+  ⚠ ARCHITECTURAL DEFERRALS — v1.3.x ROADMAP (6)
     AV-12  HS256 → asymmetric JWT (EdDSA / RS256 + JWKS)
     AV-13  REGISTRY_ADMIN_TOKEN → scoped short-lived JWT
     AV-14  binary admin role → scoped sub-roles
     AV-25  HSM mode via ciris-keyring::HardwareSigner
-    AV-26  align hybrid signature requirement with CIRISVerify v1.8
-           (in progress — registry now on ciris-crypto v1.8.0; inbound
-           verify_build_manifest call is the remaining piece)
     AV-29  hard-fail on plaintext PG in production
     AV-30  REGISTRY_ADMIN_TOKEN rotation lifecycle (closes with AV-13)
 
@@ -1609,8 +1609,11 @@ v1.2 BASELINE THREAT POSTURE
 The v1.2 baseline closed the v1.1 critical (AV-27) and the in-flight
 project namespace gap (AV-1) by deletion / shipping. v1.3 Phase 1
 closed AV-33 in-repo (Spock multi-master migration desync). v1.3 Phase
-2 closed AV-9 (gRPC + HTTP rate limiting). **One high-priority in-app
-gap remains for v1.3**: AV-15 (cross-org access).
+2 closed AV-9 (gRPC + HTTP rate limiting). v1.3 Phase A closed AV-26
+(uploaded BuildManifest hybrid-sig verification — federation primitives
+can now upload manifests that the registry actually trust-anchors).
+**One high-priority in-app gap remains for v1.3**: AV-15 (cross-org
+access).
 
 The cross-org access gap (AV-15) means the deployment posture still
 assumes either single-tenant operation or operator-trusted JWT
@@ -1636,11 +1639,12 @@ This document is updated:
 - On every signing-key rotation or HSM/Vault config change: §5 / §6 review.
 - On every protocol-version bump: §3.4 schema-mismatch review.
 
-Last updated: 2026-05-01 (v1.3 Phase 3 — auth/policy module foundation:
-`middleware/authz.rs` (`claims_from_request`, `authorize_org_access`,
-`authorize_system_admin`, `OrgRole` constants); `tests/common/auth_fixtures.rs`
-JWT minting helper; new `AUDIT_ACCESS_DENIED = 70` proto enum value.
-Foundation only — no PortalService handler edits yet (Phase 4); AV-15
-status unchanged until enforcement sweep ships. v1.3 Phase 2: AV-9
+Last updated: 2026-05-01 (v1.3 Phase A — AV-26 closed via vendored
+`build_manifest::verify_uploaded_manifest`, `trusted_primitive_keys`
+table (migration 022), boot-seeded `ciris-registry` self-key, three
+admin RPCs (RegisterTrustedPrimitiveKey, ListTrustedPrimitiveKeys,
+RevokeTrustedPrimitiveKey), new `POST /v1/verify/build-manifest`
+endpoint. Federation primitives can now upload signed manifests.
+v1.3 Phase 3: auth/policy module foundation. v1.3 Phase 2: AV-9
 closed. v1.3 Phase 1: AV-33 closed in-repo. v1.2 prior: AV-1 and AV-27
 mitigated; AV-28 operationally mitigated via bridge ansible).
