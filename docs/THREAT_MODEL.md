@@ -1014,44 +1014,68 @@ unimplemented.
 (file mode). File mode with FDE + 0400 perms + dedicated user is the
 recommended production posture today.
 
-#### AV-26: ML-DSA-65 verification missing on uploaded manifests
+#### AV-26: ML-DSA-65 verification missing on uploaded manifests (CLOSED — v1.3 Phase A, operationally validated)
 
-**Attack**: Adversary uploads a binary or function manifest with only
-a classical Ed25519 signature (no ML-DSA-65). A future quantum
-adversary can forge the Ed25519 signature; the manifest is then fully
-forgeable post-Q-day.
+**Status**: ✓ **Mitigated in v1.3 Phase A** (commit `4adc224`),
+operationally validated by the registry's own self-publication on
+every push to main since `cd95a9f` (2026-05-01).
 
-**Mitigation in v1.1**: **Asymmetric.** The registry **always signs**
-its own outputs with hybrid Ed25519 + ML-DSA-65 — verified at
-`crypto/mod.rs::sign`. The signatures are stored in
-`function_manifests.signature_classical / signature_pqc / signature_key_id`
-columns (added by migration 019).
+**Original threat**: Adversary uploads a manifest with only a
+classical Ed25519 signature (no ML-DSA-65). Future quantum adversary
+forges the Ed25519 signature; the manifest is then fully forgeable
+post-Q-day.
 
-But on the **upload** path (`POST /v1/verify/binary-manifest`,
-`POST /v1/verify/function-manifest`), the registry does **not require
-the uploader to provide a hybrid signature** — it accepts whatever
-bytes the admin-token holder submits and re-signs server-side. The
-uploader's Ed25519 signature (if any) is not verified by the registry;
-only the admin-token presence is checked.
+**Resolution**:
+- New endpoint `POST /v1/verify/build-manifest` parses incoming JSON
+  as a `BuildManifest`, looks up the per-primitive trusted keypair via
+  `db::get_trusted_primitive_key(project)`, and calls
+  `build_manifest::verify_uploaded_manifest` to check both Ed25519
+  AND ML-DSA-65 signatures (bound — PQC over `canonical_bytes ||
+  classical_sig`).
+- Failure modes: 401 (admin token wrong), 403 `no_trusted_key` (no
+  pubkey registered for primitive), 400 `verification_failed` (sig
+  doesn't verify against registered pubkey).
+- Trusted keys live in `trusted_primitive_keys` table (migration 022),
+  cross-region replicated via Spock (migration 023, closes
+  CIRISRegistry#4). Per-primitive pubkeys registered via three new
+  admin RPCs: `RegisterTrustedPrimitiveKey`,
+  `ListTrustedPrimitiveKeys`, `RevokeTrustedPrimitiveKey`.
+- Vendored `BuildManifest` type in `rust-registry/src/build_manifest.rs`
+  matches `ciris-verify-core` v1.8.0 wire format byte-for-byte
+  (vendored to avoid `rusqlite`/`sqlx-sqlite` linker conflict;
+  `ciris-crypto` provides the verifier primitives directly).
 
-CIRISVerify Issue #1 raises this as a coordination item: CIRISVerify
-v1.8's `verify_build_manifest` will mandate hybrid Ed25519 + ML-DSA-65
-on every manifest. The registry must match this requirement on the
-upload-validation side.
+**Operational validation**: The registry's `.github/workflows/docker.yml`
+"Sign + publish registry BuildManifest" step exercises the full trust
+chain on every push to main:
 
-**Recommended for v1.2.x (in coordination with CIRISVerify v1.8)**:
-- Require uploaded manifests to carry both an Ed25519 and an ML-DSA-65
-  signature from the builder identity (or be unsigned and rely
-  entirely on registry server-side signing under admin-token gating
-  — pick one, document the choice).
-- Reject single-signature uploads with HTTP 422 once v1.8 is GA.
-- Verify both signatures against the builder's public key from a
-  trusted source (see AV-4).
+1. Sign the registry binary's BuildManifest with the per-primitive
+   build-signing keypair (GHA secrets `CIRIS_BUILD_ED25519_SECRET`,
+   `CIRIS_BUILD_MLDSA_SECRET`).
+2. POST the signed JSON to `/v1/verify/build-manifest` with
+   `Authorization: Bearer ${REGISTRY_ADMIN_TOKEN}`.
+3. Registry verifies the hybrid signature against the trusted key
+   registered for `project='ciris-registry'` (fingerprint
+   `567513a0c139412b...`).
+4. On success, manifest is stored with the original CI signature
+   intact and Spock-replicated US ↔ EU.
+5. CI round-trip GET confirms the manifest is queryable from the
+   public read path.
 
-**Residual**: until verification lands, only the admin-token gates
-manifest authenticity. Quantum-resistant downstream verification
-depends on the registry's server-side ML-DSA-65 signing, which is in
-place — but the **upload-side trust** is still classical-only.
+First green publish: commit `cd95a9f` at 2026-05-01 21:02:44Z.
+Continuous green since. The recursive golden rule (we eat our own
+dogfood for the federation substrate we provide) is operational, not
+just architectural.
+
+**Legacy POST endpoints**: `POST /v1/verify/binary-manifest` and
+`POST /v1/verify/function-manifest` (re-sign server-side, no inbound
+hybrid-sig verification) remain for backwards compat. Deprecation
+tracked for v1.4 — once consumers migrate to the new endpoint, the
+legacy paths can be removed.
+
+**Residual**: per-primitive build-signing key compromise — see AV-34
+(new) for the dual-secret-compromise threat surface introduced by the
+self-publication flow.
 
 #### AV-27: Vault-mode signing produces unverifiable signatures (CLOSED — v1.2)
 
@@ -1291,6 +1315,78 @@ to new migrations. A mid-flight crash on migration 022+ that fails
 the second attempt would still surface as a deploy error rather than
 silent desync.
 
+#### AV-34: Build-signing key compromise (CI-side, post-Phase-A surface)
+
+**Attack surface introduced**: with v1.3 Phase A's BuildManifest
+verification, a per-primitive build-signing key (held in CI as a GHA
+secret) is now a load-bearing trust anchor. For
+`project='ciris-registry'`, that's the `CIRIS_BUILD_ED25519_SECRET` /
+`CIRIS_BUILD_MLDSA_SECRET` pair on the CIRISRegistry repo
+(fingerprint `567513a0c139412b...`). For peer primitives
+(ciris-persist, ciris-lens, ciris-agent, ciris-verify), each has its
+own equivalent in their own repo's GHA secrets.
+
+**Threat**: An adversary who exfiltrates the build-signing seed (CI
+secret leak via job-step compromise, malicious workflow PR, GHA
+infrastructure breach) can sign a malicious BuildManifest for that
+primitive. If they ALSO have the registry's `REGISTRY_ADMIN_TOKEN`
+(AV-13 surface), they can publish that backdoored manifest to the
+registry, where it will pass hybrid-sig verification against the
+registered trusted key and be served to consumers as authoritative.
+
+Consumers fetching via Path A or Path B (per `TRUST_CONTRACT.md`) will
+verify the hybrid signature, see it valid, and trust the manifest.
+The malicious binary_hash + functions table become the registry's
+"authentic" claim for that build.
+
+**Mitigation in v1.3 (defense-in-depth, not single-point)**:
+
+- **Two-secret co-requirement**: an attacker needs BOTH the
+  build-signing key AND `REGISTRY_ADMIN_TOKEN` to publish. Either
+  alone is insufficient:
+  - Admin token alone: no trusted key registered for an attacker's
+    fresh keypair → 403 `no_trusted_key`. (Unless the attacker also
+    has admin authority to call `RegisterTrustedPrimitiveKey` for a
+    new pubkey they control, which is a stronger compromise — see
+    AV-13 closure roadmap for scoped JWTs that limit this.)
+  - Build-signing key alone: no auth → 401.
+- **Per-repo isolation**: each primitive's build-signing key lives in
+  that repo's GHA secrets. Compromise of one repo's CI doesn't grant
+  publish authority for another primitive (e.g., compromising
+  CIRISPersist's GHA can publish ciris-persist manifests but not
+  ciris-registry manifests).
+- **Audit trail**: every successful publish writes to `audit_log` with
+  the verifying key fingerprint and request metadata; a compromised
+  key's first publish is observable in the log.
+- **Round-trip integration test**: every CI publish is round-trip
+  verified against the public GET endpoint. Disagreement (publish
+  succeeds but GET returns wrong data) would surface in CI logs.
+
+**Recommended for v1.4 (additional defense-in-depth)**:
+
+- **Cosign verification on uploaded manifests**: require POSTs to
+  carry a sigstore signature (chained to GitHub OIDC for the
+  publishing workflow's identity). Compromising a build-signing key
+  alone is no longer enough — attacker must also forge a sigstore
+  signature, which requires compromising GitHub's OIDC infrastructure.
+- **Multi-party signing for high-stakes primitives**: M-of-N signing
+  on the build manifest itself (e.g., release-manager + CI-job both
+  sign; registry verifies both).
+- **Rotation cadence**: per-quarter build-signing key rotation,
+  documented operator runbook (matches the steward-key rotation
+  posture in `TRUST_CONTRACT.md` §3.4).
+- **Per-build provenance**: extend BuildManifest extras with a SLSA
+  attestation pointing to the GitHub Actions run + commit SHA;
+  consumer can verify the workflow that produced the manifest matches
+  the expected one.
+
+**Residual**: until v1.4 hardenings land, an attacker with both
+secrets in hand can publish a malicious manifest. Detection is
+post-facto via audit log + cross-region replication divergence + (for
+high-impact primitives) external sigstore-signed release artifacts on
+GitHub releases. The dual-secret co-requirement raises the bar above
+single-secret-compromise, but does not eliminate the class entirely.
+
 #### AV-32: Race in self-custody key activation
 
 **Attack**: Adversary observes a `RegisterPublicKey` succeed for a
@@ -1348,7 +1444,8 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-23 | Email enumeration via timing | JWT auth gate; couples to AV-15 | NotFound vs Ok timing observable | ⚠ Couples to AV-15 | v1.2.x: rate limit + AV-15 fix |
 | AV-24 | Side-channel timing on verify | `verify_strict` constant-time | Endpoint-level short-circuit timing leaks | ⚠ Low impact | v1.2.x research |
 | AV-25 | Steward signing-key compromise | File mode + FDE + 0400 perms (only working software-backed option) | Hybrid signatures (both must fall) | ⚠ Architectural | v1.3.x: HSM impl via ciris-keyring; v1.4.x: threshold sig |
-| AV-26 | ML-DSA-65 missing on uploaded manifests | `POST /v1/verify/build-manifest` parses BuildManifest, looks up trusted key by `manifest.primitive.project_name()`, calls `build_manifest::verify_uploaded_manifest` (Ed25519 + ML-DSA-65 hybrid bound-sig) before storing | Trusted keys live in `trusted_primitive_keys` table (migration 022); registry's own steward pubkey auto-seeded at boot as project='ciris-registry'; admin RPCs RegisterTrustedPrimitiveKey/ListTrustedPrimitiveKeys/RevokeTrustedPrimitiveKey | ✓ Mitigated v1.3 (Phase A) | Legacy `POST /v1/verify/binary-manifest` and `/v1/verify/function-manifest` paths remain admin-token-only for backwards compat — track migration deprecation for v1.4 |
+| AV-26 | ML-DSA-65 missing on uploaded manifests | `POST /v1/verify/build-manifest` parses BuildManifest, looks up trusted key by `manifest.primitive.project_name()`, calls `build_manifest::verify_uploaded_manifest` (Ed25519 + ML-DSA-65 hybrid bound-sig) before storing | Operationally validated: registry self-publishes its own BuildManifest on every push to main (since `cd95a9f` 2026-05-01) — full trust chain exercised continuously, recursive golden rule operational | ✓ Mitigated v1.3 (Phase A), validated v1.3 Phase A.1 | Legacy `POST /v1/verify/binary-manifest` / `function-manifest` paths remain admin-token-only for backwards compat — track v1.4 deprecation; AV-34 (build-signing key compromise) is a new surface introduced by this mitigation |
+| AV-34 | Build-signing key compromise (CI-side) | Two-secret co-requirement: attacker needs BOTH GHA build-signing seed AND `REGISTRY_ADMIN_TOKEN` to publish | Per-repo GHA isolation; `audit_log` writes with verifying-key fingerprint; CI round-trip integration test on every publish | ⚠ Architectural (defense-in-depth, not single-point) | v1.4: cosign verification on uploads + GitHub OIDC chain; multi-party signing for high-stakes primitives; rotation cadence; SLSA attestation in BuildManifest extras |
 | AV-27 | Vault-mode signing produces unverifiable sigs | (deleted — vault mode no longer exists) | ciris-crypto migration | ✓ Closed by deletion v1.2 (commit 70f737d) | — |
 | AV-28 | Ephemeral signing keys in production | `tracing::warn!` at boot; storage_mode=memory enum gone | Bridge ansible deployed persistent seeds 2026-05-01 evening (US + EU) | ⚠ Operationally mitigated; in-app hard-fail tracked | v1.3.x: hard-fail in production when paths unset |
 | AV-33 | Spock multi-master migration desync | `db/mod.rs::exclude_sqlx_migrations_from_spock_replication` runs at boot before `sqlx::migrate!` | Bridge ansible reconcile task as defense-in-depth | ✓ Mitigated v1.3 (in-repo fix shipped, closes Registry#2) | — |
@@ -1592,13 +1689,16 @@ v1.2 BASELINE THREAT POSTURE
            deployed persistent seeds 2026-05-01 evening (US + EU);
            in-app boot hard-fail still tracked for v1.3.x
 
-  ⚠ ARCHITECTURAL DEFERRALS — v1.3.x ROADMAP (6)
+  ⚠ ARCHITECTURAL DEFERRALS — v1.4 ROADMAP (7)
     AV-12  HS256 → asymmetric JWT (EdDSA / RS256 + JWKS)
     AV-13  REGISTRY_ADMIN_TOKEN → scoped short-lived JWT
     AV-14  binary admin role → scoped sub-roles
     AV-25  HSM mode via ciris-keyring::HardwareSigner
     AV-29  hard-fail on plaintext PG in production
     AV-30  REGISTRY_ADMIN_TOKEN rotation lifecycle (closes with AV-13)
+    AV-34  build-signing key compromise (cosign on uploads + GitHub
+           OIDC chain + multi-party signing for high-stakes primitives;
+           defense-in-depth via two-secret co-requirement today)
 
   ⚠ ARCHITECTURAL DEFERRALS — v1.4.x ROADMAP (2)
     AV-18  audit-log append-only + hash chain + Rekor mirror
@@ -1626,8 +1726,28 @@ closed AV-33 in-repo (Spock multi-master migration desync). v1.3 Phase
 2 closed AV-9 (gRPC + HTTP rate limiting). v1.3 Phase A closed AV-26
 (uploaded BuildManifest hybrid-sig verification — federation primitives
 can now upload manifests that the registry actually trust-anchors).
-**One high-priority in-app gap remains for v1.3**: AV-15 (cross-org
-access).
+v1.3 Phase A.1 wired CI self-publication and operationally validated
+the trust chain end-to-end on every push to main since `cd95a9f`. v1.3
+Phase 4 closed AV-15 (PortalService cross-org access). **All v1.3
+high-priority in-app gaps are now closed.**
+
+**Recursive golden rule operational**: the registry uses the same
+trust mechanism for its own builds that it provides for federation
+peers. Every push to main signs the registry's binary manifest with
+the per-primitive build-signing key (GHA secret), uploads via
+`POST /v1/verify/build-manifest`, and is verified against the
+trusted-key registered for `project='ciris-registry'` (fingerprint
+`567513a0c139412b...`). The CI publish step doubles as a continuous
+integration test for the federation substrate — regressions in the
+trust chain (auth, sig verification, cross-region replication, GET
+round-trip) surface as red CI on the next push. This is the
+"recursive golden rule" from PoB §1 made operational, not just
+architectural.
+
+**New surface introduced** by self-publication: AV-34 (build-signing
+key compromise). Mitigated today via two-secret co-requirement (admin
+token + signing key); v1.4 hardenings (cosign, multi-party signing,
+SLSA attestation) will tighten this further.
 
 The cross-org access gap (AV-15) means the deployment posture still
 assumes either single-tenant operation or operator-trusted JWT
@@ -1653,12 +1773,29 @@ This document is updated:
 - On every signing-key rotation or HSM/Vault config change: §5 / §6 review.
 - On every protocol-version bump: §3.4 schema-mismatch review.
 
-Last updated: 2026-05-01 (v1.3 Phase A — AV-26 closed via vendored
-`build_manifest::verify_uploaded_manifest`, `trusted_primitive_keys`
-table (migration 022), boot-seeded `ciris-registry` self-key, three
-admin RPCs (RegisterTrustedPrimitiveKey, ListTrustedPrimitiveKeys,
-RevokeTrustedPrimitiveKey), new `POST /v1/verify/build-manifest`
-endpoint. Federation primitives can now upload signed manifests.
-v1.3 Phase 3: auth/policy module foundation. v1.3 Phase 2: AV-9
-closed. v1.3 Phase 1: AV-33 closed in-repo. v1.2 prior: AV-1 and AV-27
-mitigated; AV-28 operationally mitigated via bridge ansible).
+Last updated: 2026-05-01 (v1.3 complete — all high-priority in-app
+gaps closed.
+
+- Phase 4 (`16deaa5`): AV-15 PortalService cross-org access closed
+  via per-handler `claims_from_request` + `authorize_org_access`
+  preamble on ~30 handlers; W3 inner-proto vigilance applied; batch
+  RPCs reject mismatched per-record org_id.
+- Phase A.1 (`cd95a9f` / `16deaa5` continuing): CI self-publication
+  step operational on every push to main; recursive golden rule made
+  executable evidence — registry signs and uploads its own
+  BuildManifest, validates against its own POST endpoint via the same
+  trust chain federation peers use.
+- Phase A (`4adc224`): AV-26 mitigated; new endpoint
+  POST /v1/verify/build-manifest with hybrid-sig verification.
+- Phase 3 (`0db3faa`): auth/policy module foundation.
+- Phase 2 (`80adc79`): AV-9 closed.
+- Phase 1 (`afde1c6` + hotfix `6cf564f`): AV-33 closed in-repo.
+- v1.2 prior: AV-1 and AV-27 mitigated; AV-28 operationally mitigated
+  via bridge ansible.
+
+New AV catalogued: AV-34 (build-signing key compromise) — surface
+introduced by self-publication, mitigated today via two-secret
+co-requirement, v1.4 hardenings tracked.
+
+Verify-side trust contract documented at `docs/TRUST_CONTRACT.md`
+(closes CIRISRegistry#5 §1)).
