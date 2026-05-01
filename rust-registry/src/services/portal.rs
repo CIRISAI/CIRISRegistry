@@ -77,8 +77,14 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<CreateOrganizationRequest>,
     ) -> Result<Response<CreateOrganizationResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: PortalService god-mode method (creates new orgs cross-tenant).
+        // AuthLayer only enforces SYSTEM_ADMIN on RegistryAdminService;
+        // PortalService needs explicit gating per Phase 6.
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         let org = req
             .organization
@@ -267,8 +273,12 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListOrganizationsRequest>,
     ) -> Result<Response<ListOrganizationsResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: god-mode (lists orgs cross-tenant).
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         let page_size = if req.page_size == 0 {
             50
@@ -301,8 +311,12 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<BatchCreateOrganizationsRequest>,
     ) -> Result<Response<BatchCreateOrganizationsResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: god-mode (batch creates orgs cross-tenant).
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         if req.organizations.len() > 100 {
             return Err(Status::invalid_argument("Maximum batch size is 100"));
@@ -1609,8 +1623,14 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<CreateUserRequest>,
     ) -> Result<Response<CreateUserResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: bare user creation (no org binding) is SYSTEM_ADMIN-only.
+        // Org-scoped user creation goes through CreateOrgUser /
+        // CreateUserWithMembership which use OrgRole::OrgAdmin.
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         let user = req
             .user
@@ -1919,8 +1939,13 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<CreateSystemUserRequest>,
     ) -> Result<Response<CreateSystemUserResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: only SYSTEM_ADMIN can create system users (role=1 grants
+        // god-mode access to RegistryAdminService).
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         let user = req
             .user
@@ -1980,8 +2005,12 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetSystemUserRequest>,
     ) -> Result<Response<GetSystemUserResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: system users are SYSTEM_ADMIN-only.
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         let user = db::get_system_user(self.db.pool(), &req.user_id)
             .await
@@ -2001,8 +2030,12 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListSystemUsersRequest>,
     ) -> Result<Response<ListSystemUsersResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: system users are SYSTEM_ADMIN-only.
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         let page_size = if req.page_size == 0 {
             50
@@ -2035,8 +2068,12 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<UpdateSystemUserRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: system users are SYSTEM_ADMIN-only.
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         let user = req
             .user
@@ -2071,8 +2108,17 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<LookupUserByOAuthRequest>,
     ) -> Result<Response<LookupUserByOAuthResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: this is the login-flow lookup endpoint — production caller is
+        // the CIRISPortal backend with SYSTEM_ADMIN credentials. Restricting
+        // to SYSTEM_ADMIN closes a PII / identity-existence oracle that any
+        // authenticated caller could otherwise use to enumerate which OAuth
+        // identities are registered. A future "self-lookup" path can be
+        // added separately if user-facing OAuth introspection is needed.
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         info!(
             oauth_provider = %req.oauth_provider,
@@ -2152,8 +2198,20 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<LinkUserOAuthRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: linking OAuth identity to a user. Allow self-link (user
+        // attaching their own OAuth identity) or SYSTEM_ADMIN-on-behalf
+        // (Portal flow). Cross-user linking by non-admin is rejected.
+        if claims.role != crate::middleware::authz::ROLE_SYSTEM_ADMIN
+            && claims.sub != req.user_id
+        {
+            return Err(Status::permission_denied(
+                "OAuth linking requires SYSTEM_ADMIN or self (claims.sub == user_id)",
+            ));
+        }
 
         info!(
             user_id = %req.user_id,
@@ -2171,11 +2229,12 @@ impl PortalServiceTrait for PortalService {
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
-        // Create audit entry
+        // W1: actor from claims.sub (was Some(&req.user_id) — would record
+        // the LINKED user as the actor, conflating subject with operator).
         let _ = db::create_audit_entry(
             self.db.pool(),
             AuditActionType::AuditUserUpdated,
-            Some(&req.user_id),
+            Some(claims.sub.as_str()),
             None,
             None,
             Some("user_oauth"),
@@ -2199,8 +2258,19 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListUserOAuthIdentitiesRequest>,
     ) -> Result<Response<ListUserOAuthIdentitiesResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: same self-or-admin pattern as link_user_o_auth — listing OAuth
+        // identities is sensitive (reveals which providers a user has linked).
+        if claims.role != crate::middleware::authz::ROLE_SYSTEM_ADMIN
+            && claims.sub != req.user_id
+        {
+            return Err(Status::permission_denied(
+                "OAuth identity listing requires SYSTEM_ADMIN or self (claims.sub == user_id)",
+            ));
+        }
 
         let identities = db::list_user_oauth_identities(self.db.pool(), &req.user_id)
             .await
@@ -2226,8 +2296,13 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<LookupSystemUserByOAuthRequest>,
     ) -> Result<Response<LookupSystemUserByOAuthResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: system-user lookups are SYSTEM_ADMIN-only (could enumerate
+        // ciris-staff identities by OAuth subject otherwise).
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         info!(
             oauth_provider = %req.oauth_provider,
@@ -2290,8 +2365,12 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<LinkSystemUserOAuthRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: linking OAuth to a system user is SYSTEM_ADMIN-only.
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         info!(
             user_id = %req.user_id,
@@ -2309,11 +2388,13 @@ impl PortalServiceTrait for PortalService {
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
-        // Create audit entry
+        // W1: actor from claims.sub (was Some(&req.user_id) before — would
+        // record the LINKED user as the actor of the link op, which conflates
+        // the subject with the operator).
         let _ = db::create_audit_entry(
             self.db.pool(),
             AuditActionType::AuditUserUpdated,
-            Some(&req.user_id),
+            Some(claims.sub.as_str()),
             None,
             None,
             Some("system_user_oauth"),
@@ -2338,8 +2419,12 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<ListSystemUserOAuthIdentitiesRequest>,
     ) -> Result<Response<ListSystemUserOAuthIdentitiesResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: system-user OAuth identities are SYSTEM_ADMIN-only.
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         let identities = db::list_system_user_oauth_identities(self.db.pool(), &req.user_id)
             .await
@@ -2412,8 +2497,15 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<CreateLicenseeOrganizationRequest>,
     ) -> Result<Response<CreateOrganizationResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: creating a licensee under a PARTNER org requires either
+        // SYSTEM_ADMIN or OrgAdmin on the parent. SYSTEM_ADMIN check is
+        // implicit in authorize_org_access, so a single call covers both.
+        authorize_org_access(self.db.pool(), &claims, &req.parent_org_id, OrgRole::OrgAdmin)
+            .await?;
 
         let mut org = req
             .organization
@@ -2511,8 +2603,14 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<UpgradeToPartnerRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
+
+        // W2: upgrading to PARTNER tier is a billing/license-tier escalation.
+        // Restrict to SYSTEM_ADMIN; org-admins can request via support, not
+        // self-serve (avoids unauthorized tier changes that affect billing).
+        authorize_system_admin(self.db.pool(), &claims).await?;
 
         // Get the org to upgrade
         let org = db::get_organization(self.db.pool(), &req.org_id)

@@ -609,6 +609,22 @@ token with role=1.
 `claims.role != ROLE_SYSTEM_ADMIN` (`middleware/auth.rs:161`) and
 returns HTTP 403 on mismatch.
 
+**v1.3 Phase 6 (W2) — PortalService god-mode gating**: pre-Phase-6
+the auth-middleware SYSTEM_ADMIN check ONLY applied to
+`RegistryAdminService`. PortalService methods that are de-facto
+cross-org god-mode (`create_organization`, `list_organizations`,
+`batch_create_organizations`, `create_system_user`, `get_system_user`,
+`list_system_users`, `update_system_user`, `lookup_system_user_by_o_auth`,
+`link_system_user_o_auth`, `list_system_user_o_auth_identities`,
+`create_user`, `lookup_user_by_o_auth`, `upgrade_to_partner`)
+accepted any authenticated JWT. Phase 6 added explicit
+`authorize_system_admin(self.db.pool(), &claims)` calls to all of
+these handlers. `create_licensee_organization` requires either
+SYSTEM_ADMIN or OrgAdmin on the parent (handled by `authorize_org_access`
+which has the SYSTEM_ADMIN bypass). User-OAuth linking (`link_user_o_auth`,
+`list_user_o_auth_identities`) allows self (`claims.sub == req.user_id`)
+or SYSTEM_ADMIN.
+
 **Sole role is a binary flag**: there is no fine-grained authorization
 within the admin tier. An admin can do everything (mass-revoke,
 emergency shutdown, signing-key rotation, build registration). No
@@ -1489,7 +1505,7 @@ challenge issuance (v1.2.x) tightens the window.
 | AV-11 | Mass-revoke abuse | Admin role gate + audit log + reason code | (no list-size cap) | ⚠ Single-actor | v1.2.x: list cap + webhook fanout |
 | AV-12 | JWT forgery via leaked HS256 secret | Validation only; symmetric key | (no asymmetric option) | ⚠ Architectural | v1.2.x: EdDSA/RS256 + JWKS |
 | AV-13 | REGISTRY_ADMIN_TOKEN extraction | Bearer check; static env var | (no rotation, no scope, no audit identity) | ⚠ Architectural | v1.2.x: scoped JWT |
-| AV-14 | JWT role escalation | HMAC-signed claims (couples to AV-12) | Single binary admin flag | ⚠ Couples to AV-12 | v1.2.x: scoped sub-roles |
+| AV-14 | JWT role escalation | HMAC-signed claims (couples to AV-12) + W2 (Phase 6): explicit `authorize_system_admin` on 13 PortalService god-mode handlers (`create_organization`, `list_organizations`, `batch_create_organizations`, `create_system_user`, `get/list/update_system_user`, `lookup_system_user_by_o_auth`, `link_system_user_o_auth`, `list_system_user_o_auth_identities`, `create_user`, `lookup_user_by_o_auth`, `upgrade_to_partner`); self-or-admin on user-OAuth linking | Single binary admin flag (no sub-roles); SYSTEM_ADMIN-on-behalf for `create_audit_entry` | ⚠ Couples to AV-12; W2 PortalService gating closed in v1.3 Phase 6 | v1.4: scoped sub-roles via `scopes` claim |
 | AV-15 | PortalService cross-org access | Per-handler `claims_from_request` + `authorize_org_access(db, claims, target_org_id, required_role)` preamble — applied to all ~30 PortalService methods that take `org_id`. SYSTEM_ADMIN bypass for cross-org by-design ops. Membership lookup via `db::get_user_role_in_org`. Audit-log denial via `AUDIT_ACCESS_DENIED`. | W3 inner-proto vigilance: handlers using `org.org_id` / `user.org_id` / `sign_request.org_id` authz against the same field used for the DB write. Batch RPCs reject mismatched per-record org_id with `invalid_argument` (fail-secure for whole batch). | ✓ Mitigated v1.3 (Phase 4) | Integration tests for cross-org denial — track follow-up |
 | AV-16 | Public-key cross-path re-registration | `public_key_hash UNIQUE` constraint enforces across paths | Pre-check in `register_public_key` | ✓ Mitigated | — |
 | AV-17 | Schema-version mismatch on uploaded manifest | (none — accepts any string) | CIRISVerify-side validates downstream | ⚠ Weak | v1.2.x: SUPPORTED_VERSIONS allowlist |
@@ -1753,7 +1769,8 @@ v1.2 BASELINE THREAT POSTURE
   ⚠ ARCHITECTURAL DEFERRALS — v1.4 ROADMAP (7)
     AV-12  HS256 → asymmetric JWT (EdDSA / RS256 + JWKS)
     AV-13  REGISTRY_ADMIN_TOKEN → scoped short-lived JWT
-    AV-14  binary admin role → scoped sub-roles
+    AV-14  binary admin role → scoped sub-roles (W2 PortalService
+           god-mode gating closed in v1.3 Phase 6; sub-roles deferred)
     AV-25  HSM mode via ciris-keyring::HardwareSigner
     AV-29  hard-fail on plaintext PG in production
     AV-30  REGISTRY_ADMIN_TOKEN rotation lifecycle (closes with AV-13)
