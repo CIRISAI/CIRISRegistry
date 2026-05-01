@@ -203,6 +203,21 @@ Until the federation-trusted-key endpoint (CIRISRegistry#5 §4) ships, consumers
 
 Bridge-ops will register each primitive's pubkey via `RegisterTrustedPrimitiveKey` admin RPC as the team supplies bytes. This unblocks inbound POSTs for that primitive.
 
+**Admin RPC auth shape** (distinct from the `REGISTRY_ADMIN_TOKEN` HTTP bearer used by manifest POST endpoints): the gRPC `RegistryAdminService` requires an HS256 JWT minted from `JWT_SECRET` with `role: 1` (ROLE_SYSTEM_ADMIN per `middleware/auth.rs:18`) and `iss: "ciris-registry"`. Quick mint command for the bridge-ops runbook:
+
+```python
+import jwt, time
+secret = open('/path/to/JWT_SECRET').read().strip()
+now = int(time.time())
+print(jwt.encode(
+    {"sub": "bridge-ops", "role": 1, "iat": now, "exp": now + 300, "iss": "ciris-registry"},
+    secret,
+    algorithm="HS256",
+))
+```
+
+`REGISTRY_ADMIN_TOKEN` (used for HTTP `/v1/verify/binary-manifest`, `/v1/verify/function-manifest`, `/v1/verify/build-manifest` POSTs) and `JWT_SECRET` (used to mint admin JWTs for gRPC) are two distinct secrets serving two distinct auth surfaces — both must be provisioned in the deployment.
+
 A coordinated trusted-keys discovery endpoint with registry-signed envelopes is tracked as Phase C in the v1.3 hardening waterfall and will replace the out-of-band distribution.
 
 ---
