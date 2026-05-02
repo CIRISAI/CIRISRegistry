@@ -263,19 +263,48 @@ Each step is independently rollback-able: the feature flag at each phase lets re
 
 ---
 
-## Open questions for follow-up
+## Resolved positions (cross-team alignment, 2026-05-02)
 
-These are gating questions registry needs answers to **before** v1.4 ships:
+The five questions originally tagged in this section have resolved positions from the registry ↔ persist alignment thread. Persist owns substrate; registry owns policy + cache + write-mapping; CIRISVerify owns consumer trust.
 
-1. **Bootstrap order**: when a fresh deployment comes up with empty caches, what's the order of operations to populate the registry-steward row in `federation_keys` vs the cache vs the steward-key file mount? Per persist Q2, registry's CI self-publishes; registry's boot code asserts the row exists (or writes it if missing on first boot).
+### 1. Bootstrap order — RESOLVED
 
-2. **Backfill of historical attestations**: the existing `trusted_primitive_keys` table has rows for all 5 primitives that bridge-ops registered today. Migration 024 should backfill those into `federation_attestations` on the cutover boot, with `attesting_key_id=registry-steward, attestation_type="vouches_for"`. Without this, a fresh registry post-cutover would correctly show "no trusted keys" but verify-side would break for everyone.
+Self-signed roots, mutual attestation, out-of-band anchored:
 
-3. **Policy versioning in the verify response**: if v1.5 introduces Policy B and operators flag-flip to it, the response shape changes (`federation_provenance.policy: "transitive_referrer"`). CIRISVerify's consumer code needs to know which policies it's prepared to honor. Worth a registry-side enum + a CIRISVerify-side allowlist negotiation. Track for v1.5.
+- **Persist v0.2.0** migration creates a self-signed `federation_keys` row for `persist-steward` (`scrub_key_id == key_id`). Constant in the migration; persist's CI doesn't write it.
+- **Registry v1.4** deploy: registry-steward writes its own self-signed row to persist via `FederationDirectory::put_public_key`.
+- **Mutual attestation**: persist-steward writes `vouches_for` attestation against registry-steward, and vice versa. Each becomes a consumer-anchored root.
+- **Out-of-band anchoring**: persist-steward fingerprint published in CIRISPersist v0.2.0 release notes; registry-steward fingerprint already documented in TRUST_CONTRACT.md §3.2. CIRISVerify pins both.
 
-4. **Audit-log shape under federation**: today the `audit_log` table has `actor_org_id`. Under federation, the actor of a key registration is a federation peer (registry-steward, lens-steward, etc.) — not an org. Either widen `actor_org_id` to allow steward identities, or add a parallel `actor_steward_key_id` column. Lower-priority; track for v1.5.
+When v0.2.0-pre1 lands, TRUST_CONTRACT.md §6 will gain a "Federation peer steward keys" subsection listing both fingerprints, with the same pinning guidance the existing §3.3 uses for the registry's own steward.
 
-5. **CIRISPortal coordination**: Portal's admin UI currently calls `RegisterTrustedPrimitiveKey` directly. Post-federation, the call shape stays the same (Portal still issues a registry-steward attestation) but Portal needs to be aware that the underlying storage moved. Worth a heads-up issue once v1.4 is close to landing.
+### 2. Backfill of existing trusted_primitive_keys — RESOLVED
+
+Owned by registry's v1.4 deployment script. Script iterates `trusted_primitive_keys`, calls `FederationDirectory::put_public_key` for each row signed by registry-steward, then `FederationDirectory::put_attestation` with `attestation_type="vouches_for"`. Persist's `put_public_key` is idempotent on duplicate `key_id` with matching content (no-op). One-shot at v1.4 deploy; afterwards new writes flow naturally through `RegisterTrustedPrimitiveKey`.
+
+For our scale (5 primitive keys + handful of partner keys), per-row writes within persist's rate limits are sufficient. The bulk-method trait offer (`bulk_put_public_keys` skipping per-row rate limit) is deferred — revisit if partner onboarding accelerates.
+
+### 3. Policy versioning — RESOLVED (registry-side concern, persist agnostic)
+
+Registry's verify response includes `federation_provenance.policy: "registry-v1.4-direct-trust"`. CIRISVerify consumer code can pin a specific version, accept-any-from-allowlist, or reject-unknown per its own config. Persist serves the same rows for every policy version — no policy knob on persist's surface.
+
+For Policy B (transitive) in v1.5, persist will offer an `as_of: Option<DateTime>` parameter on `list_attestations_*` and `revocations_for` so chain traversal sees a consistent snapshot when the chain crosses a peer-revocation boundary. Tracked for persist v0.3.x.
+
+### 4. Audit-log shape — RESOLVED (deliberate persist/registry split)
+
+The federation introduces a clean separation:
+
+- **Persist's journal** (`src/journal.rs` + v0.1.3 scrub envelope): "who wrote what row when, with what key". Cryptographic provenance, append-only, every row carries `(timestamp, scrub_key_id, scrub_signature, original_content_hash)`.
+- **Registry's audit** (`audit_log` table): "why the registry-steward decided to attest this key" — admin RPC source, operator user_id (W1 — `claims.sub`), ticket reference / business reason.
+- **Join key**: registry's `audit_log` entry for `RegisterTrustedPrimitiveKey` records the `attestation_envelope` hash. Persist's journal records the row carrying that envelope. Forensic query "who attested key K" walks `audit_log WHERE metadata->>envelope_hash = ...` joined to `journal WHERE original_content_hash = ...`.
+
+**Action item for v1.4 implementation**: ensure `RegisterTrustedPrimitiveKey` audit-log metadata includes `attestation_envelope_hash`. No new schema column needed — fits in the existing `metadata` JSONB.
+
+UX queries like "show me everything related to key K" become `list_attestations_for(K) ∪ revocations_for(K) ∪ journal_entries_referencing(K)` — composable from persist's existing surface.
+
+### 5. CIRISPortal coordination — DEFERRED
+
+Persist exposes the data; Portal reads it like any other consumer. Whatever auth model the Portal uses to read persist (likely the same scrub-signature anchoring as registry) is operational, not architectural. Registry will loop the Portal team in when v1.4 dev is close enough to surface concrete read-path UX questions ([CIRISPortal#1](https://github.com/CIRISAI/CIRISPortal/issues/1) is the existing thread to extend).
 
 ---
 
@@ -296,4 +325,4 @@ Updated:
 - On every registry policy addition (Policy B, C, future).
 - On every TRUST_CONTRACT.md revision (kept consistent with consumer-facing trust shape).
 
-Last updated: 2026-05-02 (initial draft, post-persist-FEDERATION_DIRECTORY.md alignment thread).
+Last updated: 2026-05-02 (open questions resolved via cross-team alignment thread; awaiting CIRISPersist v0.2.0-pre1 with schema SQL + persist-steward fingerprint + representative federation_keys row JSON for serde compatibility + clarification on whether `FederationDirectory` trait ships as a published crate or vendored shape).
