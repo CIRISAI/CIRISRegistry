@@ -26,6 +26,7 @@ mod middleware;
 pub mod play_integrity;
 pub mod rate_limiter;
 pub mod build_manifest;
+pub mod federation;
 mod services;
 mod validation;
 

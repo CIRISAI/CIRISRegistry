@@ -26,6 +26,59 @@ pub struct Settings {
     pub database: DatabaseSettings,
     pub crypto: CryptoSettings,
     pub auth: AuthSettings,
+    pub federation: FederationSettings,
+}
+
+/// PoB §3.1 federation directory client settings (v1.4 R_FLAG).
+///
+/// Defaults to all-off — registry behaves identically to pre-v1.4 until
+/// operators flip flags. See `docs/FEDERATION_CLIENT.md` for the
+/// dependency-graph and rollback discipline.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FederationSettings {
+    /// Master switch for the persist-as-substrate code path. When `false`
+    /// the registry never reaches out to persist; existing
+    /// `trusted_primitive_keys` / `partner_keys` / `registry_signing_keys`
+    /// tables remain authoritative. When `true`, registry dual-writes to
+    /// persist on every admin RPC and reads through the federation cache
+    /// on verify lookups.
+    pub dual_write_enabled: bool,
+
+    /// Persist's federation-directory endpoint. Empty string = no client
+    /// configured; if `dual_write_enabled` is true and this is empty,
+    /// boot fails with a config error so a misconfiguration can't
+    /// silently downgrade to no-op.
+    pub persist_endpoint: String,
+
+    /// Cache TTL for federation rows. Default 300s (5 min). Above this,
+    /// next read re-fetches from persist. Tuned per deployment based on
+    /// observed `federation_cache_age_seconds` distribution.
+    pub cache_ttl_seconds: u64,
+
+    /// Hard ceiling on cache age. Even in fail-open mode (when
+    /// `persist_required = false`), registry refuses to serve cache
+    /// older than this. Bounds the deliberate-outage attack window for
+    /// revoked-key replay. Default 3600s (1 hour).
+    pub max_stale_cache_age_seconds: u64,
+
+    /// When `true` the registry fails closed on any persist
+    /// unavailability (no cache fallback). Default `false` — operators
+    /// pick stricter posture for high-trust deployments. Independent of
+    /// `max_stale_cache_age_seconds` (which is a hard backstop in either
+    /// mode).
+    pub persist_required: bool,
+}
+
+impl Default for FederationSettings {
+    fn default() -> Self {
+        Self {
+            dual_write_enabled: false,
+            persist_endpoint: String::new(),
+            cache_ttl_seconds: 300,
+            max_stale_cache_age_seconds: 3600,
+            persist_required: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
@@ -194,6 +247,42 @@ impl Settings {
                 tls_cert_path: env::var("TLS_CERT_PATH").ok(),
                 tls_key_path: env::var("TLS_KEY_PATH").ok(),
                 ca_cert_path: env::var("CA_CERT_PATH").ok(),
+            },
+            federation: {
+                let dual_write_enabled = env::var("FEDERATION_DUAL_WRITE_ENABLED")
+                    .map(|v| v == "true" || v == "1")
+                    .unwrap_or(false);
+                let persist_endpoint =
+                    env::var("FEDERATION_PERSIST_ENDPOINT").unwrap_or_default();
+
+                // Misconfiguration guard: if dual-write is on but no
+                // endpoint is set, fail loudly at boot rather than
+                // silently downgrading to no-op.
+                if dual_write_enabled && persist_endpoint.is_empty() {
+                    anyhow::bail!(
+                        "FEDERATION_DUAL_WRITE_ENABLED=true but \
+                         FEDERATION_PERSIST_ENDPOINT is unset. Set the \
+                         endpoint or disable dual-write."
+                    );
+                }
+
+                FederationSettings {
+                    dual_write_enabled,
+                    persist_endpoint,
+                    cache_ttl_seconds: env::var("FEDERATION_CACHE_TTL_SECONDS")
+                        .unwrap_or_else(|_| "300".to_string())
+                        .parse()
+                        .context("Invalid FEDERATION_CACHE_TTL_SECONDS")?,
+                    max_stale_cache_age_seconds: env::var(
+                        "FEDERATION_MAX_STALE_CACHE_AGE_SECONDS",
+                    )
+                    .unwrap_or_else(|_| "3600".to_string())
+                    .parse()
+                    .context("Invalid FEDERATION_MAX_STALE_CACHE_AGE_SECONDS")?,
+                    persist_required: env::var("FEDERATION_PERSIST_REQUIRED")
+                        .map(|v| v == "true" || v == "1")
+                        .unwrap_or(false),
+                }
             },
         })
     }

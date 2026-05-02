@@ -17,6 +17,7 @@ prost-types = "0.13"
 
 # Async Runtime
 tokio = { version = "1.44", features = ["full"] }
+async-trait = "0.1"
 
 # Database
 sqlx = { version = "0.8", features = [
