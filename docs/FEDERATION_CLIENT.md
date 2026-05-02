@@ -247,19 +247,160 @@ Consumers that pinned the old fingerprint: their next `/v1/steward-key` re-fetch
 
 ---
 
-## Migration timeline
+## Waterfall — dependencies and parallelizable work
 
-Tracks persist's v0.2.x → v0.3.x cadence per cross-team agreement:
+No calendar dates. Each phase ships when the dependencies clear and the prior phase is validated. The feature flag at every phase lets registry roll back without persist-version coordination.
 
-| Persist version | Registry version | What lands registry-side |
-|---|---|---|
-| v0.2.0 | v1.4.0 | Feature flag `FEDERATION_DUAL_WRITE_ENABLED=false` (default off). Code path exists but behind flag. New `federation_*` cache columns added via migration 024. Telemetry counters wired to `/metrics`. |
-| v0.2.x | v1.4.x | Selectively enable `FEDERATION_DUAL_WRITE_ENABLED=true` on staging. Validate divergence counter stays at zero across realistic admin operations. Tune `cache_ttl_seconds` based on observed `federation_cache_age_seconds` distribution. |
-| v0.3.0 | v1.4.x | Read-path cutover: cache reads fall through to persist on miss, not just on TTL expiry for unknown keys. Registry-local tables become strictly write-through cache. |
-| v0.3.x | v1.5.0 | TRUST_CONTRACT.md update with Path A1/A2 split + Path D for consumer-aggregated multi-peer attestations. Optional Policy B (transitive) shipped behind opt-in flag. |
-| v0.4.x | v1.6.0 | Drop registry-local tables entirely. Cache-only state. Policy C (Coherence Stake) shipped if lens scoring API is stable. |
+### Dependency graph
 
-Each step is independently rollback-able: the feature flag at each phase lets registry revert to the prior behavior without persist version coordination.
+```mermaid
+flowchart TD
+    %% Persist substrate phases
+    P1[Persist v0.2.0-pre1<br/>schema + trait + bootstrap migration<br/>+ persist-steward fingerprint published]
+    P2[Persist v0.2.0 final<br/>two-week experimental-schema<br/>notice clock starts]
+    P3[Persist v0.3.0<br/>read-path migration finalized<br/>+ as_of: Option DateTime on queries]
+    P4[Persist v0.4.x<br/>accord_public_keys deprecated]
+
+    %% Registry phases
+    R_SCAFFOLD[Registry: scaffold<br/>FederationDirectory client + serde model]
+    R_MIG[Registry: migration 024<br/>cache columns on existing tables]
+    R_TEL[Registry: telemetry counters<br/>federation_cache_* + dual_write_divergence]
+    R_FLAG[Registry: feature flag<br/>FEDERATION_DUAL_WRITE_ENABLED off by default]
+    R_AUDIT[Registry: extend audit_log metadata<br/>attestation_envelope_hash on RegisterTrustedPrimitiveKey]
+    R_BACKFILL[Registry: backfill script<br/>trusted_primitive_keys → federation_*]
+    R_TC_PEER[Registry: TRUST_CONTRACT.md §6<br/>federation peer steward fingerprints]
+    R_140[Registry v1.4.0-rc1<br/>flag still off; staging soak begins]
+    R_SOAK[Registry: divergence-counter soak<br/>realistic admin ops + rotation drills]
+    R_140GA[Registry v1.4.0 GA<br/>FEDERATION_DUAL_WRITE_ENABLED can flip on]
+    R_READCUT[Registry: read-path cutover<br/>cache misses fall through to persist]
+    R_TC_PATHD[Registry: TRUST_CONTRACT.md update<br/>Path A1/A2 split + Path D]
+    R_POLB[Registry: Policy B opt-in<br/>transitive referrer chains, uses as_of]
+    R_150[Registry v1.5.0]
+    R_DROP[Registry: drop local tables<br/>cache-only state]
+    R_POLC[Registry: Policy C if lens<br/>scoring API stable]
+    R_160[Registry v1.6.0]
+
+    %% Persist sequence
+    P1 --> P2
+    P2 --> P3
+    P3 --> P4
+
+    %% Registry v1.4 fan-out from P1
+    P1 --> R_SCAFFOLD
+    R_SCAFFOLD --> R_MIG
+    R_SCAFFOLD --> R_TEL
+    R_SCAFFOLD --> R_FLAG
+    R_SCAFFOLD --> R_AUDIT
+    R_SCAFFOLD --> R_BACKFILL
+    P1 --> R_TC_PEER
+
+    %% v1.4.0-rc1 gates: persist final + all v1.4 work items
+    P2 --> R_140
+    R_MIG --> R_140
+    R_TEL --> R_140
+    R_FLAG --> R_140
+    R_AUDIT --> R_140
+    R_BACKFILL --> R_140
+    R_TC_PEER --> R_140
+
+    %% Soak then GA
+    R_140 --> R_SOAK
+    R_SOAK --> R_140GA
+
+    %% Read-path cutover gated on persist v0.3.0 + registry GA
+    P3 --> R_READCUT
+    R_140GA --> R_READCUT
+
+    %% v1.5 — policy expansion
+    R_READCUT --> R_TC_PATHD
+    R_READCUT --> R_POLB
+    R_TC_PATHD --> R_150
+    R_POLB --> R_150
+
+    %% v1.6 — cache-only + Policy C
+    P4 --> R_DROP
+    R_150 --> R_DROP
+    R_150 --> R_POLC
+    R_DROP --> R_160
+    R_POLC --> R_160
+
+    style P1 fill:#fef3c7,stroke:#92400e
+    style P2 fill:#fef3c7,stroke:#92400e
+    style P3 fill:#fef3c7,stroke:#92400e
+    style P4 fill:#fef3c7,stroke:#92400e
+    style R_140 fill:#dbeafe,stroke:#1e40af
+    style R_140GA fill:#dbeafe,stroke:#1e40af
+    style R_150 fill:#dbeafe,stroke:#1e40af
+    style R_160 fill:#dbeafe,stroke:#1e40af
+```
+
+### Phase swimlanes
+
+```mermaid
+gantt
+    title Federation rollout — sequencing without calendar dates
+    dateFormat X
+    axisFormat %s
+    section Persist substrate
+        v0.2.0-pre1 schema+trait+bootstrap   :p1, 0, 1
+        v0.2.0 final (notice clock starts)   :p2, after p1, 1
+        v0.3.0 read-path + as_of param       :p3, after p2, 1
+        v0.4.x accord_public_keys deprecated :p4, after p3, 1
+    section Registry v1.4 (parallelizable after pre1)
+        Scaffold client + serde model        :r_scaff, after p1, 1
+        Migration 024 (cache columns)        :r_mig, after r_scaff, 1
+        Telemetry counters                   :r_tel, after r_scaff, 1
+        Feature flag wiring                  :r_flag, after r_scaff, 1
+        Audit-log envelope_hash metadata     :r_aud, after r_scaff, 1
+        Backfill script                      :r_back, after r_scaff, 1
+        TRUST_CONTRACT.md §6 peer fingerprints :r_tc, after p1, 1
+    section Registry v1.4 ship
+        v1.4.0-rc1 (flag off)                :r_rc1, after p2 r_mig r_tel r_flag r_aud r_back r_tc, 1
+        Divergence-counter soak              :r_soak, after r_rc1, 1
+        v1.4.0 GA (flag can flip on)         :r_ga, after r_soak, 1
+    section Registry v1.5 (gated on persist v0.3.0)
+        Read-path cutover                    :r_cut, after p3 r_ga, 1
+        TRUST_CONTRACT.md Path A1/A2 + D     :r_pathd, after r_cut, 1
+        Policy B (transitive) opt-in         :r_polb, after r_cut, 1
+        v1.5.0                               :r_150, after r_pathd r_polb, 1
+    section Registry v1.6 (gated on persist v0.4.x)
+        Drop local tables                    :r_drop, after p4 r_150, 1
+        Policy C (Coherence Stake)           :r_polc, after r_150, 1
+        v1.6.0                               :r_160, after r_drop r_polc, 1
+```
+
+### What runs in parallel
+
+Within registry v1.4, six work items fan out from `R_SCAFFOLD` and can be picked up by separate developers concurrently — none of them block each other:
+
+- Migration 024 (cache columns)
+- Telemetry counters
+- Feature flag wiring
+- Audit-log `attestation_envelope_hash` metadata
+- Backfill script (idempotent, can be developed against pre1 schema)
+- TRUST_CONTRACT.md §6 update (depends only on persist publishing the steward fingerprint, not on any registry code)
+
+`v1.4.0-rc1` is the convergence point — all six must land plus persist v0.2.0 final.
+
+Within registry v1.5, `R_TC_PATHD` (docs) and `R_POLB` (Policy B implementation) are parallel after the read-path cutover. Within v1.6, `R_DROP` (local-table removal) and `R_POLC` (Policy C if lens API ready) are parallel.
+
+### What blocks what
+
+- **Anything registry can do BEFORE persist v0.2.0-pre1**: nothing on the federation track. Pre1 is the first persist artifact registry's code can be written against. Other registry work (Phase 5 audit-actor follow-ups, AV-12/13 scoped JWTs, etc.) is independent.
+- **Persist v0.2.0 final blocks `v1.4.0-rc1`**: registry can scaffold against pre1 but won't ship behind a stable contract until persist locks the schema.
+- **Persist v0.3.0 blocks the registry v1.5 read-path cutover**: until persist's read path is the canonical one, registry's cache-on-miss-from-persist would be reading from a deprecated path.
+- **Persist v0.4.x blocks registry v1.6 local-table drop**: until `accord_public_keys` is fully deprecated upstream, registry keeps its compatibility shim.
+- **Lens scoring API stability blocks Policy C**: independent of the persist track. If lens ships the scoring API earlier, Policy C can land in v1.5; if later, slips to v1.6 or beyond.
+
+### Rollback discipline
+
+Every registry phase is reversible by toggling the feature flag back off — no persist-version coordination required. Sequence to roll back v1.4.0 GA after observing high `federation_dual_write_divergence_total`:
+
+1. Set `FEDERATION_DUAL_WRITE_ENABLED=false`.
+2. Registry resumes serving from registry-local tables exclusively (pre-federation behavior).
+3. Investigate divergence root cause; persist + registry fix; re-enable on staging; soak again.
+
+`v1.5` Policy B and `v1.6` cache-only state similarly have flags (`POLICY_B_ENABLED`, `LOCAL_TABLE_FALLBACK_ENABLED`) that allow point-in-time revert without code rollback.
 
 ---
 
