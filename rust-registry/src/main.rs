@@ -57,6 +57,11 @@ async fn main() -> Result<()> {
         .install_recorder()
         .expect("failed to install Prometheus recorder");
 
+    // Register federation-namespace metrics so they appear in /metrics
+    // with zero values from boot — lets dashboards and alerts reference
+    // them before federation traffic actually flows. v1.4 R_TEL.
+    federation::metrics::register();
+
     info!("Starting CIRISRegistry v{}", env!("CARGO_PKG_VERSION"));
 
     // Load configuration

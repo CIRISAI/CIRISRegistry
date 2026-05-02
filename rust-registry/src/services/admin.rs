@@ -1030,6 +1030,29 @@ impl AdminServiceTrait for AdminService {
             "trusted_primitive_key_registered"
         );
 
+        // R_AUDIT: federation envelope-hash metadata slot. None today
+        // (dual-write gated off pre-R_DUAL_WRITE); helper preserves the
+        // forensic-query-stable shape so dashboards/incident tooling can
+        // be authored before federation traffic flows. Once R_DUAL_WRITE
+        // lands, populate Some(envelope_hash) here from the persist
+        // round-trip's Attestation envelope. See FEDERATION_CLIENT.md
+        // §"Audit-log shape — RESOLVED".
+        let mut audit_metadata = serde_json::Map::new();
+        audit_metadata.insert(
+            "ed25519_fingerprint".to_string(),
+            serde_json::Value::String(ed25519_fp.clone()),
+        );
+        audit_metadata.insert(
+            "ml_dsa_65_fingerprint".to_string(),
+            serde_json::Value::String(mldsa_fp.clone()),
+        );
+        let audit_metadata = crate::federation::audit::merge_federation_metadata(
+            audit_metadata,
+            None, // attestation_envelope_hash — populated by R_DUAL_WRITE
+            None, // persist_witnessed_at
+            None, // federation_policy
+        );
+
         let _ = db::create_audit_entry(
             self.db.pool(),
             AuditActionType::AuditSigningKeyRotated,
@@ -1042,10 +1065,7 @@ impl AdminServiceTrait for AdminService {
                 "Trusted primitive key registered: project={}, ed25519_fp={}",
                 req.project, ed25519_fp
             ),
-            Some(serde_json::json!({
-                "ed25519_fingerprint": ed25519_fp,
-                "ml_dsa_65_fingerprint": mldsa_fp,
-            })),
+            Some(serde_json::Value::Object(audit_metadata)),
         )
         .await;
 
@@ -1126,6 +1146,21 @@ impl AdminServiceTrait for AdminService {
         info!(project = %req.project, reason = %req.reason, "trusted_primitive_key_revoked");
 
         let added_by = request_extension_user_id(&request_id);
+
+        // R_AUDIT: revocation envelope-hash slot. None today; populated
+        // by R_DUAL_WRITE once the federation_revocations.put() call
+        // lands. See FEDERATION_CLIENT.md §"Audit-log shape — RESOLVED".
+        let audit_metadata = crate::federation::audit::merge_federation_revocation_metadata(
+            serde_json::Map::new(),
+            None, // revocation_envelope_hash
+            None, // persist_witnessed_at
+        );
+        let audit_metadata = if audit_metadata.is_empty() {
+            None
+        } else {
+            Some(serde_json::Value::Object(audit_metadata))
+        };
+
         let _ = db::create_audit_entry(
             self.db.pool(),
             AuditActionType::AuditSigningKeyRotated,
@@ -1138,7 +1173,7 @@ impl AdminServiceTrait for AdminService {
                 "Trusted primitive key revoked: project={}, reason={}",
                 req.project, req.reason
             ),
-            None,
+            audit_metadata,
         )
         .await;
 

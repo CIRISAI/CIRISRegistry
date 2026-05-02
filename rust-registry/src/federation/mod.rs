@@ -28,8 +28,10 @@
 use async_trait::async_trait;
 use thiserror::Error;
 
-pub mod types;
+pub mod audit;
+pub mod metrics;
 pub mod persist_client;
+pub mod types;
 
 pub use types::{
     Attestation, KeyRecord, Revocation, SignedAttestation, SignedKeyRecord, SignedRevocation,
