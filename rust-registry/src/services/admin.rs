@@ -984,6 +984,14 @@ impl AdminServiceTrait for AdminService {
         &self,
         request: Request<RegisterTrustedPrimitiveKeyRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        // CLAUDE.md handler convention: extract claims BEFORE into_inner()
+        // because claims_from_request needs &request. Defensive .ok() preserves
+        // pre-fix behavior when no JWT is present (auth middleware should
+        // already require one for admin RPCs; this just stops dropping the
+        // attribution when the JWT IS present). Fixes #8.
+        let added_by = crate::middleware::authz::claims_from_request(&request)
+            .ok()
+            .map(|c| c.sub.clone());
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -1005,10 +1013,6 @@ impl AdminServiceTrait for AdminService {
 
         let ed25519_fp = HybridCrypto::fingerprint(&req.ed25519_public_key);
         let mldsa_fp = HybridCrypto::fingerprint(&req.ml_dsa_65_public_key);
-
-        // Capture caller from JWT claims if present (post-Phase-4 will use
-        // claims_from_request; today it's optional).
-        let added_by = request_extension_user_id(&request_id);
 
         db::upsert_trusted_primitive_key(
             self.db.pool(),
@@ -1118,6 +1122,11 @@ impl AdminServiceTrait for AdminService {
         &self,
         request: Request<RevokeTrustedPrimitiveKeyRequest>,
     ) -> Result<Response<AdminResponse>, Status> {
+        // Extract caller before into_inner() — see CLAUDE.md handler
+        // convention. Fixes #8.
+        let added_by = crate::middleware::authz::claims_from_request(&request)
+            .ok()
+            .map(|c| c.sub.clone());
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -1144,8 +1153,6 @@ impl AdminServiceTrait for AdminService {
         }
 
         info!(project = %req.project, reason = %req.reason, "trusted_primitive_key_revoked");
-
-        let added_by = request_extension_user_id(&request_id);
 
         // R_AUDIT: revocation envelope-hash slot. None today; populated
         // by R_DUAL_WRITE once the federation_revocations.put() call
@@ -1185,12 +1192,3 @@ impl AdminServiceTrait for AdminService {
     }
 }
 
-/// Best-effort caller-id extraction. Real claims plumbing arrives in
-/// Phase 4; today this returns None for handlers that don't have it
-/// wired.
-fn request_extension_user_id(_request_id: &Option<String>) -> Option<String> {
-    None
-}
-
-#[allow(unused_imports)]
-use crate::middleware::auth::Claims as _ClaimsHandle;
