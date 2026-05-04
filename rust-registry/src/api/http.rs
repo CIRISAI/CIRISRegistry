@@ -1120,6 +1120,322 @@ async fn register_verified_build_manifest(
 }
 
 // =============================================================================
+// POST /v1/builds — self-signed BuildRecord registration (issue #9)
+// =============================================================================
+//
+// Eliminates the REGISTRY_JWT_SECRET requirement that gRPC RegisterBuild forces
+// on every primitive's CI. Auth model matches the rest of the release pipeline:
+// REGISTRY_ADMIN_TOKEN bearer + content-signature verification against
+// trusted_primitive_keys for the named project.
+//
+// Wire contract — the bytes that get signed.
+//
+// `CanonicalBuild` field order is the inter-implementation contract (registry
+// here, ciris-build-sign on the caller side). Changing it is a breaking change
+// across CIRISRegistry + CIRISVerify (`ciris-build-sign register`). Order
+// matches the issue body's RegisterBuildHttpRequest field declaration so callers
+// can derive it from the obvious source.
+//
+// Hybrid signature scheme mirrors BuildManifest exactly (build_manifest.rs):
+//   - Ed25519 sig: over canonical_bytes
+//   - ML-DSA-65 sig: over (canonical_bytes || classical_sig)  [bound payload]
+
+/// Request body for POST /v1/builds.
+///
+/// Signed fields (covered by canonical_bytes): project, version, build_hash,
+/// build_id, modules, file_manifest_count.
+///
+/// Unsigned metadata (informational; rides along on the row but not bound to
+/// the primitive's signature): file_manifest_hash, file_manifest_json,
+/// source_repo, source_commit, notes. These can't change the build's identity
+/// (the unique key is build_hash) — keeping them unsigned avoids forcing
+/// callers to canonicalize JSONB payloads.
+#[derive(serde::Deserialize)]
+struct RegisterBuildHttpRequest {
+    project: String,
+    version: String,
+    build_hash: String,
+    /// Caller-asserted build identifier (typically a git SHA). Bound by the
+    /// signature; not stored as the DB build_id (DB autogenerates a UUID).
+    build_id: String,
+    #[serde(default)]
+    modules: Vec<String>,
+    #[serde(default)]
+    file_manifest_count: u64,
+
+    // Unsigned metadata — defaults preserve the NOT NULL DB constraints.
+    #[serde(default)]
+    file_manifest_hash: String,
+    #[serde(default)]
+    file_manifest_json: serde_json::Value,
+    #[serde(default)]
+    source_repo: String,
+    #[serde(default)]
+    source_commit: String,
+    #[serde(default)]
+    notes: String,
+
+    // Hybrid signature triplet over canonical_bytes(self).
+    signature_classical: String,
+    signature_pqc: String,
+    #[serde(default)]
+    signature_key_id: String,
+}
+
+#[derive(Serialize)]
+struct RegisterBuildHttpResponse {
+    success: bool,
+    build_id: String,
+    /// Fingerprint of the trusted Ed25519 key that verified the registration.
+    /// Operators can compare against ListTrustedPrimitiveKeys.
+    verifying_key_fingerprint: String,
+    message: String,
+}
+
+#[derive(Serialize)]
+struct RegisterBuildHttpError {
+    error: String,
+    message: String,
+}
+
+/// Canonical signing form for a Build registration. Field order is the
+/// wire contract — see module-level comment above.
+#[derive(Serialize)]
+struct CanonicalBuild<'a> {
+    project: &'a str,
+    version: &'a str,
+    build_hash: &'a str,
+    build_id: &'a str,
+    modules: &'a [String],
+    file_manifest_count: u64,
+}
+
+impl RegisterBuildHttpRequest {
+    fn canonical_bytes(&self) -> Vec<u8> {
+        let canonical = CanonicalBuild {
+            project: &self.project,
+            version: &self.version,
+            build_hash: &self.build_hash,
+            build_id: &self.build_id,
+            modules: &self.modules,
+            file_manifest_count: self.file_manifest_count,
+        };
+        serde_json::to_vec(&canonical).unwrap_or_default()
+    }
+}
+
+/// Admin endpoint: POST /v1/builds
+///
+/// Self-signed Build registration. Bearer auth gates *who can attempt*; the
+/// content signature against `trusted_primitive_keys` is the trust anchor.
+/// Closes issue #9 — eliminates the REGISTRY_JWT_SECRET requirement that the
+/// gRPC RegisterBuild forces on every primitive's CI.
+async fn register_build_http(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<RegisterBuildHttpRequest>,
+) -> Result<Json<RegisterBuildHttpResponse>, (StatusCode, Json<RegisterBuildHttpError>)> {
+    // Auth gate (mirrors register_binary_manifest pattern).
+    let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
+    if admin_token.is_empty() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(RegisterBuildHttpError {
+                error: "configuration_error".to_string(),
+                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
+            }),
+        ));
+    }
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
+    if provided_token != admin_token {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(RegisterBuildHttpError {
+                error: "unauthorized".to_string(),
+                message: "Invalid or missing authorization token".to_string(),
+            }),
+        ));
+    }
+
+    if req.project.is_empty()
+        || req.version.is_empty()
+        || req.build_hash.is_empty()
+        || req.build_id.is_empty()
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(RegisterBuildHttpError {
+                error: "bad_request".to_string(),
+                message: "project, version, build_hash, and build_id are required".to_string(),
+            }),
+        ));
+    }
+    if let Err(reason) = crate::validation::validate_project_name(&req.project) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(RegisterBuildHttpError {
+                error: "bad_request".to_string(),
+                message: reason,
+            }),
+        ));
+    }
+
+    let project = req.project.clone();
+
+    // Look up the trusted primitive key for this project.
+    let trusted = match db::get_trusted_primitive_key(state.db.pool(), &project).await {
+        Ok(Some(t)) => t,
+        Ok(None) => {
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(RegisterBuildHttpError {
+                    error: "no_trusted_key".to_string(),
+                    message: format!(
+                        "No trusted primitive key registered for project='{}'. \
+                         A SYSTEM_ADMIN must call RegisterTrustedPrimitiveKey first.",
+                        project
+                    ),
+                }),
+            ));
+        }
+        Err(e) => {
+            warn!("trusted_primitive_key lookup failed for project={}: {}", project, e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(RegisterBuildHttpError {
+                    error: "internal_error".to_string(),
+                    message: "Trusted-key lookup failed".to_string(),
+                }),
+            ));
+        }
+    };
+
+    // Verify hybrid signature — Ed25519 over canonical, ML-DSA-65 over
+    // (canonical || classical_sig). Same scheme as build_manifest::verify_uploaded_manifest.
+    let canonical = req.canonical_bytes();
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let classical_sig = match b64.decode(&req.signature_classical) {
+        Ok(s) => s,
+        Err(e) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(RegisterBuildHttpError {
+                    error: "invalid_signature".to_string(),
+                    message: format!("classical signature base64 decode: {}", e),
+                }),
+            ));
+        }
+    };
+    let pqc_sig = match b64.decode(&req.signature_pqc) {
+        Ok(s) => s,
+        Err(e) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(RegisterBuildHttpError {
+                    error: "invalid_signature".to_string(),
+                    message: format!("pqc signature base64 decode: {}", e),
+                }),
+            ));
+        }
+    };
+
+    use ciris_crypto::{ClassicalVerifier, Ed25519Verifier, MlDsa65Verifier, PqcVerifier};
+    let ed_ok = Ed25519Verifier::new()
+        .verify(&trusted.ed25519_public_key, &canonical, &classical_sig)
+        .unwrap_or(false);
+    if !ed_ok {
+        warn!(project = %project, "POST /v1/builds Ed25519 verification failed");
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(RegisterBuildHttpError {
+                error: "verification_failed".to_string(),
+                message: "Ed25519 signature did not verify".to_string(),
+            }),
+        ));
+    }
+    let mut bound = Vec::with_capacity(canonical.len() + classical_sig.len());
+    bound.extend_from_slice(&canonical);
+    bound.extend_from_slice(&classical_sig);
+    let pqc_ok = MlDsa65Verifier::new()
+        .verify(&trusted.ml_dsa_65_public_key, &bound, &pqc_sig)
+        .unwrap_or(false);
+    if !pqc_ok {
+        warn!(project = %project, "POST /v1/builds ML-DSA-65 verification failed");
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(RegisterBuildHttpError {
+                error: "verification_failed".to_string(),
+                message: "ML-DSA-65 signature did not verify".to_string(),
+            }),
+        ));
+    }
+
+    // Synthesize the BuildRecord proto for db::register_build. file_manifest_hash
+    // defaults to build_hash (NOT NULL satisfied) — the existing gRPC path
+    // already accepts arbitrary callers' values here, treating it as informational.
+    let file_manifest_hash = if req.file_manifest_hash.is_empty() {
+        req.build_hash.clone()
+    } else {
+        req.file_manifest_hash.clone()
+    };
+    let manifest_json_bytes = if req.file_manifest_json.is_null() {
+        b"{}".to_vec()
+    } else {
+        serde_json::to_vec(&req.file_manifest_json).unwrap_or_else(|_| b"{}".to_vec())
+    };
+    let build = crate::proto::BuildRecord {
+        build_id: req.build_id.clone(),
+        version: req.version.clone(),
+        build_hash: req.build_hash.clone(),
+        file_manifest_hash,
+        file_manifest_count: i32::try_from(req.file_manifest_count).unwrap_or(i32::MAX),
+        file_manifest_json: manifest_json_bytes.into(),
+        includes_modules: req.modules.clone(),
+        project: project.clone(),
+        source_repo: req.source_repo.clone(),
+        source_commit: req.source_commit.clone(),
+        registered_at: 0,
+        registered_by: format!("http_v1_builds:{}", trusted.ed25519_fingerprint),
+        status: "active".to_string(),
+        notes: req.notes.clone(),
+    };
+
+    let build_id = match db::register_build(state.db.pool(), &build).await {
+        Ok(id) => id,
+        Err(e) => {
+            warn!("register_build failed: {}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(RegisterBuildHttpError {
+                    error: "internal_error".to_string(),
+                    message: "Failed to register build".to_string(),
+                }),
+            ));
+        }
+    };
+
+    info!(
+        project = %project,
+        version = %req.version,
+        build_hash = %req.build_hash,
+        verifying_key_fp = %trusted.ed25519_fingerprint,
+        signature_key_id = %req.signature_key_id,
+        "POST /v1/builds registered"
+    );
+
+    Ok(Json(RegisterBuildHttpResponse {
+        success: true,
+        build_id,
+        verifying_key_fingerprint: trusted.ed25519_fingerprint,
+        message: format!("Build registered for {} {}", project, req.version),
+    }))
+}
+
+// =============================================================================
 // Key Verification (CIRISVerify agent signing key validation)
 // =============================================================================
 
@@ -1733,6 +2049,10 @@ pub async fn serve(
             "/v1/verify/build-manifest",
             post(register_verified_build_manifest),
         )
+        // Self-signed BuildRecord registration (issue #9). Eliminates the
+        // REGISTRY_JWT_SECRET requirement by mirroring the build-manifest
+        // auth model: bearer token + content signature against trusted key.
+        .route("/v1/builds", post(register_build_http))
         // Play Integrity verification (Android device/app attestation)
         .route("/v1/integrity/nonce", get(integrity_nonce))
         .route("/v1/integrity/verify", post(integrity_verify))
@@ -1750,4 +2070,129 @@ pub async fn serve(
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_request() -> RegisterBuildHttpRequest {
+        RegisterBuildHttpRequest {
+            project: "ciris-lens".to_string(),
+            version: "1.2.0".to_string(),
+            build_hash: "sha256:deadbeef".to_string(),
+            build_id: "abc123commit".to_string(),
+            modules: vec!["core".to_string(), "ios".to_string()],
+            file_manifest_count: 7,
+            file_manifest_hash: String::new(),
+            file_manifest_json: serde_json::Value::Null,
+            source_repo: String::new(),
+            source_commit: String::new(),
+            notes: String::new(),
+            signature_classical: "AAAA".to_string(),
+            signature_pqc: "BBBB".to_string(),
+            signature_key_id: "lens-build-v1".to_string(),
+        }
+    }
+
+    #[test]
+    fn canonical_bytes_excludes_signature_and_metadata() {
+        let req = sample_request();
+        let bytes = req.canonical_bytes();
+        let s = std::str::from_utf8(&bytes).unwrap();
+        assert!(!s.contains("signature"), "canonical must not include signature: {s}");
+        assert!(!s.contains("AAAA"), "canonical must not include base64 sig: {s}");
+        assert!(!s.contains("file_manifest_hash"), "unsigned metadata leaked: {s}");
+        assert!(!s.contains("source_repo"), "unsigned metadata leaked: {s}");
+        assert!(!s.contains("notes"), "unsigned metadata leaked: {s}");
+        // Signed fields must all be present.
+        assert!(s.contains(r#""project":"ciris-lens""#));
+        assert!(s.contains(r#""version":"1.2.0""#));
+        assert!(s.contains(r#""build_hash":"sha256:deadbeef""#));
+        assert!(s.contains(r#""build_id":"abc123commit""#));
+        assert!(s.contains(r#""file_manifest_count":7"#));
+    }
+
+    #[test]
+    fn canonical_bytes_field_order_is_wire_contract() {
+        // Wire contract: project, version, build_hash, build_id, modules,
+        // file_manifest_count. Order must not change without coordinating
+        // with CIRISVerify (ciris-build-sign register).
+        let req = sample_request();
+        let s = String::from_utf8(req.canonical_bytes()).unwrap();
+        let positions = [
+            ("project", s.find(r#""project""#).unwrap()),
+            ("version", s.find(r#""version""#).unwrap()),
+            ("build_hash", s.find(r#""build_hash""#).unwrap()),
+            ("build_id", s.find(r#""build_id""#).unwrap()),
+            ("modules", s.find(r#""modules""#).unwrap()),
+            ("file_manifest_count", s.find(r#""file_manifest_count""#).unwrap()),
+        ];
+        for w in positions.windows(2) {
+            assert!(
+                w[0].1 < w[1].1,
+                "field order broken: {} (@{}) must precede {} (@{}); full: {s}",
+                w[0].0, w[0].1, w[1].0, w[1].1
+            );
+        }
+    }
+
+    #[test]
+    fn canonical_bytes_is_deterministic() {
+        let req = sample_request();
+        assert_eq!(req.canonical_bytes(), req.canonical_bytes());
+    }
+
+    #[test]
+    fn canonical_bytes_changes_when_signed_field_changes() {
+        let mut a = sample_request();
+        let bytes_a = a.canonical_bytes();
+        a.build_hash = "sha256:cafebabe".to_string();
+        let bytes_b = a.canonical_bytes();
+        assert_ne!(bytes_a, bytes_b);
+    }
+
+    #[test]
+    fn canonical_bytes_unchanged_by_unsigned_metadata() {
+        let mut req = sample_request();
+        let baseline = req.canonical_bytes();
+        // Mutating any unsigned metadata field must not affect canonical bytes.
+        req.file_manifest_hash = "sha256:zzz".to_string();
+        req.file_manifest_json = serde_json::json!({"x": 1});
+        req.source_repo = "https://example.test/repo".to_string();
+        req.source_commit = "deadbeef".to_string();
+        req.notes = "hello".to_string();
+        req.signature_key_id = "different".to_string();
+        assert_eq!(req.canonical_bytes(), baseline);
+    }
+
+    #[test]
+    fn sign_then_verify_roundtrip() {
+        // End-to-end proof that the canonical bytes a CI tool would sign
+        // verify against the same bytes the registry handler would derive.
+        // Mirrors build_manifest::tests::verify_signs_and_verifies_roundtrip.
+        use ciris_crypto::{
+            ClassicalSigner, ClassicalVerifier, Ed25519Signer, Ed25519Verifier, MlDsa65Signer,
+            MlDsa65Verifier, PqcSigner, PqcVerifier,
+        };
+        let ed_signer = Ed25519Signer::random();
+        let pqc_signer = MlDsa65Signer::new().unwrap();
+        let ed_pk = ed_signer.public_key().unwrap();
+        let pqc_pk = pqc_signer.public_key().unwrap();
+
+        let req = sample_request();
+        let canonical = req.canonical_bytes();
+
+        let classical_sig = ed_signer.sign(&canonical).unwrap();
+        let mut bound = canonical.clone();
+        bound.extend_from_slice(&classical_sig);
+        let pqc_sig = pqc_signer.sign(&bound).unwrap();
+
+        assert!(Ed25519Verifier::new()
+            .verify(&ed_pk, &canonical, &classical_sig)
+            .unwrap());
+        assert!(MlDsa65Verifier::new()
+            .verify(&pqc_pk, &bound, &pqc_sig)
+            .unwrap());
+    }
 }
