@@ -568,6 +568,10 @@ struct RegisterFunctionManifestResponse {
 struct BuildRecordResponse {
     build_id: String,
     version: String,
+    /// Build target (`python-source-tree`, `ios-mobile-bundle`, …). v1.4.1+.
+    /// CIRISVerify consumers should branch on this to confirm they're
+    /// validating against the manifest for their platform. Closes #11.
+    target: String,
     build_hash: String,
     file_manifest_hash: String,
     file_manifest_count: i32,
@@ -598,6 +602,7 @@ impl From<BuildRow> for BuildRecordResponse {
         Self {
             build_id: row.build_id.to_string(),
             version: row.version.clone(),
+            target: row.target,
             build_hash: row.build_hash,
             file_manifest_hash: row.file_manifest_hash,
             file_manifest_count: row.file_manifest_count,
