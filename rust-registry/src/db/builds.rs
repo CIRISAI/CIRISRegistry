@@ -13,11 +13,19 @@ use crate::proto;
 /// Preserves backwards compat with all pre-v1.4.0 registrations.
 pub const DEFAULT_PROJECT: &str = "ciris-agent";
 
+/// Default target for legacy lookup paths (`GET /v1/builds/{version}` without
+/// `?target=`). The canonical Python source manifest is byte-identical across
+/// every platform (iOS, Android, desktop, server), so it's the right answer
+/// when a caller hasn't said otherwise. Closes CIRISRegistry#11 — iOS-tagged
+/// rows must not win the version-lookup race.
+pub const DEFAULT_TARGET: &str = "python-source-tree";
+
 #[derive(Debug, Clone, FromRow)]
 pub struct BuildRow {
     pub build_id: sqlx::types::Uuid,
     pub project: String,
     pub version: String,
+    pub target: String,
     pub build_hash: String,
     pub file_manifest_hash: String,
     pub file_manifest_count: i32,
@@ -44,6 +52,7 @@ impl BuildRow {
                 .into(),
             includes_modules: self.includes_modules.clone(),
             project: self.project.clone(),
+            target: self.target.clone(),
             source_repo: self.source_repo.clone().unwrap_or_default(),
             source_commit: self.source_commit.clone().unwrap_or_default(),
             registered_at: self.registered_at.unix_timestamp(),
@@ -78,15 +87,25 @@ pub async fn register_build(
         build.project.clone()
     };
 
+    // target is required at the application layer; empty → DEFAULT_TARGET to
+    // preserve the legacy gRPC callers that predate v1.4.1. The HTTP handler
+    // (register_build_http) rejects empty target before calling here.
+    let target = if build.target.is_empty() {
+        DEFAULT_TARGET.to_string()
+    } else {
+        build.target.clone()
+    };
+
     let row: (sqlx::types::Uuid,) = sqlx::query_as(
         r#"
         INSERT INTO builds (
-            project, version, build_hash, file_manifest_hash, file_manifest_count,
+            project, version, target, build_hash, file_manifest_hash, file_manifest_count,
             file_manifest_json, includes_modules, source_repo, source_commit,
             registered_by, notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         ON CONFLICT (build_hash) DO UPDATE SET
+            target = EXCLUDED.target,
             file_manifest_hash = EXCLUDED.file_manifest_hash,
             file_manifest_count = EXCLUDED.file_manifest_count,
             file_manifest_json = EXCLUDED.file_manifest_json,
@@ -96,6 +115,7 @@ pub async fn register_build(
     )
     .bind(&project)
     .bind(&build.version)
+    .bind(&target)
     .bind(&build.build_hash)
     .bind(&build.file_manifest_hash)
     .bind(build.file_manifest_count)
@@ -111,24 +131,33 @@ pub async fn register_build(
     Ok(row.0.to_string())
 }
 
-/// Get a build by version or build hash, scoped to a project.
+/// Get a build by version or build hash, scoped to a project and target.
 ///
-/// `project=None` is treated as `Some(DEFAULT_PROJECT)` for backwards compat
-/// with pre-v1.4.0 callers (CIRISVerify and existing tooling that look up by
-/// agent version). Lookup by `build_hash` ignores the project (build hashes
-/// are globally unique by SHA-256 construction).
+/// `project=None` → `DEFAULT_PROJECT` (`ciris-agent`) for pre-v1.4.0 callers.
+/// `target=None`  → `DEFAULT_TARGET` (`python-source-tree`) for pre-v1.4.1
+/// callers. The canonical Python-source manifest is byte-identical across all
+/// platforms — picking it as the default keeps L4 file-integrity attestation
+/// working for legacy verify clients that don't pass a target yet.
+///
+/// Lookup by `build_hash` ignores project + target (build hashes are globally
+/// unique by SHA-256 construction).
+///
+/// Closes CIRISRegistry#11 — eliminates the "iOS row wins the version lookup
+/// race" failure mode that broke L4 attestation on every agent in v2.8.9.
 pub async fn get_build(
     pool: &PgPool,
     version: Option<&str>,
     build_hash: Option<&str>,
     project: Option<&str>,
+    target: Option<&str>,
 ) -> Result<Option<BuildRow>> {
     let project = project.unwrap_or(DEFAULT_PROJECT);
+    let target = target.unwrap_or(DEFAULT_TARGET);
 
     let row = if let Some(hash) = build_hash {
         sqlx::query_as::<_, BuildRow>(
             r#"
-            SELECT build_id, project, version, build_hash, file_manifest_hash, file_manifest_count,
+            SELECT build_id, project, version, target, build_hash, file_manifest_hash, file_manifest_count,
                    file_manifest_json, includes_modules, source_repo, source_commit,
                    registered_at, registered_by, status, notes
             FROM builds
@@ -141,17 +170,18 @@ pub async fn get_build(
     } else if let Some(ver) = version {
         sqlx::query_as::<_, BuildRow>(
             r#"
-            SELECT build_id, project, version, build_hash, file_manifest_hash, file_manifest_count,
+            SELECT build_id, project, version, target, build_hash, file_manifest_hash, file_manifest_count,
                    file_manifest_json, includes_modules, source_repo, source_commit,
                    registered_at, registered_by, status, notes
             FROM builds
-            WHERE project = $1 AND version = $2 AND status = 'active'
+            WHERE project = $1 AND version = $2 AND target = $3 AND status = 'active'
             ORDER BY registered_at DESC
             LIMIT 1
             "#,
         )
         .bind(project)
         .bind(ver)
+        .bind(target)
         .fetch_optional(pool)
         .await?
     } else {
@@ -173,7 +203,7 @@ pub async fn list_builds(
     let rows = if let Some(s) = status {
         sqlx::query_as::<_, BuildRow>(
             r#"
-            SELECT build_id, project, version, build_hash, file_manifest_hash, file_manifest_count,
+            SELECT build_id, project, version, target, build_hash, file_manifest_hash, file_manifest_count,
                    file_manifest_json, includes_modules, source_repo, source_commit,
                    registered_at, registered_by, status, notes
             FROM builds
@@ -189,7 +219,7 @@ pub async fn list_builds(
     } else {
         sqlx::query_as::<_, BuildRow>(
             r#"
-            SELECT build_id, project, version, build_hash, file_manifest_hash, file_manifest_count,
+            SELECT build_id, project, version, target, build_hash, file_manifest_hash, file_manifest_count,
                    file_manifest_json, includes_modules, source_repo, source_commit,
                    registered_at, registered_by, status, notes
             FROM builds

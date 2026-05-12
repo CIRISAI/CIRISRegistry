@@ -396,6 +396,11 @@ message BuildRecord {
   // Examples: "ciris-agent", "ciris-persist", "ciris-lens", "ciris-verify".
   // (project, version, includes_modules) is unique per registry deployment.
   string project = 8;                       // v1.4.0
+  // Build target the row describes. Required since v1.4.1 — disambiguates
+  // multi-target releases (python-source-tree vs ios-mobile-bundle vs
+  // future android-mobile-bundle etc.). Default "python-source-tree" on
+  // legacy lookup paths that don't carry a target. Closes #11.
+  string target = 9;                        // v1.4.1
   string source_repo = 10;
   string source_commit = 11;
   int64 registered_at = 20;
@@ -414,6 +419,7 @@ message GetBuildRequest {
   string build_hash = 2;                    // Or by build hash
   repeated string includes_modules = 3;     // Filter by module set
   string project = 4;                       // v1.4.0; default "ciris-agent" when empty
+  string target = 5;                        // v1.4.1; default "python-source-tree" when empty (#11)
   RequestContext context = 10;
 }
 

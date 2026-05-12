@@ -305,6 +305,29 @@ impl ProjectQuery {
     }
 }
 
+/// `?project=&target=` for `GET /v1/builds/{version}`. Empty `target` →
+/// `python-source-tree` (canonical byte-identical-across-platforms source
+/// manifest). Closes CIRISRegistry#11.
+#[derive(serde::Deserialize, Default)]
+struct BuildVersionQuery {
+    #[serde(default)]
+    project: String,
+    #[serde(default)]
+    target: String,
+}
+
+impl BuildVersionQuery {
+    fn project_opt(&self) -> Option<&str> {
+        if self.project.is_empty() { None } else { Some(self.project.as_str()) }
+    }
+    fn target_opt(&self) -> Option<&str> {
+        if self.target.is_empty() { None } else { Some(self.target.as_str()) }
+    }
+    fn validate(&self) -> Result<(), String> {
+        crate::validation::validate_project_name(&self.project)
+    }
+}
+
 /// Public endpoint: GET /v1/verify/binary-manifest/{version}?project=...
 ///
 /// Returns SHA-256 hashes of CIRISVerify binaries for self-verification (Level 2).
@@ -602,7 +625,7 @@ struct BuildNotFound {
 async fn get_build_by_version(
     State(state): State<AppState>,
     axum::extract::Path(version): axum::extract::Path<String>,
-    axum::extract::Query(q): axum::extract::Query<ProjectQuery>,
+    axum::extract::Query(q): axum::extract::Query<BuildVersionQuery>,
 ) -> Result<Json<BuildRecordResponse>, (StatusCode, Json<BuildNotFound>)> {
     // Validate version format
     if version.is_empty() {
@@ -625,7 +648,7 @@ async fn get_build_by_version(
         ));
     }
 
-    match get_build(state.db.pool(), Some(&version), None, q.as_opt()).await {
+    match get_build(state.db.pool(), Some(&version), None, q.project_opt(), q.target_opt()).await {
         Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -666,8 +689,8 @@ async fn get_build_by_hash(
         ));
     }
 
-    // Build hash is globally unique by SHA-256 construction; project is irrelevant.
-    match get_build(state.db.pool(), None, Some(&build_hash), None).await {
+    // Build hash is globally unique by SHA-256 construction; project + target are irrelevant.
+    match get_build(state.db.pool(), None, Some(&build_hash), None, None).await {
         Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -1154,6 +1177,11 @@ async fn register_verified_build_manifest(
 struct RegisterBuildHttpRequest {
     project: String,
     version: String,
+    /// Build target (e.g. `python-source-tree`, `ios-mobile-bundle`,
+    /// `android-mobile-bundle`). Required since v1.4.1 (CanonicalBuild v2,
+    /// closes #11) — disambiguates multi-target releases so version
+    /// lookups don't return the wrong target's manifest.
+    target: String,
     build_hash: String,
     /// Caller-asserted build identifier (typically a git SHA). Bound by the
     /// signature; not stored as the DB build_id (DB autogenerates a UUID).
@@ -1198,12 +1226,18 @@ struct RegisterBuildHttpError {
     message: String,
 }
 
-/// Canonical signing form for a Build registration. Field order is the
-/// wire contract — see module-level comment above.
+/// Canonical signing form for a Build registration (v2, since v1.4.1).
+/// Field order is the wire contract — see module-level comment above.
+///
+/// **v2 change (#11)**: `target` is inserted between `version` and
+/// `build_hash`. Bumps the wire format relative to the c2dc594 v1 shipped
+/// 2026-05-04; ciris-build-sign register must cut over to match
+/// (CIRISVerify#8).
 #[derive(Serialize)]
 struct CanonicalBuild<'a> {
     project: &'a str,
     version: &'a str,
+    target: &'a str,
     build_hash: &'a str,
     build_id: &'a str,
     modules: &'a [String],
@@ -1215,6 +1249,7 @@ impl RegisterBuildHttpRequest {
         let canonical = CanonicalBuild {
             project: &self.project,
             version: &self.version,
+            target: &self.target,
             build_hash: &self.build_hash,
             build_id: &self.build_id,
             modules: &self.modules,
@@ -1263,6 +1298,7 @@ async fn register_build_http(
 
     if req.project.is_empty()
         || req.version.is_empty()
+        || req.target.is_empty()
         || req.build_hash.is_empty()
         || req.build_id.is_empty()
     {
@@ -1270,7 +1306,8 @@ async fn register_build_http(
             StatusCode::BAD_REQUEST,
             Json(RegisterBuildHttpError {
                 error: "bad_request".to_string(),
-                message: "project, version, build_hash, and build_id are required".to_string(),
+                message: "project, version, target, build_hash, and build_id are required"
+                    .to_string(),
             }),
         ));
     }
@@ -1396,6 +1433,7 @@ async fn register_build_http(
         file_manifest_json: manifest_json_bytes.into(),
         includes_modules: req.modules.clone(),
         project: project.clone(),
+        target: req.target.clone(),
         source_repo: req.source_repo.clone(),
         source_commit: req.source_commit.clone(),
         registered_at: 0,
@@ -1421,6 +1459,7 @@ async fn register_build_http(
     info!(
         project = %project,
         version = %req.version,
+        target = %req.target,
         build_hash = %req.build_hash,
         verifying_key_fp = %trusted.ed25519_fingerprint,
         signature_key_id = %req.signature_key_id,
@@ -1431,7 +1470,7 @@ async fn register_build_http(
         success: true,
         build_id,
         verifying_key_fingerprint: trusted.ed25519_fingerprint,
-        message: format!("Build registered for {} {}", project, req.version),
+        message: format!("Build registered for {} {} ({})", project, req.version, req.target),
     }))
 }
 
@@ -2080,6 +2119,7 @@ mod tests {
         RegisterBuildHttpRequest {
             project: "ciris-lens".to_string(),
             version: "1.2.0".to_string(),
+            target: "python-source-tree".to_string(),
             build_hash: "sha256:deadbeef".to_string(),
             build_id: "abc123commit".to_string(),
             modules: vec!["core".to_string(), "ios".to_string()],
@@ -2108,6 +2148,7 @@ mod tests {
         // Signed fields must all be present.
         assert!(s.contains(r#""project":"ciris-lens""#));
         assert!(s.contains(r#""version":"1.2.0""#));
+        assert!(s.contains(r#""target":"python-source-tree""#));
         assert!(s.contains(r#""build_hash":"sha256:deadbeef""#));
         assert!(s.contains(r#""build_id":"abc123commit""#));
         assert!(s.contains(r#""file_manifest_count":7"#));
@@ -2115,14 +2156,16 @@ mod tests {
 
     #[test]
     fn canonical_bytes_field_order_is_wire_contract() {
-        // Wire contract: project, version, build_hash, build_id, modules,
-        // file_manifest_count. Order must not change without coordinating
-        // with CIRISVerify (ciris-build-sign register).
+        // Wire contract v2 (CIRISRegistry#11): project, version, target,
+        // build_hash, build_id, modules, file_manifest_count. Order must
+        // not change without coordinating with CIRISVerify
+        // (ciris-build-sign register).
         let req = sample_request();
         let s = String::from_utf8(req.canonical_bytes()).unwrap();
         let positions = [
             ("project", s.find(r#""project""#).unwrap()),
             ("version", s.find(r#""version""#).unwrap()),
+            ("target", s.find(r#""target""#).unwrap()),
             ("build_hash", s.find(r#""build_hash""#).unwrap()),
             ("build_id", s.find(r#""build_id""#).unwrap()),
             ("modules", s.find(r#""modules""#).unwrap()),
@@ -2135,6 +2178,18 @@ mod tests {
                 w[0].0, w[0].1, w[1].0, w[1].1
             );
         }
+    }
+
+    #[test]
+    fn canonical_bytes_distinguishes_targets() {
+        // Two builds at the same (project, version) with different targets
+        // must produce different canonical bytes — that's the whole point
+        // of the v2 wire format. CIRISRegistry#11 root cause.
+        let mut a = sample_request();
+        let mut b = sample_request();
+        a.target = "python-source-tree".to_string();
+        b.target = "ios-mobile-bundle".to_string();
+        assert_ne!(a.canonical_bytes(), b.canonical_bytes());
     }
 
     #[test]

@@ -930,8 +930,13 @@ impl AdminServiceTrait for AdminService {
         } else {
             Some(req.project.as_str())
         };
+        let target = if req.target.is_empty() {
+            None
+        } else {
+            Some(req.target.as_str())
+        };
 
-        let row = db::get_build(self.db.pool(), version, build_hash, project)
+        let row = db::get_build(self.db.pool(), version, build_hash, project, target)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
