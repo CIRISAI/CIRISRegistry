@@ -1,6 +1,6 @@
 //! Hybrid cryptography module (Ed25519 + ML-DSA-65, FIPS 204)
 //!
-//! Built on `ciris-crypto` v1.8.0 — the same primitives CIRISLens, CIRISAgent,
+//! Built on `ciris-crypto` v1.14.0 — the same primitives CIRISLens, CIRISAgent,
 //! and CIRISPersist consume. Closes AV-27 (vault-mode dummy-key bug) and
 //! AV-25 (home-rolled crypto extraction risk) by deletion of the legacy
 //! storage_mode plumbing.

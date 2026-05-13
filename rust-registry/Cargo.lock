@@ -444,8 +444,8 @@ dependencies = [
 
 [[package]]
 name = "ciris-crypto"
-version = "1.8.0"
-source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v1.8.0#b9da9de450d34df1c899b14a6cd54d200e5ccab1"
+version = "1.14.0"
+source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v1.14.0#176accadf95b5b1fab82ed3f1ab4ee390679a06b"
 dependencies = [
  "ed25519-dalek",
  "hex",
