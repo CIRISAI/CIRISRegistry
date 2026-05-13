@@ -91,6 +91,11 @@ pub async fn insert_trusted_primitive_key_if_absent(
 /// admin RPC handler, which is responsible for SYSTEM_ADMIN gating.
 /// Use `rotate_trusted_primitive_key` for rotation rather than calling
 /// this twice (rotation tracks the timestamp).
+///
+/// `rotated_at` is only bumped when the actual key bytes change. An
+/// idempotent re-registration with identical bytes preserves the
+/// existing timestamp so consumers reading `rotated_at` can distinguish
+/// real rotations from no-op admin replays. Closes CIRISRegistry#7.
 pub async fn upsert_trusted_primitive_key(
     pool: &PgPool,
     project: &str,
@@ -115,7 +120,12 @@ pub async fn upsert_trusted_primitive_key(
             ml_dsa_65_fingerprint = EXCLUDED.ml_dsa_65_fingerprint,
             added_by             = EXCLUDED.added_by,
             notes                = EXCLUDED.notes,
-            rotated_at           = NOW(),
+            rotated_at           = CASE
+                WHEN trusted_primitive_keys.ed25519_public_key   IS DISTINCT FROM EXCLUDED.ed25519_public_key
+                  OR trusted_primitive_keys.ml_dsa_65_public_key IS DISTINCT FROM EXCLUDED.ml_dsa_65_public_key
+                THEN NOW()
+                ELSE trusted_primitive_keys.rotated_at
+            END,
             revoked_at           = NULL,
             revocation_reason    = NULL
         "#,
