@@ -17,10 +17,10 @@ Three valid ways a consumer can obtain a verified build manifest, in increasing 
 | Path | Source | Wire format | Signature on response | Trust anchor consumer pins |
 |---|---|---|---|---|
 | **A** | `GET /v1/verify/function-manifest/{ver}/{target}?project=ciris-<name>` | `FunctionManifestResponse` (JSON) | Original CI signature, stored verbatim by Phase A POST handler | Per-primitive steward pubkey (registered in `trusted_primitive_keys`) |
-| **B** | `GET /v1/verify/build-manifest/{primitive}/{build_id}/{target}` (planned, Phase B — not yet shipped) | `BuildManifest` (JSON, byte-identical to POSTed) | Original CI signature over canonical bytes | Per-primitive steward pubkey |
+| **B** | `GET /v1/verify/build-manifest/{project}/{version}/{target}` (v1.4.2+) | `BuildManifest` (JSON, byte-identical to POSTed) | Original CI signature over canonical bytes | Per-primitive steward pubkey |
 | **C** | GitHub release tarball (e.g. `ciris-verify-v1.8.3-signed-build-manifests.tar.gz`) | `BuildManifest` (JSON, as signed) | Original CI signature | Per-primitive steward pubkey |
 
-Path A is **available today** and is the recommended path for production federation peers. Path B is planned but not shipped; consumers can use Path A for v1.3-era registries. Path C is the federation-fallback when registry is unreachable; CIRISVerify v1.8.3 ships this for every release.
+Path A is **available today** and is the recommended convenience path. Path B **shipped in v1.4.2** (CIRISRegistry#5 §2) — use it when you need byte-identical canonical-byte verification against the publishing primitive's CI signature; only rows POSTed via `/v1/verify/build-manifest` (Case (i)) are served. Path C is the federation-fallback when registry is unreachable; CIRISVerify v1.8.3+ ships this for every release.
 
 ---
 
@@ -175,19 +175,31 @@ CIRISVerify v1.8.3+ releases include a `signed-build-manifests.tar.gz` artifact 
 
 ---
 
-## 5. Path B — planned (post-Phase 4 of v1.3 hardening waterfall)
+## 5. Path B — shipped v1.4.2 (CIRISRegistry#5 §2)
 
-Will provide a symmetric GET endpoint that returns the original `BuildManifest` JSON byte-identical to what was POSTed:
+Symmetric GET endpoint that returns the original `BuildManifest` JSON byte-identical to what was POSTed:
 
 ```
-GET /v1/verify/build-manifest/{primitive}/{build_id}/{target}
+GET /v1/verify/build-manifest/{project}/{version}/{target}
 ```
 
-- No auth (public read).
-- Response: raw `BuildManifest` JSON, suitable for direct verification against the per-primitive steward pubkey.
-- Backed by a new `verified_build_manifests` table cross-region replicated (per [`THREAT_MODEL.md`](THREAT_MODEL.md) AV-33 / Registry#4 conventions).
+- **No auth** (public read).
+- **Response**: raw `BuildManifest` JSON, byte-identical to the POST body. Content-Type: `application/json`. Includes the original `signature.classical` + `signature.pqc` + `signature.key_id` fields under the publishing primitive's steward identity.
+- **Routing**: `{project}` is the primitive's `project_name()` (e.g., `ciris-verify`, `ciris-agent`); `{version}` is the BuildManifest's `binary_version`; `{target}` is the build target (e.g., `aarch64-apple-ios`, `python-source-tree`).
+- **Storage**: backed by the existing `function_manifests` table (migration 027 added `raw_manifest_body BYTEA`). Cross-region replicated via the default Spock repset.
+- **404 conditions**:
+  1. No row exists for `(project, version, target)`.
+  2. Row exists but was POSTed via the legacy `/v1/verify/function-manifest` endpoint (Case (ii) — server re-signed; no original CI body captured). For those rows, use Path A.
 
-When Path B ships, Path A becomes the legacy / convenience read; Path B becomes the federation-correct read.
+**Verification by consumer**:
+
+1. GET the response bytes.
+2. Parse to extract `signature.classical` + `signature.pqc` + `signature.key_id`.
+3. Compute canonical bytes by serializing the BuildManifest with the `signature` field removed, using the byte-identical scheme upstream `ciris-verify-core::BuildManifest::canonical_bytes()` defines.
+4. Verify Ed25519 sig over canonical_bytes; verify ML-DSA-65 sig over `canonical_bytes || classical_sig_bytes` (bound payload).
+5. Match `signature.key_id` against the expected per-primitive steward `key_id`.
+
+Path A remains the convenience path for runtime self-check (returns a derived `FunctionManifestResponse` shape). Path B is the federation-correct path when canonical-byte signature fidelity matters.
 
 ---
 

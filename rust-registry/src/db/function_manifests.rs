@@ -160,6 +160,11 @@ pub async fn list_function_manifest_targets(
 
 /// Register a new function manifest. Returns the manifest_hash on success.
 /// `project` defaults to `ciris-agent` when empty.
+///
+/// `raw_manifest_body` is the verbatim POST body for rows POSTed via
+/// `/v1/verify/build-manifest` (Path B fidelity, CIRISRegistry#5 §2).
+/// Pass `None` from legacy callers that don't have the raw bytes —
+/// the column stays NULL and Path B's GET will 404 for that row.
 #[allow(clippy::too_many_arguments)]
 pub async fn register_function_manifest(
     pool: &PgPool,
@@ -174,6 +179,7 @@ pub async fn register_function_manifest(
     signature_pqc: Option<&str>,
     signature_key_id: Option<&str>,
     generated_at: OffsetDateTime,
+    raw_manifest_body: Option<&[u8]>,
 ) -> Result<String> {
     let project = if project.is_empty() {
         DEFAULT_PROJECT
@@ -185,9 +191,10 @@ pub async fn register_function_manifest(
         r#"
         INSERT INTO function_manifests (
             project, binary_version, target, manifest_version, binary_hash, manifest_hash,
-            manifest_json, signature_classical, signature_pqc, signature_key_id, generated_at
+            manifest_json, signature_classical, signature_pqc, signature_key_id, generated_at,
+            raw_manifest_body
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         ON CONFLICT (project, binary_version, target) DO UPDATE SET
             manifest_version = EXCLUDED.manifest_version,
             binary_hash = EXCLUDED.binary_hash,
@@ -197,6 +204,7 @@ pub async fn register_function_manifest(
             signature_pqc = EXCLUDED.signature_pqc,
             signature_key_id = EXCLUDED.signature_key_id,
             generated_at = EXCLUDED.generated_at,
+            raw_manifest_body = COALESCE(EXCLUDED.raw_manifest_body, function_manifests.raw_manifest_body),
             created_at = NOW()
         RETURNING manifest_hash
         "#,
@@ -212,10 +220,39 @@ pub async fn register_function_manifest(
     .bind(signature_pqc)
     .bind(signature_key_id)
     .bind(generated_at)
+    .bind(raw_manifest_body)
     .fetch_one(pool)
     .await?;
 
     Ok(row.0)
+}
+
+/// Fetch the verbatim raw POST body of a previously-stored BuildManifest.
+/// Returns `None` if the row exists but was POSTed via the legacy
+/// `/v1/verify/function-manifest` endpoint (no raw body captured), or
+/// if the row doesn't exist at all. Callers distinguish by checking
+/// row existence separately if they need to. Backs Path B
+/// (CIRISRegistry#5 §2).
+pub async fn get_function_manifest_raw_body(
+    pool: &PgPool,
+    project: &str,
+    binary_version: &str,
+    target: &str,
+) -> Result<Option<Vec<u8>>> {
+    let row: Option<(Option<Vec<u8>>,)> = sqlx::query_as(
+        r#"
+        SELECT raw_manifest_body
+        FROM function_manifests
+        WHERE project = $1 AND binary_version = $2 AND target = $3
+        "#,
+    )
+    .bind(project)
+    .bind(binary_version)
+    .bind(target)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.and_then(|(body,)| body))
 }
 
 /// List all function manifests (admin)

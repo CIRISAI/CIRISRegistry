@@ -898,7 +898,10 @@ async fn register_function_manifest(
         }
     };
 
-    // Register the manifest with signature
+    // Register the manifest with signature.
+    // Legacy /v1/verify/function-manifest path: registry re-signs server-side
+    // (Case (ii) in TRUST_CONTRACT.md §2.3) — no original CI body to preserve.
+    // raw_manifest_body stays NULL; Path B will 404 for rows POSTed here.
     match db::register_function_manifest(
         state.db.pool(),
         &req.project,
@@ -912,6 +915,7 @@ async fn register_function_manifest(
         Some(&sig_pqc),
         Some(&sig_key_id),
         generated_at,
+        None,
     )
     .await
     {
@@ -1102,6 +1106,10 @@ async fn register_verified_build_manifest(
     )
     .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
 
+    // Capture verbatim POST body so Path B can serve byte-identical
+    // BuildManifest later (CIRISRegistry#5 §2). The original CI signature
+    // is over these exact bytes — re-serializing through serde would
+    // invalidate canonical-byte verification on the consumer side.
     if let Err(e) = db::register_function_manifest(
         state.db.pool(),
         &project,
@@ -1115,6 +1123,7 @@ async fn register_verified_build_manifest(
         Some(&manifest.signature.pqc),
         Some(&manifest.signature.key_id),
         generated_at,
+        Some(body.as_ref()),
     )
     .await
     {
@@ -1145,6 +1154,89 @@ async fn register_verified_build_manifest(
         verifying_key_fingerprint: trusted.ed25519_fingerprint,
         message: "BuildManifest verified and stored".to_string(),
     }))
+}
+
+/// Public endpoint: GET /v1/verify/build-manifest/{project}/{version}/{target}
+///
+/// Returns the verbatim BuildManifest JSON bytes that the publishing
+/// primitive's CI signed — byte-identical to what was POSTed via the
+/// `/v1/verify/build-manifest` endpoint. The original Ed25519 + ML-DSA-65
+/// signature is embedded in the returned JSON; consumers verify it against
+/// the per-primitive trusted-primitive-key (obtained out-of-band or via
+/// CIRISRegistry#5 §4's discovery endpoint when it ships).
+///
+/// Returns 404 if:
+///   - No row exists for (project, version, target), OR
+///   - The row was POSTed via the legacy `/v1/verify/function-manifest`
+///     endpoint (server-resigned; no original CI body captured). Use Path A
+///     (`GET /v1/verify/function-manifest/{version}/{target}`) for those rows.
+///
+/// Path B per docs/TRUST_CONTRACT.md §5. Closes CIRISRegistry#5 §2.
+async fn get_verified_build_manifest(
+    State(state): State<AppState>,
+    axum::extract::Path((project, version, target)): axum::extract::Path<(String, String, String)>,
+) -> Result<axum::response::Response, (StatusCode, Json<VerifiedBuildManifestError>)> {
+    if let Err(reason) = crate::validation::validate_project_name(&project) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(VerifiedBuildManifestError {
+                error: "bad_request".to_string(),
+                message: reason,
+            }),
+        ));
+    }
+
+    let body = match db::get_function_manifest_raw_body(
+        state.db.pool(),
+        &project,
+        &version,
+        &target,
+    )
+    .await
+    {
+        Ok(Some(b)) => b,
+        Ok(None) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(VerifiedBuildManifestError {
+                    error: "not_found".to_string(),
+                    message: format!(
+                        "No verbatim BuildManifest stored for project={} version={} target={}. \
+                         Either no row exists, or the row was POSTed via the legacy \
+                         /v1/verify/function-manifest endpoint (no raw body captured).",
+                        project, version, target
+                    ),
+                }),
+            ));
+        }
+        Err(e) => {
+            warn!("Path B fetch failed: {}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(VerifiedBuildManifestError {
+                    error: "internal_error".to_string(),
+                    message: "Failed to fetch verbatim BuildManifest".to_string(),
+                }),
+            ));
+        }
+    };
+
+    use axum::response::IntoResponse;
+    let mut resp = (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        body,
+    )
+        .into_response();
+    // Cache-Control is intentionally absent — manifest content is immutable
+    // per (project, version, target), but operators may want to inspect
+    // revocation state via a fresh GET. Consumers SHOULD treat the body as
+    // immutable per the TRUST_CONTRACT §2.1 caching guidance.
+    resp.headers_mut().insert(
+        "X-Manifest-Path",
+        axum::http::HeaderValue::from_static("path-b-verbatim"),
+    );
+    Ok(resp)
 }
 
 // =============================================================================
@@ -2072,6 +2164,14 @@ pub async fn serve(
         .route("/v1/builds/{version}", get(get_build_by_version))
         .route("/v1/builds/hash/{build_hash}", get(get_build_by_hash))
         .route("/v1/verify/key/{fingerprint}", get(verify_key_by_fingerprint))
+        // Path B (CIRISRegistry#5 §2): verbatim BuildManifest GET. Returns
+        // the raw POST body — byte-identical to what the publishing primitive
+        // signed — so consumers can verify the original CI signature against
+        // canonical bytes without trusting the registry to re-canonicalize.
+        .route(
+            "/v1/verify/build-manifest/{project}/{version}/{target}",
+            get(get_verified_build_manifest),
+        )
         .layer(axum::middleware::from_fn(
             crate::middleware::rate_limit::rate_limit_public_http,
         ));
