@@ -96,6 +96,20 @@ pub async fn register_build(
         build.target.clone()
     };
 
+    // ON CONFLICT (project, version, target): the target-aware UNIQUE
+    // constraint (migration 028) is the right discriminator for
+    // multi-target releases — a single `ciris-build-sign register`
+    // invocation POSTs N rows at the same (project, version) with
+    // different targets and (in the common case) the same
+    // includes_modules. The legacy ON CONFLICT (build_hash) clause
+    // didn't help: each target has a distinct build_hash by content,
+    // so ON CONFLICT never fired and the now-removed
+    // builds_project_version_modules_unique constraint tripped
+    // → 500. The build_hash UNIQUE constraint stays as a global
+    // cross-project sanity check but is no longer the conflict target.
+    // Re-POSTing the same (project, version, target) with a different
+    // build_hash (re-built artifact, re-tagged release) updates in
+    // place rather than failing. Closes CIRISRegistry#13.
     let row: (sqlx::types::Uuid,) = sqlx::query_as(
         r#"
         INSERT INTO builds (
@@ -104,11 +118,15 @@ pub async fn register_build(
             registered_by, notes
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        ON CONFLICT (build_hash) DO UPDATE SET
-            target = EXCLUDED.target,
+        ON CONFLICT (project, version, target) DO UPDATE SET
+            build_hash = EXCLUDED.build_hash,
             file_manifest_hash = EXCLUDED.file_manifest_hash,
             file_manifest_count = EXCLUDED.file_manifest_count,
             file_manifest_json = EXCLUDED.file_manifest_json,
+            includes_modules = EXCLUDED.includes_modules,
+            source_repo = EXCLUDED.source_repo,
+            source_commit = EXCLUDED.source_commit,
+            registered_by = EXCLUDED.registered_by,
             notes = EXCLUDED.notes
         RETURNING build_id
         "#,

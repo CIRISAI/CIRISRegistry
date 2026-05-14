@@ -1542,12 +1542,36 @@ async fn register_build_http(
     let build_id = match db::register_build(state.db.pool(), &build).await {
         Ok(id) => id,
         Err(e) => {
-            warn!("register_build failed: {}", e);
+            // Surface the underlying sqlx error in the response body. This
+            // endpoint is REGISTRY_ADMIN_TOKEN-gated and the caller is by
+            // definition trusted with the pre-shared admin secret; leaking
+            // SQL constraint names + table names is acceptable here and the
+            // alternative (opaque "Failed to register build") forced
+            // CIRISRegistry#13's filer to file a ticket and wait for ops
+            // to pull production logs. For UNIQUE constraint hits, return
+            // 409 Conflict so callers can distinguish a duplicate-write
+            // from a true server error and choose to retry differently.
+            warn!(
+                project = %project,
+                version = %req.version,
+                target = %req.target,
+                build_hash = %req.build_hash,
+                "register_build failed: {}",
+                e
+            );
+            let err_str = e.to_string();
+            let is_conflict = err_str.contains("duplicate key")
+                || err_str.contains("unique constraint");
+            let (status, code) = if is_conflict {
+                (StatusCode::CONFLICT, "duplicate")
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
+            };
             return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
+                status,
                 Json(RegisterBuildHttpError {
-                    error: "internal_error".to_string(),
-                    message: "Failed to register build".to_string(),
+                    error: code.to_string(),
+                    message: format!("register_build failed: {}", err_str),
                 }),
             ));
         }
