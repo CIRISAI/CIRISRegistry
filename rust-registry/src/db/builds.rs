@@ -97,19 +97,16 @@ pub async fn register_build(
     };
 
     // ON CONFLICT (project, version, target): the target-aware UNIQUE
-    // constraint (migration 028) is the right discriminator for
-    // multi-target releases — a single `ciris-build-sign register`
-    // invocation POSTs N rows at the same (project, version) with
-    // different targets and (in the common case) the same
-    // includes_modules. The legacy ON CONFLICT (build_hash) clause
-    // didn't help: each target has a distinct build_hash by content,
-    // so ON CONFLICT never fired and the now-removed
-    // builds_project_version_modules_unique constraint tripped
-    // → 500. The build_hash UNIQUE constraint stays as a global
-    // cross-project sanity check but is no longer the conflict target.
-    // Re-POSTing the same (project, version, target) with a different
-    // build_hash (re-built artifact, re-tagged release) updates in
-    // place rather than failing. Closes CIRISRegistry#13.
+    // constraint (migration 028) is the row-uniqueness anchor.
+    // ciris-build-sign register v2.0.3+ POSTs N rows at the same
+    // (project, version) with distinct targets and a SHARED build_hash
+    // derived from all binaries combined. Migration 029 dropped the
+    // legacy build_hash UNIQUE so multiple target rows can coexist;
+    // build_hash now functions as a fast-lookup informational field
+    // rather than a uniqueness anchor. Re-POSTing the same
+    // (project, version, target) with a different build_hash
+    // (re-built artifact, re-tagged release) updates in place rather
+    // than failing. Closes CIRISRegistry#13 + #14.
     let row: (sqlx::types::Uuid,) = sqlx::query_as(
         r#"
         INSERT INTO builds (
@@ -157,8 +154,12 @@ pub async fn register_build(
 /// platforms — picking it as the default keeps L4 file-integrity attestation
 /// working for legacy verify clients that don't pass a target yet.
 ///
-/// Lookup by `build_hash` ignores project + target (build hashes are globally
-/// unique by SHA-256 construction).
+/// Lookup by `build_hash` ignores project + target. After migration 029
+/// (multi-target releases share build_hash), a hash may match multiple
+/// rows — one per target in the release. The query orders by
+/// `registered_at DESC` and returns the most recent row, sufficient for
+/// liveness checks. For target-specific data, callers should use the
+/// version + target lookup path instead.
 ///
 /// Closes CIRISRegistry#11 — eliminates the "iOS row wins the version lookup
 /// race" failure mode that broke L4 attestation on every agent in v2.8.9.
@@ -180,6 +181,8 @@ pub async fn get_build(
                    registered_at, registered_by, status, notes
             FROM builds
             WHERE build_hash = $1
+            ORDER BY registered_at DESC
+            LIMIT 1
             "#,
         )
         .bind(hash)

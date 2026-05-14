@@ -679,6 +679,15 @@ async fn get_build_by_version(
 ///
 /// Returns a build record by build hash. Used by CIRISVerify for file integrity verification.
 /// This endpoint is unauthenticated.
+///
+/// Multi-target releases (CIRISVerify v2.0.3+ ciris-build-sign register)
+/// share `build_hash` across N target rows in the same `(project, version)` —
+/// `derive_build_hash` produces one hash from all per-target binary
+/// hashes combined. After migration 029, multiple rows can match a
+/// single `build_hash`; this handler returns the first by
+/// `registered_at DESC` ordering, sufficient for liveness checks.
+/// Callers needing target-specific data should use
+/// `GET /v1/builds/{version}?project=&target=` instead.
 async fn get_build_by_hash(
     State(state): State<AppState>,
     axum::extract::Path(build_hash): axum::extract::Path<String>,
@@ -694,7 +703,9 @@ async fn get_build_by_hash(
         ));
     }
 
-    // Build hash is globally unique by SHA-256 construction; project + target are irrelevant.
+    // Multi-target releases share build_hash (mig 029); LIMIT 1 in
+    // get_build returns the most recent row by (project, version, target)
+    // ordering — sufficient for liveness checks.
     match get_build(state.db.pool(), None, Some(&build_hash), None, None).await {
         Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
         Ok(None) => Err((
