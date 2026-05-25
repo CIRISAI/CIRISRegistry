@@ -5,7 +5,7 @@
 **Status**: v1.0 (initial publication, paired with [`../MISSION.md`](../MISSION.md) v1.0).
 **Last updated**: 2026-05-24.
 **Issue references**: [`CIRISRegistry#16`](https://github.com/CIRISAI/CIRISRegistry/issues/16) (HUMANITY_ACCORD), [`CIRISRegistry#17`](https://github.com/CIRISAI/CIRISRegistry/issues/17) (substrate-conformance migration).
-**Sequencing**: this FSD is part of step **A** of the A→B→C→D→E migration discipline (per [`../MISSION.md`](../MISSION.md) §4). Upstream issues in §11 below are the **B** asks; **C** is upstream completion; **D** is CIRISAgent absorbing CIRISEdge in v2.9.1; **E** is Registry-side integration.
+**Sequencing**: this FSD is part of step **A** of the A→B→C→D→E migration discipline (per [`../MISSION.md`](../MISSION.md) §4). Upstream issues in §11 below are the **B** asks; **C** is upstream completion; **D** is CIRISAgent absorbing CIRISEdge in v2.9.2; **E** is Registry-side integration.
 
 **Implementation Status Legend** (mirrors `../MISSION.md`): **Spec** / **Impl** / **Deployed** (with regional sub-states US / EU / APAC; **Deployed (folded)** for in-process within CIRISAgent).
 
@@ -1310,7 +1310,7 @@ Per the A→E sequence in [`MISSION.md`](../MISSION.md):
 1. **A** complete (this FSD + MISSION.md publication).
 2. **B** in flight: file the four upstream issues above. Persist + Verify + NodeCore are the load-bearing trio; Edge is a comment on existing #18.
 3. **C**: wait for upstream completion. Registry does NOT implement against current persist v2.1.1 shapes; that would commit to shapes we're asking persist to change.
-4. **D**: CIRISAgent absorbs CIRISEdge in 2.9.1 (separate workstream, Eric owns).
+4. **D**: CIRISAgent absorbs CIRISEdge in 2.9.2 (separate workstream, Eric owns).
 5. **E**: Registry implementation begins. See §12.
 
 ---
