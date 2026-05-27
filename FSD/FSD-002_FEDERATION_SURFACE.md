@@ -2,12 +2,26 @@
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
-**Status**: v1.3 (rules-layer Sybil defense via 1-of-6 accord/steward sign-off; concerns-and-gaps section added from post-v1.2 review across PRIOR_ART_SCAN + SOTA_SCAN + *Magnifica Humanitas* mapping).
+**Status**: v1.3 **LOCKED** (wire format frozen for epistemic-fabric bootstrap; substrate-trio upstream asks at §11.1-§11.3 in flight per CIRISPersist#102 / CIRISVerify#32 / CIRISEdge#18; bootstrap-contributions pattern landed per §10.4).
 **Last updated**: 2026-05-27.
 **Changelog vs v1.2**:
 - §0.2 — added explicit non-goal: privacy of revocation events for Registered participants. Closes the door on misimport of W3C VC / Bitstring Status List threat model.
+- §2.1 — added `witness_relation` envelope field (`self` | `external` | `derived`) distinguishing self-attestation from external-observation from derived-inference. Complements `epistemic_mode`; consumers weight by relation to prevent self-attestation gaming.
+- §2.2.1 — added authority-source-claim pattern documentation. Constitutional / framework claims name their source-of-authority via `delegates_to` against a framework-key + scope, reusing the existing structural primitive instead of introducing a `grounding:{tradition}:{principle}` prefix that would fail §1.10.1 T2.
+- §3.5.3 — extended F-3 detector's `{axis}` vocabulary with `ecology_of_communication:{aspect}` (echo_chamber_density, information_silo_correlation, coordinated_messaging_pattern, cross_cohort_information_flow) + inclusive counterparts to existing axes (`participation_inclusion`, `informational_symmetry`, `aggregate_benefit`).
+- §3.5.5 (new) — `detection:distributive:access:{resource_type}` population-scale resource-concentration detector. LensCore-owned, sibling to §3.5.3.
+- §3.6.1 — added `credits:*:substrate_building` sub-leaf for labor that contributes to substrate-building rather than directly to substrate-output decisions.
+- §3.6.5 (new) — `locality:decision:{scale}` decision-meta dimension naming the scale at which a decision is being made (matched against the cohort of affected persons).
+- §3.6.6 — was §3.6.5 (Hard-case + transparency + judge-model prefixes); renumbered.
+- §3.9 — added `multilateral_participation:{forum}:{kind}` to Registry's owned namespace slice; depth of partner participation across federated bodies.
+- §3.10 — namespace summary: 74 → 78 prefix families. Zero new structural primitives — 1+4 shape held under encyclical-level stress.
 - §4.9.2 step 5 — 1-of-6 accord-holder OR steward sign-off as defense-in-depth gate against rules-layer Sybil capture. WA quorum is primary substantive review; 1-of-6 sign-off is the secondary check that reduces the attack surface from "produce N Sybils" to "compromise one of six specific hardware-attested keys." Closes G2 from §13.11.
-- §13.11 — concerns + gaps surfaced by post-v1.2 review. Three independent methodologies converged on: G1 (revocation privacy, RETRACTED as wrong threat model), G2 (rules-layer Sybil, MITIGATED via §4.9.2.5), G3 (narrow-cell fresh-quorum, REMAINING as known limitation), R1-R4 (acknowledged risks), F1-F2 (first-adopter exposures), and the *Magnifica Humanitas* T-3 candidates (10 dimension extensions, zero new structural primitives needed — strong validation of 1+4 minimal-and-adequate claim).
+- §6.1.4 (new) — `lexical-vulnerability-priority` composition tie-breaking reference policy. Defers tie-breaks to the more-affected cohort; inverts the default popularity-weighted aggregation specifically for ties. Consumer policy, NOT a wire-format primitive (deliberately).
+- §10.4 (new) — bootstrap-contributions pattern. Content-neutral §10.4.1 pattern; first deployment (§10.4.3) is the *Magnifica Humanitas* encyclical mapping; multi-source commitment (§10.4.4) to subsequent batches from CARE Principles, Buddhist economic-justice scholarship, secular humanist instruments, African philosophy of personhood work.
+- §10.5 — was §10.4 (What lives where); renumbered.
+- §13.11 — concerns + gaps surfaced by post-v1.2 review. Three independent methodologies converged on: G1 (revocation privacy, RETRACTED as wrong threat model), G2 (rules-layer Sybil, MITIGATED via §4.9.2.5), G3 (narrow-cell fresh-quorum, REMAINING as known limitation), R1-R4 (acknowledged risks), F1-F2 (first-adopter exposures), and the encyclical-mapping T-3 candidates (10 dimension extensions, zero new structural primitives needed — strong validation of 1+4 minimal-and-adequate claim).
+
+**v1.3 lock-down**: wire format is frozen for epistemic-fabric bootstrap. Subsequent additions follow §4.9.2 (rule-layer amendment via Contribution + P10 + P8 + 1-of-6 sign-off). Implementation tracking for the upstream B-step items: CIRISPersist#102, CIRISVerify#32, CIRISEdge#18 + #19 + #20, CIRISNodeCore#8 + #9, CIRISLensCore#23 + #24, RATCHET#2 + #3, CIRISRegistry#19.
 
 **Changelog vs v1.1**:
 - §1.10.1 added — Operational-language discipline (per [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/)). Wire-format prefix names must describe machine-checkable conditions, not subjective qualities. Polarity carries the value claim; the prefix names the structural kind. Anthropological commitments stay in §1.10 prose; they are never enforced in prefix names. New prefix admissions are reviewed against this gate.
@@ -291,6 +305,7 @@ Field semantics:
 | `evidence_refs` | no (but often required by per-dimension policy) | List of URIs / content-hashes pointing to backing evidence (Stripe receipt, licensing-body record, observed interaction, log entry, audit-chain leaf, etc.). Some dimensions in §5 require non-empty evidence_refs. |
 | `valid_until` | no | ISO8601 datetime. If set, consumer policy treats the attestation as stale after that point (independent of the substrate row's own `expires_at`). |
 | `epistemic_mode` | no | Per §1.4; default `direct`. Consumers may weight by mode (e.g., direct witness > hearsay). |
+| `witness_relation` | no | `self` \| `external` \| `derived`. Names the attester's relation to the attested fact: `self` = attester is the attested entity (self-attestation); `external` = attester observed independently; `derived` = attester inferred from other attestations or signed traces. Default `external`. Consumers weight by relation to prevent self-attestation gaming and to distinguish first-hand from derived claims. Added v1.3; complements `epistemic_mode` (which names HOW the claim was formed) — `witness_relation` names WHO the attester is in relation to the attested entity. |
 | `stake` | no | Per §1.6; default `reputational`. Composes with the attester's actual stake-backed-by attestations from §3.9. |
 
 ### 2.2 The four structural primitives
@@ -320,6 +335,8 @@ Per-primitive envelope shape:
 ```
 
 `attesting_key_id` is the delegator; `attested_key_id` is the delegate. Scope is explicit and bounded; transitive delegation is bounded to depth 2 by default consumer policy.
+
+**Authority-source claims via `delegates_to`** (v1.3 pattern). A constitutional or framework claim can name its source-of-authority by emitting `delegates_to` against an `attested_key_id` representing the framework, with `delegated_scope` naming the principle. Example: an Ubuntu-substrate commitment in §1.10 commitment 2 can be expressed as `delegates_to` against the `ubuntu_relational_substrate` framework-key with `delegated_scope: ["personhood_constitutive_by_attestation"]`. This reuses the existing structural primitive rather than introducing a `grounding:{tradition}:{principle}` prefix (which would fail §1.10.1 T2 — "tradition" claims are interpretive, not mechanism-descriptive). The pattern names *whose authority is being cited* (mechanism-descriptive: name a key, name a scope) without requiring the federation to adjudicate *what that authority says* (which would smuggle judgment into the wire format). Consumers reading the chain see "this principle derives its standing from authority-key X in scope Y" and can apply their own composition policy over the authority-source.
 
 #### 2.2.2 `supersedes`
 
@@ -516,7 +533,7 @@ LensCore is the federation's explicit scoring sibling — its primitives map mos
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `detection:correlated_action:{axis}` | Population-scale correlated-action detector. Reads federation-emitted signed traces; reports correlation structure (`ρ`, `k_eff`) over goal-aligned individually-compliant pursuit by groups whose aggregate trajectory has effects on individuals or groups outside the pursuit. Calibrated via the `CIRISAI/RATCHET` heuristic package (versioned, hash-pinned; updated through the §4.9.2 amendment process). `{axis}` enumerates facets requiring an operational definition in the calibration package (per §4.9.1): `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `informational_asymmetry:{scope}`, `aggregate_footprint:{harm_class}`, and inclusive counterparts. **Polarity carries the verdict**: positive scores indicate the structural pattern is present and strong on the named axis; negative scores indicate weak / uncertain detection or evidence of the inverse pattern (e.g., inclusive coordination); zero indicates no signal. | LensCore §2 (the 5 detectors generalize to population-scale pattern detection); RATCHET FSD §calibration; Encyclical *Magnifica Humanitas* §36 + §§77–81 (the load-bearing claim — "structures of sin" / institutional injustice as a distinct moral category) re-mapped into framework-native vocabulary per [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
+| `detection:correlated_action:{axis}` | Population-scale correlated-action detector. Reads federation-emitted signed traces; reports correlation structure (`ρ`, `k_eff`) over goal-aligned individually-compliant pursuit by groups whose aggregate trajectory has effects on individuals or groups outside the pursuit. Calibrated via the `CIRISAI/RATCHET` heuristic package (versioned, hash-pinned; updated through the §4.9.2 amendment process). `{axis}` enumerates facets requiring an operational definition in the calibration package (per §4.9.1): `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `participation_inclusion:{cohort}`, `informational_asymmetry:{scope}`, `informational_symmetry:{scope}`, `aggregate_footprint:{harm_class}`, `aggregate_benefit:{class}`, `ecology_of_communication:{aspect}` (v1.3 addition — `aspect` ∈ `echo_chamber_density` \| `information_silo_correlation` \| `coordinated_messaging_pattern` \| `cross_cohort_information_flow`), and future axes through §4.9.2 amendment. **Polarity carries the verdict**: positive scores indicate the structural pattern is present and strong on the named axis; negative scores indicate weak / uncertain detection or evidence of the inverse pattern (e.g., inclusive coordination); zero indicates no signal. | LensCore §2 (the 5 detectors generalize to population-scale pattern detection); RATCHET FSD §calibration; Encyclical *Magnifica Humanitas* §36 + §§77–81 (the load-bearing claim — "structures of sin" / institutional injustice as a distinct moral category) re-mapped into framework-native vocabulary per [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
 
 **Why this lives at LensCore and not at a new sibling crate.** Per §6 of `ciris-response-magnifica-humanitas/GAPS.md` v3 (under revision per the linked issue), the "PAPERING_OVER" objection — that aggregate-pattern analysis would cross from "measure the reasoning" to "measure the impact" and violate LensCore's substrate definition — conflated two different things. LensCore should NOT compute real-world impact metrics (deaths averted, GDP delta). LensCore SHOULD detect aggregate-correlation patterns in the federation's own signed traces; the existing 5 Coherence Ratchet detectors (`detection:cross_agent_divergence`, `detection:temporal_drift` especially) are population-scale pattern detectors *by construction*. The F-3 dimension is the natural extension of detector #1 into the structural-injustice axis — same mechanism (population `ρ` measurement over signed traces), same calibration source (RATCHET), new dimension prefix. The v1.2 rename to `correlated_action` makes this lineage explicit at the wire-format level (matches what RATCHET measures: correlation collapse, not moral verdict).
 
@@ -543,6 +560,14 @@ LensCore is the federation's explicit scoring sibling — its primitives map mos
 
 **Critical enforcement (per §4.7):** `capacity:*` rejects self-emission. The agent's own capacity score is **never** fed back into the agent's own context — anti-Goodhart per Agent §5.2.
 
+#### 3.5.5 Distributive-access detector prefixes (v1.3 addition)
+
+| Prefix | Description | Citation | Polarity |
+|---|---|---|---|
+| `detection:distributive:access:{resource_type}` | Population-scale measurement of access concentration on a named resource. `{resource_type}` enumerates federation-observable resources requiring operational definition per §4.9.1: `compute`, `models`, `training_data`, `agent_capabilities`, `federation_membership`, plus future additions through the §4.9.2 amendment process. Mechanism: same F-3 substrate as §3.5.3 — population correlation statistics (`ρ`, `k_eff`, HHI, Gini) over signed traces of resource access patterns. Polarity: positive = broad / distributed access; negative = concentrated / excluded access. Calibrated via the RATCHET `distributive_access_v{N}.yaml` package; admission and amendment follow §4.9.1 + §4.9.2 (including 1-of-6 sign-off). | This FSD §3.5.5 (v1.3 addition); LensCore extension of F-3 detector family. | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
+
+Sibling-by-construction to §3.5.3's `detection:correlated_action:participation_inclusion` axis — both extend LensCore's population-scale detector family with the resource-distribution dimension. The mechanism-descriptive prefix name (per §1.10.1) names *what is measured* (resource access concentration), not *whether the concentration is good* (which is consumer policy composing axis + polarity + cohort context).
+
 ### 3.6 CIRISNodeCore — Credits, Expertise, Decision Hierarchy, Consensus, Governance
 
 **Owner**: [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) (sha `4e947784c5d1`).
@@ -554,6 +579,7 @@ The federation's largest dimension surface. Four tiers.
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
 | `credits:{domain}:{language}:{subject}` | Commons Credits (P2). Non-transferable governance weight; accrues via truth-grounding loop. | NodeCore §2 P2; §4.4 `CommonsCreditsLedger`. | positive-only (≥ 0) |
+| `credits:{domain}:{language}:substrate_building` | **Sub-leaf (v1.3 addition)**: Credits sub-leaf for labor that contributes to substrate-building rather than directly to substrate-output decisions (running infrastructure, maintaining tooling, contributing dependencies, writing docs). The existing `credits:*:{subject}` accrual loop weights per-grounded-vote on substrate-output Contributions; this sub-leaf surfaces the orthogonal substrate-building contribution stream explicitly so it isn't invisible to the governance-weight calculation. Accrual mechanism + grounding signal: NodeCore-defined. | This FSD §3.6.1 (v1.3 addition); NodeCore P2 extension. | positive-only (≥ 0) |
 | `expertise:{domain}:{language}` | Expertise standing (P3). Broader granularity than credits. | NodeCore §2 P3; §4.5 `ExpertiseLedger`. | positive-only (≥ 0) |
 | `activity_tier:{period}` | Active vs Below-Active per 30-day window (F-AV-DORMANT). | NodeCore §3.8. | boolean-via-score |
 
@@ -584,7 +610,15 @@ The federation's largest dimension surface. Four tiers.
 | `reconsideration:{grounds}` | Grounds ∈ {`new_evidence`, `procedural_error`, `quorum_compromise`}. Outcome `reversed` / `partial` / `upheld`. | NodeCore §2 P11; §4.10. | signed |
 | `commitment_fulfillment:{prior_contribution_id}` | Track-record of follow-through on prior approach/method commit. | FSD/APPROACH_PRIMITIVE §`commits` field. | signed |
 
-#### 3.6.5 Hard-case + transparency + judge-model prefixes
+#### 3.6.5 Decision-locality prefixes (v1.3 addition)
+
+| Prefix | Description | Citation | Polarity |
+|---|---|---|---|
+| `locality:decision:{scale}` | Names the scale at which a decision is being made. `{scale}` ∈ `local` \| `regional` \| `national` \| `federation`. Polarity: positive = decision is being made at the appropriate scale relative to the cohort of persons affected; negative = decision is escalating past the scale at which the affected persons are constituted as decision-bearing. Consumer policy composes this against the decision's substantive content (P12-P15) to flag decision-scale mismatches. Mechanism-descriptive (names *where*, not *whether-good*); per §1.10.1 polarity carries the matching claim. | This FSD §3.6.5 (v1.3 addition); NodeCore decision-authority extension. | signed |
+
+The locality dimension is decision-meta: it rides alongside the decision-hierarchy DAG (P12-P15) but doesn't enter the DAG itself. Consumer policy uses it for tie-breaking and for flagging decisions where escalation has happened away from the constituting scale of affected cohorts. The Ubuntu-substrate reading (§1.10): decisions affecting persons should be at the scale where those persons are constituted as decision-bearing; the wire format admits both Ubuntu and Cartesian readings, polarity carries the structural mismatch claim.
+
+#### 3.6.6 Hard-case + transparency + judge-model prefixes
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
@@ -632,11 +666,19 @@ Flows into `truth_grounding:{subject}` for WA promotion (NodeCore §3.6 step 1, 
 | `revocation:{entity_type}:{reason}` | Entity revocation (`agent` / `partner` / `license`). Immediate, non-rollbackable per Verify §4. | Agent §6.1; Verify §4. | -1 only on revoke | No |
 | `bond_posted:{currency}` | Bond posted per $1-Sybil-resistance per PoB; forfeited on revocation per CLAUDE.md. | NodeCore §1.4 "$1-bond"; CLAUDE.md "Billing & Activation". | boolean-via-score | No |
 | `build:registered:{target}` | Build manifest registered against the directory (precondition for L4 attestation). | Agent §6.1; Edge §4. | boolean-via-score | No |
+| `multilateral_participation:{forum}:{kind}` | Depth of a partner's participation across federated bodies. `{forum}` = named federated body or compact (e.g., `regional_health_compact`, `cross_jurisdictional_review_board`); `{kind}` ∈ `membership` \| `voting` \| `proposal_filing` \| `observer_status`. Polarity: positive = depth of participation; negative = formal exclusion / withdrawal. Federated trust composition weights cross-federation participation as a partner-attribute. Added v1.3. | This FSD §3.9 (v1.3 addition). | signed | No |
 | `accord:*` | **Reserved** — only `identity_type=accord_holder` may emit. The one constitutional asymmetry. | NodeCore §1.5; FSD/FEDERATION_ANNOUNCEMENT.md §4.5; §7 below. | n/a | **Yes — §4.1** |
 
 ### 3.10 Namespace summary
 
-74 prefix families total across 8 owning components (post-v1.1 — one prefix added: §3.5.3 `detection:correlated_action:{axis}`, LensCore-owned, F-3 resolution; renamed from `detection:emergent_deception:{axis}` in v1.2 for operational-language compliance per §1.10.1). The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift; the §1.10.1 operational-language gate prevents prefix names from drifting back toward subjective-quality vocabulary.
+78 prefix families total across 8 owning components.
+
+Lineage:
+- post-v1.1: 73 families (initial v1.0 namespace stabilization)
+- v1.1 added 1: §3.5.3 `detection:correlated_action:{axis}` (LensCore, F-3 resolution; originally `detection:emergent_deception:{axis}`, renamed v1.2 per §1.10.1)
+- v1.3 added 4: `multilateral_participation:{forum}:{kind}` (Registry §3.9), `credits:*:substrate_building` sub-leaf (NodeCore §3.6.1), `locality:decision:{scale}` (NodeCore §3.6.5), `detection:distributive:access:{resource_type}` (LensCore §3.5.5). Plus 1 envelope field (`witness_relation` per §2.1), 1 axis-vocabulary extension (`ecology_of_communication:*` on `detection:correlated_action:*` per §3.5.3), 1 reference policy (`lexical-vulnerability-priority` per §6.1.4), and 1 structural-primitive reuse pattern (authority-source via `delegates_to` per §2.2.1). Zero new structural primitives — the 1+4 shape held under encyclical-level stress testing (§13.11).
+
+The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift; the §1.10.1 operational-language gate prevents prefix names from drifting back toward subjective-quality vocabulary; the §4.9.2 step 5 1-of-6 sign-off prevents rules-layer Sybil capture.
 
 **Domain-defined (composer's choice, not federation-canonical):**
 - `{aspect}` tail on Accord principles (`beneficence:wellness_referral`, etc.)
@@ -983,6 +1025,16 @@ Aggregation: same as A, but trust set expands to "directly-pinned ∪ one-hop-vo
 Consumer applies transitive-trust propagation across the full attestation graph, weighted by canonical-bootstrap distance with confidence decay per hop. Requires more compute; less common in practice; needed for federated reputation across many partner orgs.
 
 Aggregation: weighted-mean across the trust-walk; weight decays exponentially with hop distance and multiplicatively with per-hop confidence.
+
+#### 6.1.4 Lexical-vulnerability-priority (v1.3 addition)
+
+A composition tie-breaking rule layered on top of any base policy (A / B / C). When two otherwise-equivalent attestations conflict (same dimension family, same aggregate score, same confidence), defer to whichever attestation names the more-affected cohort — measured by `affected_population_estimate` in the attestation `context`, weighted inversely (smaller = more vulnerable, more weight).
+
+Why: default composition rules (popularity-weighted, attester-weighted) systematically downweight claims about smaller affected populations. The lexical-vulnerability rule inverts that default for tie-breaking specifically. It does not override the base policy's substantive aggregation; it only resolves ties.
+
+Use cases: distributive-access detection (§3.5.5) where a small but severely-excluded cohort's `negative` attestation should not lose tie-breaks to a larger but mildly-impacted cohort's `neutral` attestation; revocation `reason` conflicts where the more-affected partner-class outcome should win the tie.
+
+**Composition with §1.10.1**: this is a consumer policy, NOT a wire-format primitive. Adding a `priority_ordering:*` prefix would have failed T2 (priority ordering is composition, not measurement). Keeping it as a named §6 reference policy preserves the wire-format minimum AND surfaces the discipline at the right layer.
 
 ### 6.2 Aggregation semantics — opinionated defaults
 
@@ -1371,7 +1423,50 @@ Steward rotation under the multi-party arc:
 
 Routine rotation cadence is 12 months for stewards; emergency rotation on compromise per §11.1 Persist ask.
 
-### 10.4 What lives where (operational ownership)
+### 10.4 Bootstrap-contributions pattern (v1.3 addition)
+
+After §10.1's federation-genesis attestation graph establishes the steward + accord-holder key set, the federation needs **substantive content** to begin operating as an epistemic fabric. Empty federations don't generate useful trust composition — there's nothing yet to attest about, no dimension instances populated, no Contributions for the consensus pipeline to process.
+
+The **bootstrap-contributions pattern** addresses this: at federation genesis (or immediately after), a curated batch of P5 Contributions is admitted via the §4.9.2 rule-amendment flow (1-of-6 sign-off included), populating the federation's substantive content surface with high-quality ethical-framework material. This pattern is **content-neutral**: any sufficiently substantive ethical-framework source can serve as bootstrap content. The wire format admits the content via the §3 namespace; the §1.10.1 operational-language gate ensures the prefix names don't import source-tradition vocabulary.
+
+#### 10.4.1 Pattern shape
+
+| Step | What | Signed by | Effect |
+|---|---|---|---|
+| 1 | Source ethical-framework material identified (e.g., a substantive ethics document with structurally-relevant claims about coordination, locality, distribution, witness, harm, etc.) | (no signature; selection rationale documented) | Source material identified |
+| 2 | Source content mapped to federation Contributions per [the mapping methodology](https://github.com/CIRISAI/ciris-response-magnifica-humanitas) — each substantive claim becomes a `scores` attestation on the relevant dimension; the mapping methodology applies the §1.10.1 gate to refuse claims that fail T2 (judgment-descriptive language, etc.) | Mapping author (typically the ciris-response-* repo for this source) | Draft Contribution batch ready |
+| 3 | Draft batch reviewed by WA quorum per P8; refuses to admit any Contribution whose dimension fails §1.10.1 T2 OR whose substantive content imports source-tradition vocabulary into the wire format | WA quorum (federation-wide pool acceptable for genesis) | Contribution batch approved |
+| 4 | 1-of-6 sign-off per §4.9.2 step 5 | Any of {3 accord-holders, 3 regional stewards} | Contribution batch effective |
+| 5 | Contributions published to `federation_attestations` with `epistemic_mode: derivative`, `witness_relation: derived`, `stake: reputational`, and `context` containing the source-paragraph citation + mapping-author key_id | The batch signer (steward or accord-holder per step 4) | Federation epistemic fabric populated with substantive ethical content |
+| 6 | `bootstrap_contributions_batch_v{N}` attestation emitted on self for observability | Step 4 signer | Audit trail of the genesis content |
+
+#### 10.4.2 What this pattern is NOT
+
+- **Not a commitment to the source tradition's specific value claims.** The federation hosts the substantive structural content; consumer policy composes over it. A consumer can downweight or ignore any attestation from any bootstrap batch.
+- **Not a privileging of one source.** Multiple bootstrap batches from multiple traditions can be admitted through the same process. The framework is multi-traditional by design — Indigenous-data-governance frameworks (CARE Principles), Buddhist economic-justice scholarship, secular humanist instruments, African philosophy of personhood work — all go through the same §10.4.1 steps.
+- **Not a wire-format theological commitment.** The §1.10.1 gate ensures bootstrap content's dimension names describe mechanisms (e.g., `multilateral_participation:{forum}:{kind}`), not source-tradition vocabulary. The substantive content rides; the framing stays.
+
+#### 10.4.3 First deployment (v1.3 launch)
+
+The first bootstrap-contributions batch deployed at federation genesis maps the encyclical [*Magnifica Humanitas*](https://github.com/CIRISAI/ciris-response-magnifica-humanitas) (Pope Leo XIV, 2026-05-15) per the methodology documented in that companion repo. Why this source for the first batch:
+
+- **Empirical adequacy**: 75-80% transparent translation rate against v1.2 language — the strongest evidence available that the framework is genuinely epistemically aware of substantive ethical content.
+- **Structural-primitive validation**: the mapping test produced 10 dimension extensions requiring ZERO new structural primitives — confirming the 1+4 minimal-and-adequate claim independently of [`PRIOR_ART_SCAN.md`](PRIOR_ART_SCAN.md).
+- **§1.10.1 gate validation**: the would-be mistakes (e.g., naming a detector `emergent_deception` based on the source's "structures of sin" vocabulary) were caught by the gate before bootstrap. The 18% T-1 + T-2 honest non-translations are the gate working as designed — refusing to wire-format claims that don't pass T2.
+- **Substantive structural surface**: the source's claims map cleanly onto CIRIS-native structural objects (resource concentration, decision locality, witness relation, multilateral participation, communication-pattern correlation) — what's tradition-specific is the historical refinement, not the structural objects themselves.
+
+#### 10.4.4 Multi-source commitment
+
+To prevent first-mover bias (the risk that an encyclical-shaped first bootstrap shapes downstream contributor culture in unforeseen ways), the federation publicly commits to running the same mapping methodology against additional ethical-framework sources from non-Catholic, non-Christian, non-religious traditions. Confirmed candidates for subsequent bootstrap batches (target: within first 24 months of operation):
+
+- CARE Principles for Indigenous Data Governance (Carroll et al. 2020) — relational accountability + collective authority over data.
+- A substantive Buddhist economic-justice scholarship document (specific source TBD via §4.9.2 process).
+- A secular humanist instrument (e.g., the Universal Declaration of Human Rights or a successor framework).
+- An African philosophy of personhood work (e.g., from Menkiti / Metz lineage) — independently grounds the §1.10 Ubuntu commitment.
+
+Each additional bootstrap batch goes through the same §10.4.1 steps. The federation's epistemic fabric accumulates substantive content from multiple traditions, with the wire format remaining tradition-neutral and the §1.10.1 gate enforcing the discipline.
+
+### 10.5 What lives where (operational ownership)
 
 | Asset | Lives in | Owner |
 |---|---|---|
