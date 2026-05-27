@@ -2,8 +2,18 @@
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
-**Status**: v1.3 (active; substrate-trio upstream asks at §11.1-§11.3 in flight per CIRISPersist#102 / CIRISVerify#32 / CIRISEdge#18; bootstrap-contributions pattern landed per §10.4; §6.1.5 locality-scaled quorum landed and closes G3 from §13.11).
+**Status**: v1.4 (active; files-as-Contributions surface landed per §2.0/§3.6.7/§3.9/§6.1.6 with upstream substrate trio at CIRISEdge#21 + CIRISPersist#103 + CIRISNodeCore#11; testimonial_witness:{kind} added per §3.6.3 closing the affected-party-voice T-3 from v1.4 inputs; namespace count corrected per overlap O3; bootstrap-contributions pattern v1.3 still live per §10.4).
 **Last updated**: 2026-05-27.
+**Changelog vs v1.3**:
+- §2.0 (new) — transport-substrate reference. Edge `MessageType::ContentFetch` + `ContentBody` + `ContentMiss` (per CIRISEdge#21) is how SHA-256 `evidence_refs[]` resolve to bytes. NOT a wire-format addition — Attestation envelope shape unchanged; substrate-layer resolution mechanism.
+- §3.6.3 — added `testimonial_witness:{kind}` (closes affected-party-voice T-3 from v1.4 inputs; preservation-only, never aggregated, never sole evidence for `slashing:*`).
+- §3.6.7 (new) — Files-as-Contributions joint claim. NodeCore-side rule: node-mode peers serve bytes; client/relay modes don't. Includes `agent_files:*` (joint with Registry §3.9) + `holds_bytes:sha256:{prefix}` (substrate auto-emission).
+- §3.9 — added `agent_files:{kind}:{platform_or_target}` to Registry's namespace slice (joint with NodeCore §3.6.7). Canonical-attester rule + anti-tricking guarantee per CIRISRegistry#18.
+- §3.10 — namespace count: 77 (v1.3 corrected per O3) + 3 (v1.4 new) = 80. v1.3's `credits:*:substrate_building` recounted as a recommended `{subject}` value, not a new prefix family.
+- §5.12 / §5.13 / §5.14 (new) — envelope examples for `agent_files:installer:linux-x86_64` (canonical), `holds_bytes:sha256:e4a2d9` (substrate auto-emission), and `testimonial_witness:displaced_worker`.
+- §6.1.6 (new) — `agent_files-trust-composition` three-layer reference policy (Canonical / Open Contribution / Vote-then-trust). Anti-tricking guarantee: canonical default applies at install endpoint regardless of attester or vote accumulation; third-party agent_files reachable only via explicit "Browse alternatives" informed-consent path.
+- §13.11 — v1.4 T-3 update: testimonial_witness closed via §3.6.3; labor:individual_loss closed by documentation (composition pattern with non_maleficence + target_key_id); constitutional-constraint grounding closes in §1.10 prose per the user's design call. Three LOW-priority items (positive-dignity per non-substitutability, finitude-as-value, sustained-practice) deferred to v1.5+ as design-workshop candidates.
+
 **Changelog vs v1.2**:
 - §0.2 — added explicit non-goal: privacy of revocation events for Registered participants. Closes the door on misimport of W3C VC / Bitstring Status List threat model.
 - §2.1 — added `witness_relation` envelope field (`self` | `external` | `derived`) distinguishing self-attestation from external-observation from derived-inference. Complements `epistemic_mode`; consumers weight by relation to prevent self-attestation gaming.
@@ -270,6 +280,10 @@ A prefix MUST pass all four tests at admission. Existing prefixes failing T2 (th
 ---
 
 ## §2 The unified attestation primitive
+
+### 2.0 Transport surface for byte-level content (v1.4 reference)
+
+Wire-format Attestations carry claims; they don't carry bytes. When a claim's `evidence_refs[]` cites a SHA-256-addressed blob (e.g., an installer binary, a config file, an adapter package per `agent_files:*` per §3.6/§3.9), the bytes themselves travel via the edge transport substrate: `MessageType::ContentFetch` + `ContentBody` + `ContentMiss` (per CIRISEdge#21). Holder-discovery is via Persist's `holds_bytes:sha256:*` directory-emitted attestations (per CIRISPersist#103); peer-resolution is via Edge's `PeerResolver::resolve_holders` (Edge#21). NodeCore node-mode peers serve the bytes per their MISSION §3.4 cohabitation contract (NodeCore#11). This is **transport substrate**, not a wire-format addition — Attestation envelope shape is unchanged; SHA-256 in `evidence_refs[]` becomes universally resolvable to bytes through the substrate.
 
 ### 2.1 The workhorse: `scores`
 
@@ -601,6 +615,7 @@ The federation's largest dimension surface. Four tiers.
 | `truth_grounding:{subject}` | Per-subject ground-truth signal — production hedge captures + foundation-model judge verdicts + federation-health metrics. | NodeCore §2 P6; §5.4. | signed |
 | `weighted_aggregate:{contribution_id}` | Rolling tally per Contribution (P7). | NodeCore §2 P7; §5.3. | signed |
 | `witness_diversity:{contribution_id}` | Witness set meets jurisdictional + organizational + software-stack + cell-expertise bars (P10). N=3 default. | NodeCore §2 P10; §4.9 `WitnessSet`. | boolean-via-score |
+| `testimonial_witness:{kind}` | **v1.4 addition.** Preserves singular narrative of an affected party as singular witness — distinct from `witness_diversity:*` (which aggregates multiple reviewers toward consensus). Mechanism: preservation-only; immutable per attestation; not subject to majoritarian override or consensus aggregation. `{kind}` describes the witness type (e.g., `harmed_party`, `whistleblower`, `displaced_worker`, `excluded_cohort_member`). Polarity: typically positive (the narrative IS preserved); negative on `withdraws` or `recants` by the original witness. Never sole evidence for `slashing:*` (per §4.6) — testimonial witness composes with other attestations for adjudication, but the narrative itself is preserved regardless of consensus. Closes T-3 from v1.4 inputs (CH 5 §216 of *Magnifica Humanitas* mapping); affected-party-voice surface gap. | This FSD §3.6.3 (v1.4 addition); NodeCore consensus-tier extension. | signed |
 
 #### 3.6.4 Tier-4: Governance-steering prefixes
 
@@ -628,6 +643,15 @@ The locality dimension is decision-meta: it rides alongside the decision-hierarc
 | `hard_case:moderation_filed` | A substantive ModerationEvent was filed against any vote on the Contribution. | NodeCore §3.7. | boolean-via-score |
 | `seed_holder_voting_alignment:{cell}` | Pairwise cosine of seed-holder vote vectors per voting window. **Not a slashing trigger** — transparency signal only. | NodeCore §2.16. | signed |
 | `judge_model:verdict:{model_id}` | Independent foundation-model judge verdict (PASS/FAIL/UNDETERMINED). Default model: Claude Opus 4.7. | NodeCore §5.4 (b); FSD/JUDGE_MODEL.md. | boolean-via-score; `Indeterminate` allowed |
+
+#### 3.6.7 Files-as-Contributions joint claim (v1.4 addition)
+
+| Prefix | Description | Citation | Polarity |
+|---|---|---|---|
+| `agent_files:{kind}:{platform_or_target}` | **Joint claim with Registry §3.9.** NodeCore-side rule: node-mode peers (per NodeCore MISSION §3.4 c/r/n taxonomy) serve bytes for these via Edge `MessageType::ContentFetch` (§2.0 transport substrate). On cache, the serving peer auto-emits `holds_bytes:sha256:*` so future fetches can resolve through Edge's `PeerResolver::resolve_holders`. Client and relay modes do NOT serve — only node mode. | CIRISNodeCore#11; CIRISRegistry#18; this FSD §3.6.7 (v1.4 addition). | signed |
+| `holds_bytes:sha256:{prefix}` | A peer's federation-directory declaration that it holds bytes for the named SHA-256. `{prefix}` is a short SHA prefix for index efficiency; full SHA lives in `evidence_refs[]` of the attestation that named the bytes. Auto-emitted by Persist's `federation_blobs.put_blob` (per CIRISPersist#103); consumed by Edge's `PeerResolver::resolve_holders` (per CIRISEdge#21) to route `ContentFetch` requests. Polarity: positive on hold; negative on `withdraws` or revoked-by-evidence. | CIRISPersist#103; CIRISEdge#21; this FSD §3.6.7 (v1.4 addition). | boolean-via-score |
+
+These are joint prefixes: Registry owns the canonical-attester rule for `agent_files:*` (§3.9); NodeCore owns the node-mode-serving rule (this section); Persist owns the auto-emission discipline for `holds_bytes:sha256:*`; Edge owns the transport. Each component's MISSION names its slice; no component owns the whole.
 
 ### 3.7 RATCHET — anti-Sybil / Counter-RII flags
 
@@ -668,16 +692,24 @@ Flows into `truth_grounding:{subject}` for WA promotion (NodeCore §3.6 step 1, 
 | `bond_posted:{currency}` | Bond posted per $1-Sybil-resistance per PoB; forfeited on revocation per CLAUDE.md. | NodeCore §1.4 "$1-bond"; CLAUDE.md "Billing & Activation". | boolean-via-score | No |
 | `build:registered:{target}` | Build manifest registered against the directory (precondition for L4 attestation). | Agent §6.1; Edge §4. | boolean-via-score | No |
 | `multilateral_participation:{forum}:{kind}` | Depth of a partner's participation across federated bodies. `{forum}` = named federated body or compact (e.g., `regional_health_compact`, `cross_jurisdictional_review_board`); `{kind}` ∈ `membership` \| `voting` \| `proposal_filing` \| `observer_status`. Polarity: positive = depth of participation; negative = formal exclusion / withdrawal. Federated trust composition weights cross-federation participation as a partner-attribute. Added v1.3. | This FSD §3.9 (v1.3 addition). | signed | No |
+| `agent_files:{kind}:{platform_or_target}` | **Joint claim with NodeCore §3.6** (v1.4 addition). Files a CIRIS agent (or installer fetching one) may load. `{kind}` open vocabulary, examples: `installer:{platform}`, `adapter:{name}`, `config:{kind}`, `build:{target}`, `source:{language}:{module}`, `state:{component}`. Bytes are SHA-256-addressed and resolved via §2.0 transport substrate; the attestation cites the SHA in `evidence_refs[]`. Registry's canonical-attester rule (this slice): registry-steward-triple attestations constitute the CIRIS canonical default-trust state. Anti-tricking guarantee at `registry.ciris-services-1.ai/install` per §6.1.6 composition policy + CIRISRegistry#18. Open Contribution channel: any federation-key holder may emit; consumer policy composes via §6.1.6 trust layers. | CIRISRegistry#18; CIRISEdge#21; CIRISPersist#103; CIRISNodeCore#11; this FSD §3.9 (v1.4 addition). | signed | No |
 | `accord:*` | **Reserved** — only `identity_type=accord_holder` may emit. The one constitutional asymmetry. | NodeCore §1.5; FSD/FEDERATION_ANNOUNCEMENT.md §4.5; §7 below. | n/a | **Yes — §4.1** |
 
 ### 3.10 Namespace summary
 
-78 prefix families total across 8 owning components.
+**80 prefix families** total across 8 owning components.
 
 Lineage:
-- post-v1.1: 73 families (initial v1.0 namespace stabilization)
-- v1.1 added 1: §3.5.3 `detection:correlated_action:{axis}` (LensCore, F-3 resolution; originally `detection:emergent_deception:{axis}`, renamed v1.2 per §1.10.1)
-- v1.3 added 4: `multilateral_participation:{forum}:{kind}` (Registry §3.9), `credits:*:substrate_building` sub-leaf (NodeCore §3.6.1), `locality:decision:{scale}` (NodeCore §3.6.5), `detection:distributive:access:{resource_type}` (LensCore §3.5.5). Plus 1 envelope field (`witness_relation` per §2.1), 1 axis-vocabulary extension (`ecology_of_communication:*` on `detection:correlated_action:*` per §3.5.3), 2 reference policies (`lexical-vulnerability-priority` per §6.1.4; `locality-scaled-quorum` per §6.1.5 — closes G3 by composing `locality:decision:{scale}` with NodeCore P10 + P11), and 1 structural-primitive reuse pattern (authority-source via `delegates_to` per §2.2.1). Zero new structural primitives — the 1+4 shape held under encyclical-level stress testing (§13.11), and the §6.1.5 composition closure of G3 is a second confirmation that composition-discipline-over-existing-primitives is the right way to absorb new requirements.
+- post-v1.1: 73 families (initial v1.0 namespace stabilization).
+- v1.1 added 1: §3.5.3 `detection:correlated_action:{axis}` (LensCore, F-3 resolution; originally `detection:emergent_deception:{axis}`, renamed v1.2 per §1.10.1).
+- v1.3 added 3 (corrected — see overlap O3 in `FSD/LANGUAGE_PRIMER.md` §15.2 / §13.11): `multilateral_participation:{forum}:{kind}` (Registry §3.9), `locality:decision:{scale}` (NodeCore §3.6.5), `detection:distributive:access:{resource_type}` (LensCore §3.5.5). `credits:*:substrate_building` is documented as a recommended `{subject}` VALUE within the existing `credits:{domain}:{language}:{subject}` family — not a new prefix family (v1.3 changelog originally counted it as 4 additions; corrected here to 3). Plus 1 envelope field (`witness_relation` per §2.1), 1 axis-vocabulary extension (`ecology_of_communication:*` on `detection:correlated_action:*` per §3.5.3), 2 reference policies (`lexical-vulnerability-priority` per §6.1.4; `locality-scaled-quorum` per §6.1.5 — closes G3), and 1 structural-primitive reuse pattern (authority-source via `delegates_to` per §2.2.1).
+- v1.4 added 3: `agent_files:{kind}:{platform_or_target}` (joint Registry §3.9 + NodeCore §3.6.7 — closes CIRISRegistry#18 via the upstream substrate trio Edge#21 + Persist#103 + NodeCore#11), `holds_bytes:sha256:{prefix}` (substrate auto-emission per CIRISPersist#103, consumed by Edge `PeerResolver` per CIRISEdge#21), `testimonial_witness:{kind}` (NodeCore §3.6.3 — closes the affected-party-voice T-3 from the v1.4 inputs). Plus 1 transport-substrate reference at §2.0 (Edge `ContentFetch`/`ContentBody`/`ContentMiss` is the byte-resolution mechanism for `evidence_refs[]` SHA-256 pointers; no wire-format change to the Attestation envelope itself), 1 reference policy (`agent_files-trust-composition` per §6.1.6 — three-layer canonical/open/vote-then-trust with the anti-tricking guarantee per CIRISRegistry#18).
+
+Counts:
+- pre-v1.4: 77 (= 73 + 1 + 3, post-O3 correction).
+- v1.4 lands: 77 + 3 = **80**.
+
+Zero new structural primitives. The 1+4 shape held under v1.3 encyclical-level stress and v1.4 files-as-Contributions namespace extension. PRIOR_ART_SCAN's "composition discipline, not novel atomic primitives" finding earns a third internal confirmation: arbitrary content (binaries, configs, adapters, source files) carries through the federation via `scores` attestations + SHA-256 `evidence_refs[]` resolved through the substrate transport layer, with no addition to the structural-primitive set.
 
 The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift; the §1.10.1 operational-language gate prevents prefix names from drifting back toward subjective-quality vocabulary; the §4.9.2 step 5 1-of-6 sign-off prevents rules-layer Sybil capture.
 
@@ -999,6 +1031,91 @@ Key envelope features:
 - `epistemic_mode: "derivative"` — the detector inferred the structural pattern from per-agent trace data; it did not directly witness any single act of harm or benefit. This is appropriate because the structural object is *constituted in the pattern*, not in any per-act event (per §1.10).
 - `stake: "reputational"` — LensCore's reputation as a detector is the stake; capital stake would require LensCore to post a bond, which is not the current operational model.
 
+### 5.12 agent_files envelope (canonical attester case) — v1.4
+
+```json
+// Canonical installer attestation by registry-steward-us
+// agent_files:installer:linux-x86_64
+{
+  "attestation_type": "scores",
+  "attesting_key_id": "registry-steward-us",
+  "attested_key_id": "ciris-agent:canonical",
+  "attestation_envelope": {
+    "dimension": "agent_files:installer:linux-x86_64",
+    "score": 1.0,
+    "confidence": 1.0,
+    "context": "{\"version\":\"3.0.0\",\"size_bytes\":47185920,\"build_provenance\":\"github.com/CIRISAI/CIRISAgent/actions/runs/...\"}",
+    "evidence_refs": [
+      "sha256:e4a2d9c7b6f1...",
+      "provenance:build_manifest:ciris-agent-3.0.0-linux-x86_64:sha256:7d2b...",
+      "provenance:slsa:3:ciris-agent"
+    ],
+    "witness_relation": "external",
+    "epistemic_mode": "direct",
+    "stake": "reputational"
+  }
+}
+```
+
+The bytes (SHA `e4a2d9c7b6f1...`) are resolved through §2.0 transport substrate: client emits Edge `MessageType::ContentFetch{sha256: e4a2d9c7b6f1...}` → Edge's `PeerResolver::resolve_holders` queries Persist's `holds_bytes:sha256:e4a2d9...` directory → returns peer set → fetch from any holder; SHA verified on receipt.
+
+### 5.13 holds_bytes envelope (substrate auto-emission) — v1.4
+
+```json
+// Auto-emitted by Persist when federation_blobs.put_blob(sha256=e4a2d9c7b6f1...) completes
+// holds_bytes:sha256:e4a2d9
+{
+  "attestation_type": "scores",
+  "attesting_key_id": "<this peer's federation key>",
+  "attested_key_id": "<this peer's federation key>",
+  "attestation_envelope": {
+    "dimension": "holds_bytes:sha256:e4a2d9",
+    "score": 1.0,
+    "confidence": 1.0,
+    "context": "{\"full_sha\":\"sha256:e4a2d9c7b6f1...\",\"size_bytes\":47185920,\"cached_at\":\"2026-05-27T18:00:00Z\"}",
+    "evidence_refs": [
+      "sha256:e4a2d9c7b6f1..."
+    ],
+    "witness_relation": "self",
+    "epistemic_mode": "direct",
+    "stake": "free"
+  }
+}
+```
+
+Auto-emitted with `witness_relation: self` because the peer is attesting about its own holdings. Consumer policy treats `holds_bytes:*` as directory-routing information, not as substantive standing — its only role is enabling `PeerResolver::resolve_holders` to route content-fetch requests.
+
+### 5.14 testimonial_witness envelope — v1.4
+
+```json
+// A displaced worker's preserved narrative about labor-displacement experience
+// testimonial_witness:displaced_worker
+{
+  "attestation_type": "scores",
+  "attesting_key_id": "<witness key_id>",
+  "attested_key_id": "<witness key_id; self-witness>",
+  "attestation_envelope": {
+    "dimension": "testimonial_witness:displaced_worker",
+    "score": 1.0,
+    "confidence": 1.0,
+    "context": "<the narrative content, preserved verbatim; never aggregated or grade-scored>",
+    "evidence_refs": [
+      "<deployment context>",
+      "<labor-records reference>"
+    ],
+    "witness_relation": "self",
+    "epistemic_mode": "direct",
+    "stake": "reputational"
+  }
+}
+```
+
+Key envelope features:
+- `attested_key_id == attesting_key_id` — singular self-witness; the narrative IS the attester's own.
+- `witness_relation: self` — explicitly distinguishes from external-aggregated consensus.
+- Polarity always positive — preservation IS the act; refusal to preserve would be modeled as `withdraws`.
+- Composes with `non_maleficence:*` attestations from external advocates (per §11 of LANGUAGE_PRIMER worked example 11.8) without being aggregated into them.
+
 ---
 
 ## §6 Composition: policies and consumer-layer discipline
@@ -1076,6 +1193,20 @@ A decision adjudicated at scale S draws an initial quorum of `quorum_size(S)` WA
 **NodeCore-side requirement**: NodeCore's P10 + WA-quorum-selection logic needs locality-awareness — when a decision carries an explicit `locality:decision:{scale}` Contribution, use the scaled quorum size rather than the default N=3. Filed as a separate upstream issue for NodeCore implementation. Until NodeCore lands the change, Registry-side composition can apply the scaled function on top of NodeCore's default (consumer-side enforcement first; substrate-side enforcement after).
 
 **Closes G3 from §13.11** (reclassified: REMAINING → MITIGATED via §6.1.5 locality-scaled quorum).
+
+#### 6.1.6 `agent_files` trust composition (v1.4 addition)
+
+Three-layer consumer policy for composing trust over `agent_files:*` attestations (§3.6.7 + §3.9). Anchors the anti-tricking guarantee from CIRISRegistry#18 + the open Contribution channel for third-party agent_files.
+
+**Layer 1 — Canonical (default trust).** An `agent_files:*` attestation with `score ≥ 0.7` from a `registry-steward-triple` key (`identity_type=steward`, per §10.1) constitutes the CIRIS canonical default-trust state. The install endpoint at `registry.ciris-services-1.ai/install` resolves canonical files via this rule and serves them as the default download. Newcomers reaching the URL get the steward-attested canonical agent, never a third-party fork.
+
+**Layer 2 — Open Contribution.** Any federation-key holder may emit `agent_files:*` attestations. The wire format admits them; consumer policy decides whether to surface them. The `/install` endpoint's "Browse alternatives" view shows third-party agent_files with explicit provenance disclosure (attester key_id, witness_relation, attached votes per Layer 3). Reaching alternatives requires informed consent (the user clicks past the canonical default).
+
+**Layer 3 — Vote-then-trust.** A non-canonical `agent_files:*` attestation accumulates NodeCore P4 votes per the consensus mechanics in §3.6.3. Consumer policy may elevate trust on a third-party agent_files Contribution once an accumulated-weight threshold is reached. Threshold is policy-tunable per consumer; reference default: `weighted_aggregate ≥ 0.85` with `witness_diversity` satisfied AND the attesting key has positive `expertise:{relevant_domain}` standing.
+
+**Anti-tricking guarantee** (recursive golden rule per [`MISSION.md`](../MISSION.md) §1.5): the canonical-default Layer 1 rule applies at the install endpoint **regardless of attester or vote accumulation** — third-party agent_files are NEVER served as the default. They are reachable only via the explicit "Browse alternatives" path. This binds CIRIS L3C: the federation cannot exempt itself from the rule that newcomers' default trust path is the steward-attested canonical one. If a third-party agent_files attestation could ever land as the install-page default, the protocol would violate its own symmetry.
+
+**Bytes resolution**: regardless of which trust layer surfaces an attestation, the actual file bytes are SHA-256-pinned in `evidence_refs[]` and resolved via §2.0 transport substrate (Edge `ContentFetch` → `PeerResolver::resolve_holders` over Persist's `holds_bytes:sha256:*` directory). Tampered bytes don't pass the SHA check, regardless of trust layer.
 
 ### 6.2 Aggregation semantics — opinionated defaults
 
@@ -1749,7 +1880,27 @@ Three independent methodologies (PRIOR_ART_SCAN structural comparison, SOTA_SCAN
 
 **F1-F2 (first-adopter exposures, no available validation).** (F1) earned-Credits federation governance at scale; (F2) Ubuntu substrate as wire-format substrate. Both have no production-validation precedent. The licensure forcing function (regulatory liability backing professional capability grants) is the structural reason these bets have a path past the SPKI/SDSI adoption-gap failure mode. External reviewers should see these explicitly named as bets.
 
-**Encyclical-mapping T-3 candidates (10 dimension extensions, no new structural primitives).** The *Magnifica Humanitas* mapping test produced ~5% T-3 EXPRESSIVE_GAP candidates — places where the encyclical's content exceeded v1.2 language. Evaluation per §1.10.1 gate yielded **zero new structural primitives needed** (the 1+4 shape holds); ~6 new dimension prefixes + 1 envelope field + 1 reference policy + 1 reuse-pattern. HIGH-priority additions: `locality:decision:{scale}` (NodeCore), `detection:distributive:access:{resource_type}` (LensCore), `credits:supply_chain_labor_recognition` sub-leaf (NodeCore), `multilateral_participation:{forum}:{kind}` (Registry). MEDIUM: `witness_relation` envelope field (FSD-002), `detection:correlated_action:ecology_of_communication:*` axis (LensCore + RATCHET calibration). The HIGH set's overlap with prior structural-mapping gaps (`ciris-response-magnifica-humanitas/GAPS.md` v3 §10) via two independent methodologies converging on the same gaps is strong evidence these are real. Tracking issues filed at v1.3 deployment.
+**Encyclical-mapping T-3 candidates (10 dimension extensions, no new structural primitives).** The *Magnifica Humanitas* mapping test produced ~5% T-3 EXPRESSIVE_GAP candidates — places where the encyclical's content exceeded v1.2 language. Evaluation per §1.10.1 gate yielded **zero new structural primitives needed** (the 1+4 shape holds); ~6 new dimension prefixes + 1 envelope field + 1 reference policy + 1 reuse-pattern. HIGH-priority additions: `locality:decision:{scale}` (NodeCore), `detection:distributive:access:{resource_type}` (LensCore), `credits:supply_chain_labor_recognition` sub-leaf (NodeCore), `multilateral_participation:{forum}:{kind}` (Registry). MEDIUM: `witness_relation` envelope field (FSD-002), `detection:correlated_action:ecology_of_communication:*` axis (LensCore + RATCHET calibration). The HIGH set's overlap with prior structural-mapping gaps (`ciris-response-magnifica-humanitas/GAPS.md` v3 §10) via two independent methodologies converging on the same gaps is strong evidence these are real.
+
+**v1.4 T-3 updates (5 residuals after v1.3 encyclical mapping):**
+
+| Item | Source | Status in v1.4 |
+|---|---|---|
+| #1 `testimonial_witness:{kind}` | MH CH 5 §216 (affected-party voice) | **CLOSED** via §3.6.3 + §5.14 envelope. Preservation-only; never aggregated; never sole evidence for `slashing:*`. The first v1.4 ship-candidate from the post-v1.3 T-3 set. |
+| #2 `labor:individual_loss:{kind}` | MH CH 4 §§148-156 (per-individual sustained-existential-condition) | **CLOSED by documentation.** Existing `non_maleficence:*` with `target_key_id = affected_individual` + `witness_relation: external` (from external advocate) carries the per-individual claim. No new prefix needed. Pattern documented in `FSD/LANGUAGE_PRIMER.md` §11 worked example 11.8 composition guidance. |
+| #3 `attestation:singular_witness:non_substitutability` | MH CH 0 §§10, 15 (positive dignity / irreplaceability) | **DEFERRED to v1.5+ design workshop.** T2 fragility: "non-substitutability" must reference audit-chain substitutability-count (mechanism), not moral quality. Needs design workshop before adoption. |
+| #4 `integrity:finitude_acknowledgment` | MH CH 0 §12 (constitutive finitude) | **DEFERRED to v1.5+ design workshop.** LOW priority; conscience:epistemic_humility already covers epistemic finitude; constitutive finitude is a different dimension. Workshop the mechanism-descriptive form before adoption. |
+| #5 Constitutional-constraint grounding | MH CH 1 §32 / §41 (why hard constraints bind) | **CLOSED in §1.10 prose.** Per the v1.4 design call: wire format must stay tradition-multiplicity-neutral per §1.10.1; framework anthropology lives in §1.10 prose. Baking grounding-tradition into wire would reverse the operational-language discipline. The `delegates_to` reuse pattern (§2.2.1) covers per-attestation authority-source claims; collective constitutional grounding is correctly an anthropological commitment named in prose, not enforced in wire. |
+| #6 `sustained_practice:{kind}` | MH Conclusion §§236-238 | **DEFERRED to v1.5+ design workshop.** LOW priority; σ-as-sustained_coherence (LensCore Capacity Score factor 5) partially covers; sustained_practice would be a distinct heartbeat dimension. Conceptually interesting; not load-bearing for current federation work. |
+
+**Net v1.4 T-3 outcome**: 1 closed via new prefix (#1), 2 closed by documentation/prose (#2 + #5), 3 deferred to v1.5+ design workshops with explicit reasoning (#3, #4, #6). Zero load-bearing T-3 residuals remain after v1.4. The framework is genuinely epistemically adequate against *Magnifica Humanitas*; v1.5 work is design-workshop on optional positive-dignity expressivity refinements, not gap closure.
+
+**Identified overlaps from `FSD/LANGUAGE_PRIMER.md` §15 review** (v1.4 acts on O3):
+
+- **O1** — `epistemic_mode: derivative` ≈ `witness_relation: derived` at edges. Documented as joint-usage pattern; not collapsed. No v1.4 spec change.
+- **O2** — `detection:distributive:access` could fold into `detection:correlated_action` as axis path. Kept separate in v1.4 for pedagogical weight; possible v1.5 revisit.
+- **O3** — `credits:*:substrate_building` was miscounted as new prefix in v1.3. **CORRECTED in v1.4 §3.10** (77 base + 3 new = 80, not 78 → 80 + miscount).
+- **O4** — §6.1 reference policy structure (A/B/C base + D/E/F modifiers). Cosmetic restructuring deferred; document inline.
 
 ---
 
