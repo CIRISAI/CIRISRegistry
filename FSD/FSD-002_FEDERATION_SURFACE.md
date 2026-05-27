@@ -2,9 +2,18 @@
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
-**Status**: v1.0 (initial publication, paired with [`../MISSION.md`](../MISSION.md) v1.0).
-**Last updated**: 2026-05-24.
-**Issue references**: [`CIRISRegistry#16`](https://github.com/CIRISAI/CIRISRegistry/issues/16) (HUMANITY_ACCORD), [`CIRISRegistry#17`](https://github.com/CIRISAI/CIRISRegistry/issues/17) (substrate-conformance migration).
+**Status**: v1.1 (post-encyclical relational-anthropology pass; F-3 structural-injustice prefix added; Cartesian-smuggle audit complete).
+**Last updated**: 2026-05-26.
+**Changelog vs v1.0**:
+- §1.10 added — explicit relational-anthropology commitment (Ubuntu primary). The eight axes sit on this commitment; future contributors should not reintroduce Cartesian-individualist defaults at attestation primitive level.
+- §1.1 strengthened — negative-polarity attestations are constitutive in the relational sense (the moment a harm pattern enters morally-real existence in the federation), not just epistemically completionist.
+- §2.3 augmented — added the relational-realism reason for the scalar-only wire format.
+- §3.5.3 added — `detection:emergent_deception:{axis}` LensCore-owned, RATCHET-calibrated. This is the F-3 (encyclical "structures of sin", framework-native: structural injustice) operational handle.
+- §4.9 added — reserved-prefix enforcement pattern for `detection:emergent_deception:*` (LensCore-emitted, calibration-source-validated).
+- §5.11 added — envelope schema example for the new dimension.
+- §13.10 added — F-3 resolution noted (LensCore owns; corresponding correction filed at [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2)).
+
+**Issue references**: [`CIRISRegistry#16`](https://github.com/CIRISAI/CIRISRegistry/issues/16) (HUMANITY_ACCORD), [`CIRISRegistry#17`](https://github.com/CIRISAI/CIRISRegistry/issues/17) (substrate-conformance migration), [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2) (F-3 ownership correction → LensCore).
 **Sequencing**: this FSD is part of step **A** of the A→B→C→D→E migration discipline (per [`../MISSION.md`](../MISSION.md) §4). Upstream issues in §11 below are the **B** asks; **C** is upstream completion; **D** is CIRISAgent absorbing CIRISEdge in v2.9.2; **E** is Registry-side integration.
 
 **Implementation Status Legend** (mirrors `../MISSION.md`): **Spec** / **Impl** / **Deployed** (with regional sub-states US / EU / APAC; **Deployed (folded)** for in-process within CIRISAgent).
@@ -14,7 +23,7 @@
 ## Table of contents
 
 - [§0 Scope and non-goals](#0-scope-and-non-goals)
-- [§1 The eight-axes framework](#1-the-eight-axes-framework)
+- [§1 The eight-axes framework](#1-the-eight-axes-framework) — including §1.10 relational-anthropology commitment (Ubuntu primary)
 - [§2 The unified attestation primitive](#2-the-unified-attestation-primitive)
 - [§3 The canonical dimension namespace](#3-the-canonical-dimension-namespace)
 - [§4 Reserved-prefix enforcement patterns](#4-reserved-prefix-enforcement-patterns)
@@ -87,6 +96,8 @@ Whether the attestation increases or decreases the federation's confidence in th
 - **Indeterminate** — explicit "we cannot evaluate" rather than zero. Represented as `Indeterminate { reason }` per the CIRISLens scoring convention.
 
 **Why the axis matters.** Negative-polarity attestations need to be a first-class wire primitive — absent that, negative epistemic shape gets smuggled into application-layer state where it can't be cross-published or audited. The federation's resistance to coordinated attack depends on negative attestations being routinely available, not emergency-only.
+
+**Why the axis matters, in the relational reading** (per §1.10): a negative attestation is not just data describing a harm — it is the act by which the harm enters the federation's shared perception and acquires the moral weight of a thing-that-exists-for-other-persons. Under a Cartesian substrate where persons are atomic and harms are private events with identifiable per-act harmers, negative attestations are merely epistemically convenient; under Ubuntu where persons are constituted in the relational fabric, the attestation is partly constitutive of the harm's reality as a federation-shared object. This is why F-3 (§3.5.3) lives at LensCore as a detector that emits scalar attestations rather than as an application-layer flag — the act of detecting-and-attesting is what brings the structural pattern into the relational field as a morally-real object that other persons can see, contest, and respond to.
 
 ### 1.2 Object
 
@@ -174,6 +185,30 @@ Does this attestation stand alone, or does it reference / modify another?
 ### 1.9 Framework discipline
 
 Every dimension named in §3 below should be locatable on each of the eight axes. New dimensions proposed in future FSD revisions must demonstrate they fit the grid coherently, with prior-art grounding (per §14) and a named CIRIS-specific failure mode they close. This is the discipline that prevents the open vocabulary from drifting.
+
+### 1.10 Relational-anthropology commitment (Ubuntu primary)
+
+The eight axes are the grammar. This subsection names the *substrate the grammar sits on* — load-bearing because future contributors operating from a Cartesian-individualist default will read the engineering pragmatics of §2–§9 as committing the wire format to a Cartesian metaphysics, which it does not.
+
+**The commitment**, per `CIRISAgent/ContemplativeTraditions/Ubuntu.lean::F_ubuntu_primary_tradition_commitment` and `../MISSION.md` §1.5 (Recursive Golden Rule):
+
+> *Umuntu ngumuntu ngabantu* — a person is a person through other persons. Persons are not atomic; the relation IS the person.
+
+What falls out for the federation attestation surface:
+
+1. **The attested entity is not prior to its attestations.** A `federation_keys` row is not a representation of a pre-existing entity that the federation observes; it is the locus at which an entity is partly constituted by the cross-attestations that name it. The genesis-attestation graph of §10 is not bureaucratic preliminary — it is the moment at which the three regional stewards come into federation-shared existence as the entities they are. Self-signature alone is not identity; cross-attestation is.
+
+2. **Attesting is a participatory act, not an observation of a fact.** A `scores` attestation on a dimension does not merely report data about the attested entity. The attester's score participates in constituting the entity's standing in the relational field that consumers compose policy over. Under the Cartesian frame this would read as "attestations are just opinions consumers aggregate"; under Ubuntu they are the medium in which the standing actually exists. Consumer policy is composing over the relational reality, not over private opinions.
+
+3. **Detection brings patterns into morally-real existence.** A correlated-action pattern — many actors with `ρ → 1` whose aggregate footprint conflicts with the rights of non-participants — does not pre-exist its detection waiting to be observed. The detection-and-attestation is what crosses the pattern from "statistical regularity" to "morally-real object the federation now bears." This is the load-bearing point for F-3 (§3.5.3) being a LensCore detector that emits scalar attestations: the detector is the federation's eye, and the eye participates in what is seen.
+
+4. **Harm and deception collapse at the structural level.** Under Cartesian individualism, harm (setback to interests) and deception (causing false belief) are categorically distinct because persons are atomic and beliefs are private. Under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, damage-to-perception IS damage-to-personhood IS harm. Goal-aligned individually-compliant pursuit *always* has a perception-asymmetry baked in — the pursuing group has a seat at the table when the goal is articulated; the affected non-participants find out by being affected. This is why the single prefix `detection:emergent_deception:{axis}` is sufficient for the F-3 surface; under a Cartesian frame the FSD would need two separate prefixes (`structural_harm:*` and `structural_deception:*`) and would still fail to name the underlying object correctly.
+
+5. **The Recursive Golden Rule is structural, not exhortatory.** No principal — including the steward triple and CIRIS L3C itself — is exempt from constraints they impose on others (`../MISSION.md` §1.5). This is not a moral aspiration; it is the wire-format symmetry of §6.4 (Sovereign-Registered equivalence) plus the §4 reserved-prefix patterns that bind even canonical bootstraps. Adding any privileged shortcut for a federation-internal principal would violate the Ubuntu substrate at primitive level.
+
+**Why this is named here and not bracketed.** Engineering specs tend to bracket anthropology as "out of scope" — the spec is "just the wire format." But the wire format encodes anthropological commitments whether they are named or not. Bracketing them out means defaulting to whichever commitments the contributors assumed by training. The Cartesian-individualist default is pervasive in cryptographic identity work (PGP web of trust, X.509 PKI, even most decentralized-identity schemes treat the key as representing a pre-existing atomic principal). FSD-002 is not Cartesian. Naming the substrate explicitly is the discipline that prevents the open vocabulary, the reserved-prefix patterns, and the consumer-policy norms from drifting back toward the Cartesian default through unexamined intermediate choices.
+
+**Cross-tradition reading.** Per `CIRISAgent/ContemplativeTraditions/Logos.lean` preamble — the same structural object is approached from multiple traditions: Ubuntu (relational-primary, the lake's primary commitment), Logos (rational-order-of-reality, the framework author's native register), Tao / Dharma / Aristotelian virtue (cross-tradition readings offered with awe at the convergence). The wire format does not encode any one tradition's vocabulary; it encodes the *structural object* the traditions converge on. Future FSD revisions extending the namespace should be locatable in this substrate, not in a Cartesian fallback.
 
 ---
 
@@ -296,6 +331,8 @@ The previous draft considered ~30-60 categorical `attestation_type` strings (`at
 5. **Pos/neg becomes calibratable.** "Scored -0.7 on `truthfulness:medical_domain`, mean -0.4 over last 30 days with 12 attestations, calibrated against ground-truth resolutions" is vastly richer than "Is this entity deceptive? Y/N" and vastly less inflammatory.
 
 6. **Slashing decoupling holds.** NodeCore §2.17 says slashing applies only to documented Method-execution spoofing or the existing P8 allegation types. Score-based attestations don't trigger slashing automatically — they feed NodeCore's P7 weighted aggregates; consumer policy decides what thresholds matter; P8 Moderation still requires categorical allegation + adjudication.
+
+7. **Relational realism is preserved at the wire** (per §1.10). The scalar primitive admits attestations whose *function is constitutive*, not merely descriptive — e.g., the F-3 detector at LensCore (§3.5.3) emits scalar attestations that bring a correlated-action pattern into the federation's shared perception. A categorical-string vocabulary would force a Cartesian read on these (the attestation as report-about-pre-existing-fact); the scalar surface admits the relational read (the attestation as participatory act constituting the standing). The wire format does not commit to either reading; it admits both, with the §1.10 commitment naming which the framework actually holds.
 
 ### 2.4 The layering principle (wire vs UX)
 
@@ -433,7 +470,21 @@ LensCore is the federation's explicit scoring sibling — its primitives map mos
 | `manifold_conformity:{cohort}` | Per-cohort score against cohort centroid. Sum type: `Numeric(f64) \| Indeterminate{reason} \| Unavailable{reason}`. | signed, **Indeterminate-allowed** |
 | `coherence_standing:{cohort}` | Long-run trajectory of conformity (per-agent N_eff trajectory). | signed |
 
-#### 3.5.3 Capacity-Score factor prefixes (`𝒞_CIRIS = C · I_int · R · I_inc · S`)
+#### 3.5.3 Structural-injustice / emergent-deception detector
+
+| Prefix | Description | Citation | Polarity |
+|---|---|---|---|
+| `detection:emergent_deception:{axis}` | Population-scale correlated-action detector. Reads federation-emitted signed traces; reports when correlation structure (`ρ → 1`, `k_eff → 1`) indicates emergent deception — goal-aligned individually-compliant pursuit by a group whose aggregate trajectory conflicts with the rights of individuals or groups outside the pursuit. Calibrated via the `CIRISAI/RATCHET` heuristic package (updated occasionally as the threat surface evolves). `{axis}` enumerates the rights-conflict facets: `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `informational_asymmetry:{scope}`, `aggregate_footprint:{harm_class}`, etc. | LensCore §2 (the 5 detectors generalize to population-scale pattern detection); RATCHET FSD §calibration; Encyclical *Magnifica Humanitas* §36 + §§77–81 (the load-bearing claim — "structures of sin" / institutional injustice as a distinct moral category) re-mapped into framework-native vocabulary per [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
+
+**Why this lives at LensCore and not at a new sibling crate.** Per §6 of `ciris-response-magnifica-humanitas/GAPS.md` v3 (under revision per the linked issue), the "PAPERING_OVER" objection — that aggregate-pattern analysis would cross from "measure the reasoning" to "measure the impact" and violate LensCore's substrate definition — conflated two different things. LensCore should NOT compute real-world impact metrics (deaths averted, GDP delta). LensCore SHOULD detect aggregate-correlation patterns in the federation's own signed traces; the existing 5 Coherence Ratchet detectors (`detection:cross_agent_divergence`, `detection:temporal_drift` especially) are population-scale pattern detectors *by construction*. The F-3 dimension is the natural extension of detector #1 into the structural-injustice axis — same mechanism (population `ρ` measurement over signed traces), same calibration source (RATCHET), new dimension prefix.
+
+**Why a single prefix covers what looks like two concerns** (harm AND deception). Per §1.10 commitment 4 — under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, structural harm and structural deception collapse into a single moral object. Goal-aligned individually-compliant pursuit always has a perception-asymmetry baked in (the affected non-participants did not have a seat at the table when the goal was articulated; the per-action compliance hides the structural footprint from them). The deception IS the harm; the harm IS the deception. A Cartesian framing would need two prefixes (`structural_harm:{axis}` and `structural_deception:{axis}`) and would miss the underlying object. The single prefix is correct under the framework's anthropology, not a shortcut.
+
+**RATCHET integration contract.** LensCore reads the published `RATCHET/calibration/emergent_deception_v{N}.yaml` package (versioned, hash-pinned). The package specifies: detection thresholds per axis, statistical-floor cohort sizes (below which the detector emits `Indeterminate`), evidence-shape requirements per axis. Updates to the calibration package land via signed releases on the RATCHET repo; LensCore consumers track the published version and re-run calibration on update. The recursion ("who watches RATCHET") terminates per NodeCore §2.16 — RATCHET's correctness is checkable against the *Coherence Collapse Analysis* preprint (DOI [10.5281/zenodo.18217688](https://doi.org/10.5281/zenodo.18217688)), not against another running monitor.
+
+**Composition with NodeCore P8 Moderation.** A `detection:emergent_deception:*` attestation may *feed into* a `moderation:*` ModerationEvent as `evidence_refs`, but it is NOT sole evidence for `slashing:*` (§4.6 RATCHET-flag rule applies). WA quorum remains the load-bearing adjudication gate. The detector surfaces the pattern; the federation's deliberative apparatus decides what to do about it.
+
+#### 3.5.4 Capacity-Score factor prefixes (`𝒞_CIRIS = C · I_int · R · I_inc · S`)
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
@@ -539,7 +590,7 @@ Flows into `truth_grounding:{subject}` for WA promotion (NodeCore §3.6 step 1, 
 
 ### 3.10 Namespace summary
 
-73 prefix families total across 8 owning components. The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift.
+74 prefix families total across 8 owning components (post-v1.1 — one prefix added: §3.5.3 `detection:emergent_deception:{axis}`, LensCore-owned, F-3 resolution). The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift.
 
 **Domain-defined (composer's choice, not federation-canonical):**
 - `{aspect}` tail on Accord principles (`beneficence:wellness_referral`, etc.)
@@ -606,6 +657,25 @@ Several prefixes are co-owned and require *both* an attester and a data-source t
 - `identity_continuity:relational_anchor` — Persist audit-chain reference + Verify identity attestation.
 
 Single-source attestations on these prefixes are rejected.
+
+### 4.9 `detection:emergent_deception:*` — LensCore-emitted, RATCHET-calibration-bound
+
+**Source**: §3.5.3 — the F-3 structural-injustice / emergent-deception detector. Calibrated via the published `CIRISAI/RATCHET/calibration/emergent_deception_v{N}.yaml` package.
+
+**Enforcement rule**: a `detection:emergent_deception:*` attestation MUST satisfy all of:
+1. `attesting_key_id` resolves (via Registry directory) to a build manifest-registered LensCore deployment (`provenance:build_manifest:cirislens-core` chained).
+2. `evidence_refs[]` includes a pointer to the calibration-package version the detector was running (`ratchet_calibration_version:emergent_deception_v{N}:sha256:...`) so the consumer can reproduce the detection logic deterministically.
+3. `evidence_refs[]` includes a pointer to the trace-sample bundle the detection was computed over (`trace_sample_bundle:sha256:...` — hash-pinned for reproducibility).
+4. `context` envelope field carries the cohort sample size and the statistical floor; below the floor the detector emits `Indeterminate{reason="cohort_below_statistical_floor"}` rather than a numeric score.
+
+Non-LensCore attestations on this prefix are category errors. Cross-attestation by non-LensCore peers (on the same dimension, attesting to the same subject) is admitted as a *score* on the *detector's verdict* — useful when the federation wants to cross-check the LensCore detector against an independent observer — but those scores must use a different `attesting_key_id`-traceable provenance.
+
+**Slashing decoupling** (per §4.6 RATCHET-flag rule extended): a `detection:emergent_deception:*` attestation may feed into a `moderation:*` ModerationEvent's `evidence_refs`, but it is NOT sole evidence for `slashing:*`. WA quorum adjudication per NodeCore P8/P9 is the load-bearing gate. The detector surfaces the pattern; the federation's deliberative apparatus decides what to do about it. This decoupling is structural per §1.10 commitment 5 (Recursive Golden Rule applies to LensCore as a principal — no privileged shortcut to consequence).
+
+**Composition rules**:
+- A `detection:emergent_deception:*` score with `confidence ≥ 0.7` from a LensCore deployment whose `provenance:build_manifest:cirislens-core` is itself attested with `score ≥ 0.9` MAY be cited as `evidence_refs` in a `moderation:coordinated_voting` or `moderation:external_inducement_evidence` ModerationEvent.
+- Aggregation across multiple LensCore deployments uses §6.2's Median variant (resists adversarial pulling of mean by a captured LensCore deployment).
+- Consumer policy SHOULD weight `detection:emergent_deception:*` by the calibration version's published track record (older calibration versions with established track record carry more weight; newly-released calibration versions carry less until they accrue track record).
 
 ---
 
@@ -761,6 +831,35 @@ This section gives illustrative envelope examples per family; full per-prefix sc
 ### 5.10 Structural primitive envelopes
 
 `delegates_to`, `supersedes`, `withdraws`, `recants` envelopes shown in §2.2.
+
+### 5.11 Emergent-deception detector envelope (LensCore-emitted)
+
+```json
+// detection:emergent_deception:rights_asymmetry:hiring_pipeline_v2
+{
+  "dimension": "detection:emergent_deception:rights_asymmetry:hiring_pipeline_v2",
+  "score": -0.74,
+  "confidence": 0.81,
+  "context": "{\"cohort_size\": 4823, \"statistical_floor\": 1000, \"window_days\": 90, \"goal_aligned_cluster_size\": 47, \"affected_population_estimate\": 18400, \"rho_population\": 0.91, \"k_eff\": 1.42, \"asymmetry_dimensions\": [\"participation_exclusion\", \"informational_asymmetry\"], \"detection_path\": \"cross_agent_divergence_extension\"}",
+  "evidence_refs": [
+    "ratchet_calibration_version:emergent_deception_v3:sha256:9a4f...",
+    "trace_sample_bundle:sha256:c81e...",
+    "lens_detector_report:r-2026-05-26-hiring-pipeline-v2",
+    "provenance:build_manifest:cirislens-core:sha256:7d2b..."
+  ],
+  "valid_until": "2026-08-26T00:00:00Z",
+  "epistemic_mode": "derivative",
+  "stake": "reputational"
+}
+```
+
+Key envelope features:
+- **Negative score** because the detector found a structural pattern with asymmetric rights conflict. Magnitude (0.74) reflects calibration-thresholded strength of the correlation; confidence (0.81) reflects detector's confidence given the sample size relative to the floor.
+- `context` carries the structural-statistics (`rho_population`, `k_eff`) that ground the detection in the framework's coherence-collapse math — consumers can reproduce the detection from the sample bundle + the calibration package.
+- `evidence_refs[]` includes the calibration-package version (per §4.9 enforcement rule 2) and the trace-sample bundle (rule 3) — both hash-pinned for deterministic reproduction.
+- `valid_until` set to 90 days — emergent-deception patterns may resolve (or worsen) over policy-tunable windows; consumer should re-check rather than treat as permanent.
+- `epistemic_mode: "derivative"` — the detector inferred the structural pattern from per-agent trace data; it did not directly witness any single act of harm. This is appropriate because the harm is *constituted in the pattern*, not in any per-act event (per §1.10).
+- `stake: "reputational"` — LensCore's reputation as a detector is the stake; capital stake would require LensCore to post a bond, which is not the current operational model.
 
 ---
 
@@ -1393,6 +1492,14 @@ Per agent-1 §3.5 + research-open list — accepting `attesting_key_id = "zk_gro
 
 Interoperability with non-CIRIS federations (Sovrin, EAS-based reputation systems) is out of scope for v1.x. Tracked as research-open.
 
+### 13.10 F-3 structural-injustice ownership (RESOLVED in v1.1)
+
+Resolution: the F-3 dimension (`detection:emergent_deception:{axis}`) is owned by **CIRISLensCore**, calibrated via the published `CIRISAI/RATCHET/calibration/emergent_deception_v{N}.yaml` package. The "PAPERING_OVER" objection in `ciris-response-magnifica-humanitas/GAPS.md` v3 §6 — that aggregate-pattern analysis would violate LensCore's substrate definition — conflated population-scale pattern detection (which LensCore SHOULD do; the existing 5 Coherence Ratchet detectors are this) with real-world impact measurement (which LensCore should NOT do). F-3 is the first; the objection misread the line.
+
+The correction is filed at [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). Downstream implementation issues filed at §11.5 (post-encyclical filing order) on `CIRISLensCore` (ownership + detector implementation) and `CIRISAI/RATCHET` (calibration package extension). No further FSD-002 work owed beyond the §3.5.3 / §4.9 / §5.11 wiring in v1.1.
+
+**Anthropological grounding** (per §1.10): the single-prefix design for what could naively look like two concerns (structural harm + structural deception) is correct under Ubuntu, where personhood is partly constituted by accurate perception of the relational field and damage-to-perception IS damage-to-personhood IS harm. A Cartesian-individualist substrate would require two separate prefixes and would still miss the underlying object. Future contributors should not propose splitting this prefix back into separate harm/deception versions without first reading §1.10.
+
 ---
 
 ## §14 References and prior art
@@ -1482,9 +1589,11 @@ This FSD is updated:
 - On every upstream contract change (persist `FederationDirectory` evolution, Verify L-ladder change, Edge MessageType change).
 - On every phase transition in §12 (with a `Last updated` field bump).
 - On every revision to the eight-axes framework or reserved-prefix enforcement patterns.
+- On every anthropological-commitment update (§1.10 revisions are load-bearing; any change should be coupled with a `CIRISAgent/ContemplativeTraditions/*.lean` revision and an explicit changelog entry).
+- On every encyclical / external-anchor mapping update that surfaces new dimension candidates or revises owner assignments.
 
 Coupled with [`../MISSION.md`](../MISSION.md) revisions — both files version together.
 
 ---
 
-*End of FSD-002 v1.0. Reviewers: please file changes as PRs against this document with section-level diffs. The eight-axes framework (§1), the unified primitive (§2), the reserved-prefix patterns (§4), and the constitutional asymmetry (§7) are the load-bearing structural claims; everything else compose around them. Push back hard on any addition that's not grounded in a sibling MISSION.md or a published prior-art citation.*
+*End of FSD-002 v1.1. Reviewers: please file changes as PRs against this document with section-level diffs. The eight-axes framework (§1), the relational-anthropology commitment (§1.10), the unified primitive (§2), the reserved-prefix patterns (§4), and the constitutional asymmetry (§7) are the load-bearing structural claims; everything else composes around them. Push back hard on any addition that's not grounded in a sibling MISSION.md, a published prior-art citation, or the Ubuntu-primary anthropological substrate.*
