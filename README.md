@@ -1,312 +1,151 @@
 # CIRISRegistry
 
-**The DMV Database — Source of Truth for Agent Identity, Integrity, and Licensing**
+**The attestation-policy layer of the CIRIS federation.** Verifies agent identity, composes partner authorization grants, distributes revocations in real-time, attests per-install steward identities, and recognizes the HUMANITY_ACCORD constitutional layer — all as policy over the shared trust substrate.
 
-Deployed at **ciris-services-1.ai** (dual-region US/EU).
+**License**: AGPL-3.0-or-later · **Crate target**: `ciris-registry-core` · **Service**: `*.registry.ciris-services-1.ai`
 
-## Overview
+---
 
-If CIRISVerify is the DMV office that checks your documents, CIRISRegistry is the **DMV database** — the authoritative backend that stores every agent's identity, every build's file manifest, and every license ever issued. CIRISPortal is the **clerk's window** where administrators manage it all.
+## What it is
 
-CIRISRegistry is a Rust gRPC service that serves as the single source of truth:
+A Rust crate (today, exported as a gRPC + HTTP service; trajectory: a sub-crate that runs both standalone and in-process inside CIRISAgent). Five functions, all expressed as **policy composed over the shared federation substrate** ([CIRISPersist](https://github.com/CIRISAI/CIRISPersist) for storage, [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) for crypto, [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) for transport):
 
-- **Agent Identity** — Every agent's Ed25519 public key hash, registered and verifiable (the driver's license record)
-- **Build Integrity** — Tripwire file manifests with SHA-256 hashes for every file in every release (the vehicle registration/VIN database)
-- **Licensing & Accountability** — Professional licenses with capability grants, linking agents to responsible humans and organizations (the insurance records)
-- **Revocation** — Real-time revocation list distribution; any revocation from any source is immediately enforced (suspended licenses)
-- **Key Custody** — Hybrid Ed25519 + ML-DSA-65 key management with HSM support
-- **Audit Compliance** — SOC2/HIPAA/GDPR reporting with cryptographic audit trails
+| Function | What | Status |
+|---|---|---|
+| **Agent identity verification** | Cryptographic verification of legitimate agent builds and their declared capabilities. | Deployed (US + EU) |
+| **Partner authorization** | License management for organizations deploying CIRIS agents in regulated contexts (medical / legal / financial). | Deployed (US + EU) |
+| **Revocation distribution** | Real-time multi-source revocation status (DNS US + DNS EU + HTTPS API); any revoke from any source is immediately enforced. | Deployed (US + EU) |
+| **Steward attestation** | Per-install registry-steward keys (US / EU / APAC) self-publish to the federation directory and cross-attest each other; M-of-N gates federation-scope attestations. | Spec ([CIRISRegistry#17](https://github.com/CIRISAI/CIRISRegistry/issues/17)) |
+| **HUMANITY_ACCORD recognition** | Constitutional kill-switch authority — 3 named human holders, 2-of-3 multi-sig, hardware-attested, no federation-internal principal can grant / revoke / override / decay. | Spec ([CIRISRegistry#16](https://github.com/CIRISAI/CIRISRegistry/issues/16)) |
 
-## Production Deployment
+**What Registry is not**: an ethical evaluator, a behavior monitor, a billing system, or — post-substrate-conformance — an authoritative key store. Behavior evaluation is [`CIRISAgent`](https://github.com/CIRISAI/CIRISAgent)'s job. Billing is `CIRISBilling` + `CIRISPortal`. Post-[#17](https://github.com/CIRISAI/CIRISRegistry/issues/17), authoritative key state lives in CIRISPersist; Registry composes policy verdicts over the substrate rather than holding state.
 
-| Region | Domain | Purpose |
-|--------|--------|---------|
-| US | `us.registry.ciris-services-1.ai` | Primary US registry (DNS) |
-| EU | `eu.registry.ciris-services-1.ai` | EU registry (DNS, GDPR) |
-| API | `api.registry.ciris-services-1.ai` | HTTPS verification API |
-| Portal | `portal.ciris.ai` | Admin web interface (CIRISPortal) |
+---
 
-CIRISVerify validates against all three sources (DNS US + DNS EU + HTTPS API) for multi-source consensus. All production services are deployed via Docker with Watchtower for automatic updates.
+## Position in the stack
 
-## Quick Start
+```
+APPLICATION       CIRISAgent (federation client; consumes ciris-node-core,
+                   cirislens-core, and ciris-registry-core as in-process
+                   substrate-conformant crates per the cohabitation arc)
+                  ──────────────────────────────────────────────────────────
+SECOND TIER       cirislens-core             ciris-node-core
+                   observability/F-3          15 consensus primitives
+                  ──────────────────────────────────────────────────────────
+SUBSTRATE-        ciris-registry-core (THIS — policy over substrate;
+CONSUMING          attestation namespace, partner-authorization composition,
+                   HUMANITY_ACCORD verifier, revocation policy)
+                  ──────────────────────────────────────────────────────────
+SUBSTRATE         ciris-verify          ciris-edge           ciris-persist
+                   identity + crypto     Reticulum transport  storage + audit
+                  ──────────────────────────────────────────────────────────
+EVALUATOR         RATCHET (anti-Sybil; reads federation audit chains)
+```
 
-### Prerequisites
+Registry sits at the **substrate-consuming** tier. Pre-migration it holds authoritative pubkey + license state in its own Postgres. Post-migration it composes verdicts over `CIRISPersist`'s `federation_*` tables and Registry-local tables become bounded-TTL caches. See [`MISSION.md`](./MISSION.md) §1.3 for the full architecture and §1.4 for the lifecycle stages.
 
-- Rust 1.75+ (for building)
-- PostgreSQL 15+ (database)
-- Docker & Docker Compose (recommended)
+---
 
-### Run with Docker
+## Quick start
 
 ```bash
+# Bring up Postgres + Registry locally
 docker compose up -d
-```
 
-Local development services:
-- gRPC API: `localhost:50052`
-- HTTP Health/Metrics: `localhost:8082`
-- PostgreSQL: `localhost:5434`
-
-### Run Locally
-
-```bash
-# Start PostgreSQL
-docker compose up -d postgres
-
-# Build and run
-cd rust-registry
-cargo run
-```
-
-### Verify Installation
-
-```bash
 # Health check
 curl http://localhost:8082/health
 
-# gRPC health (requires grpcurl)
+# gRPC health
 grpcurl -plaintext localhost:50052 ciris.registry.v1.RegistryService/HealthCheck
+
+# Public read (e.g., revocation list)
+curl http://localhost:8082/v1/revocation/agent-{hash}
+
+# Verify a build manifest (Path B — verbatim signed payload, byte-identical to POST)
+curl http://localhost:8082/v1/verify/build-manifest/{project}/{version}/{target}
 ```
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Clients                                  │
-│                                                                  │
-│   CIRISVerify (Read)          CIRISPortal (Read+Write)          │
-│   • Agent lookups             • Organization management          │
-│   • Partner lookups           • User/key management             │
-│   • Revocation checks         • License + build management      │
-│   • Build attestation         • Key custody + rotation          │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    CIRISRegistry API                             │
-│                                                                  │
-│   gRPC Services (port 50051 prod / 50052 dev):                  │
-│   ├── RegistryService       - Public read-only (13 methods)    │
-│   ├── PortalService         - Portal operations (21 methods)   │
-│   └── RegistryAdminService  - Admin operations (19 methods)    │
-│                                                                  │
-│   HTTP Endpoints (port 8080 prod / 8082 dev):                   │
-│   ├── GET /health           - Health check                     │
-│   └── GET /metrics          - Prometheus metrics               │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│   PostgreSQL Database        Hybrid Cryptography                │
-│   • Organizations            • Ed25519 (classical)              │
-│   • Users + Keys             • ML-DSA-65 (post-quantum)         │
-│   • Agents + Builds          • Dual signatures required         │
-│   • Partners + Licenses      • HashiCorp Vault (production)     │
-│   • Audit logs                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## API Reference
-
-### RegistryService (Public)
-
-| Method | Description |
-|--------|-------------|
-| `HealthCheck` | System health status |
-| `GetCapabilities` | API feature discovery |
-| `GetMetrics` | Performance metrics |
-| `LookupAgent` | Lookup agent by SHA-256 hash |
-| `BatchLookupAgents` | Batch lookup (max 100) |
-| `LookupPartner` | Lookup partner by ID |
-| `VerifyDeployment` | Combined agent+partner verification |
-| `GetRevocationList` | Full or delta revocation list |
-| `GetPublicKeys` | Organization public keys |
-| `GetOfflinePackage` | 72-hour offline verification bundle |
-| `GetOfflineDelta` | Incremental snapshot updates |
-| `GetBuildAttestation` | SLSA build provenance |
-| `GetEmergencyStatus` | Emergency shutdown status |
-
-### PortalService (Authenticated)
-
-| Method | Description |
-|--------|-------------|
-| `CreateOrganization` | Create new organization |
-| `GetOrganization` | Get organization details |
-| `UpdateOrganization` | Update organization |
-| `ListOrganizations` | List all organizations (paginated) |
-| `BatchCreateOrganizations` | Batch create (max 100) |
-| `CreateOrgUser` | Invite user to organization |
-| `GetOrgUser` | Get user by ID |
-| `GetOrgUserByEmail` | Get user by email |
-| `UpdateOrgUser` | Update user details/role |
-| `ListOrgUsers` | List organization users |
-| `BatchCreateOrgUsers` | Batch create users |
-| `GenerateKeyPair` | Generate Ed25519+ML-DSA-65 keypair |
-| `ListKeys` | List organization keys |
-| `ActivateKey` | Activate pending key |
-| `RotateKey` | Zero-downtime key rotation |
-| `RevokeKey` | Revoke compromised key |
-| `RequestKeyEscrow` | Create key backup |
-| `RequestKeyRecovery` | Recover escrowed key |
-| `ListKeyEscrows` | List key escrows |
-| `RequestSignature` | Sign with custodied key |
-| `GetAuditLog` | Query audit events |
-| `ExportAuditLog` | Export JSON/CSV/JSONL/Splunk |
-| `GenerateComplianceReport` | SOC2/HIPAA/GDPR reports |
-
-### RegistryAdminService (Admin Only)
-
-| Method | Description |
-|--------|-------------|
-| `RegisterAgent` | Register new agent build |
-| `BatchRegisterAgents` | Batch register (max 1000) |
-| `RegisterPartner` | Register licensed partner |
-| `RevokeEntity` | Revoke agent/partner/license |
-| `MassRevoke` | Incident response mass revocation |
-| `SetEmergencyShutdown` | Enable emergency lockdown |
-| `ClearEmergencyShutdown` | Clear emergency status |
-| `RotateSigningKey` | Rotate registry signing key |
-| `GetActiveSigningKey` | Get current signing key |
-| `ListSigningKeys` | List all signing keys |
-| `TestHSMConnection` | Test HSM/Vault connectivity |
-| `RegisterBuild` | Register build with Tripwire file manifest |
-| `RegisterBuildAttestation` | Register SLSA attestation |
-| `RegisterWebhook` | Configure event webhook |
-| `ListWebhooks` | List webhooks |
-| `DeleteWebhook` | Remove webhook |
-| `ListExpiringLicenses` | Track license expirations |
-| `GetPartnerActivity` | Partner health assessment |
-| `CleanupTestRecords` | Remove test data |
-
-## Security
-
-### Hybrid Cryptography
-
-All signatures use both classical and post-quantum algorithms:
-
-- **Ed25519** - 64-byte classical signatures
-- **ML-DSA-65** - ~3300-byte post-quantum signatures (FIPS 204)
-
-Both signatures are required for verification. This ensures:
-- Current security via Ed25519
-- Future-proof protection against quantum computers
-
-### Fail-Secure Design
-
-- Unknown agents default to community tier (no professional capabilities)
-- Unknown partners receive no capability grants
-- Network failures trigger graceful degradation, never escalation
-- Any revocation signal from any source triggers immediate enforcement
-
-### Multi-Source Validation
-
-Critical deployments can verify against multiple sources:
-- DNS US (`us.registry.ciris-services-1.ai`)
-- DNS EU (`eu.registry.ciris-services-1.ai`)
-- HTTPS API (`api.registry.ciris-services-1.ai`)
-
-2-of-3 agreement required for positive verification.
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Env var | Default | Purpose |
+|---|---|---|
 | `DATABASE_URL` | `postgres://ciris:ciris_dev@localhost:5434/ciris_registry` | PostgreSQL connection |
 | `GRPC_PORT` | `50052` | gRPC server port |
-| `HTTP_PORT` | `8082` | HTTP health/metrics port |
-| `RUST_LOG` | `info` | Log level (trace/debug/info/warn/error) |
+| `HTTP_PORT` | `8082` | HTTP health / metrics / `/v1/*` endpoints |
+| `REGISTRY_ADMIN_TOKEN` | (required for admin writes) | Bearer token for `POST /v1/builds` + `POST /v1/verify/build-manifest` |
+| `ED25519_KEY_PATH` / `MLDSA_KEY_PATH` | (recommended for prod) | Persistent steward keys (else ephemeral per restart — verify clients break) |
+| `RUST_LOG` | `info` | Log level |
 
-### Key Storage Options
+Build + test: `cd rust-registry && cargo build && cargo test`. Full development guide in [`CLAUDE.md`](./CLAUDE.md).
 
-1. **File-based** (development) - Keys stored in local files
-2. **HashiCorp Vault** (production) - Secure secret management
-3. **HSM** (high-security) - Hardware security module integration
+---
 
-## Development
+## The attestation surface (FSD-002)
 
-### Project Structure
+The federation has exactly **one workhorse attestation primitive plus four structural composers** (per [`FSD/FSD-002_FEDERATION_SURFACE.md`](./FSD/FSD-002_FEDERATION_SURFACE.md) §2):
 
 ```
-CIRISRegistry/
-├── rust-registry/           # Rust implementation
-│   ├── src/
-│   │   ├── services/       # gRPC service implementations
-│   │   ├── db/             # Database layer (13 modules)
-│   │   ├── crypto/         # Hybrid cryptography
-│   │   ├── middleware/     # Auth, metrics, tracing
-│   │   └── api/            # HTTP endpoints
-│   └── migrations/         # SQL schema
-├── protocol/               # Protobuf definitions
-│   └── ciris_registry.proto
-├── FSD/                    # Functional specifications
-├── docs/                   # Documentation
-└── scripts/                # Utility scripts
+WORKHORSE:    scores       — scalar score + confidence on a named dimension
+STRUCTURAL:   delegates_to — A may sign on behalf of B in scope S
+              supersedes   — this attestation replaces a prior
+              withdraws    — I retract my prior (not necessarily false)
+              recants      — my prior was false (admits epistemic error)
 ```
 
-### Build from Source
+Registry's owned dimension slice within the federation namespace: `licensure:{authority_id}`, `partner_role:{role}`, `revocation:{entity_type}:{reason}`, `bond_posted:{currency}`, `build:registered:{target}`, plus the reserved `accord:*` prefix (only `identity_type=accord_holder` may emit). FSD-002 v1.2 added the §1.10.1 operational-language gate — prefix names must describe machine-checkable mechanisms, not subjective qualities (the discipline behind [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/)).
 
-```bash
-cd rust-registry
-cargo build --release
-```
+---
 
-### Run Tests
+## Recursive Golden Rule
 
-```bash
-cd rust-registry
-cargo test
-```
+No principal — including CIRIS L3C as steward — is exempt from constraints the protocol imposes on others ([`MISSION.md`](./MISSION.md) §1.5). Operational bites:
 
-### Generate Proto Code
+- **Per-install stewards bind CIRIS L3C as steward.** Once `bootstrap_threshold ≥ 2`, no single Registry install can issue federation-scope attestations unilaterally — including CIRIS L3C's own.
+- **Partner-revocation rules apply to CIRIS L3C subsidiaries.** `MassRevoke` carries no steward exemption.
+- **Audit discipline applies to steward operations.** Every admin RPC carries the operator's identity into `actor_user_id`, including for CIRIS L3C staff.
+- **Bond forfeiture applies to CIRIS L3C-affiliated partners.** No exemption.
+- **The HUMANITY_ACCORD asymmetry is the one constitutional asymmetry.** Three named human holders carry kill-switch authority no federation-internal authority can grant / revoke / override / decay — the recognition that consent requires revocability, and revocability requires a halt-authority outside the system being halted.
 
-Proto code is auto-generated at build time via `build.rs`. To regenerate:
-
-```bash
-cd rust-registry
-cargo build
-```
+---
 
 ## Documentation
 
-- [CLAUDE.md](./CLAUDE.md) - Development guide and architecture
-- [FSD-001](./FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md) - Protocol specification
-- [UIUX-001](./FSD/UIUX-001_PORTAL_SCREENS.md) - Portal UI/UX guide
-- [Testing Strategy](./docs/TESTING_STRATEGY.md) - Property-based testing guide
-- [Deployment Guide](./docs/DEPLOYMENT.md) - AWS/Ansible deployment
-- [Security & Ops](./rust-registry/docs/SECURITY_OPS_REVIEW.md) - Environment variables and security
+**Start here:**
+- [`MISSION.md`](./MISSION.md) — mission, trust shape, position in CIRIS architecture, federation surface
+- [`FSD/FSD-002_FEDERATION_SURFACE.md`](./FSD/FSD-002_FEDERATION_SURFACE.md) — wire-format-locked federation surface (v1.2)
+- [`FSD/PRIOR_ART_SCAN.md`](./FSD/PRIOR_ART_SCAN.md) — design-space comparison vs PGP / SPKI/SDSI / VC / Birdwatch / Pol.is / Kleros / Spritely / Holochain / Aragon / Conviction Voting / Sigstore / SLSA
+- [`FSD/SOTA_SCAN.md`](./FSD/SOTA_SCAN.md) — production-validation comparison against the same systems
 
-## CIRIS Ecosystem
+**Protocol + ops:**
+- [`FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md`](./FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md) — gRPC + HTTP protocol surface
+- [`docs/TRUST_CONTRACT.md`](./docs/TRUST_CONTRACT.md) — consumer-facing trust shape (`/v1/steward-key` pinning, rotation policy, Paths A/B/C)
+- [`docs/THREAT_MODEL.md`](./docs/THREAT_MODEL.md) — threat model with named AVs (AV-14 / AV-15 / AV-25 / AV-26 / AV-28 / AV-33 / AV-35)
+- [`docs/FEDERATION_CLIENT.md`](./docs/FEDERATION_CLIENT.md) — substrate-consumer architectural sketch
+- [`docs/MANIFEST_VALIDATION_API.md`](./docs/MANIFEST_VALIDATION_API.md) — wire-format / endpoint reference
 
-CIRISRegistry is the backend data authority for the CIRIS AI governance ecosystem:
+**Development:**
+- [`CLAUDE.md`](./CLAUDE.md) — development guide, PortalService handler convention, migration discipline, multi-master Spock replication rules
 
-```
-CIRISAgent (Python)          CIRISVerify (Rust)           CIRISPortal (Next.js)
- Ethical AI framework         License verification          Admin web interface
- pip install ciris-agent      Hardware-rooted trust         portal.ciris.ai
-        │                            │                            │
-        └────────────────────────────┼────────────────────────────┘
-                                     ▼
-                          CIRISRegistry (Rust gRPC)
-                          *.registry.ciris-services-1.ai
-                          Source of truth for agents,
-                          licenses, builds, and keys
-```
+---
 
-| Component | Repository | Purpose |
-|-----------|-----------|---------|
-| **CIRISRegistry** | This repo | Trust registry — agents, licenses, builds, keys |
-| **CIRISPortal** | [CIRISPortal](https://github.com/CIRISAI/CIRISPortal) | Admin web interface at portal.ciris.ai |
-| **CIRISVerify** | [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) | Hardware-rooted license verification binary |
-| **CIRISAgent** | [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) | Ethical AI agent framework |
+## CIRIS ecosystem
 
-## License
+| Component | Role | Repo |
+|---|---|---|
+| **CIRISRegistry** | Attestation policy over substrate (this) | (here) |
+| **CIRISPersist** | Storage + audit + federation directory (substrate) | [CIRISPersist](https://github.com/CIRISAI/CIRISPersist) |
+| **CIRISVerify** | Hardware-rooted identity + hybrid crypto (substrate) | [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) |
+| **CIRISEdge** | Reticulum-native federation transport (substrate, spec-first) | [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) |
+| **CIRISNodeCore** | 15 consensus primitives (second tier) | [CIRISNodeCore](https://github.com/CIRISAI/CIRISNodeCore) |
+| **CIRISLensCore** | Observability + F-3 correlated-action detector (second tier) | [CIRISLensCore](https://github.com/CIRISAI/CIRISLensCore) |
+| **CIRISAgent** | Ethical-AI agent framework (application) | [CIRISAgent](https://github.com/CIRISAI/CIRISAgent) |
+| **CIRISPortal** | Admin web interface | [CIRISPortal](https://github.com/CIRISAI/CIRISPortal) |
+| **RATCHET** | Anti-Sybil evaluator; reads federation audit chains | [RATCHET](https://github.com/CIRISAI/RATCHET) |
 
-Copyright 2025-2026 CIRIS L3C. All rights reserved.
+---
 
 ## Contact
 
-- Technical: registry@ciris.ai
-- Security: security@ciris.ai
-- Licensing: licensing@ciris.ai
+- Technical: `registry@ciris.ai`
+- Security: `security@ciris.ai`
+- Licensing: `licensing@ciris.ai`
+
+Copyright 2025-2026 CIRIS L3C. Source code licensed AGPL-3.0-or-later (see [`LICENSE`](./LICENSE)).
