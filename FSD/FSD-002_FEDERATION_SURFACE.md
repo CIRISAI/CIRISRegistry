@@ -2,7 +2,7 @@
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
-**Status**: v1.3 **LOCKED** (wire format frozen for epistemic-fabric bootstrap; substrate-trio upstream asks at §11.1-§11.3 in flight per CIRISPersist#102 / CIRISVerify#32 / CIRISEdge#18; bootstrap-contributions pattern landed per §10.4).
+**Status**: v1.3 (active; substrate-trio upstream asks at §11.1-§11.3 in flight per CIRISPersist#102 / CIRISVerify#32 / CIRISEdge#18; bootstrap-contributions pattern landed per §10.4; §6.1.5 locality-scaled quorum landed and closes G3 from §13.11).
 **Last updated**: 2026-05-27.
 **Changelog vs v1.2**:
 - §0.2 — added explicit non-goal: privacy of revocation events for Registered participants. Closes the door on misimport of W3C VC / Bitstring Status List threat model.
@@ -17,11 +17,12 @@
 - §3.10 — namespace summary: 74 → 78 prefix families. Zero new structural primitives — 1+4 shape held under encyclical-level stress.
 - §4.9.2 step 5 — 1-of-6 accord-holder OR steward sign-off as defense-in-depth gate against rules-layer Sybil capture. WA quorum is primary substantive review; 1-of-6 sign-off is the secondary check that reduces the attack surface from "produce N Sybils" to "compromise one of six specific hardware-attested keys." Closes G2 from §13.11.
 - §6.1.4 (new) — `lexical-vulnerability-priority` composition tie-breaking reference policy. Defers tie-breaks to the more-affected cohort; inverts the default popularity-weighted aggregation specifically for ties. Consumer policy, NOT a wire-format primitive (deliberately).
+- §6.1.5 (new) — `locality-scaled-quorum` composition policy. Makes WA quorum size a function of decision's `locality:decision:{scale}` (§3.6.5). Closes G3 from §13.11 by ensuring fresh-quorum recusal is always feasible when `cell_pool ≥ quorum_size(scale) × 2`. Decision-scale-matching becomes structurally enforced; overreach surfaces as a named "locality mismatch" rather than vanishing into ad-hoc fallback. Composes two independently-motivated v1.3 primitives (`locality:decision:{scale}` from encyclical-mapping; G3 from SOTA scan) to dissolve a third gap without new structural primitives — second confirmation of the 1+4 minimal-and-adequate composition discipline. NodeCore-side WA-quorum locality-awareness needed; Registry-side composition can apply the scaled function on top of NodeCore's default until then.
 - §10.4 (new) — bootstrap-contributions pattern. Content-neutral §10.4.1 pattern; first deployment (§10.4.3) is the *Magnifica Humanitas* encyclical mapping; multi-source commitment (§10.4.4) to subsequent batches from CARE Principles, Buddhist economic-justice scholarship, secular humanist instruments, African philosophy of personhood work.
 - §10.5 — was §10.4 (What lives where); renumbered.
 - §13.11 — concerns + gaps surfaced by post-v1.2 review. Three independent methodologies converged on: G1 (revocation privacy, RETRACTED as wrong threat model), G2 (rules-layer Sybil, MITIGATED via §4.9.2.5), G3 (narrow-cell fresh-quorum, REMAINING as known limitation), R1-R4 (acknowledged risks), F1-F2 (first-adopter exposures), and the encyclical-mapping T-3 candidates (10 dimension extensions, zero new structural primitives needed — strong validation of 1+4 minimal-and-adequate claim).
 
-**v1.3 lock-down**: wire format is frozen for epistemic-fabric bootstrap. Subsequent additions follow §4.9.2 (rule-layer amendment via Contribution + P10 + P8 + 1-of-6 sign-off). Implementation tracking for the upstream B-step items: CIRISPersist#102, CIRISVerify#32, CIRISEdge#18 + #19 + #20, CIRISNodeCore#8 + #9, CIRISLensCore#23 + #24, RATCHET#2 + #3, CIRISRegistry#19.
+**v1.3 in active assembly**: wire format and composition surfaces being landed for epistemic-fabric bootstrap. The §4.9.2 amendment process applies to all v1.3 additions; subsequent additions after the v1.3 bootstrap batch likewise. Implementation tracking for the upstream B-step items: CIRISPersist#102, CIRISVerify#32, CIRISEdge#18 + #19 + #20, CIRISNodeCore#8 + #9 (+ locality-aware WA quorum issue, to file), CIRISLensCore#23 + #24, RATCHET#2 + #3, CIRISRegistry#19.
 
 **Changelog vs v1.1**:
 - §1.10.1 added — Operational-language discipline (per [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/)). Wire-format prefix names must describe machine-checkable conditions, not subjective qualities. Polarity carries the value claim; the prefix names the structural kind. Anthropological commitments stay in §1.10 prose; they are never enforced in prefix names. New prefix admissions are reviewed against this gate.
@@ -676,7 +677,7 @@ Flows into `truth_grounding:{subject}` for WA promotion (NodeCore §3.6 step 1, 
 Lineage:
 - post-v1.1: 73 families (initial v1.0 namespace stabilization)
 - v1.1 added 1: §3.5.3 `detection:correlated_action:{axis}` (LensCore, F-3 resolution; originally `detection:emergent_deception:{axis}`, renamed v1.2 per §1.10.1)
-- v1.3 added 4: `multilateral_participation:{forum}:{kind}` (Registry §3.9), `credits:*:substrate_building` sub-leaf (NodeCore §3.6.1), `locality:decision:{scale}` (NodeCore §3.6.5), `detection:distributive:access:{resource_type}` (LensCore §3.5.5). Plus 1 envelope field (`witness_relation` per §2.1), 1 axis-vocabulary extension (`ecology_of_communication:*` on `detection:correlated_action:*` per §3.5.3), 1 reference policy (`lexical-vulnerability-priority` per §6.1.4), and 1 structural-primitive reuse pattern (authority-source via `delegates_to` per §2.2.1). Zero new structural primitives — the 1+4 shape held under encyclical-level stress testing (§13.11).
+- v1.3 added 4: `multilateral_participation:{forum}:{kind}` (Registry §3.9), `credits:*:substrate_building` sub-leaf (NodeCore §3.6.1), `locality:decision:{scale}` (NodeCore §3.6.5), `detection:distributive:access:{resource_type}` (LensCore §3.5.5). Plus 1 envelope field (`witness_relation` per §2.1), 1 axis-vocabulary extension (`ecology_of_communication:*` on `detection:correlated_action:*` per §3.5.3), 2 reference policies (`lexical-vulnerability-priority` per §6.1.4; `locality-scaled-quorum` per §6.1.5 — closes G3 by composing `locality:decision:{scale}` with NodeCore P10 + P11), and 1 structural-primitive reuse pattern (authority-source via `delegates_to` per §2.2.1). Zero new structural primitives — the 1+4 shape held under encyclical-level stress testing (§13.11), and the §6.1.5 composition closure of G3 is a second confirmation that composition-discipline-over-existing-primitives is the right way to absorb new requirements.
 
 The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift; the §1.10.1 operational-language gate prevents prefix names from drifting back toward subjective-quality vocabulary; the §4.9.2 step 5 1-of-6 sign-off prevents rules-layer Sybil capture.
 
@@ -1035,6 +1036,46 @@ Why: default composition rules (popularity-weighted, attester-weighted) systemat
 Use cases: distributive-access detection (§3.5.5) where a small but severely-excluded cohort's `negative` attestation should not lose tie-breaks to a larger but mildly-impacted cohort's `neutral` attestation; revocation `reason` conflicts where the more-affected partner-class outcome should win the tie.
 
 **Composition with §1.10.1**: this is a consumer policy, NOT a wire-format primitive. Adding a `priority_ordering:*` prefix would have failed T2 (priority ordering is composition, not measurement). Keeping it as a named §6 reference policy preserves the wire-format minimum AND surfaces the discipline at the right layer.
+
+#### 6.1.5 Locality-scaled quorum (v1.3 addition — closes G3)
+
+NodeCore's default WA-quorum size is fixed (`N=3` per P10 witness diversity). In narrow `(domain, language)` cells, the fresh-quorum-recusal requirement of P11 Reconsideration becomes structurally infeasible when the cell's WA pool is smaller than `N × 2` (G3 from §13.11 as originally framed). This composition policy resolves G3 by making the quorum size a function of the decision's locality scalar (§3.6.5 `locality:decision:{scale}`):
+
+```
+quorum_size(scale) = f(locality:decision:{scale})
+
+reference function (policy-tunable; named here as the default):
+  local      → 2
+  regional   → 3
+  national   → 4
+  federation → 6
+
+minimum cell-pool requirement for fresh-quorum recusal at scale S:
+  min_pool(S) = quorum_size(S) × 2
+```
+
+A decision adjudicated at scale S draws an initial quorum of `quorum_size(S)` WAs from the cell. P11 Reconsideration draws a fresh quorum of the same size from the remaining `cell_pool − initial_quorum` members. As long as `cell_pool ≥ min_pool(S)`, recusal is always feasible.
+
+**Decision-scale-matching becomes structurally enforced**: a narrow-cell decision claiming `locality:decision:federation` but residing in a cell with `cell_pool < min_pool(federation)` is **structurally invalid at that locality** — the cell is claiming consequential reach it cannot substantively review. The remedy is either (a) downgrade the locality claim (this is local-scale, not federation-scale), or (b) escalate to a higher-pool cell that can support federation-scale review. The failure mode is *named* ("locality mismatch") rather than vanishing into ad-hoc adjacent-cell or federation-wide fallback that loses specialty competence.
+
+**Sybil resistance scales with locality, not against it**:
+
+- **Cell entry barrier rises with cell narrowness.** Narrow specialty cells have substantive Expertise (P3) requirements that are much harder to Sybil than federation-wide $1-bond onboarding.
+- **Witness diversity (P10) still applies separately.** N=3 jurisdictional / organizational / software-stack diversity bar remains a separate axis from quorum size; locality-scaled quorum complements it, doesn't replace it.
+- **1-of-6 accord/steward sign-off (§4.9.2 step 5) is orthogonal.** Calibration-package amendments always require 1-of-6 regardless of locality. Locality-scaled quorum only affects per-decision adjudication.
+
+**Composition with §3.6.5**: `locality:decision:{scale}` was added in v1.3 to name *where* a decision is being made; this policy uses that primitive to size the adjudication apparatus appropriately. The two primitives compose to close G3 without any new structural primitive — exactly the 1+4 minimal-and-adequate validation pattern PRIOR_ART_SCAN identified.
+
+**Residual cases**:
+
+- **Brand-new cells** (post-F-AV-BOOT seeding) may have small pools even for local-scale decisions. NodeCore's existing F-AV-BOOT external-anchoring policy (per §7.2 of NodeCore MISSION) seeds WAs from CIRIS L3C; the seeded pool supports local-scale decisions immediately, with federation-scale decisions waiting for organic pool maturity. Principled scaling rather than ad-hoc bootstrap.
+- **Cross-cutting decisions** that affect multiple locality scales decompose into multiple `locality:decision:{scale}` Contributions, each adjudicated at its appropriate scale via this policy. Consumer policy composes the conjunction.
+
+**Health observable**: each cell publishes a per-locality-scale appealability index (`cell_pool_size`, `max_supportable_locality_scale`, `current_decisions_at_each_scale`) as a federation health signal. Consumers downweight verdicts from cells that overclaim their consequential reach.
+
+**NodeCore-side requirement**: NodeCore's P10 + WA-quorum-selection logic needs locality-awareness — when a decision carries an explicit `locality:decision:{scale}` Contribution, use the scaled quorum size rather than the default N=3. Filed as a separate upstream issue for NodeCore implementation. Until NodeCore lands the change, Registry-side composition can apply the scaled function on top of NodeCore's default (consumer-side enforcement first; substrate-side enforcement after).
+
+**Closes G3 from §13.11** (reclassified: REMAINING → MITIGATED via §6.1.5 locality-scaled quorum).
 
 ### 6.2 Aggregation semantics — opinionated defaults
 
@@ -1700,7 +1741,9 @@ Three independent methodologies (PRIOR_ART_SCAN structural comparison, SOTA_SCAN
 
 **G2 — Sybil resistance at the rules-amendment layer (MITIGATED in v1.3).** Initially flagged via SOTA_SCAN Bucket 2 (Birdwatch contributor churn) + Bucket 4 (Aragon whale-capture equilibrium). The concern: NodeCore's $1-bond is per-identity, not per-Contribution; a deep-pockets adversary could spin up many cheap identities and flood the rules-amendment process. Witness diversity (P10) raises the bar but doesn't scale against an attacker with N>>3 jurisdictionally-distinct fronts. Mitigation per §4.9.2 step 5 (new in v1.3): all calibration-package amendments require a 1-of-6 sign-off from `{3 accord-holders, 3 regional stewards}` after the WA-quorum approval. This reduces the attack surface from "produce N Sybils for any N" to "compromise one of six specific hardware-attested keys" — a bounded, named, observable attack surface. Residual risk (1-of-6 key compromise) is comparable to HSM-backed signing for production CA operations and is accepted with documented mitigation (each sign-off is itself an attestation; anomalous patterns are auditable).
 
-**G3 — Fresh-quorum recusal in narrow cells (REMAINING — known limitation).** Per NodeCore §2.16, P11 Reconsideration requires a fresh WA quorum with original adjudicators recused. In narrow `(domain, language)` cells, the WA pool may be smaller than `(original quorum + appeal quorum)`, so fresh recusal becomes structurally impossible. NodeCore proposes two fallbacks: adjacent-cell WAs (loses specialty competence) or federation-wide fallback (loses cell-expertise constraint entirely). Neither closes the gap cleanly. The bite-point is exactly the narrow regulated cells where `licensure:{authority_id}` attestations matter most — single-jurisdiction subspecialty boards, niche legal practices, specialty languages with few experts. FSD-002 inherits this gap from NodeCore rather than closing it; the gap is structural (a math problem about pool size), not procedural. Recommended v1.3+ work: per-cell "appealability index" as a federation health observable so consumers can downweight verdicts from cells with insufficient appeal capacity; explicit policy for cross-cell fallback selection (require non-zero Expertise in at least one shared dimension with the original cell); consider whether some narrow regulated cells should route appeals to an *external* (non-WA) authority (real-world regulatory body) when the federation can't muster a fresh quorum. None of these closes the gap fully; the residual is acknowledged.
+**G3 — Fresh-quorum recusal in narrow cells (MITIGATED in v1.3 via §6.1.5 locality-scaled quorum).** Original framing: P11 Reconsideration requires a fresh WA quorum with original adjudicators recused; in narrow `(domain, language)` cells, the WA pool may be smaller than `(original quorum + appeal quorum)` under a fixed N=3 default, so fresh recusal becomes structurally infeasible. Resolution: the §6.1.5 composition policy makes quorum size a function of the decision's `locality:decision:{scale}` (§3.6.5 v1.3 addition). Recusal is always feasible when `cell_pool ≥ quorum_size(scale) × 2`; the function `f(scale)` scales the apparatus to the consequential reach of the decision. The composition exploits the v1.3 emergent property: `locality:decision:{scale}` was added from the encyclical-mapping test; G3 was identified from SOTA scan (Bucket 2); the two primitives compose to dissolve a third gap without any new structural primitive. Decision-scale-matching becomes structurally enforced (a cell can only adjudicate decisions at the locality scale its pool supports under recusal); the failure mode for overreach is *named* ("locality mismatch") rather than vanishing into ad-hoc fallback. NodeCore-side implementation requires P10 + WA-quorum-selection logic to become locality-aware; Registry-side composition can apply the scaled function on top of NodeCore's default until NodeCore lands the change (consumer-side enforcement first, substrate-side enforcement after).
+
+**Residual G3 cases** (both with principled answers per §6.1.5): brand-new cells (covered by NodeCore F-AV-BOOT external anchoring with decay); cross-cutting decisions affecting multiple locality scales (decompose into multiple `locality:decision:{scale}` Contributions, each adjudicated at its scale via §6.1.5).
 
 **R1-R4 (acknowledged risks, mitigation unvalidated).** Detailed in [`PRIOR_ART_SCAN.md`](PRIOR_ART_SCAN.md) cross-bucket synthesis + [`SOTA_SCAN.md`](SOTA_SCAN.md) cross-bucket synthesis: (R1) governance-subject truth-grounding fidelity per NodeCore P6; (R2) `delegates_to` rename-chain adoption cost without reference impl; (R3) "log existence ≠ log monitoring" drift toward TOFU caching for `evidence_refs[]`; (R4) self-attestation under Ubuntu commitment 2. None are existential; all are named-as-bets in the spec rather than hidden.
 
