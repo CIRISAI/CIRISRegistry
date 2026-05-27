@@ -2,7 +2,7 @@
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
-**Status**: v1.4 (active; files-as-Contributions surface landed per §2.0/§3.6.7/§3.9/§6.1.6 with upstream substrate trio at CIRISEdge#21 + CIRISPersist#103 + CIRISNodeCore#11; testimonial_witness:{kind} added per §3.6.3 closing the affected-party-voice T-3 from v1.4 inputs; namespace count corrected per overlap O3; bootstrap-contributions pattern v1.3 still live per §10.4).
+**Status**: v1.4 (active; files-as-Contributions surface landed per §2.0/§3.6.7/§3.9/§6.1.6 with upstream substrate trio at CIRISEdge#21 + CIRISPersist#103 + CIRISNodeCore#11; testimonial_witness:{kind} + need:{domain}:{kind} added per §3.6.3 — the latter absorbed from v1.5 candidates per CIRISAgent#800 load-bearing flag; goal:planet enum extension added per §3.6.2; §7.7 endpoint shapes for steward + accord-holder discovery; bootstrap-contributions pattern v1.3 still live per §10.4).
 **Last updated**: 2026-05-27.
 **Changelog vs v1.3**:
 - §2.0 (new) — transport-substrate reference. Edge `MessageType::ContentFetch` + `ContentBody` + `ContentMiss` (per CIRISEdge#21) is how SHA-256 `evidence_refs[]` resolve to bytes. NOT a wire-format addition — Attestation envelope shape unchanged; substrate-layer resolution mechanism.
@@ -602,7 +602,7 @@ The federation's largest dimension surface. Four tiers.
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `goal:{scale}` | Multi-scale belonging-projector composite. `{scale}` ∈ {`self`, `family`, `community`, `affiliations`, `species`}. Scored by 𝒞_CIRIS. | NodeCore §2 P12; FSD/GOAL_PRIMITIVE.md. | signed |
+| `goal:{scale}` | Multi-scale belonging-projector composite. `{scale}` ∈ {`self`, `family`, `community`, `affiliations`, `species`, `planet` (v1.4 cross-source-reinforced addition — biosphere as belonging-scale per MH environmental concern + IEEE EAD Ch4 §1.3.a + IEEE EAD Ch8 sustainable-development)}. Scored by 𝒞_CIRIS. | NodeCore §2 P12; FSD/GOAL_PRIMITIVE.md. | signed |
 | `approach:{goal_id}` | Strategic pathway from current state toward Goals (Piece 10 karma). Evaluation derived from linked Progress Measures. | NodeCore §2 P13; FSD/APPROACH_PRIMITIVE.md. | signed |
 | `method:{approach_id}:{substrate_rung}` | Concrete operational practice. Required `substrate_rung` (Ph0/Ph1/Ph2/A0..A5). Truth-grounding = execution verifiability. | NodeCore §2 P14; FSD/METHOD_PRIMITIVE.md. | signed |
 | `progress_measure:{method_id}` | Evidence of progress. Required `tracks[]`, `computation`, `validity_window`, `goodhart_resistance`. | NodeCore §2 P15; FSD/PROGRESS_MEASURE_PRIMITIVE.md. | signed |
@@ -616,6 +616,7 @@ The federation's largest dimension surface. Four tiers.
 | `weighted_aggregate:{contribution_id}` | Rolling tally per Contribution (P7). | NodeCore §2 P7; §5.3. | signed |
 | `witness_diversity:{contribution_id}` | Witness set meets jurisdictional + organizational + software-stack + cell-expertise bars (P10). N=3 default. | NodeCore §2 P10; §4.9 `WitnessSet`. | boolean-via-score |
 | `testimonial_witness:{kind}` | **v1.4 addition.** Preserves singular narrative of an affected party as singular witness — distinct from `witness_diversity:*` (which aggregates multiple reviewers toward consensus). Mechanism: preservation-only; immutable per attestation; not subject to majoritarian override or consensus aggregation. `{kind}` describes the witness type (e.g., `harmed_party`, `whistleblower`, `displaced_worker`, `excluded_cohort_member`). Polarity: typically positive (the narrative IS preserved); negative on `withdraws` or `recants` by the original witness. Never sole evidence for `slashing:*` (per §4.6) — testimonial witness composes with other attestations for adjudication, but the narrative itself is preserved regardless of consensus. Closes T-3 from v1.4 inputs (CH 5 §216 of *Magnifica Humanitas* mapping); affected-party-voice surface gap. | This FSD §3.6.3 (v1.4 addition); NodeCore consensus-tier extension. | signed |
+| `need:{domain}:{kind}` | **v1.4 addition (v1.5-loadbearing absorption per CIRISRegistry#20 + CIRISAgent#800 + CIRISNodeCore#12).** Federation-scope open-call surface — broadcast claim that an entity has a stated need. Distinct from `deferral_request` Contribution kind (which routes a single ask to qualified responders within a cell); `need:{domain}:{kind}` broadcasts an open call subscribers can resolve via the Participate UI surface. `{domain}` per NodeCore's existing cell-domain enumeration. `{kind}` open vocabulary: `witness`, `method_contributor`, `expertise_solicitation`, `mentor`, `co_signer`, `evidence`. Future kinds via §4.9.2 amendment. Polarity: positive = active call (magnitude = urgency); lifecycle via structural primitives (`supersedes` to revise, `withdraws` to satisfy/close, `recants` if misstated). Composes with `method:{approach_id}:{substrate_rung}` when a respondent commits operational work to fulfill the need, and with `vote:*` for receiver commitments. Trust-radius framing (NodeCore CONTRIBUTION_LIFECYCLE §12) applies cleanly. | CIRISAgent#800; CIRISNodeCore#12; this FSD §3.6.3 (v1.4 v1.5-loadbearing absorption). | signed |
 
 #### 3.6.4 Tier-4: Governance-steering prefixes
 
@@ -703,11 +704,11 @@ Lineage:
 - post-v1.1: 73 families (initial v1.0 namespace stabilization).
 - v1.1 added 1: §3.5.3 `detection:correlated_action:{axis}` (LensCore, F-3 resolution; originally `detection:emergent_deception:{axis}`, renamed v1.2 per §1.10.1).
 - v1.3 added 3 (corrected — see overlap O3 in `FSD/LANGUAGE_PRIMER.md` §15.2 / §13.11): `multilateral_participation:{forum}:{kind}` (Registry §3.9), `locality:decision:{scale}` (NodeCore §3.6.5), `detection:distributive:access:{resource_type}` (LensCore §3.5.5). `credits:*:substrate_building` is documented as a recommended `{subject}` VALUE within the existing `credits:{domain}:{language}:{subject}` family — not a new prefix family (v1.3 changelog originally counted it as 4 additions; corrected here to 3). Plus 1 envelope field (`witness_relation` per §2.1), 1 axis-vocabulary extension (`ecology_of_communication:*` on `detection:correlated_action:*` per §3.5.3), 2 reference policies (`lexical-vulnerability-priority` per §6.1.4; `locality-scaled-quorum` per §6.1.5 — closes G3), and 1 structural-primitive reuse pattern (authority-source via `delegates_to` per §2.2.1).
-- v1.4 added 3: `agent_files:{kind}:{platform_or_target}` (joint Registry §3.9 + NodeCore §3.6.7 — closes CIRISRegistry#18 via the upstream substrate trio Edge#21 + Persist#103 + NodeCore#11), `holds_bytes:sha256:{prefix}` (substrate auto-emission per CIRISPersist#103, consumed by Edge `PeerResolver` per CIRISEdge#21), `testimonial_witness:{kind}` (NodeCore §3.6.3 — closes the affected-party-voice T-3 from the v1.4 inputs). Plus 1 transport-substrate reference at §2.0 (Edge `ContentFetch`/`ContentBody`/`ContentMiss` is the byte-resolution mechanism for `evidence_refs[]` SHA-256 pointers; no wire-format change to the Attestation envelope itself), 1 reference policy (`agent_files-trust-composition` per §6.1.6 — three-layer canonical/open/vote-then-trust with the anti-tricking guarantee per CIRISRegistry#18).
+- v1.4 added 4: `agent_files:{kind}:{platform_or_target}` (joint Registry §3.9 + NodeCore §3.6.7 — closes CIRISRegistry#18 via the upstream substrate trio Edge#21 + Persist#103 + NodeCore#11), `holds_bytes:sha256:{prefix}` (substrate auto-emission per CIRISPersist#103, consumed by Edge `PeerResolver` per CIRISEdge#21), `testimonial_witness:{kind}` (NodeCore §3.6.3 — closes the affected-party-voice T-3 from the v1.4 inputs), `need:{domain}:{kind}` (NodeCore §3.6.3 — v1.5-loadbearing absorption per CIRISAgent#800 / CIRISNodeCore#12 — federation-scope open-call surface for the Participate UI). Plus 1 transport-substrate reference at §2.0 (Edge `ContentFetch`/`ContentBody`/`ContentMiss` is the byte-resolution mechanism for `evidence_refs[]` SHA-256 pointers; no wire-format change to the Attestation envelope itself), 1 reference policy (`agent_files-trust-composition` per §6.1.6 — three-layer canonical/open/vote-then-trust with the anti-tricking guarantee per CIRISRegistry#18), 1 enum-value extension (`goal:planet` added to `goal:{scale}` enum per §3.6.2 — cross-source-reinforced HIGH-priority from CIRISRegistry#20, NOT a new prefix family, just a new value within existing prefix).
 
 Counts:
 - pre-v1.4: 77 (= 73 + 1 + 3, post-O3 correction).
-- v1.4 lands: 77 + 3 = **80**.
+- v1.4 lands: 77 + 4 = **81**.
 
 Zero new structural primitives. The 1+4 shape held under v1.3 encyclical-level stress and v1.4 files-as-Contributions namespace extension. PRIOR_ART_SCAN's "composition discipline, not novel atomic primitives" finding earns a third internal confirmation: arbitrary content (binaries, configs, adapters, source files) carries through the federation via `scores` attestations + SHA-256 `evidence_refs[]` resolved through the substrate transport layer, with no addition to the structural-primitive set.
 
@@ -1285,6 +1286,70 @@ Replacement is out-of-band per FEDERATION_ANNOUNCEMENT §4.5.3 (CIRIS L3C CEO un
 **Key material** (Ed25519 + ML-DSA-65 pubkeys for the three holders) lives in **CIRISPersist substrate**: `federation_keys` rows with `identity_type="accord_holder"`, self-signed at provisioning, cross-attested by all three regional stewards. Every federation peer reads the same authoritative rows.
 
 **Role-recognition policy + verifier logic** lives in **`ciris-registry-core`**: the 2-of-3 multi-sig verification, the `EmergencyShutdown CONSTITUTIONAL` admin RPC, the audit hooks. Runs in both the deployed Registry service AND CIRISAgent's in-process runtime (post-fold).
+
+### 7.3.1 `hardware_class` taxonomy (v1.4 addition)
+
+The `hardware_class` field in steward and accord-holder endpoint responses (§7.7 below) carries a stable enumeration so consumers can apply policy-tunable trust weights per key-custody assurance level. Stable v1.4 values:
+
+| Value | Description | Typical use |
+|---|---|---|
+| `HSM_FIPS_140_3_L3` | Hardware Security Module, FIPS 140-3 Level 3. Tamper-evident, role-based access, physical attack resistance. | Production stewards (US / EU / APAC) |
+| `Apple_Secure_Enclave` | Apple Secure Enclave Processor with Touch ID / Face ID gating. Hardware-rooted private key never extractable. | Accord-holders on iOS/macOS |
+| `YubiKey_5_FIPS` | YubiKey 5-series with FIPS 140-2 certification. Tamper-evident; physical-touch confirmation. | Accord-holders preferring portable hardware tokens |
+| `TPM_2_0` | Trusted Platform Module 2.0. Hardware-rooted key storage with platform binding. | Accord-holders on Linux/Windows desktops |
+| `placeholder_pending_provisioning` | Interim value before actual hardware provisioning. Consumers MUST treat as `0.0` trust weight; the endpoint is structurally live but the key material is not yet hardware-bound. | v1.4 deployment interim only; never appears in steady-state |
+| `software_hsm_development` | Software-backed key with no hardware root. **DEVELOPMENT ONLY**; consumer policy MUST reject for any federation-scope verification. | Dev environments, CI testing |
+
+Consumers SHOULD weight by hardware_class via a per-class trust-multiplier table (recommended defaults: HSM_FIPS_140_3_L3 = 1.0; Apple_Secure_Enclave = 0.95; YubiKey_5_FIPS = 0.95; TPM_2_0 = 0.9; placeholder_pending_provisioning = 0.0; software_hsm_development = 0.0). New values land via the §4.9.2 amendment process (P5 Contribution + P10 + P8 + 1-of-6 sign-off).
+
+### 7.7 Endpoint shapes for multi-steward + accord-holder discovery (v1.4 addition)
+
+CIRISVerify v3.1.0+ consumes these endpoints via `ciris_verify_core::ThresholdMember` + `verify_threshold_signatures(threshold)` — see CIRISRegistry#21 for the upstream consumer-side wiring.
+
+**`GET /v1/steward-key`** (existing endpoint; v1.4 shape change):
+
+```json
+{
+  "stewards": [
+    {"region": "us",   "key_id": "registry-steward-us",   "classical_pubkey": "<base64 Ed25519>", "pqc_pubkey": "<base64 ML-DSA-65>", "fingerprint": "sha256:...", "hardware_class": "HSM_FIPS_140_3_L3", "deployed": true},
+    {"region": "eu",   "key_id": "registry-steward-eu",   "classical_pubkey": "<base64 Ed25519>", "pqc_pubkey": "<base64 ML-DSA-65>", "fingerprint": "sha256:...", "hardware_class": "HSM_FIPS_140_3_L3", "deployed": true},
+    {"region": "apac", "key_id": "registry-steward-apac", "classical_pubkey": null,                "pqc_pubkey": null,                "fingerprint": null,         "hardware_class": "placeholder_pending_provisioning", "deployed": false}
+  ],
+  "verification_policy": {"threshold": 2, "of_total": 3, "scheme": "M-of-N hybrid Ed25519 + ML-DSA-65"},
+  "rotation_history_uri": "/v1/rotation-history",
+  "signature_mode": "HYBRID_REQUIRED",
+  "revision": <revocation-list revision>,
+  "timestamp": <unix>
+}
+```
+
+Stewards that aren't deployed yet (APAC during the rollout window) carry `deployed: false` + `hardware_class: placeholder_pending_provisioning`. Verify-side `ThresholdMember` construction filters by `deployed=true` until APAC ships.
+
+**`GET /v1/accord-holders`** (new endpoint):
+
+```json
+{
+  "holders": [
+    {"identity_ref": "eric-moore",    "classical_pubkey": "<base64 Ed25519>", "pqc_pubkey": "<base64 ML-DSA-65>", "fingerprint": "sha256:...", "hardware_class": "placeholder_pending_provisioning", "provisioned": false},
+    {"identity_ref": "eric-kudzin",   "classical_pubkey": "<base64 Ed25519>", "pqc_pubkey": "<base64 ML-DSA-65>", "fingerprint": "sha256:...", "hardware_class": "placeholder_pending_provisioning", "provisioned": false},
+    {"identity_ref": "haley-bradley", "classical_pubkey": "<base64 Ed25519>", "pqc_pubkey": "<base64 ML-DSA-65>", "fingerprint": "sha256:...", "hardware_class": "placeholder_pending_provisioning", "provisioned": false}
+  ],
+  "verification_policy": {"threshold": 2, "of_total": 3, "non_revocable": true, "scheme": "M-of-N hybrid Ed25519 + ML-DSA-65"},
+  "constitutional_anchor": true,
+  "rotation_history_uri": "/v1/rotation-history",
+  "timestamp": <unix>
+}
+```
+
+In the v1.4 interim, accord-holder pubkeys are placeholders (deterministically-generated dev keys, NOT operational signing material). The `provisioned: false` flag + `hardware_class: placeholder_pending_provisioning` together signal to consumers that **constitutional invocations MUST NOT be honored** until provisioning completes. The endpoint shape is structurally live so the consumer wiring works end-to-end; substantive trust gates remain off until real hardware-attested keys land.
+
+**`GET /v1/accord/holders`** (UI wrapper, per CIRISRegistry#23 Surface 1):
+
+UI-shaped wrapper around `/v1/accord-holders` that adds per-holder `accord_emissions[]` — the list of `accord:*` attestations the holder has signed (joined from `federation_attestations` or interim table). During v1.4 interim before substrate-conformance migration, `accord_emissions: []` for all holders.
+
+**`GET /v1/rotation-history`** (audit endpoint, both above link to this):
+
+Returns chronological rotation events for both stewards and accord-holders. v1.4 interim: returns `{"events": [], "note": "rotation_history seeded at substrate-conformance migration; pre-migration history available via /v1/audit-log queries on registry_signing_keys table"}`.
 
 ### 7.4 The accord dimension family
 
