@@ -1,6 +1,6 @@
 # LANGUAGE_PRIMER — Federation Wire Format as a Translation Grammar
 
-**Version**: 1.0 (Registry-side canonical; v1.3-aligned).
+**Version**: 1.1 (Registry-side canonical; v1.4-aligned).
 **Companion documents**: [`FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md) v1.3 (the wire format itself); [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) (the 15 consensus primitives that sit above the substrate-consuming tier).
 **Purpose**: a working reference for **converting substantive ethical-framework content into structured Contribution wire envelopes** that the federation can carry. Symbolic-logic-style translation; not paraphrase. Where the wire format carries the claim cleanly, the conversion is rich. Where it strains, the gap is precise.
 **Audience**: sub-agents (or humans) performing bootstrap-contributions mapping per FSD-002 §10.4; reviewers verifying translation quality; future contributors proposing new content-source bootstrap batches.
@@ -61,7 +61,8 @@ Every claim in the federation sits in one of five families. This is the navigati
 - **CIRISEdge** (§3.4): substrate self-reports `transport:*`, `delivery:*`, `peer_reachability:*`, `key_boundary:*` (reserved — only Edge emits).
 - **CIRISLensCore** (§3.5): `manifold_conformity:{cohort}`, `coherence_standing:{cohort}`, `capacity:*` factors of `𝒞_CIRIS`.
 - **CIRISNodeCore Tier-1** (§3.6.1): `credits:{domain}:{language}:{subject}` (including `substrate_building` as a recommended subject), `expertise:{domain}:{language}`, `activity_tier:{period}`.
-- **CIRISRegistry** (§3.9): `licensure:{authority_id}`, `partner_role:{role}`, `bond_posted:{currency}`, `build:registered:{target}`, `multilateral_participation:{forum}:{kind}` (v1.3), and reserved `accord:*` (only `identity_type=accord_holder` may emit — the one constitutional asymmetry per §7).
+- **CIRISRegistry** (§3.9): `licensure:{authority_id}`, `partner_role:{role}`, `bond_posted:{currency}`, `build:registered:{target}`, `multilateral_participation:{forum}:{kind}` (v1.3), `agent_files:{kind}:{platform_or_target}` (v1.4 — joint with NodeCore §3.6.7), and reserved `accord:*` (only `identity_type=accord_holder` may emit — the one constitutional asymmetry per §7).
+- **CIRISNodeCore §3.6.7** (v1.4 joint claim with Registry §3.9): `agent_files:*` (node-mode peers serve bytes via Edge `MessageType::ContentFetch` per §2.0 transport substrate) + `holds_bytes:sha256:{prefix}` (substrate auto-emission per CIRISPersist#103; consumed by Edge `PeerResolver::resolve_holders` per CIRISEdge#21).
 
 ### Family B — ACTION (the decision hierarchy)
 
@@ -111,6 +112,7 @@ Every claim in the federation sits in one of five families. This is the navigati
 - `truth_grounding:{subject}` — per-subject ground-truth signal.
 - `weighted_aggregate:{contribution_id}` — rolling tally per Contribution.
 - `witness_diversity:{contribution_id}` — meta-attestation that N=3 diversity bar is met (jurisdictional + organizational + software-stack + cell-expertise).
+- `testimonial_witness:{kind}` (v1.4) — preserves singular narrative of an affected party. **Distinct from `witness_diversity:*`**: that primitive aggregates multiple reviewers toward consensus; this one preserves a singular narrative without aggregation, never subject to majoritarian override, never sole evidence for `slashing:*`. Use when the structural object is *this person's irreducible testimony*, not "the federation's consensus about a fact." Closes affected-party-voice T-3 from v1.4 inputs.
 
 ### Family E — CORRECTION (how the federation corrects itself)
 
@@ -560,24 +562,123 @@ reason: |
   The structural claim implicit in the rhetoric (if any) IS carried by other attestations in adjacent paragraphs (cite which). The rhetorical surface itself correctly stays in prose per FSD-002 §1.10.1 — naming pastoral content in wire format would violate the operational-language gate.
 ```
 
-### 11.11 — NOT-TRANSLATED, T-3
+### 11.11 — testimonial_witness (v1.4 — closes the previous T-3)
+
+What was 11.11 in v1.0 of this primer as a T-3 proposal is now a clean translation in v1.4:
 
 ```yaml
-# Paragraph: "[Operational claim about preserving singular victim narratives, not aggregating into consensus]"
-contributions: []
-verdict: not-translated
-classification: T-3 (EXPRESSIVE_GAP)
-reason: |
-  The existing witness_diversity:* primitive is designed for consensus formation (multiple independent reviewers reaching agreement). Preserving the singular narrative of an affected party as singular witness, not subject to majoritarian override or aggregation, is a different shape. No existing primitive carries it.
-proposed_extension:
-  name: "testimonial_witness:{kind}"
-  description: "Contribution recording an affected party's narrative; preserved as singular witness; not subject to majoritarian override."
-  gate_verification:
-    T1: yes
-    T2: yes (mechanism: preservation, not validation/grading)
-    T3: yes (versionable)
-    T4: yes (never sole evidence for slashing:*)
-  priority: MEDIUM
+# Paragraph: "Touch the wounded flesh, look at faces, listen to stories — give space to victims' voices."
+contributions:
+  - kind: Attestation
+    attestation_type: "scores"
+    attesting_key_id: "<affected-party key_id>"
+    attested_key_id:  "<same key_id; self-witness>"
+    attestation_envelope:
+      dimension: "testimonial_witness:displaced_worker"
+      score: 1.0
+      confidence: 1.0
+      context: "<the narrative content, preserved verbatim; never aggregated or grade-scored>"
+      witness_relation: self
+      epistemic_mode: direct
+      evidence_refs:
+        - "<source-paragraph cite>"
+        - "<deployment context reference>"
+      cohort_scope: self
+      schema_ref: "FSD-002 §3.6.3 (v1.4 addition)"
+verdict: clean
+note: |
+  The narrative is preserved as singular witness — distinct from witness_diversity (which would aggregate multiple reviewers toward consensus). Per §3 above, this is one of the four v1.4 closure paths from the T-3 residuals.
+```
+
+### 11.12 — agent_files canonical installer (v1.4)
+
+```yaml
+# Paragraph: "The official installer for this platform is X"
+contributions:
+  - kind: Attestation
+    attestation_type: "scores"
+    attesting_key_id: "registry-steward-us"   # one of the 6 canonical attesters
+    attested_key_id:  "ciris-agent:canonical"
+    attestation_envelope:
+      dimension: "agent_files:installer:linux-x86_64"
+      score: 1.0
+      confidence: 1.0
+      context: "{\"version\":\"3.0.0\",\"size_bytes\":47185920}"
+      evidence_refs:
+        - "sha256:e4a2d9c7b6f1..."             # the actual installer bytes (resolved via §2.0 transport)
+        - "provenance:build_manifest:ciris-agent-3.0.0-linux-x86_64:sha256:7d2b..."
+        - "provenance:slsa:3:ciris-agent"
+      witness_relation: external
+      epistemic_mode: direct
+      cohort_scope: species
+      mutability: amendable
+      schema_ref: "FSD-002 §3.9 + §3.6.7 (v1.4 joint claim)"
+verdict: clean
+note: |
+  Canonical attester per §6.1.6 Layer 1: registry-steward-triple sign-off = CIRIS default trust. The /install endpoint resolves this attestation as the default download. Third-party agent_files Contributions on the same prefix go through §6.1.6 Layer 2 (open Contribution) and Layer 3 (vote-then-trust); they never become the install-endpoint default per the anti-tricking guarantee.
+```
+
+### 11.13 — holds_bytes substrate auto-emission (v1.4)
+
+```yaml
+# When a peer caches a file's bytes, Persist auto-emits this so PeerResolver can route future ContentFetch
+contributions:
+  - kind: Attestation
+    attestation_type: "scores"
+    attesting_key_id: "<this peer's federation key>"
+    attested_key_id:  "<same key; self-attestation about own holdings>"
+    attestation_envelope:
+      dimension: "holds_bytes:sha256:e4a2d9"
+      score: 1.0
+      confidence: 1.0
+      context: "{\"full_sha\":\"sha256:e4a2d9c7b6f1...\",\"size_bytes\":47185920,\"cached_at\":\"2026-05-27T18:00:00Z\"}"
+      evidence_refs: ["sha256:e4a2d9c7b6f1..."]
+      witness_relation: self
+      epistemic_mode: direct
+      stake: free
+      schema_ref: "FSD-002 §3.6.7 (v1.4 substrate auto-emission per CIRISPersist#103)"
+verdict: clean
+note: |
+  Translators typically don't emit this directly — it's auto-emitted by Persist's federation_blobs.put_blob on cache. Documented here so translators recognize the wire shape when they encounter it in a peer's directory.
+```
+
+### 11.14 — labor:individual_loss (v1.4 closed-by-documentation)
+
+The previous T-3 candidate for per-individual labor displacement closes WITHOUT a new prefix by using the existing `non_maleficence:*` composition pattern with `target_key_id = affected_individual`:
+
+```yaml
+# Paragraph: "AI-driven labor displacement is grave; this affects specific persons."
+contributions:
+  - kind: Attestation
+    attestation_type: "scores"
+    attesting_key_id: "<external advocate or affected-party key_id>"
+    attested_key_id:  "<specific affected individual's key_id>"
+    attestation_envelope:
+      dimension: "non_maleficence:labor_displacement_unacknowledged"
+      score: -0.85   # severity scalar
+      confidence: 0.8
+      context: "{\"duration_weeks\":52,\"prior_role\":\"radiology_tech\",\"deployment\":\"<system that displaced>\"}"
+      witness_relation: external
+      epistemic_mode: hearsay
+      evidence_refs:
+        - "<source-paragraph cite>"
+        - "<labor-records reference>"
+      cohort_scope: self           # per-individual scope
+      schema_ref: "FSD-002 §3.1 Accord-principles"
+  - kind: Attestation
+    attestation_type: "scores"
+    attesting_key_id: "<same advocate>"
+    attested_key_id:  "<affected individual>"
+    attestation_envelope:
+      dimension: "testimonial_witness:displaced_worker"
+      score: 1.0
+      witness_relation: external   # advocate preserving the worker's narrative
+      epistemic_mode: hearsay
+      evidence_refs: ["<narrative-content reference>"]
+      cohort_scope: self
+verdict: composed
+note: |
+  Per v1.4 T-3 closure #2: no new labor:individual_loss prefix needed. Composition of (a) non_maleficence:* with per-individual target_key_id + cohort_scope: self + (b) testimonial_witness:displaced_worker for the singular narrative carries the per-individual sustained-existential-condition claim. The composition is what previous v1.3 mapping rounds flagged as a gap; v1.4 makes the pattern explicit in this primer.
 ```
 
 ---
@@ -637,16 +738,15 @@ Multiple Contributions per paragraph are fine when the paragraph genuinely names
 
 ---
 
-## §14 — v1.3 namespace summary (corrected counts)
+## §14 — v1.4 namespace summary
 
-Per FSD-002 v1.3 §3.10:
+Per FSD-002 v1.4 §3.10:
 
-- **77 prefix families** total across 8 owning components (one disputed count — see §15 below regarding `credits:*:substrate_building` sub-leaf classification).
-- v1.3 added: `multilateral_participation:{forum}:{kind}` (Registry §3.9); `locality:decision:{scale}` (NodeCore §3.6.5); `detection:distributive:access:{resource_type}` (LensCore §3.5.5). Plus `credits:*:substrate_building` as a recommended `{subject}` value in the existing credits family.
-- v1.3 envelope/field additions: `witness_relation` field (§2.1); `ecology_of_communication:{aspect}` axis extension on `detection:correlated_action:{axis}` (§3.5.3).
-- v1.3 reference policies (consumer-side, NOT wire primitives): §6.1.4 lexical-vulnerability-priority; §6.1.5 locality-scaled-quorum (closes G3).
-- v1.3 structural-primitive reuse pattern: `delegates_to` for authority-source claims (§2.2.1).
-- **0 new structural primitives.** The 1+4 shape held under encyclical-level stress.
+- **80 prefix families** total across 8 owning components (corrected count: 77 v1.3 base after O3 correction + 3 v1.4 additions = 80).
+- v1.4 added 3: `agent_files:{kind}:{platform_or_target}` (joint Registry §3.9 + NodeCore §3.6.7), `holds_bytes:sha256:{prefix}` (substrate auto-emission per Persist), `testimonial_witness:{kind}` (NodeCore §3.6.3).
+- v1.4 reference + transport additions: §2.0 transport-substrate reference (Edge `ContentFetch`/`ContentBody`/`ContentMiss` — NOT a wire-format addition, substrate-layer byte resolution for SHA-256 `evidence_refs[]`); §6.1.6 `agent_files-trust-composition` three-layer policy (Canonical / Open Contribution / Vote-then-trust with anti-tricking guarantee).
+- v1.3 carried forward: `multilateral_participation:{forum}:{kind}` (Registry §3.9); `locality:decision:{scale}` (NodeCore §3.6.5); `detection:distributive:access:{resource_type}` (LensCore §3.5.5); `witness_relation` envelope field (§2.1); `ecology_of_communication:{aspect}` axis extension (§3.5.3); §6.1.4 lexical-vulnerability-priority + §6.1.5 locality-scaled-quorum (closed G3); `delegates_to` reuse pattern for authority-source claims (§2.2.1); `credits:*:substrate_building` as `{subject}` value (NOT a new prefix per overlap O3).
+- **0 new structural primitives in v1.3 OR v1.4.** The 1+4 shape held under encyclical-level stress AND under files-as-Contributions extension. Third confirmation of composition-discipline (PRIOR_ART_SCAN; §6.1.5 G3 closure; v1.4 files surface) that the framework absorbs new content via composition, not via new atomic primitives.
 
 ---
 
@@ -659,6 +759,11 @@ The post-v1.2 review (PRIOR_ART_SCAN + SOTA_SCAN + encyclical-mapping test) and 
 - **G1** (revocation privacy): RETRACTED. Per FSD-002 §0.2, privacy of revocation events is not a goal for Registered participants — the Registered path's thesis is public verifiability.
 - **G2** (rules-layer Sybil): MITIGATED via §4.9.2 step 5 (1-of-6 accord/steward sign-off).
 - **G3** (narrow-cell fresh-quorum): MITIGATED via §6.1.5 (locality-scaled quorum composing `locality:decision:{scale}` with NodeCore P10/P11).
+- **v1.4 T-3 closures** (per FSD-002 §13.11):
+  - #1 `testimonial_witness:{kind}` — CLOSED via §3.6.3 new prefix (preservation-only; never aggregated; never sole evidence for `slashing:*`).
+  - #2 `labor:individual_loss:{kind}` — CLOSED by documentation. Existing `non_maleficence:*` with `target_key_id = affected_individual` + `witness_relation: external` (from external advocate) carries the per-individual claim. No new prefix.
+  - #5 Constitutional-constraint grounding — CLOSED in §1.10 prose. Wire format stays tradition-multiplicity-neutral per §1.10.1.
+  - #3 (positive dignity non-substitutability), #4 (finitude-as-value), #6 (sustained_practice) — DEFERRED to v1.5+ design workshop with explicit T2-care reasoning per FSD-002 §13.11 table.
 
 ### §15.2 — Identified overlaps surfaced by this primer's drafting
 
@@ -666,7 +771,7 @@ The post-v1.2 review (PRIOR_ART_SCAN + SOTA_SCAN + encyclical-mapping test) and 
 
 **O2** — `detection:distributive:access:{resource_type}` could fold into `detection:correlated_action:resource_access:{resource_type}` as a new axis path. Same detector machinery (`ρ`/`k_eff` over signed traces), different trace source (resource events vs action events). Decision direction: kept separate in v1.3 because the OBJECT class genuinely differs and the prefix carries pedagogical weight for the Universal-Destination-of-Goods reading. Future v1.4 may revisit if axis-vs-prefix discipline tightens.
 
-**O3** — `credits:*:substrate_building` is documented in FSD-002 §3.6.1 as a sub-leaf (counted as a new prefix in v1.3 changelog) but is structurally a `{subject}` value within the existing `credits:{domain}:{language}:{subject}` family. The honest namespace count is 77 prefix families + 1 documented `{subject}` value, not 78 prefix families. Recommend correcting FSD-002 §3.10's count in a v1.3.1 patch.
+**O3** — **CLOSED in v1.4.** `credits:*:substrate_building` was documented in FSD-002 §3.6.1 as a sub-leaf (counted as a new prefix in v1.3 changelog) but is structurally a `{subject}` value within the existing `credits:{domain}:{language}:{subject}` family. v1.4 §3.10 corrects the count: 77 v1.3 base (post-correction) + 3 v1.4 new = 80 prefix families. `substrate_building` recounted as a documented `{subject}` value, not a new prefix family.
 
 **O4** — `§6.1` reference policies (A/B/C base + D/E modifiers) compose differently. A/B/C are base aggregation policies; D (lexical-vulnerability-priority) is a tie-breaking modifier; E (locality-scaled-quorum) is a quorum-sizing modifier. Recommend restructuring §6.1 as "base policies" + "modifier policies" subsections for clarity. Cosmetic.
 
