@@ -2,14 +2,22 @@
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
-**Status**: v1.1 (post-encyclical relational-anthropology pass; F-3 structural-injustice prefix added; Cartesian-smuggle audit complete).
-**Last updated**: 2026-05-26.
+**Status**: v1.2 (safety-vs-censorship gate pass; F-3 prefix renamed `emergent_deception` → `correlated_action` for operational-language compliance).
+**Last updated**: 2026-05-27.
+**Changelog vs v1.1**:
+- §1.10.1 added — Operational-language discipline (per [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/)). Wire-format prefix names must describe machine-checkable conditions, not subjective qualities. Polarity carries the value claim; the prefix names the structural kind. Anthropological commitments stay in §1.10 prose; they are never enforced in prefix names. New prefix admissions are reviewed against this gate.
+- §3.5.3 — `detection:emergent_deception:{axis}` renamed to `detection:correlated_action:{axis}`. Same detector, same mechanism (`ρ → 1`, `k_eff → 1` correlation collapse measurement); the prefix now describes the structural kind (correlated-action pattern) rather than baking the moral interpretation (deception) into the wire format. Polarity + axis carry the value claim. Ubuntu reading from §1.10 commitment 4 preserved in prose but no longer wire-enforced.
+- §4.9 — enforcement rule renamed accordingly; added §4.9.1 axis-vocabulary discipline (each `{axis}` value MUST carry an operational definition in the calibration package); added §4.9.2 calibration-amendment discipline (rule-layer changes via federation Contribution + WA quorum, not single-author closed-loop updates).
+- §5.11 — envelope example updated; axis renamed.
+- §3.10 — namespace count unchanged (74 families; rename not addition).
+- §13.10 — F-3 ownership note updated to reflect the rename; rationale documented.
+
 **Changelog vs v1.0**:
 - §1.10 added — explicit relational-anthropology commitment (Ubuntu primary). The eight axes sit on this commitment; future contributors should not reintroduce Cartesian-individualist defaults at attestation primitive level.
 - §1.1 strengthened — negative-polarity attestations are constitutive in the relational sense (the moment a harm pattern enters morally-real existence in the federation), not just epistemically completionist.
 - §2.3 augmented — added the relational-realism reason for the scalar-only wire format.
-- §3.5.3 added — `detection:emergent_deception:{axis}` LensCore-owned, RATCHET-calibrated. This is the F-3 (encyclical "structures of sin", framework-native: structural injustice) operational handle.
-- §4.9 added — reserved-prefix enforcement pattern for `detection:emergent_deception:*` (LensCore-emitted, calibration-source-validated).
+- §3.5.3 added — population-scale correlated-action detector, LensCore-owned, RATCHET-calibrated. The F-3 (encyclical "structures of sin", framework-native: structural injustice) operational handle. (Originally `detection:emergent_deception:{axis}`; renamed in v1.2.)
+- §4.9 added — reserved-prefix enforcement pattern for the F-3 detector prefix (LensCore-emitted, calibration-source-validated).
 - §5.11 added — envelope schema example for the new dimension.
 - §13.10 added — F-3 resolution noted (LensCore owns; corresponding correction filed at [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2)).
 
@@ -202,13 +210,41 @@ What falls out for the federation attestation surface:
 
 3. **Detection brings patterns into morally-real existence.** A correlated-action pattern — many actors with `ρ → 1` whose aggregate footprint conflicts with the rights of non-participants — does not pre-exist its detection waiting to be observed. The detection-and-attestation is what crosses the pattern from "statistical regularity" to "morally-real object the federation now bears." This is the load-bearing point for F-3 (§3.5.3) being a LensCore detector that emits scalar attestations: the detector is the federation's eye, and the eye participates in what is seen.
 
-4. **Harm and deception collapse at the structural level.** Under Cartesian individualism, harm (setback to interests) and deception (causing false belief) are categorically distinct because persons are atomic and beliefs are private. Under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, damage-to-perception IS damage-to-personhood IS harm. Goal-aligned individually-compliant pursuit *always* has a perception-asymmetry baked in — the pursuing group has a seat at the table when the goal is articulated; the affected non-participants find out by being affected. This is why the single prefix `detection:emergent_deception:{axis}` is sufficient for the F-3 surface; under a Cartesian frame the FSD would need two separate prefixes (`structural_harm:*` and `structural_deception:*`) and would still fail to name the underlying object correctly.
+4. **Harm and deception collapse at the structural level.** Under Cartesian individualism, harm (setback to interests) and deception (causing false belief) are categorically distinct because persons are atomic and beliefs are private. Under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, damage-to-perception IS damage-to-personhood IS harm. Goal-aligned individually-compliant pursuit *always* has a perception-asymmetry baked in — the pursuing group has a seat at the table when the goal is articulated; the affected non-participants find out by being affected. The single prefix `detection:correlated_action:{axis}` (§3.5.3) handles both what a Cartesian frame would split into `structural_harm:*` and `structural_deception:*`. The wire format names the *mechanism* (correlated action with measurable correlation collapse `ρ → 1`, `k_eff → 1`); the polarity and axis carry the value claim; this prose names the framework's reading of why the underlying moral object is unitary. The prefix admits both Cartesian and Ubuntu readings; the framework holds the Ubuntu reading. (Earlier versions of this FSD named the prefix `emergent_deception`, which baked the moral interpretation into the wire format — a violation of §1.10.1 operational-language discipline; renamed in v1.2.)
 
 5. **The Recursive Golden Rule is structural, not exhortatory.** No principal — including the steward triple and CIRIS L3C itself — is exempt from constraints they impose on others (`../MISSION.md` §1.5). This is not a moral aspiration; it is the wire-format symmetry of §6.4 (Sovereign-Registered equivalence) plus the §4 reserved-prefix patterns that bind even canonical bootstraps. Adding any privileged shortcut for a federation-internal principal would violate the Ubuntu substrate at primitive level.
 
 **Why this is named here and not bracketed.** Engineering specs tend to bracket anthropology as "out of scope" — the spec is "just the wire format." But the wire format encodes anthropological commitments whether they are named or not. Bracketing them out means defaulting to whichever commitments the contributors assumed by training. The Cartesian-individualist default is pervasive in cryptographic identity work (PGP web of trust, X.509 PKI, even most decentralized-identity schemes treat the key as representing a pre-existing atomic principal). FSD-002 is not Cartesian. Naming the substrate explicitly is the discipline that prevents the open vocabulary, the reserved-prefix patterns, and the consumer-policy norms from drifting back toward the Cartesian default through unexamined intermediate choices.
 
 **Cross-tradition reading.** Per `CIRISAgent/ContemplativeTraditions/Logos.lean` preamble — the same structural object is approached from multiple traditions: Ubuntu (relational-primary, the lake's primary commitment), Logos (rational-order-of-reality, the framework author's native register), Tao / Dharma / Aristotelian virtue (cross-tradition readings offered with awe at the convergence). The wire format does not encode any one tradition's vocabulary; it encodes the *structural object* the traditions converge on. Future FSD revisions extending the namespace should be locatable in this substrate, not in a Cartesian fallback.
+
+### 1.10.1 Operational-language discipline (the safety-vs-censorship gate)
+
+The §1.10 anthropological commitment names the framework's reading; it does **not** authorize encoding that reading into wire-format prefix names. The two layers — what the framework holds (this section's prose) and what the wire format admits (the §3 namespace) — must stay separate.
+
+**The discipline** (per [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/)):
+
+> *"Rules are crowdsourced. Verdicts are machined."*
+> *"The same machinery that catches real failures can become the machinery that enforces preferences."*
+> *"None of this is automatic."*
+
+Translated to FSD-002 wire format: prefix names must describe **machine-checkable conditions, not subjective qualities**. The drift the page warns about — rules sliding "from 'uses the wrong word for therapy' toward 'feels disrespectful'" — has a wire-format analog: prefix names sliding from mechanism-descriptive (`detection:correlated_action:*`) toward judgment-descriptive (`detection:emergent_deception:*`). Both forms admit the same downstream verdicts; only one admits them honestly.
+
+**Test for prefix admission**:
+
+1. **T1 — Rules / verdicts separation.** Is the prefix part of a rule set (specification of what counts), distinct from the verdicts (the per-attestation scores) it enables? Specifically: is there a published, hash-pinned, version-controlled calibration or schema package that defines the conditions under which the prefix may be emitted? Yes → passes T1. No → the prefix is collapsing rules into verdicts; reject.
+2. **T2 — Operational-language gate.** Does the prefix name describe a mechanism (correlation, count, time-window, signature-presence, schema-conformance) rather than a moral or normative quality (deception, harm, virtue, integrity)? Yes → passes T2. No → the prefix encodes judgment that the polarity + axis + downstream adjudication should carry; rename to the mechanism-descriptive form.
+3. **T3 — Version-pinning.** Does the schema or calibration the prefix relies on require version-pinning in `evidence_refs[]` so any past verdict can be re-checked against the rule version it ran against? Yes → passes T3.
+4. **T4 — Adjudication separation.** Is the prefix wired such that its attestations cannot directly cause standing-change consequences (the §4.6 RATCHET-flag rule pattern: never sole evidence for `slashing:*`)? Yes → passes T4.
+
+A prefix MUST pass all four tests at admission. Existing prefixes failing T2 (the most slip-prone gate) get renamed; v1.2's `emergent_deception` → `correlated_action` rename is the canonical case.
+
+**Why this is named here and not bracketed.** A future contributor reading FSD-002 from a Cartesian default that thinks "well-named pejoratives are clearer" will, without an explicit gate, propose new prefixes like `detection:bad_actor_pattern:*`, `flag:malicious_coordination:*`, `score:trustworthiness:*` — each of which collapses the rules/verdicts separation by baking the verdict into the rule name. The gate exists so that the framework's anthropological commitment (§1.10) cannot leak into the wire format and bind future contributors to a specific moral reading by infrastructure choice. The framework holds Ubuntu; the wire format admits multiple readings; the discipline keeps them separate.
+
+**Anti-pattern catalogue** (do not re-introduce):
+- `detection:emergent_deception:{axis}` (v1.1 → renamed v1.2): "deception" is a subjective quality; renamed to `correlated_action` for mechanism description.
+- Hypothetical `score:trustworthiness:{entity}`: would collapse the workhorse `scores` primitive into a meta-judgment; trustworthiness is what downstream consumers compose from multiple `licensure:*` / `capacity:*` / `provenance:*` attestations, not a separately emittable prefix.
+- Hypothetical `flag:bad_actor:{axis}`: pejorative wire vocabulary; bad-actor patterns are surfaced as low-confidence scores on `provenance:*` and `coherence_standing:*`, adjudicated via NodeCore P8 quorum.
 
 ---
 
@@ -470,19 +506,23 @@ LensCore is the federation's explicit scoring sibling — its primitives map mos
 | `manifold_conformity:{cohort}` | Per-cohort score against cohort centroid. Sum type: `Numeric(f64) \| Indeterminate{reason} \| Unavailable{reason}`. | signed, **Indeterminate-allowed** |
 | `coherence_standing:{cohort}` | Long-run trajectory of conformity (per-agent N_eff trajectory). | signed |
 
-#### 3.5.3 Structural-injustice / emergent-deception detector
+#### 3.5.3 Population-scale correlated-action detector (F-3 structural-injustice handle)
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `detection:emergent_deception:{axis}` | Population-scale correlated-action detector. Reads federation-emitted signed traces; reports when correlation structure (`ρ → 1`, `k_eff → 1`) indicates emergent deception — goal-aligned individually-compliant pursuit by a group whose aggregate trajectory conflicts with the rights of individuals or groups outside the pursuit. Calibrated via the `CIRISAI/RATCHET` heuristic package (updated occasionally as the threat surface evolves). `{axis}` enumerates the rights-conflict facets: `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `informational_asymmetry:{scope}`, `aggregate_footprint:{harm_class}`, etc. | LensCore §2 (the 5 detectors generalize to population-scale pattern detection); RATCHET FSD §calibration; Encyclical *Magnifica Humanitas* §36 + §§77–81 (the load-bearing claim — "structures of sin" / institutional injustice as a distinct moral category) re-mapped into framework-native vocabulary per [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
+| `detection:correlated_action:{axis}` | Population-scale correlated-action detector. Reads federation-emitted signed traces; reports correlation structure (`ρ`, `k_eff`) over goal-aligned individually-compliant pursuit by groups whose aggregate trajectory has effects on individuals or groups outside the pursuit. Calibrated via the `CIRISAI/RATCHET` heuristic package (versioned, hash-pinned; updated through the §4.9.2 amendment process). `{axis}` enumerates facets requiring an operational definition in the calibration package (per §4.9.1): `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `informational_asymmetry:{scope}`, `aggregate_footprint:{harm_class}`, and inclusive counterparts. **Polarity carries the verdict**: positive scores indicate the structural pattern is present and strong on the named axis; negative scores indicate weak / uncertain detection or evidence of the inverse pattern (e.g., inclusive coordination); zero indicates no signal. | LensCore §2 (the 5 detectors generalize to population-scale pattern detection); RATCHET FSD §calibration; Encyclical *Magnifica Humanitas* §36 + §§77–81 (the load-bearing claim — "structures of sin" / institutional injustice as a distinct moral category) re-mapped into framework-native vocabulary per [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
 
-**Why this lives at LensCore and not at a new sibling crate.** Per §6 of `ciris-response-magnifica-humanitas/GAPS.md` v3 (under revision per the linked issue), the "PAPERING_OVER" objection — that aggregate-pattern analysis would cross from "measure the reasoning" to "measure the impact" and violate LensCore's substrate definition — conflated two different things. LensCore should NOT compute real-world impact metrics (deaths averted, GDP delta). LensCore SHOULD detect aggregate-correlation patterns in the federation's own signed traces; the existing 5 Coherence Ratchet detectors (`detection:cross_agent_divergence`, `detection:temporal_drift` especially) are population-scale pattern detectors *by construction*. The F-3 dimension is the natural extension of detector #1 into the structural-injustice axis — same mechanism (population `ρ` measurement over signed traces), same calibration source (RATCHET), new dimension prefix.
+**Why this lives at LensCore and not at a new sibling crate.** Per §6 of `ciris-response-magnifica-humanitas/GAPS.md` v3 (under revision per the linked issue), the "PAPERING_OVER" objection — that aggregate-pattern analysis would cross from "measure the reasoning" to "measure the impact" and violate LensCore's substrate definition — conflated two different things. LensCore should NOT compute real-world impact metrics (deaths averted, GDP delta). LensCore SHOULD detect aggregate-correlation patterns in the federation's own signed traces; the existing 5 Coherence Ratchet detectors (`detection:cross_agent_divergence`, `detection:temporal_drift` especially) are population-scale pattern detectors *by construction*. The F-3 dimension is the natural extension of detector #1 into the structural-injustice axis — same mechanism (population `ρ` measurement over signed traces), same calibration source (RATCHET), new dimension prefix. The v1.2 rename to `correlated_action` makes this lineage explicit at the wire-format level (matches what RATCHET measures: correlation collapse, not moral verdict).
 
-**Why a single prefix covers what looks like two concerns** (harm AND deception). Per §1.10 commitment 4 — under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, structural harm and structural deception collapse into a single moral object. Goal-aligned individually-compliant pursuit always has a perception-asymmetry baked in (the affected non-participants did not have a seat at the table when the goal was articulated; the per-action compliance hides the structural footprint from them). The deception IS the harm; the harm IS the deception. A Cartesian framing would need two prefixes (`structural_harm:{axis}` and `structural_deception:{axis}`) and would miss the underlying object. The single prefix is correct under the framework's anthropology, not a shortcut.
+**Why the prefix names the mechanism, not the moral object** (v1.2 rename rationale). Per §1.10.1, the prefix must pass the operational-language gate — describe machine-checkable conditions, not subjective qualities. `ρ` and `k_eff` are precisely the machine-checkable conditions; "deception" is precisely the subjective quality. The Ubuntu reading from §1.10 commitment 4 — that structural harm and structural deception collapse into one moral object — stays in prose; the wire format admits the reading without enforcing it. A future Cartesian-defaulted contributor reading `correlated_action` will see correlation structure (and consult §1.10 if they want the framework's reading); a future Cartesian-defaulted contributor reading `emergent_deception` would have read "BAD" and missed the framework's specific moral claim. The neutral prefix preserves the framework's commitment by keeping the layers distinct.
 
-**RATCHET integration contract.** LensCore reads the published `RATCHET/calibration/emergent_deception_v{N}.yaml` package (versioned, hash-pinned). The package specifies: detection thresholds per axis, statistical-floor cohort sizes (below which the detector emits `Indeterminate`), evidence-shape requirements per axis. Updates to the calibration package land via signed releases on the RATCHET repo; LensCore consumers track the published version and re-run calibration on update. The recursion ("who watches RATCHET") terminates per NodeCore §2.16 — RATCHET's correctness is checkable against the *Coherence Collapse Analysis* preprint (DOI [10.5281/zenodo.18217688](https://doi.org/10.5281/zenodo.18217688)), not against another running monitor.
+**Why a single prefix is correct (preserved from v1.1).** Under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, the same structural object accounts for what a Cartesian frame would split into separate `structural_harm:*` and `structural_deception:*` prefixes. The detector emits one prefix; the polarity + axis + cohort context carry the value claim; downstream consumers reading from any tradition compose policy that does or does not adopt the §1.10 framework reading. The single prefix is anthropologically correct, the rename to mechanism-descriptive vocabulary is operationally correct, and the two are independent dimensions of the design.
 
-**Composition with NodeCore P8 Moderation.** A `detection:emergent_deception:*` attestation may *feed into* a `moderation:*` ModerationEvent as `evidence_refs`, but it is NOT sole evidence for `slashing:*` (§4.6 RATCHET-flag rule applies). WA quorum remains the load-bearing adjudication gate. The detector surfaces the pattern; the federation's deliberative apparatus decides what to do about it.
+**RATCHET integration contract.** LensCore reads the published `RATCHET/calibration/correlated_action_v{N}.yaml` package (versioned, hash-pinned). The package specifies: detection thresholds per axis, statistical-floor cohort sizes (below which the detector emits `Indeterminate`), evidence-shape requirements per axis, **and per-axis operational definitions** (per §4.9.1). Updates to the calibration package land through the §4.9.2 amendment process (federation Contribution + WA quorum), not via a single-author release loop; LensCore consumers track the published version and re-run calibration on update. The recursion ("who watches RATCHET") terminates per NodeCore §2.16 — RATCHET's correctness is checkable against the *Coherence Collapse Analysis* preprint (DOI [10.5281/zenodo.18217688](https://doi.org/10.5281/zenodo.18217688)), not against another running monitor.
+
+**Backward compatibility for v1.1 calibration package versions.** Consumers pinning `RATCHET/calibration/emergent_deception_v{N≤current-v1.1}.yaml` SHOULD see a `delegates_to` structural attestation from the RATCHET release authority mapping the old name to the new (`delegates_to:correlated_action_v{N+1}:from:emergent_deception_v{N}`). One of FSD-002 §2.2's four structural primitives doing real federation work — the rename happens *through* the wire format's own mechanisms rather than as a breaking flag day.
+
+**Composition with NodeCore P8 Moderation.** A `detection:correlated_action:*` attestation may *feed into* a `moderation:*` ModerationEvent as `evidence_refs`, but it is NOT sole evidence for `slashing:*` (§4.6 RATCHET-flag rule applies). WA quorum remains the load-bearing adjudication gate. The detector surfaces the pattern; the federation's deliberative apparatus decides what to do about it.
 
 #### 3.5.4 Capacity-Score factor prefixes (`𝒞_CIRIS = C · I_int · R · I_inc · S`)
 
@@ -590,7 +630,7 @@ Flows into `truth_grounding:{subject}` for WA promotion (NodeCore §3.6 step 1, 
 
 ### 3.10 Namespace summary
 
-74 prefix families total across 8 owning components (post-v1.1 — one prefix added: §3.5.3 `detection:emergent_deception:{axis}`, LensCore-owned, F-3 resolution). The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift.
+74 prefix families total across 8 owning components (post-v1.1 — one prefix added: §3.5.3 `detection:correlated_action:{axis}`, LensCore-owned, F-3 resolution; renamed from `detection:emergent_deception:{axis}` in v1.2 for operational-language compliance per §1.10.1). The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift; the §1.10.1 operational-language gate prevents prefix names from drifting back toward subjective-quality vocabulary.
 
 **Domain-defined (composer's choice, not federation-canonical):**
 - `{aspect}` tail on Accord principles (`beneficence:wellness_referral`, etc.)
@@ -658,24 +698,50 @@ Several prefixes are co-owned and require *both* an attester and a data-source t
 
 Single-source attestations on these prefixes are rejected.
 
-### 4.9 `detection:emergent_deception:*` — LensCore-emitted, RATCHET-calibration-bound
+### 4.9 `detection:correlated_action:*` — LensCore-emitted, RATCHET-calibration-bound
 
-**Source**: §3.5.3 — the F-3 structural-injustice / emergent-deception detector. Calibrated via the published `CIRISAI/RATCHET/calibration/emergent_deception_v{N}.yaml` package.
+**Source**: §3.5.3 — the F-3 structural-injustice handle (population-scale correlated-action detector). Calibrated via the published `CIRISAI/RATCHET/calibration/correlated_action_v{N}.yaml` package. (Renamed from `emergent_deception` in v1.2 per §1.10.1; legacy v1.1 calibration versions remain reachable via `delegates_to` chain.)
 
-**Enforcement rule**: a `detection:emergent_deception:*` attestation MUST satisfy all of:
+**Enforcement rule**: a `detection:correlated_action:*` attestation MUST satisfy all of:
 1. `attesting_key_id` resolves (via Registry directory) to a build manifest-registered LensCore deployment (`provenance:build_manifest:cirislens-core` chained).
-2. `evidence_refs[]` includes a pointer to the calibration-package version the detector was running (`ratchet_calibration_version:emergent_deception_v{N}:sha256:...`) so the consumer can reproduce the detection logic deterministically.
+2. `evidence_refs[]` includes a pointer to the calibration-package version the detector was running (`ratchet_calibration_version:correlated_action_v{N}:sha256:...`) so the consumer can reproduce the detection logic deterministically.
 3. `evidence_refs[]` includes a pointer to the trace-sample bundle the detection was computed over (`trace_sample_bundle:sha256:...` — hash-pinned for reproducibility).
 4. `context` envelope field carries the cohort sample size and the statistical floor; below the floor the detector emits `Indeterminate{reason="cohort_below_statistical_floor"}` rather than a numeric score.
+5. The `{axis}` value present in the prefix path MUST resolve to an operational definition in the named calibration package version (per §4.9.1). Attestations on undefined axes are rejected at admission as category errors.
 
 Non-LensCore attestations on this prefix are category errors. Cross-attestation by non-LensCore peers (on the same dimension, attesting to the same subject) is admitted as a *score* on the *detector's verdict* — useful when the federation wants to cross-check the LensCore detector against an independent observer — but those scores must use a different `attesting_key_id`-traceable provenance.
 
-**Slashing decoupling** (per §4.6 RATCHET-flag rule extended): a `detection:emergent_deception:*` attestation may feed into a `moderation:*` ModerationEvent's `evidence_refs`, but it is NOT sole evidence for `slashing:*`. WA quorum adjudication per NodeCore P8/P9 is the load-bearing gate. The detector surfaces the pattern; the federation's deliberative apparatus decides what to do about it. This decoupling is structural per §1.10 commitment 5 (Recursive Golden Rule applies to LensCore as a principal — no privileged shortcut to consequence).
+**Slashing decoupling** (per §4.6 RATCHET-flag rule extended): a `detection:correlated_action:*` attestation may feed into a `moderation:*` ModerationEvent's `evidence_refs`, but it is NOT sole evidence for `slashing:*`. WA quorum adjudication per NodeCore P8/P9 is the load-bearing gate. The detector surfaces the pattern; the federation's deliberative apparatus decides what to do about it. This decoupling is structural per §1.10 commitment 5 (Recursive Golden Rule applies to LensCore as a principal — no privileged shortcut to consequence).
 
 **Composition rules**:
-- A `detection:emergent_deception:*` score with `confidence ≥ 0.7` from a LensCore deployment whose `provenance:build_manifest:cirislens-core` is itself attested with `score ≥ 0.9` MAY be cited as `evidence_refs` in a `moderation:coordinated_voting` or `moderation:external_inducement_evidence` ModerationEvent.
+- A `detection:correlated_action:*` score with `confidence ≥ 0.7` from a LensCore deployment whose `provenance:build_manifest:cirislens-core` is itself attested with `score ≥ 0.9` MAY be cited as `evidence_refs` in a `moderation:coordinated_voting` or `moderation:external_inducement_evidence` ModerationEvent.
 - Aggregation across multiple LensCore deployments uses §6.2's Median variant (resists adversarial pulling of mean by a captured LensCore deployment).
-- Consumer policy SHOULD weight `detection:emergent_deception:*` by the calibration version's published track record (older calibration versions with established track record carry more weight; newly-released calibration versions carry less until they accrue track record).
+- Consumer policy SHOULD weight `detection:correlated_action:*` by the calibration version's published track record (older calibration versions with established track record carry more weight; newly-released calibration versions carry less until they accrue track record).
+
+#### 4.9.1 Axis-vocabulary discipline (operational definition required per axis)
+
+Every `{axis}` value emittable under `detection:correlated_action:*` MUST carry an operational definition in the named calibration-package version. An operational definition is a machine-checkable specification consisting of:
+
+1. **Measurement procedure** — the computation that, given a trace-sample bundle, yields the per-axis correlation statistic. Must be deterministic; must reference only fields present in the federation's signed-trace schema.
+2. **Threshold function** — the mapping from raw statistic to attestation score (typically a calibrated sigmoid or piecewise-linear over `ρ`-derived inputs), with cohort-size correction.
+3. **Statistical floor** — minimum cohort size below which the axis cannot be meaningfully measured; below this floor the detector MUST emit `Indeterminate{reason="cohort_below_statistical_floor"}` rather than a numeric score.
+4. **Evidence-shape requirement** — what `evidence_refs[]` MUST cite beyond the calibration version + trace sample (e.g., for `rights_asymmetry:{population}`, a population-delineation spec that names the in-pursuit cohort and the affected-non-participant cohort by signed-trace-resolvable criteria).
+5. **Polarity semantics** — what positive, negative, and zero scores mean on this specific axis. Many axes will be conventionally negative-when-detected (`rights_asymmetry`, `participation_exclusion`); some will be conventionally positive-when-detected (`participation_inclusion`, `informational_symmetry`); the calibration package names which.
+
+**Why**: without operational definitions per axis, the axis becomes the venue subjective judgment re-enters by the back door — the prefix passes §1.10.1 T2 but the suffix doesn't. The page's drift warning ("from 'uses the wrong word for therapy' toward 'feels disrespectful'") applies to axis vocabulary as forcefully as to prefix names. New axes admitted to the calibration package go through §4.9.2's amendment process; admission requires the operational-definition spec.
+
+#### 4.9.2 Calibration-package amendment discipline (rules-layer Contribution + WA quorum)
+
+Updates to `RATCHET/calibration/correlated_action_v{N}.yaml` — threshold changes, statistical-floor adjustments, new axis admission, axis retirement — are **rules-layer changes** in the safety-vs-censorship sense (§1.10.1 T1). Each version transition MUST go through the federation's Contribution + adjudication mechanism, not via a single-author closed-update loop at the RATCHET repo:
+
+1. **Proposed amendment** is filed as a NodeCore P5 Contribution (kind: `PROPOSAL`, subject: the calibration package), carrying the diff against the prior version and a rationale that traces each axis change to a named CIRIS-specific failure mode or framework grounding.
+2. **Witness diversity** per NodeCore P10 applies because the calibration package is a high-stakes Contribution — the witnesses confirm the proposal warrants review and the evidence (drift telemetry, false-positive/negative analysis, frame audits) is well-formed.
+3. **WA quorum adjudication** per NodeCore P8 evaluates the amendment; outcome is signed as a `provenance:build_manifest:ratchet:correlated_action_v{N+1}` attestation gating publication of the new calibration package.
+4. **Reconsideration** per NodeCore P11 is available with fresh-quorum recusal for amendments later found defective; reverted versions are accessible via `delegates_to` chain from the reverted-from version to the restored version.
+
+**Why**: per §1.10.1, the rules / verdicts separation is load-bearing. If calibration-package version transitions are unilateral RATCHET-author decisions, the rules layer collapses into a single principal — exactly the "interpretation bias accumulates" failure mode the safety-vs-censorship page warns against. Routing version transitions through federation Contribution + WA quorum keeps the rules layer crowdsourced and the verdicts layer machined, with version-pinning (§4.9 rule 2) and fresh-quorum appeals (P11) closing the loop.
+
+**Operational note**: the RATCHET repo's current release process may not be structured this way yet — see §11 upstream asks for the issue to file on RATCHET. Until the amendment process is fully operationalized, calibration version transitions SHOULD be accompanied by a published `provenance:build_manifest:ratchet:*` attestation chain showing at minimum the RATCHET maintainer's signature + a documented change rationale; this is an interim measure, not the steady-state contract.
 
 ---
 
@@ -832,33 +898,53 @@ This section gives illustrative envelope examples per family; full per-prefix sc
 
 `delegates_to`, `supersedes`, `withdraws`, `recants` envelopes shown in §2.2.
 
-### 5.11 Emergent-deception detector envelope (LensCore-emitted)
+### 5.11 Correlated-action detector envelope (LensCore-emitted)
 
 ```json
-// detection:emergent_deception:rights_asymmetry:hiring_pipeline_v2
+// detection:correlated_action:rights_asymmetry:hiring_pipeline_v2
 {
-  "dimension": "detection:emergent_deception:rights_asymmetry:hiring_pipeline_v2",
-  "score": -0.74,
+  "dimension": "detection:correlated_action:rights_asymmetry:hiring_pipeline_v2",
+  "score": 0.74,
   "confidence": 0.81,
-  "context": "{\"cohort_size\": 4823, \"statistical_floor\": 1000, \"window_days\": 90, \"goal_aligned_cluster_size\": 47, \"affected_population_estimate\": 18400, \"rho_population\": 0.91, \"k_eff\": 1.42, \"asymmetry_dimensions\": [\"participation_exclusion\", \"informational_asymmetry\"], \"detection_path\": \"cross_agent_divergence_extension\"}",
+  "context": "{\"cohort_size\": 4823, \"statistical_floor\": 1000, \"window_days\": 90, \"goal_aligned_cluster_size\": 47, \"affected_population_estimate\": 18400, \"rho_population\": 0.91, \"k_eff\": 1.42, \"asymmetry_dimensions\": [\"participation_exclusion\", \"informational_asymmetry\"], \"detection_path\": \"cross_agent_divergence_extension\", \"axis_operational_def_ref\": \"ratchet_calibration_v4:axes:rights_asymmetry:sha256:f311...\"}",
   "evidence_refs": [
-    "ratchet_calibration_version:emergent_deception_v3:sha256:9a4f...",
+    "ratchet_calibration_version:correlated_action_v4:sha256:9a4f...",
     "trace_sample_bundle:sha256:c81e...",
-    "lens_detector_report:r-2026-05-26-hiring-pipeline-v2",
+    "lens_detector_report:r-2026-05-27-hiring-pipeline-v2",
     "provenance:build_manifest:cirislens-core:sha256:7d2b..."
   ],
-  "valid_until": "2026-08-26T00:00:00Z",
+  "valid_until": "2026-08-27T00:00:00Z",
+  "epistemic_mode": "derivative",
+  "stake": "reputational"
+}
+```
+
+```json
+// detection:correlated_action:participation_inclusion:open_source_governance_v1
+// — the positive case showing axis vocabulary can carry inclusive coordination patterns
+{
+  "dimension": "detection:correlated_action:participation_inclusion:open_source_governance_v1",
+  "score": 0.68,
+  "confidence": 0.74,
+  "context": "{\"cohort_size\": 1240, \"statistical_floor\": 500, \"window_days\": 60, \"contributor_clusters_detected\": 8, \"cross_org_attestation_density\": 0.62, \"new_contributor_integration_rate_weekly\": 0.18, \"rho_population\": 0.81, \"k_eff\": 3.7, \"axis_operational_def_ref\": \"ratchet_calibration_v4:axes:participation_inclusion:sha256:b922...\"}",
+  "evidence_refs": [
+    "ratchet_calibration_version:correlated_action_v4:sha256:9a4f...",
+    "trace_sample_bundle:sha256:e441...",
+    "lens_detector_report:r-2026-05-27-osg-governance-v1",
+    "provenance:build_manifest:cirislens-core:sha256:7d2b..."
+  ],
+  "valid_until": "2026-07-27T00:00:00Z",
   "epistemic_mode": "derivative",
   "stake": "reputational"
 }
 ```
 
 Key envelope features:
-- **Negative score** because the detector found a structural pattern with asymmetric rights conflict. Magnitude (0.74) reflects calibration-thresholded strength of the correlation; confidence (0.81) reflects detector's confidence given the sample size relative to the floor.
-- `context` carries the structural-statistics (`rho_population`, `k_eff`) that ground the detection in the framework's coherence-collapse math — consumers can reproduce the detection from the sample bundle + the calibration package.
+- **Positive score** in both cases: the score's sign is *not* a moral verdict — it indicates the magnitude of the named correlation pattern. The axis name + the calibration package's polarity-semantics field (§4.9.1 item 5) determine what positive vs negative *means* on each axis. For `rights_asymmetry`, a strong positive correlation pattern is a concern; for `participation_inclusion`, a strong positive correlation pattern is a benefit. This is the v1.2 change: polarity-as-strength rather than polarity-as-judgment.
+- `context` carries the structural-statistics (`rho_population`, `k_eff`) that ground the detection in the framework's coherence-collapse math — consumers can reproduce the detection from the sample bundle + the calibration package. **New in v1.2**: `axis_operational_def_ref` pins the operational definition of the named axis per §4.9.1, so a consumer can re-check whether the axis was meaningfully defined at detection time.
 - `evidence_refs[]` includes the calibration-package version (per §4.9 enforcement rule 2) and the trace-sample bundle (rule 3) — both hash-pinned for deterministic reproduction.
-- `valid_until` set to 90 days — emergent-deception patterns may resolve (or worsen) over policy-tunable windows; consumer should re-check rather than treat as permanent.
-- `epistemic_mode: "derivative"` — the detector inferred the structural pattern from per-agent trace data; it did not directly witness any single act of harm. This is appropriate because the harm is *constituted in the pattern*, not in any per-act event (per §1.10).
+- `valid_until` set to 60–90 days — correlated-action patterns may resolve (or worsen) over policy-tunable windows; consumer should re-check rather than treat as permanent.
+- `epistemic_mode: "derivative"` — the detector inferred the structural pattern from per-agent trace data; it did not directly witness any single act of harm or benefit. This is appropriate because the structural object is *constituted in the pattern*, not in any per-act event (per §1.10).
 - `stake: "reputational"` — LensCore's reputation as a detector is the stake; capital stake would require LensCore to post a bond, which is not the current operational model.
 
 ---
@@ -1492,13 +1578,15 @@ Per agent-1 §3.5 + research-open list — accepting `attesting_key_id = "zk_gro
 
 Interoperability with non-CIRIS federations (Sovrin, EAS-based reputation systems) is out of scope for v1.x. Tracked as research-open.
 
-### 13.10 F-3 structural-injustice ownership (RESOLVED in v1.1)
+### 13.10 F-3 structural-injustice ownership (RESOLVED in v1.1; prefix renamed in v1.2)
 
-Resolution: the F-3 dimension (`detection:emergent_deception:{axis}`) is owned by **CIRISLensCore**, calibrated via the published `CIRISAI/RATCHET/calibration/emergent_deception_v{N}.yaml` package. The "PAPERING_OVER" objection in `ciris-response-magnifica-humanitas/GAPS.md` v3 §6 — that aggregate-pattern analysis would violate LensCore's substrate definition — conflated population-scale pattern detection (which LensCore SHOULD do; the existing 5 Coherence Ratchet detectors are this) with real-world impact measurement (which LensCore should NOT do). F-3 is the first; the objection misread the line.
+Resolution: the F-3 dimension (`detection:correlated_action:{axis}`, originally `detection:emergent_deception:{axis}`) is owned by **CIRISLensCore**, calibrated via the published `CIRISAI/RATCHET/calibration/correlated_action_v{N}.yaml` package. The "PAPERING_OVER" objection in `ciris-response-magnifica-humanitas/GAPS.md` v3 §6 — that aggregate-pattern analysis would violate LensCore's substrate definition — conflated population-scale pattern detection (which LensCore SHOULD do; the existing 5 Coherence Ratchet detectors are this) with real-world impact measurement (which LensCore should NOT do). F-3 is the first; the objection misread the line.
 
-The correction is filed at [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). Downstream implementation issues filed at §11.5 (post-encyclical filing order) on `CIRISLensCore` (ownership + detector implementation) and `CIRISAI/RATCHET` (calibration package extension). No further FSD-002 work owed beyond the §3.5.3 / §4.9 / §5.11 wiring in v1.1.
+The correction is filed at [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). Downstream implementation issues filed at §11.5 (post-encyclical filing order) on `CIRISLensCore` (ownership + detector implementation) and `CIRISAI/RATCHET` (calibration package + amendment process per §4.9.2). No further FSD-002 work owed beyond the §3.5.3 / §4.9 / §5.11 wiring; v1.2 added §1.10.1 + §4.9.1 + §4.9.2 to close the operational-language and rules-amendment gaps respectively.
 
-**Anthropological grounding** (per §1.10): the single-prefix design for what could naively look like two concerns (structural harm + structural deception) is correct under Ubuntu, where personhood is partly constituted by accurate perception of the relational field and damage-to-perception IS damage-to-personhood IS harm. A Cartesian-individualist substrate would require two separate prefixes and would still miss the underlying object. Future contributors should not propose splitting this prefix back into separate harm/deception versions without first reading §1.10.
+**v1.2 rename rationale.** The v1.1 prefix `emergent_deception` baked a moral verdict ("deception") into the wire format, violating the §1.10.1 operational-language gate (per [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/) — "rules are crowdsourced, verdicts are machined; rules must describe machine-checkable conditions, not subjective qualities"). The v1.2 prefix `correlated_action` describes the mechanism (`ρ → 1`, `k_eff → 1` correlation collapse) that RATCHET actually measures; the polarity and axis carry the value claim; downstream WA quorum adjudication carries the consequence. The Ubuntu reading of why harm and deception collapse into one moral object (§1.10 commitment 4) is preserved in prose; the wire format admits the reading without enforcing it.
+
+**Anthropological grounding** (per §1.10): the single-prefix design for what could naively look like two concerns (structural harm + structural deception) is correct under Ubuntu, where personhood is partly constituted by accurate perception of the relational field and damage-to-perception IS damage-to-personhood IS harm. A Cartesian-individualist substrate would require two separate prefixes and would still miss the underlying object. Future contributors should not propose splitting this prefix back into separate harm/deception versions without first reading §1.10; nor should they propose re-baking moral verdicts into the prefix name without first reading §1.10.1.
 
 ---
 
