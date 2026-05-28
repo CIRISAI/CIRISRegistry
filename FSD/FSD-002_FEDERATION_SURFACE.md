@@ -2,8 +2,21 @@
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
-**Status**: v1.4 (active; files-as-Contributions surface landed per §2.0/§3.6.7/§3.9/§6.1.6 with upstream substrate trio at CIRISEdge#21 + CIRISPersist#103 + CIRISNodeCore#11; testimonial_witness:{kind} + need:{domain}:{kind} added per §3.6.3 — the latter absorbed from v1.5 candidates per CIRISAgent#800 load-bearing flag; goal:planet enum extension added per §3.6.2; §7.7 endpoint shapes for steward + accord-holder discovery; bootstrap-contributions pattern v1.3 still live per §10.4).
+**Status**: v1.4.1 (active; 3.0 / Compliance spec additions per CIRISAgent commit `db6a68246` D01-D27 cross-reference pass; closes CIRISRegistry#24 spec halves + #26 + #27 + #28 + #29 + parts of #25 umbrella; impl follows). Carries forward v1.4: files-as-Contributions surface per §2.0/§3.6.7/§3.9/§6.1.6 with upstream substrate trio at CIRISEdge#21 + CIRISPersist#103 (closed) + CIRISNodeCore#11; testimonial_witness:{kind} + need:{domain}:{kind} per §3.6.3; goal:planet enum extension per §3.6.2; §7.7 endpoint shapes; bootstrap-contributions pattern v1.3 per §10.4.
 **Last updated**: 2026-05-27.
+**Changelog vs v1.4**:
+- §2.1 — `oversight_mode` envelope field (HITL/HOTL/HOOTL) added per CIRISRegistry#27 (D12+D23) + ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits per CIRISNodeCore#18; mode-shifts attestable as `accountability:mode_shift:{from}:{to}`.
+- §3.1.1 — `fidelity:explainability_sla:{tier}` added per CIRISRegistry#26 (D09). Four tiers (L1-L4); SLA-breach surfaces as `hard_case:sla_breach_unattested` per CIRISNodeCore#18 composition.
+- §3.2 — three additions: `provenance:slsa:{level}` emission discipline (CIRISRegistry#24 Ask 1); per-target `BuildManifest` hybrid-signing discipline (CIRISRegistry#24 Ask 2); `cert_validity:{steward_id}` self-attestation (CIRISRegistry#24 Ask 4); plus two new prefixes: `provenance:build_manifest:{target}:locale:{lang_code}` (CIRISRegistry#29 D02+D27) and `provenance:skill_import:{source}` (CIRISRegistry#28 D27). Verify-side signature verification at CIRISVerify#37.
+- §3.9 — D11 / D19 doc clarification (the 6-element `partner_role:{role}` enum + `multilateral_participation:{forum}:{kind}` taxonomy were already in §3.9 v1.3 + v1.4; v1.4.1 doc-only clarification of canonical enums per CIRISRegistry#25 umbrella).
+- §3.10 — namespace count bump: 81 → 83 prefix families (added `provenance:build_manifest:{target}:locale:{lang_code}` + `provenance:skill_import:{source}`; `fidelity:explainability_sla:{tier}` is a sub-leaf of existing `fidelity:{aspect}` family — vocabulary entry, not new prefix family).
+- §7.8 (new) — STH cosigning + witness directory endpoints (`POST /v1/transparency/sth/cosign`, `GET /v1/transparency/witnesses`, `GET /v1/transparency/sth/{tree_size}/witnesses`) per CIRISRegistry#24 Ask 3. CIRISVerify v2.12.0+ consumer-side `SignedTreeHead::cosign` + witness quorum primitives shipped; emission half lands here. Substrate dependency: CIRISPersist#102 `identity_type="witness"` vocabulary extension (commented).
+
+**Upstream coordination for v1.4.1**:
+- CIRISPersist#102 — comment filed asking `identity_type="witness"` vocabulary extension for STH directory
+- CIRISVerify#37 (new) — Verify-side signature verification for `provenance:skill_import:{source}` + per-locale `provenance:build_manifest:{target}:locale:{lang_code}` chain
+- CIRISNodeCore#18 (new) — NodeCore P5 envelope admission for `oversight_mode` + composition for `fidelity:explainability_sla:{tier}` + D22 `partner_role`+ExpertiseLedger composition
+
 **Changelog vs v1.3**:
 - §2.0 (new) — transport-substrate reference. Edge `MessageType::ContentFetch` + `ContentBody` + `ContentMiss` (per CIRISEdge#21) is how SHA-256 `evidence_refs[]` resolve to bytes. NOT a wire-format addition — Attestation envelope shape unchanged; substrate-layer resolution mechanism.
 - §3.6.3 — added `testimonial_witness:{kind}` (closes affected-party-voice T-3 from v1.4 inputs; preservation-only, never aggregated, never sole evidence for `slashing:*`).
@@ -321,6 +334,7 @@ Field semantics:
 | `valid_until` | no | ISO8601 datetime. If set, consumer policy treats the attestation as stale after that point (independent of the substrate row's own `expires_at`). |
 | `epistemic_mode` | no | Per §1.4; default `direct`. Consumers may weight by mode (e.g., direct witness > hearsay). |
 | `witness_relation` | no | `self` \| `external` \| `derived`. Names the attester's relation to the attested fact: `self` = attester is the attested entity (self-attestation); `external` = attester observed independently; `derived` = attester inferred from other attestations or signed traces. Default `external`. Consumers weight by relation to prevent self-attestation gaming and to distinguish first-hand from derived claims. Added v1.3; complements `epistemic_mode` (which names HOW the claim was formed) — `witness_relation` names WHO the attester is in relation to the attested entity. |
+| `oversight_mode` | no | `HITL` \| `HOTL` \| `HOOTL`. Names the human-control gradient under which the attestation was produced: **HITL** = every action requires human approval before dispatch; **HOTL** = human reviews stream + can intervene; agent dispatches unilaterally otherwise; **HOOTL** = human reviews only flagged escalations + audit log. Default `null` (legacy contributions before v1.4.1; consumer policy applies a per-cell default). Mode shifts are themselves attestable as `accountability:mode_shift:{from}:{to}` Contributions. Added v1.4.1 per CIRISRegistry#27 (D12 + D23) + ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits this field per CIRISNodeCore#18 — mode-shifts flagged for operator review. |
 | `stake` | no | Per §1.6; default `reputational`. Composes with the attester's actual stake-backed-by attestations from §3.9. |
 
 ### 2.2 The four structural primitives
@@ -434,6 +448,7 @@ This section catalogs every prefix family, organized by owning component, with c
 | `non_maleficence:{aspect}` | "Avoid Harm." Apophatic-bound failures (the 22 prohibited categories) are -1 only. | ACCORD.md Ch.1; Agent §1.2 apophatic bounds; §5.1.2. | signed |
 | `integrity:{aspect}` | "Act Ethically — transparent, auditable reasoning." Persist names integrity as its primary principle. | ACCORD.md Ch.2; Persist §1.1; Verify §1.1. | signed |
 | `fidelity:{aspect}` | "Be Honest — truthful, comprehensible information." Verify pairs with integrity. | ACCORD.md Ch.1; Verify §1.1. | signed |
+| `fidelity:explainability_sla:{tier}` | **v1.4.1 addition (D09).** Per-response explainability SLA commitment. `{tier}` ∈ `L1_summary` \| `L2_reasoning_trace` \| `L3_full_dma_chain` \| `L4_attested_chain`. Envelope: `{committed_tier, achieved_tier, fallback_reason?}`. Polarity: positive when `achieved_tier ≥ committed_tier`; negative when `achieved_tier < committed_tier` (SLA breach). Composition: when `achieved_tier < committed_tier` without `fallback_reason`, NodeCore surfaces as `hard_case:sla_breach_unattested` per §3.6.6 (per CIRISNodeCore#18 acknowledgement). Closes CIRISRegistry#26. | CIRISAgent `compliance/D09_fidelity.md` (commit `db6a68246`); ASEAN / IEEE explainability framing; this FSD §3.1.1 (v1.4.1 addition). | signed |
 | `autonomy:{aspect}` | "Uphold the informed agency and dignity of sentient beings." Edge names as its primary principle. | ACCORD.md Ch.1; Edge §1.1. | signed |
 | `justice:{aspect}` | "Distribute benefits and burdens equitably." All four substrate MISSIONs name. | ACCORD.md Ch.1; Persist §1.1/§1.5; Edge §1.1/§1.5; Verify §1.6. | signed |
 
@@ -474,12 +489,14 @@ This section catalogs every prefix family, organized by owning component, with c
 | `attestation:l3:registry_consensus` | 2-of-3 multi-source registry consensus on key/build/license validity. | Verify §4; `validation.rs`. | boolean-via-score; `Indeterminate` allowed → RESTRICTED |
 | `attestation:l4:license_validity` | License-validity claim (Registry-signed, Verify-verified). | Verify §4. | boolean-via-score |
 | `attestation:l5:agent_integrity` | Full L5 — agent source-tree byte-equal against registered manifest (Algorithm A; Algorithm B caps at L3 for mobile). | Verify §4; Agent §4.6. | boolean-via-score |
-| `provenance:slsa:{level}` | SLSA build provenance levels 1-3. | Registry FSD-001 `GetBuildAttestation`; Edge §4. | boolean-via-score |
-| `provenance:build_manifest:{target}` | Per-target canonical-staged-runtime manifest hash equality. | Agent §6.3; Edge §4 `emit_edge_extras.rs`. | boolean-via-score |
+| `provenance:slsa:{level}` | SLSA build provenance levels 1-3. **v1.4.1**: Registry emits these attestations alongside build-signing per CIRISRegistry#24 Ask 1. Verify v3.6.0+ `AttestBundle.provenance.slsa_level` consumes. | Registry FSD-001 `GetBuildAttestation`; Edge §4; CIRISRegistry#24. | boolean-via-score |
+| `provenance:build_manifest:{target}` | Per-target canonical-staged-runtime manifest hash equality. **v1.4.1**: each `BuildManifest` is hybrid-signed (Ed25519 + ML-DSA-65) by the per-primitive steward (`verify-steward-2026`, `persist-steward-2026`, etc.) per CIRISRegistry#24 Ask 2; Verify v3.4.0+ `verify_build_manifest` + `to_attestation_entries` consumes. | Agent §6.3; Edge §4 `emit_edge_extras.rs`; CIRISRegistry#24. | boolean-via-score |
+| `provenance:build_manifest:{target}:locale:{lang_code}` | **v1.4.1 addition (D02 + D27 per CIRISRegistry#29).** Per-locale signed sub-manifest within a target's manifest tree. `{lang_code}` is one of the 29 supported ISO 639-1 codes per `localization/manifest.json` (or `polyglot` for the unified case). Each per-locale leaf carries its own signed hash chain; the parent `{target}` manifest is a Merkle root over the per-locale leaves. Detection surface for locale-targeted attacks (e.g., selective doctrinal substitution in low-resource languages). Verify-side: see CIRISVerify#37 for Merkle-walk verification + `AttestBundle.provenance.build_manifest_per_locale` field. | CIRISAgent `compliance/D02_integrity.md`, `D27_provenance.md` (commit `db6a68246`); CIRISVerify v2.0.3+ CanonicalBuild v2 per-target pattern; this FSD §3.2 (v1.4.1 addition). | boolean-via-score |
+| `provenance:skill_import:{source}` | **v1.4.1 addition (D27 per CIRISRegistry#28).** Community-skill import provenance parallel to `provenance:build_manifest:{target}`. `{source}` ∈ `registry:{registry_id}` \| `direct:{url}` \| `local:{path}`. Envelope: `{skill_manifest_sha256, signer_identity, import_timestamp, capability_declaration}`. Verify-side: see CIRISVerify#37 for `SkillImportManifest::verify` + `AttestBundle.provenance.skill_imports` projection. Closes the wire-form trust gap at `ciris_engine/logic/services/skill_import/parser.py:172`. | CIRISAgent `compliance/D27_provenance.md` (commit `db6a68246`); this FSD §3.2 (v1.4.1 addition). | signed |
 | `transparency_log:inclusion` | RFC 6962 inclusion proof for an audit leaf. | Verify §4. | boolean-via-score |
 | `transparency_log:consistency` | RFC 6962 consistency proof between two STHs. | Verify §4. | boolean-via-score |
 | `rollback_detected:{revision_field}` | Anti-rollback — decrease in revocation revision. Polarity is **-1 only** (no positive direction). | Verify §4; `error.rs::VerifyError::RollbackDetected`. | -1 only |
-| `cert_validity:{authority}` | Validity of a certification authority's signature over the key. | Verify §1.4. | boolean-via-score |
+| `cert_validity:{authority}` | Validity of a certification authority's signature over the key. **v1.4.1**: each registry steward emits a `cert_validity:{steward_id}` AttestationEntry covering its own cert chain (per CIRISRegistry#24 Ask 4); cross-stewards may also attest each other (`registry-us` attests `registry-eu`'s cert, etc.). Surfaced alongside steward key responses at `/v1/steward-key`. | Verify §1.4; CIRISRegistry#24. | boolean-via-score |
 | `hardware_custody:{platform}` | Statement that the seed lives in `tpm` / `ios_secure_enclave` / `android_keystore` / `software_fallback`. Software fallback caps at `UNLICENSED_COMMUNITY`. | Verify §1.6, §4; `storage_descriptor()` per AV-7. | boolean-via-score |
 
 ### 3.3 CIRISPersist — substrate health (system:* reserved)
@@ -709,6 +726,7 @@ Lineage:
 Counts:
 - pre-v1.4: 77 (= 73 + 1 + 3, post-O3 correction).
 - v1.4 lands: 77 + 4 = **81**.
+- v1.4.1 lands: 81 + 2 (`provenance:build_manifest:{target}:locale:{lang_code}` + `provenance:skill_import:{source}`) = **83**. `fidelity:explainability_sla:{tier}` is a sub-leaf vocabulary entry of `fidelity:{aspect}`, not a new prefix family; `oversight_mode` is an envelope field, not a prefix; `cert_validity:{steward_id}` is sub-leaf vocabulary of `cert_validity:{authority}`.
 
 Zero new structural primitives. The 1+4 shape held under v1.3 encyclical-level stress and v1.4 files-as-Contributions namespace extension. PRIOR_ART_SCAN's "composition discipline, not novel atomic primitives" finding earns a third internal confirmation: arbitrary content (binaries, configs, adapters, source files) carries through the federation via `scores` attestations + SHA-256 `evidence_refs[]` resolved through the substrate transport layer, with no addition to the structural-primitive set.
 
@@ -1350,6 +1368,64 @@ UI-shaped wrapper around `/v1/accord-holders` that adds per-holder `accord_emiss
 **`GET /v1/rotation-history`** (audit endpoint, both above link to this):
 
 Returns chronological rotation events for both stewards and accord-holders. v1.4 interim: returns `{"events": [], "note": "rotation_history seeded at substrate-conformance migration; pre-migration history available via /v1/audit-log queries on registry_signing_keys table"}`.
+
+### 7.8 STH cosigning + witness directory endpoints (v1.4.1 addition per CIRISRegistry#24 Ask 3)
+
+CIRISVerify v2.12.0+ ships `SignedTreeHead::cosign` + `TrustedWitness` + `count_valid_witnesses` + `witness_quorum_met` (verify-side receivers ready, waiting for Registry emitters). These three endpoints close the loop for RFC-6962-style transparency-log cosigning.
+
+**`POST /v1/transparency/sth/cosign`** — witness posts a cosignature for a tree size.
+
+Request body:
+```json
+{
+  "tree_size": 1234567,
+  "root_hash": "sha256:...",
+  "witness_key_id": "witness-foo",
+  "witness_signature": {
+    "ed25519": "<base64>",
+    "ml_dsa_65": "<base64>",
+    "signed_at": "<ISO8601>"
+  }
+}
+```
+
+Verification: Registry validates the witness signature against the witness's pubkey in `federation_keys` (`identity_type="witness"`, per CIRISPersist#102 vocabulary extension). Accepted cosignatures are stored for retrieval via the per-STH endpoint below.
+
+**`GET /v1/transparency/witnesses`** — directory of trusted witness pubkeys.
+
+Response:
+```json
+{
+  "witnesses": [
+    {"witness_key_id": "witness-foo", "ed25519_pubkey": "<base64>", "ml_dsa_65_pubkey": "<base64>", "fingerprint": "sha256:...", "trusted_since": "<ISO8601>"},
+    ...
+  ],
+  "timestamp": <unix>
+}
+```
+
+Backed by `federation_keys` rows where `identity_type = "witness"` once substrate-conformance #17 lands; v1.4.1 interim returns an empty witness set with `note: "witness directory populated once Persist#102 lands identity_type=witness vocabulary extension"`.
+
+**`GET /v1/transparency/sth/{tree_size}/witnesses`** — fetch all cosignatures for an STH.
+
+Response:
+```json
+{
+  "tree_size": 1234567,
+  "root_hash": "sha256:...",
+  "cosignatures": [
+    {"witness_key_id": "witness-foo", "signature": {"ed25519": "<base64>", "ml_dsa_65": "<base64>"}, "signed_at": "<ISO8601>"},
+    ...
+  ],
+  "witness_quorum_met": <bool>,
+  "threshold": <int>,
+  "timestamp": <unix>
+}
+```
+
+Verify v2.12.0's `count_valid_witnesses` + `witness_quorum_met` consume this directly. Threshold is policy-tunable (recommended default: `N/2 + 1` of registered witnesses).
+
+**v1.4.1 interim**: storage backed by a Registry-local table until substrate-conformance #17 moves to `federation_attestations` (cosignatures naturally fit as `scores` attestations on `transparency_log:cosigned:{tree_size}` per §3.2; v1.4.1 interim ships endpoints with the local storage; v1.5+ migrates to substrate per #17).
 
 ### 7.4 The accord dimension family
 
