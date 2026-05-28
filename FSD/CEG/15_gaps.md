@@ -4,7 +4,7 @@
 
 # §15 Concerns + acknowledged gaps
 
-Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOTA_SCAN.md` production-validation comparison, *Magnifica Humanitas* encyclical mapping + CIRISRegistry#30 283-story stress test) surfaced concerns. CEG 0.1 critical-review pass added six more reviewer perspectives (cryptography, distributed systems, standards architecture, anthropology, adversarial red-team, application development). Concerns named here so external reviewers see them acknowledged rather than discovered.
+Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOTA_SCAN.md` production-validation comparison, *Magnifica Humanitas* encyclical mapping + CIRISRegistry#30 283-story stress test) surfaced concerns. CEG 0.1 critical-review pass added five more reviewer perspectives (cryptography, distributed systems, standards architecture, adversarial red-team, application development). Concerns named here so external reviewers see them acknowledged rather than discovered.
 
 ## §15.1 Closed gaps
 
@@ -51,7 +51,7 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 | Exposure | Why no precedent |
 |---|---|
 | **F1** — Earned-Credits federation governance at scale | No prior system separates earned standing from purchasable token at scale. Risk: SPKI/SDSI adoption-gap failure mode. Mitigation: licensure forcing function. |
-| **F2** — Ubuntu substrate as wire-format substrate | CARE Principles + African philosophy exist as ethical frameworks; never as protocol substrate. First-adopter risk on how the discipline interacts with engineering trade-offs at scale. No external Ubuntu-community consultation yet; the substrate framing is internal-authorship. Acknowledged risk; mitigation roadmap deferred to 1.x design workshops. |
+| **F2** — Ubuntu substrate as wire-format substrate | CARE Principles + African philosophy exist as ethical frameworks; never as protocol substrate. First-adopter risk on how the discipline interacts with engineering trade-offs at scale. |
 
 ## §15.4 Deferred to 0.2+ design workshops
 
@@ -71,7 +71,6 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 | SEED_DIMENSIONS RFC (CIRISRegistry#22) | RFC stage; needs discussion. |
 | Fleet-attestation primitive (closes R6 occurrence_id self-assertion) | Workshop output |
 | Deeper Frickerian instantiation (closes R7) | Workshop output |
-| External Ubuntu-community consultation (closes F2 mitigation roadmap) | Out-of-band engagement required |
 
 ## §15.5 Identified overlaps
 
