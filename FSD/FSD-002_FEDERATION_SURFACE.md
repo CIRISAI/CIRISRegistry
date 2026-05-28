@@ -2,8 +2,12 @@
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
-**Status**: v1.4.2 (active; per-occurrence envelope fields added per CIRISPersist#110 — multi-occurrence mandate-fidelity surface for D09). Carries forward v1.4.1: 3.0 / Compliance spec additions per CIRISAgent commit `db6a68246`; v1.4: files-as-Contributions surface per §2.0/§3.6.7/§3.9/§6.1.6 with upstream substrate trio at CIRISEdge#21 + CIRISPersist#103 (closed) + CIRISNodeCore#11; testimonial_witness:{kind} + need:{domain}:{kind} per §3.6.3; goal:planet per §3.6.2; §7.7 endpoint shapes; §7.8 STH cosigning per CIRISRegistry#24 Ask 3; bootstrap-contributions pattern v1.3 per §10.4.
+**Status**: v1.4.3 (active; §3.2.1 canonical-bytes contracts for SkillImportManifest + per-locale Merkle composition — unblocks CIRISVerify v3.9.0+ Phase 2 verifier per Verify#37; §3.6.2 Goal substrate-primitive cross-ref per CIRISPersist#114 + CIRISEdge#41). Carries forward v1.4.2 envelope fields; v1.4.1 compliance spec batch; v1.4 files-as-Contributions surface.
 **Last updated**: 2026-05-27.
+**Changelog vs v1.4.2**:
+- §3.2.1 (new) — canonical-bytes contracts for v1.4.1 provenance primitives. §3.2.1.1 pins `SkillImportManifest` canonical bytes (hybrid Ed25519 + ML-DSA-65; domain-prefixed; sorted-capability JSON form). §3.2.1.2 pins per-locale Merkle composition (RFC 6962 domain-separated hashing; lexicographic locale ordering; RFC-6962 padding for non-power-of-2 leaf counts; inclusion-proof shape). Unblocks CIRISVerify v3.9.0+ Phase 2 verifier (`SkillImportManifest::verify` + per-locale Merkle composition verifier) — Verify v3.8.0 shipped Phase 1 carrier-ready waiting on these structures per CIRISVerify#37.
+- §3.6.2 — Goal substrate-primitive cross-ref. The persist typed `Goal` (CIRISPersist#114) is the substrate OBJECT; `goal:{scale}` per §3.6.2 is the ATTESTATION about it. Required `MetaGoalAlignment` (M-1 dimension + rationale) on every Goal as construction-time invariant. Edge `MessageType::GoalDeclaration` + `GoalRetirement` (CIRISEdge#41) provide federation transport. F-3 detector family (CIRISLensCore#23/24/26) aggregates across the federation Goal set.
+
 **Changelog vs v1.4.1**:
 - §2.1 — three new envelope fields: `occurrence_id` + `occurrence_count` + `occurrence_role` for multi-occurrence agent-deployment semantics. Closes CIRISPersist#110 (which requested a §3.1.5 addition — architecturally these are envelope-level fields, not a per-component prefix slice, so §2.1 is the canonical home). Substrate-self-report attestations (`system:*` prefixes per §3.3 + §3.4) SHOULD carry these fields per the field's documented semantics. Single-occurrence agents leave them null/absent; backward-compatible. CIRIS Agent multi-occurrence wiring at `ciris_engine/logic/utils/occurrence_utils.py`.
 
@@ -505,6 +509,124 @@ This section catalogs every prefix family, organized by owning component, with c
 | `cert_validity:{authority}` | Validity of a certification authority's signature over the key. **v1.4.1**: each registry steward emits a `cert_validity:{steward_id}` AttestationEntry covering its own cert chain (per CIRISRegistry#24 Ask 4); cross-stewards may also attest each other (`registry-us` attests `registry-eu`'s cert, etc.). Surfaced alongside steward key responses at `/v1/steward-key`. | Verify §1.4; CIRISRegistry#24. | boolean-via-score |
 | `hardware_custody:{platform}` | Statement that the seed lives in `tpm` / `ios_secure_enclave` / `android_keystore` / `software_fallback`. Software fallback caps at `UNLICENSED_COMMUNITY`. | Verify §1.6, §4; `storage_descriptor()` per AV-7. | boolean-via-score |
 
+#### 3.2.1 Canonical-bytes contracts for v1.4.1+ provenance primitives
+
+CIRISVerify v3.8.0 ships Phase 1 (carrier-ready: dimension recognition + `AttestBundle` projection for `provenance:skill_import:{source}` + `provenance:build_manifest:{target}:locale:{lang_code}`); Phase 2 (`SkillImportManifest::verify` + per-locale Merkle composition verifier) is blocked on Registry-side canonical-bytes finalization. This subsection pins the structures so Verify v3.9.0+ can land the verifiers deterministically.
+
+##### 3.2.1.1 `SkillImportManifest` canonical bytes
+
+A `SkillImportManifest` is the signed bytes underlying a `provenance:skill_import:{source}` attestation. Signature scheme is hybrid Ed25519 + ML-DSA-65 per FSD-002 §7 federation discipline. Canonical bytes for both signatures are computed as:
+
+```
+canonical_bytes = sha256(
+    "ciris.skill_import.v1\n" ||                            // domain prefix; UTF-8 newline-terminated
+    "source=" || source_string || "\n" ||                   // see source-form table below
+    "skill_manifest_sha256=" || sha256_hex_lowercase || "\n" ||  // 64 hex chars
+    "signer_identity=" || signer_key_id || "\n" ||          // federation_keys.key_id string
+    "import_timestamp=" || iso8601_rfc3339_utc || "\n" ||   // "2026-05-28T17:30:00Z" form
+    "capability_declaration=" || sorted_capabilities_json || "\n" ||  // see capability-declaration form below
+    "valid_until=" || optional_iso8601_or_empty            // empty string if no valid_until
+)
+```
+
+**Source string forms** (UTF-8; case-sensitive; no trailing whitespace):
+- `registry:{registry_id}` — `registry_id` is the federation_keys.key_id of the publishing registry steward (e.g., `registry-steward-us`)
+- `direct:{url}` — `url` is the RFC 3986 absolute URI; consumer policy decides whether to honor non-HTTPS schemes
+- `local:{path}` — `path` is the deployment-local filesystem path; emitted only for operator-managed local skill installations
+
+**Capability-declaration canonical form**: JSON array of capability strings, sorted lexicographically, no whitespace, no trailing newline. Example:
+```
+["agent_files:adapter:wellness","beneficence:wellness_referral","domain:medical:triage"]
+```
+
+The bytes the canonical-form is computed over are the EXACT UTF-8 representation of the sorted JSON array — same form Verify's `canonical_bytes()` reconstructs at verification time.
+
+**ML-DSA-65 signing convention**: signed over `canonical_bytes || ed25519_signature_bytes` (bound payload — same scheme as `build_manifest::verify_uploaded_manifest` per `rust-registry/src/build_manifest.rs`). Verify v3.9.0+'s `SkillImportManifest::verify()` reconstructs both forms to validate.
+
+**Wire envelope** (the attestation that carries the signed SkillImportManifest):
+```json
+{
+  "attestation_type": "scores",
+  "attesting_key_id": "<signer_key_id>",
+  "attested_key_id": "<skill_target_or_self>",
+  "attestation_envelope": {
+    "dimension": "provenance:skill_import:registry:ciris-registry-us",
+    "score": 1.0,
+    "confidence": 1.0,
+    "context": "{\"skill_manifest_sha256\":\"...\",\"capability_declaration\":[...],\"import_timestamp\":\"...\"}",
+    "evidence_refs": [
+      "sha256:<skill_manifest_sha256>",
+      "<source_string>"
+    ],
+    "valid_until": "<ISO8601>",
+    "epistemic_mode": "direct",
+    "witness_relation": "external"
+  }
+}
+```
+
+##### 3.2.1.2 Per-locale Merkle composition for `provenance:build_manifest:{target}:locale:{lang_code}`
+
+The parent `provenance:build_manifest:{target}` manifest is a Merkle root over per-locale leaves. RFC 6962-style domain-separated hashing; deterministic locale ordering; explicit padding for non-power-of-2 leaf counts.
+
+**Leaf hash** (per locale):
+```
+leaf_hash[lang_code] = sha256(
+    0x00 ||                                                  // RFC 6962 leaf-domain prefix
+    "ciris.locale_manifest.v1\n" ||                         // ciris domain prefix
+    "target=" || target_string || "\n" ||                   // e.g., "ios-mobile-bundle"
+    "locale=" || lang_code || "\n" ||                       // ISO 639-1 lowercase, or "polyglot"
+    "files_root=" || files_merkle_root_hex || "\n" ||       // SHA-256 hex of the locale's file-tree Merkle root
+    "build_id=" || build_id || "\n" ||                      // canonical build identifier (UUIDv7 or similar)
+    "signer_identity=" || signer_key_id                      // per-primitive steward
+)
+```
+
+**Parent node hash**:
+```
+parent_hash(left, right) = sha256(
+    0x01 ||                                                  // RFC 6962 parent-domain prefix
+    left ||
+    right
+)
+```
+
+**Locale ordering** (deterministic; consumers MUST sort before constructing the tree):
+1. Sort `lang_code` values lexicographically by their ISO 639-1 byte representation (UTF-8, lowercase).
+2. `"polyglot"` (the unified-locale case) sorts AFTER all 2-letter codes by lexicographic byte order — i.e., it appears last in the leaf set when present.
+
+**Padding for non-power-of-2 leaf counts** (29 locales is not a power of 2): duplicate the last leaf to reach the next power of 2 (RFC 6962 convention). Verify-side walk must apply the same duplication discipline to reconstruct the parent root.
+
+Example with 29 locales (padded to 32 by duplicating the last leaf):
+```
+leaves[0..29]  = per-locale leaf_hash values, sorted
+leaves[29..32] = leaves[28] repeated  (RFC 6962 duplication padding)
+parent_root    = construct_merkle_tree(leaves)
+```
+
+**Verify-side walk** (Verify v3.9.0+'s lazy verification):
+1. Parse the parent `provenance:build_manifest:{target}` attestation; extract claimed `parent_root` from envelope `context.merkle_root`.
+2. Verify the parent attestation's hybrid signature against the per-primitive steward's pubkey.
+3. On per-locale fetch, compute `leaf_hash[lang_code]` from the served sub-manifest payload; collect sibling hashes from the inclusion proof; reconstruct path to root; compare to `parent_root` from step 1.
+4. Per-locale sub-manifest signature verification is independent of the Merkle walk — the leaf-level signature attests the locale's content; the Merkle walk attests inclusion in the parent.
+
+**Inclusion-proof shape** (returned by Registry's per-locale GET endpoint):
+```json
+{
+  "leaf_hash": "sha256:<hex>",
+  "lang_code": "my",
+  "sibling_hashes": ["sha256:<hex>", "sha256:<hex>", ...],  // path-to-root, leaf-to-root order
+  "leaf_index": 14,                                          // 0-based; for path direction
+  "tree_size": 32                                            // post-padding leaf count
+}
+```
+
+**Coordination with CanonicalBuild v2 per-target dispatcher** (CIRISVerify v2.0.3+): the locale layer composes BELOW target, not parallel. A target is `ios-mobile-bundle`; a locale leaf is `ios-mobile-bundle:locale:my` for Burmese sub-manifest within the iOS bundle. Per-target dispatcher pattern unchanged; the new per-locale layer is purely additive.
+
+##### 3.2.1.3 Closes Verify Phase 2 blocker
+
+These canonical-bytes contracts are the spec-side dependency CIRISVerify#37 Phase 2 was waiting on. With them pinned, Verify v3.9.0+ can implement `SkillImportManifest::verify()` + per-locale Merkle composition verifier deterministically against the structures named here. No further Registry-side spec work owed for the Phase 2 verifier.
+
 ### 3.3 CIRISPersist — substrate health (system:* reserved)
 
 **Owner**: [`CIRISPersist/MISSION.md`](https://github.com/CIRISAI/CIRISPersist/blob/main/MISSION.md) (sha `53bf5a4edd0e`).
@@ -625,7 +747,7 @@ The federation's largest dimension surface. Four tiers.
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `goal:{scale}` | Multi-scale belonging-projector composite. `{scale}` ∈ {`self`, `family`, `community`, `affiliations`, `species`, `planet` (v1.4 cross-source-reinforced addition — biosphere as belonging-scale per MH environmental concern + IEEE EAD Ch4 §1.3.a + IEEE EAD Ch8 sustainable-development)}. Scored by 𝒞_CIRIS. | NodeCore §2 P12; FSD/GOAL_PRIMITIVE.md. | signed |
+| `goal:{scale}` | Multi-scale belonging-projector composite. `{scale}` ∈ {`self`, `family`, `community`, `affiliations`, `species`, `planet` (v1.4 cross-source-reinforced addition — biosphere as belonging-scale per MH environmental concern + IEEE EAD Ch4 §1.3.a + IEEE EAD Ch8 sustainable-development)}. Scored by 𝒞_CIRIS. **v1.4.3 cross-ref**: composes with the typed `Goal` substrate primitive (CIRISPersist#114 + CIRISEdge#41) — the persist `Goal` is the substrate OBJECT being scored; `goal:{scale}` is the ATTESTATION about that object. Per Persist#114, every `Goal` carries a required `MetaGoalAlignment` payload (M-1 dimension + declarer rationale) as a construction-time invariant; consumer policy reading `goal:{scale}` attestations SHOULD walk to the `target_attestation_id` → persist `Goal.goal_id` reference to retrieve the M-1 alignment. Edge `MessageType::GoalDeclaration` + `GoalRetirement` (CIRISEdge#41) provide the federation-transport for the typed Goal; F-3 detector family (CIRISLensCore#23/24/26) aggregates across the federation's Goal set. | NodeCore §2 P12; FSD/GOAL_PRIMITIVE.md; CIRISPersist#114; CIRISEdge#41. | signed |
 | `approach:{goal_id}` | Strategic pathway from current state toward Goals (Piece 10 karma). Evaluation derived from linked Progress Measures. | NodeCore §2 P13; FSD/APPROACH_PRIMITIVE.md. | signed |
 | `method:{approach_id}:{substrate_rung}` | Concrete operational practice. Required `substrate_rung` (Ph0/Ph1/Ph2/A0..A5). Truth-grounding = execution verifiability. | NodeCore §2 P14; FSD/METHOD_PRIMITIVE.md. | signed |
 | `progress_measure:{method_id}` | Evidence of progress. Required `tracks[]`, `computation`, `validity_window`, `goodhart_resistance`. | NodeCore §2 P15; FSD/PROGRESS_MEASURE_PRIMITIVE.md. | signed |
