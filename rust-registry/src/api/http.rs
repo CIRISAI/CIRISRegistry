@@ -559,6 +559,493 @@ async fn partner_composition(
     }))
 }
 
+// =============================================================================
+// §7.8 STH cosigning + witness directory endpoints (CIRISRegistry#24 Ask 3)
+// =============================================================================
+//
+// CIRISVerify v2.12.0+ ships consumer-side SignedTreeHead::cosign +
+// count_valid_witnesses + witness_quorum_met. These four endpoints close the
+// emission loop. Per FSD-002 §7.8: 3 public (cosign, witnesses directory,
+// per-STH cosignatures) + 1 admin (witness registration; v1.4 interim before
+// CIRISPersist#102 vocabulary extension lands identity_type=witness).
+
+#[derive(serde::Deserialize)]
+struct CosignRequest {
+    tree_size: i64,
+    /// sha256:... hex with prefix, OR base64; accept both
+    root_hash: String,
+    witness_key_id: String,
+    witness_signature: CosignWitnessSig,
+}
+
+#[derive(serde::Deserialize)]
+struct CosignWitnessSig {
+    /// base64 Ed25519 signature
+    ed25519: String,
+    /// base64 ML-DSA-65 signature
+    ml_dsa_65: String,
+    /// ISO8601 signed-at timestamp
+    signed_at: String,
+}
+
+#[derive(Serialize)]
+struct CosignResponse {
+    accepted: bool,
+    tree_size: i64,
+    witness_key_id: String,
+    cosigned_at: i64,
+}
+
+#[derive(Serialize)]
+struct WitnessesResponse {
+    witnesses: Vec<WitnessEntry>,
+    timestamp: i64,
+    note: Option<String>,
+}
+
+#[derive(Serialize)]
+struct WitnessEntry {
+    witness_key_id: String,
+    ed25519_pubkey: String,
+    ml_dsa_65_pubkey: String,
+    fingerprint: String,
+    hardware_class: String,
+    trusted_since: i64,
+}
+
+#[derive(Serialize)]
+struct CosignaturesForSthResponse {
+    tree_size: i64,
+    root_hash: String,
+    cosignatures: Vec<CosignatureEntry>,
+    witness_quorum_met: bool,
+    threshold: u32,
+    timestamp: i64,
+}
+
+#[derive(Serialize)]
+struct CosignatureEntry {
+    witness_key_id: String,
+    signature: CosignWitnessSigOut,
+    signed_at: i64,
+    cosigned_at: i64,
+}
+
+#[derive(Serialize)]
+struct CosignWitnessSigOut {
+    ed25519: String,
+    ml_dsa_65: String,
+}
+
+#[derive(Serialize)]
+struct TransparencyError {
+    error: String,
+    message: String,
+}
+
+/// Default witness quorum threshold per FSD-002 §7.8 ("N/2 + 1 of
+/// registered witnesses"). Policy-tunable; v1.4 interim ships the default.
+fn witness_quorum_threshold(num_witnesses: usize) -> u32 {
+    if num_witnesses == 0 {
+        return 0;
+    }
+    ((num_witnesses / 2) + 1) as u32
+}
+
+/// Parse "sha256:HEX" prefix-encoded hash to raw bytes; also accept bare hex
+/// or base64 for caller tolerance.
+fn parse_hash_bytes(s: &str) -> Result<Vec<u8>, String> {
+    let trimmed = s.strip_prefix("sha256:").unwrap_or(s);
+    if let Ok(bytes) = hex::decode(trimmed) {
+        return Ok(bytes);
+    }
+    let b64 = base64::engine::general_purpose::STANDARD;
+    b64.decode(trimmed).map_err(|e| format!("hash decode failed: {}", e))
+}
+
+fn format_hash_sha256(bytes: &[u8]) -> String {
+    format!("sha256:{}", hex::encode(bytes))
+}
+
+/// Public endpoint: POST /v1/transparency/sth/cosign (FSD-002 §7.8)
+///
+/// Witness posts a cosignature for a tree size. Registry verifies the witness
+/// signature against the witness's pubkey in the directory (registry_witnesses
+/// table; substrate-conformance #17 moves this to federation_keys with
+/// identity_type=witness per CIRISPersist#102). Accepted cosignatures are
+/// stored for retrieval via the per-STH endpoint.
+async fn sth_cosign(
+    State(state): State<AppState>,
+    Json(req): Json<CosignRequest>,
+) -> Result<Json<CosignResponse>, (StatusCode, Json<TransparencyError>)> {
+    // 1. Look up witness
+    let witness = match db::lookup_witness(state.db.pool(), &req.witness_key_id).await {
+        Ok(Some(w)) => w,
+        Ok(None) => {
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(TransparencyError {
+                    error: "unknown_witness".to_string(),
+                    message: format!(
+                        "witness_key_id={} not in directory; admin must register via POST /v1/transparency/witnesses first",
+                        req.witness_key_id
+                    ),
+                }),
+            ));
+        }
+        Err(e) => {
+            warn!("witness lookup failed: {}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(TransparencyError {
+                    error: "internal_error".to_string(),
+                    message: "witness lookup failed".to_string(),
+                }),
+            ));
+        }
+    };
+
+    // 2. Parse root hash
+    let root_hash = parse_hash_bytes(&req.root_hash).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(TransparencyError {
+                error: "bad_root_hash".to_string(),
+                message: e,
+            }),
+        )
+    })?;
+
+    // 3. Parse signatures
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let ed_sig = b64.decode(&req.witness_signature.ed25519).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(TransparencyError {
+                error: "bad_signature".to_string(),
+                message: format!("ed25519 base64 decode: {}", e),
+            }),
+        )
+    })?;
+    let mldsa_sig = b64.decode(&req.witness_signature.ml_dsa_65).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(TransparencyError {
+                error: "bad_signature".to_string(),
+                message: format!("mldsa65 base64 decode: {}", e),
+            }),
+        )
+    })?;
+
+    // 4. Parse signed_at
+    let signed_at = time::OffsetDateTime::parse(
+        &req.witness_signature.signed_at,
+        &time::format_description::well_known::Rfc3339,
+    )
+    .map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(TransparencyError {
+                error: "bad_timestamp".to_string(),
+                message: format!("signed_at ISO8601 parse: {}", e),
+            }),
+        )
+    })?;
+
+    // 5. Verify hybrid signature over (tree_size || root_hash || signed_at) canonical bytes.
+    //    Domain-prefix per RFC-6962-style discipline; matches what Verify v2.12.0's
+    //    cosign() computes at sign time.
+    let mut canonical = Vec::with_capacity(128);
+    canonical.extend_from_slice(b"ciris.sth_cosign.v1\n");
+    canonical.extend_from_slice(format!("tree_size={}\n", req.tree_size).as_bytes());
+    canonical.extend_from_slice(format!("root_hash={}\n", format_hash_sha256(&root_hash)).as_bytes());
+    canonical.extend_from_slice(format!("signed_at={}", req.witness_signature.signed_at).as_bytes());
+
+    use ciris_crypto::{ClassicalVerifier, Ed25519Verifier, MlDsa65Verifier, PqcVerifier};
+    let ed_ok = Ed25519Verifier::new()
+        .verify(&witness.ed25519_pubkey, &canonical, &ed_sig)
+        .unwrap_or(false);
+    if !ed_ok {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(TransparencyError {
+                error: "verification_failed".to_string(),
+                message: "Ed25519 signature did not verify against witness pubkey".to_string(),
+            }),
+        ));
+    }
+    // ML-DSA-65 over bound payload (canonical || ed25519_sig)
+    let mut bound = Vec::with_capacity(canonical.len() + ed_sig.len());
+    bound.extend_from_slice(&canonical);
+    bound.extend_from_slice(&ed_sig);
+    let mldsa_ok = MlDsa65Verifier::new()
+        .verify(&witness.mldsa65_pubkey, &bound, &mldsa_sig)
+        .unwrap_or(false);
+    if !mldsa_ok {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(TransparencyError {
+                error: "verification_failed".to_string(),
+                message: "ML-DSA-65 signature did not verify against witness pubkey".to_string(),
+            }),
+        ));
+    }
+
+    // 6. Persist cosignature
+    if let Err(e) = db::record_cosignature(
+        state.db.pool(),
+        req.tree_size,
+        &root_hash,
+        &req.witness_key_id,
+        &ed_sig,
+        &mldsa_sig,
+        signed_at,
+    )
+    .await
+    {
+        warn!("record_cosignature failed: {}", e);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(TransparencyError {
+                error: "persist_failed".to_string(),
+                message: format!("persist cosignature: {}", e),
+            }),
+        ));
+    }
+
+    info!(
+        tree_size = req.tree_size,
+        witness_key_id = %req.witness_key_id,
+        "STH cosignature recorded"
+    );
+
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    Ok(Json(CosignResponse {
+        accepted: true,
+        tree_size: req.tree_size,
+        witness_key_id: req.witness_key_id,
+        cosigned_at: now,
+    }))
+}
+
+/// Public endpoint: GET /v1/transparency/witnesses (FSD-002 §7.8)
+///
+/// Directory of trusted witness pubkeys for consumer-side ThresholdMember
+/// construction. v1.4 interim: returns empty until admin registers witnesses
+/// via POST /v1/transparency/witnesses (substrate-conformance #17 +
+/// CIRISPersist#102 vocabulary extension supersedes with federation_keys).
+async fn list_witnesses_handler(
+    State(state): State<AppState>,
+) -> Result<Json<WitnessesResponse>, (StatusCode, Json<TransparencyError>)> {
+    let witnesses = db::list_witnesses(state.db.pool()).await.map_err(|e| {
+        warn!("list_witnesses failed: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(TransparencyError {
+                error: "internal_error".to_string(),
+                message: format!("list_witnesses: {}", e),
+            }),
+        )
+    })?;
+
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let entries: Vec<WitnessEntry> = witnesses
+        .into_iter()
+        .map(|w| WitnessEntry {
+            witness_key_id: w.witness_key_id,
+            ed25519_pubkey: b64.encode(&w.ed25519_pubkey),
+            ml_dsa_65_pubkey: b64.encode(&w.mldsa65_pubkey),
+            fingerprint: w.fingerprint,
+            hardware_class: w.hardware_class,
+            trusted_since: w.trusted_since.unix_timestamp(),
+        })
+        .collect();
+
+    let note = if entries.is_empty() {
+        Some("witness directory empty; admin must POST /v1/transparency/witnesses to register; CIRISPersist#102 vocabulary extension will supersede with federation_keys identity_type=witness".to_string())
+    } else {
+        None
+    };
+
+    Ok(Json(WitnessesResponse {
+        witnesses: entries,
+        timestamp: time::OffsetDateTime::now_utc().unix_timestamp(),
+        note,
+    }))
+}
+
+/// Public endpoint: GET /v1/transparency/sth/{tree_size}/witnesses (FSD-002 §7.8)
+///
+/// Fetch all cosignatures for an STH. CIRISVerify v2.12.0+'s
+/// count_valid_witnesses + witness_quorum_met consume this directly.
+async fn cosignatures_for_sth(
+    State(state): State<AppState>,
+    axum::extract::Path(tree_size): axum::extract::Path<i64>,
+) -> Result<Json<CosignaturesForSthResponse>, (StatusCode, Json<TransparencyError>)> {
+    let cosigs = db::list_cosignatures_for_sth(state.db.pool(), tree_size)
+        .await
+        .map_err(|e| {
+            warn!("list_cosignatures_for_sth failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(TransparencyError {
+                    error: "internal_error".to_string(),
+                    message: format!("list_cosignatures: {}", e),
+                }),
+            )
+        })?;
+
+    // Compute witness quorum status (all registered witnesses denominator;
+    // numerator = distinct cosignatures recorded). Default policy per §7.8:
+    // N/2 + 1 of registered witnesses.
+    let all_witnesses = db::list_witnesses(state.db.pool()).await.unwrap_or_default();
+    let threshold = witness_quorum_threshold(all_witnesses.len());
+    let met = (cosigs.len() as u32) >= threshold && threshold > 0;
+
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let root_hash = cosigs
+        .first()
+        .map(|c| format_hash_sha256(&c.root_hash))
+        .unwrap_or_else(|| "sha256:".to_string());
+    let entries: Vec<CosignatureEntry> = cosigs
+        .into_iter()
+        .map(|c| CosignatureEntry {
+            witness_key_id: c.witness_key_id,
+            signature: CosignWitnessSigOut {
+                ed25519: b64.encode(&c.ed25519_signature),
+                ml_dsa_65: b64.encode(&c.mldsa65_signature),
+            },
+            signed_at: c.signed_at.unix_timestamp(),
+            cosigned_at: c.cosigned_at.unix_timestamp(),
+        })
+        .collect();
+
+    Ok(Json(CosignaturesForSthResponse {
+        tree_size,
+        root_hash,
+        cosignatures: entries,
+        witness_quorum_met: met,
+        threshold,
+        timestamp: time::OffsetDateTime::now_utc().unix_timestamp(),
+    }))
+}
+
+/// Admin endpoint: POST /v1/transparency/witnesses (v1.4 interim)
+///
+/// Register a new trusted witness in the directory. REGISTRY_ADMIN_TOKEN
+/// bearer-gated. v1.4 interim before CIRISPersist#102 `identity_type=witness`
+/// vocabulary extension lands — substrate-conformance #17 will supersede
+/// this endpoint with federation_keys writes.
+#[derive(serde::Deserialize)]
+struct RegisterWitnessRequest {
+    witness_key_id: String,
+    /// base64 Ed25519 pubkey (32 bytes)
+    ed25519_pubkey: String,
+    /// base64 ML-DSA-65 pubkey (1952 bytes)
+    ml_dsa_65_pubkey: String,
+    #[serde(default = "default_hardware_class")]
+    hardware_class: String,
+}
+
+fn default_hardware_class() -> String {
+    HARDWARE_CLASS_PLACEHOLDER.to_string()
+}
+
+#[derive(Serialize)]
+struct RegisterWitnessResponse {
+    accepted: bool,
+    witness_key_id: String,
+    fingerprint: String,
+}
+
+async fn register_witness_http(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<RegisterWitnessRequest>,
+) -> Result<Json<RegisterWitnessResponse>, (StatusCode, Json<TransparencyError>)> {
+    let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
+    if admin_token.is_empty() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(TransparencyError {
+                error: "configuration_error".to_string(),
+                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
+            }),
+        ));
+    }
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
+    if provided_token != admin_token {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(TransparencyError {
+                error: "unauthorized".to_string(),
+                message: "Invalid or missing authorization token".to_string(),
+            }),
+        ));
+    }
+
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let ed_pub = b64.decode(&req.ed25519_pubkey).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(TransparencyError {
+                error: "bad_pubkey".to_string(),
+                message: format!("ed25519 base64 decode: {}", e),
+            }),
+        )
+    })?;
+    let mldsa_pub = b64.decode(&req.ml_dsa_65_pubkey).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(TransparencyError {
+                error: "bad_pubkey".to_string(),
+                message: format!("mldsa65 base64 decode: {}", e),
+            }),
+        )
+    })?;
+
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(&mldsa_pub);
+    let fingerprint = format!("sha256:{}", hex::encode(hasher.finalize()));
+
+    db::register_witness(
+        state.db.pool(),
+        &req.witness_key_id,
+        &ed_pub,
+        &mldsa_pub,
+        &fingerprint,
+        &req.hardware_class,
+    )
+    .await
+    .map_err(|e| {
+        warn!("register_witness failed: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(TransparencyError {
+                error: "persist_failed".to_string(),
+                message: format!("register_witness: {}", e),
+            }),
+        )
+    })?;
+
+    info!(
+        witness_key_id = %req.witness_key_id,
+        hardware_class = %req.hardware_class,
+        "Witness registered"
+    );
+
+    Ok(Json(RegisterWitnessResponse {
+        accepted: true,
+        witness_key_id: req.witness_key_id,
+        fingerprint,
+    }))
+}
+
 /// Public endpoint: GET /v1/rotation-history (FSD-002 §7.7 audit endpoint)
 ///
 /// Chronological rotation events for the registry's signing keys, derived from
@@ -2608,6 +3095,16 @@ pub async fn serve(
         // v1.4 CIRISRegistry#23 Surface 3 — partner ProfileScorecard composition
         // from partners + revocations + bond + licensure tables.
         .route("/v1/partner/{key_id}", get(partner_composition))
+        // v1.4.3 CIRISRegistry#24 Ask 3 — STH cosigning + witness directory
+        // per FSD-002 §7.8. CIRISVerify v2.12.0+ consumer-side
+        // SignedTreeHead::cosign + count_valid_witnesses + witness_quorum_met
+        // wires against these.
+        .route("/v1/transparency/sth/cosign", post(sth_cosign))
+        .route("/v1/transparency/witnesses", get(list_witnesses_handler))
+        .route(
+            "/v1/transparency/sth/{tree_size}/witnesses",
+            get(cosignatures_for_sth),
+        )
         .route("/v1/revocation/{target_id}", get(check_revocation))
         .route("/v1/verify/binary-manifest/{version}", get(binary_manifest))
         .route(
@@ -2654,6 +3151,9 @@ pub async fn serve(
         // REGISTRY_JWT_SECRET requirement by mirroring the build-manifest
         // auth model: bearer token + content signature against trusted key.
         .route("/v1/builds", post(register_build_http))
+        // v1.4.3 CIRISRegistry#24 Ask 3 — admin witness registration (v1.4 interim
+        // before CIRISPersist#102 identity_type=witness vocabulary extension).
+        .route("/v1/transparency/witnesses", post(register_witness_http))
         // Play Integrity verification (Android device/app attestation)
         .route("/v1/integrity/nonce", get(integrity_nonce))
         .route("/v1/integrity/verify", post(integrity_verify))
