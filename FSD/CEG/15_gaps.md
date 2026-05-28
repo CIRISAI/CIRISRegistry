@@ -33,6 +33,7 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 | 0.1-MED open-vocabulary collision | **CLOSED** in [§11.2.2](11_governance.md) collision rule |
 | 0.1-MED occurrence_id self-assertion | **ACKNOWLEDGED** in [§4](04_envelope.md) + R6 below |
 | 0.1-MED `withdraws` arbitrage | **CLOSED** in [§13.4](13_anti_patterns.md) consumer-policy countermeasure |
+| 0.2 — `attestation:l{N}:*` carried ladder-position in wire (T2 violation inherited from FSD-002 v1.0) | **CLOSED in CEG 0.2** by [§5.2](05_namespace.md) wire-break rename to mechanism-only prefixes + [§8.1.9](08_composition.md) Policy I consumer-side Attestation-Ladder Composition + [§13.1](13_anti_patterns.md) deprecation entry. Verify v3.7.0 caught the principle; CEG 0.1 inherited the wrong shape from FSD-002 v1.0 baseline without re-examining against the [§1.3.1](01_foundation.md) T2 gate; CEG 0.2 ratifies the correction. |
 
 ## §15.2 Acknowledged risks (named as bets)
 

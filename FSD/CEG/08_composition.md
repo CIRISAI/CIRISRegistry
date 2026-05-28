@@ -73,9 +73,9 @@ Three-layer consumer policy for composing trust over `agent_files:*` attestation
 
 ### §8.1.7 Policy G — Trust-Fresh / Lighthouse
 
-Composition pattern recognized in CIRISRegistry#30 stories — `cert_validity:{authority} + transparency_log:inclusion + attestation:l3_or_l4` recurred organically across ~20 substrate stories as the "freshness + attested + verified" idiom.
+Composition pattern recognized in CIRISRegistry#30 stories — `cert_validity:{authority} + transparency_log:inclusion + (attestation:registry_consensus OR attestation:license_validity)` recurred organically across ~20 substrate stories as the "freshness + attested + verified" idiom.
 
-Reads as: the consumer wants confirmation that (a) the cert chain is currently valid; (b) the attestation appears in a transparency log; (c) at least L3 (registry consensus) or L4 (license validity) is satisfied. The combination is the consumer-side recipe for "this attestation is fresh AND verified AND multi-source-consensus-backed."
+Reads as: the consumer wants confirmation that (a) the cert chain is currently valid; (b) the attestation appears in a transparency log; (c) either `attestation:registry_consensus` (the ladder's L3 position per §8.1.9 Policy I) or `attestation:license_validity` (L4) is satisfied. The combination is the consumer-side recipe for "this attestation is fresh AND verified AND multi-source-consensus-backed."
 
 Not a wire primitive; a recognized composition pattern that consumer libraries SHOULD expose as a named one-call helper.
 
@@ -102,6 +102,44 @@ A Contribution's `cohort_scope` MAY be widened (promoted) by emitting a `superse
 - optionally morph `sub_kind` (e.g., `local_data` → `encyclopedia_article` for "promote my private note to a published encyclopedia entry")
 
 This pattern is wire-format-clean: re-uses the structural primitive `supersedes` rather than introducing a `promote` primitive. The chain is walkable via `references_attestation_id` so the promotion lineage is preserved.
+
+### §8.1.9 Policy I — Attestation-Ladder Composition (CEG 0.2 addition)
+
+The familiar L1-L5 verification "ladder" (self_verify → hardware_rooted → registry_consensus → license_validity → agent_integrity) is **consumer-side composition over the mechanism prefixes** in [§5.2](05_namespace.md), not a wire-level taxonomy.
+
+Per [§1.3.1](01_foundation.md) T2 honestly applied: the L-number names a *ladder position* (a verdict-shape consumers compute), not a *mechanism* (which is what the wire MUST carry). Prefixes like `attestation:l3:registry_consensus` smuggled the verdict-shape into the prefix name, conflating the mechanism (registry consensus check) with the ladder slot (third rung). The CEG 0.2 wire-break separates them.
+
+**Wire prefixes (mechanism)** [§5.2](05_namespace.md):
+
+| Mechanism prefix | Ladder position (consumer-rendered) |
+|---|---|
+| `attestation:self_verify` | L1 |
+| `attestation:hardware_rooted` | L2 |
+| `attestation:registry_consensus` | L3 |
+| `attestation:license_validity` | L4 |
+| `attestation:agent_integrity` | L5 |
+
+**Composition function** (reference implementation):
+
+```
+ladder_verdict(attestations) =
+    let levels = []
+    for prefix in [self_verify, hardware_rooted, registry_consensus,
+                   license_validity, agent_integrity]:
+        if any positive attestation on attestation:{prefix}:
+            levels.push(prefix_to_ladder_position(prefix))
+    return {
+        achieved:   max(levels) if levels else None,
+        ladder:     sorted(levels),
+        rendering:  format_as_l1_l5_for_ui(levels)
+    }
+```
+
+Consumers MAY render the ladder as `L1` / `L2` / `L3` / `L4` / `L5` for UI / dashboards / audit trails. The rendering is composition output, not wire emission.
+
+**Why this matters**: a Verify implementation emitting `attestation:registry_consensus +1.0` is the mechanism claim. Whether that's "L3" in any particular consumer's ladder ordering is a composition concern — different consumers may order or weight the rungs differently (e.g., some safety-critical applications may require L4 *and* L5, others may treat L3 as sufficient for advisory work). The wire stays neutral; the ladder is consumer policy.
+
+**Migration from CEG 0.1**: prior emissions of `attestation:l{N}:*` MUST be re-emitted as `attestation:{mechanism}` per the table above. Substrate-conformance migration (CIRISRegistry#17) reads-side compatibility: consumers SHOULD accept the deprecated `attestation:l{N}:*` form during the 0.1 → 0.2 transition window but MUST emit only the mechanism form going forward. The deprecated form is rejected at admission once §11.2 amendment formally retires it (target: CEG 0.3).
 
 ## §8.2 Aggregation semantics — opinionated defaults
 

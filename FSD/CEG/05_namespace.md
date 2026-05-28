@@ -46,11 +46,11 @@ This section catalogs every prefix family, organized by owning component, with c
 
 | Prefix | Description | Polarity |
 |---|---|---|
-| `attestation:l1:self_verify` | L1 self-verification. | boolean-via-score |
-| `attestation:l2:hardware` | Hardware-rooted attestation. | boolean-via-score |
-| `attestation:l3:registry_consensus` | 2-of-3 multi-source registry consensus. | boolean-via-score; `Indeterminate` allowed → RESTRICTED |
-| `attestation:l4:license_validity` | License-validity claim. | boolean-via-score |
-| `attestation:l5:agent_integrity` | Full L5 — agent source-tree byte-equal against registered manifest. | boolean-via-score |
+| `attestation:self_verify` | Running CIRISVerify binary attests itself against its function manifest. (Consumer-side ladder: corresponds to L1; see §8.1.9 Policy I.) | boolean-via-score |
+| `attestation:hardware_rooted` | Hardware-rooted attestation (TPM 2.0 / Android Keystore / iOS Secure Enclave). (Ladder L2.) | boolean-via-score |
+| `attestation:registry_consensus` | 2-of-3 multi-source registry consensus on key / build / license validity. (Ladder L3.) | boolean-via-score; `Indeterminate` allowed → RESTRICTED |
+| `attestation:license_validity` | License-validity claim (Registry-signed, Verify-verified). (Ladder L4.) | boolean-via-score |
+| `attestation:agent_integrity` | Agent source-tree byte-equal against registered manifest. (Ladder L5.) | boolean-via-score |
 | `provenance:slsa:{level}` | SLSA build provenance levels 1-3. Registry emits these on build registration; Verify v3.6.0+ `AttestBundle.provenance.slsa_level` consumes. | boolean-via-score |
 | `provenance:build_manifest:{target}` | Per-target canonical-staged-runtime manifest hash equality. Each `BuildManifest` is hybrid-signed (Ed25519 + ML-DSA-65) by the per-primitive steward. | boolean-via-score |
 | `provenance:build_manifest:{target}:locale:{lang_code}` | Per-locale signed sub-manifest within a target's manifest tree. Parent target manifest is Merkle root over per-locale leaves. RFC 6962 padding for non-power-of-2. Detection surface for locale-targeted attacks. Canonical-bytes spec at [§5.2.1](#521-canonical-bytes-contracts-for-provenance-primitives). | boolean-via-score |
@@ -262,7 +262,7 @@ RATCHET emits **advisory** flags — never autonomously modifies ledger state. R
 
 ## §5.10 Namespace summary
 
-**83 prefix families** total across 8 owning components (CEG 0.1).
+**83 prefix families** total across 8 owning components (CEG 0.2).
 
 Lineage:
 - FSD-002 v1.0 baseline: 73 families (initial namespace stabilization)
@@ -273,6 +273,7 @@ Lineage:
 - v1.4.2 added 3 envelope fields: `occurrence_id`, `occurrence_count`, `occurrence_role`
 - v1.4.3: canonical-bytes contracts pinned in §5.2.1; Goal substrate cross-ref documented
 - **CEG 0.1**: opened `testimonial_witness:{kind}` to open vocabulary; surfaced `hard_case:{kind}` open vocabulary in §5.6.6; added `biosphere` to [§2](02_grammar.md) Scope axis; added `topical_relation:translation_of` sub-leaf in §5.6.8 (LIVE per CIRISNodeCore b1582cb); documented "Trust-Fresh" composition pattern in [§8.1.7](08_composition.md); added Tiered-Scope Composition pattern in [§8.1.8](08_composition.md). All polarity columns now populated.
+- **CEG 0.2** (wire break): renamed §5.2 attestation-ladder prefixes from `attestation:l{N}:*` to mechanism-only form (`attestation:self_verify`, `attestation:hardware_rooted`, `attestation:registry_consensus`, `attestation:license_validity`, `attestation:agent_integrity`) per [§1.3.1](01_foundation.md) T2 honest application — L-numbers name ladder-position (a verdict-shape) not mechanism. The L1-L5 ladder is now consumer-side composition per [§8.1.9](08_composition.md) Policy I — Attestation-Ladder Composition. Deprecated wire shape added to [§13.1](13_anti_patterns.md).
 
 Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across 5 independent paths ([§1.4](01_foundation.md)).
 
