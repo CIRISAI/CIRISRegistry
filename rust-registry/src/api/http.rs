@@ -561,16 +561,47 @@ async fn partner_composition(
 
 /// Public endpoint: GET /v1/rotation-history (FSD-002 §7.7 audit endpoint)
 ///
-/// Chronological rotation events for stewards and accord-holders.
-/// v1.4 interim: empty events; pre-migration history is queryable via
-/// /v1/audit-log against registry_signing_keys table.
+/// Chronological rotation events for the registry's signing keys, derived from
+/// `registry_signing_keys` table. v1.4 interim returns the deployed steward's
+/// key-rotation history; accord-holder rotation events will be added once
+/// accord-holders are provisioned (current `provisioned: false` placeholders
+/// per §7.3.1 have no rotation history).
+///
+/// Substrate-conformance migration (#17) will move this query to
+/// `federation_keys` for the cross-region view once that lands.
 async fn rotation_history(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<RotationHistoryResponse>, (StatusCode, Json<StewardKeyError>)> {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    let events = match db::list_signing_keys(state.db.pool(), true).await {
+        Ok(rows) => {
+            rows.into_iter()
+                .map(|row| {
+                    serde_json::json!({
+                        "kind": "steward_key_lifecycle",
+                        "key_id": row.key_id,
+                        "ed25519_fingerprint": row.ed25519_fingerprint,
+                        "mldsa65_fingerprint": row.mldsa65_fingerprint,
+                        "status": row.status,
+                        "created_at": row.created_at.unix_timestamp(),
+                        "activated_at": row.activated_at.map(|t| t.unix_timestamp()),
+                        "rotated_at": row.rotated_at.map(|t| t.unix_timestamp()),
+                        "rotated_by": row.rotated_by,
+                        "retired_at": row.retired_at.map(|t| t.unix_timestamp()),
+                    })
+                })
+                .collect()
+        }
+        Err(e) => {
+            warn!("rotation_history: failed to query signing keys: {}", e);
+            Vec::new()
+        }
+    };
+
     Ok(Json(RotationHistoryResponse {
-        events: Vec::new(),
-        note: "rotation_history seeded at substrate-conformance migration; pre-migration history available via /v1/audit-log queries on registry_signing_keys table".to_string(),
+        events,
+        note: "Returns steward-key lifecycle events from registry_signing_keys. Accord-holder rotation events will land once accord-holders are provisioned (current placeholders have no rotation history). Substrate-conformance migration (CIRISRegistry#17) will move this to federation_keys for cross-region view.".to_string(),
         timestamp: now,
     }))
 }

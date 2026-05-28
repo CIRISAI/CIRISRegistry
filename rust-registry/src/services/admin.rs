@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use tonic::{Request, Response, Status};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::config::Environment;
 use crate::crypto::HybridCrypto;
@@ -431,6 +431,40 @@ impl AdminServiceTrait for AdminService {
             severity = ?req.severity,
             "Setting emergency shutdown"
         );
+
+        // CIRISRegistry#16 + FSD-002 §7 v1.4: INCIDENT_CONSTITUTIONAL (severity=5)
+        // requires 2-of-3 HUMANITY_ACCORD multi-sig verification per the constitutional
+        // layer. The current SetEmergencyShutdown RPC does not carry a multi-sig
+        // attestation envelope — operators authenticated via SYSTEM_ADMIN JWT cannot
+        // unilaterally invoke CONSTITUTIONAL severity even if they hold a valid token.
+        //
+        // The interim safety posture (v1.4): reject CONSTITUTIONAL severity requests
+        // at admission with explicit guidance. A v1.4.1 proto bump will add a
+        // `multi_sig_attestations` field to EmergencyShutdownRequest so accord-holders
+        // can submit signed envelopes; the verifier will pull each accord-holder's
+        // pubkey from /v1/accord-holders, reject if any holder is `provisioned: false`
+        // (placeholder), and verify 2-of-3 over the canonical envelope.
+        //
+        // Defense-in-depth: even if a SYSTEM_ADMIN JWT slips through with severity=5,
+        // this rejection prevents the call from reaching db::set_emergency_shutdown.
+        // The recursive Golden Rule applies — no federation-internal authority
+        // (including SYSTEM_ADMIN) can self-grant constitutional invocation.
+        if req.severity == 5 {
+            warn!(
+                operator = %operator_id,
+                severity = req.severity,
+                "REJECTED: SetEmergencyShutdown with INCIDENT_CONSTITUTIONAL severity requires 2-of-3 HUMANITY_ACCORD multi-sig (FSD-002 §7); SYSTEM_ADMIN authority is insufficient"
+            );
+            return Err(Status::permission_denied(
+                "INCIDENT_CONSTITUTIONAL severity requires 2-of-3 HUMANITY_ACCORD multi-sig per FSD-002 §7. \
+                 SYSTEM_ADMIN authority cannot self-grant constitutional invocation. \
+                 A v1.4.1 proto bump will add multi_sig_attestations carrier for accord-holder envelopes; \
+                 until then, the only valid path for CONSTITUTIONAL severity is out-of-band CIRIS L3C process \
+                 per FEDERATION_ANNOUNCEMENT.md §4.5.3. \
+                 Per FSD-002 §7.7 + §7.3.1, all current accord-holders are `provisioned: false` (placeholders); \
+                 consumers MUST treat any CONSTITUTIONAL invocation against placeholders as invalid regardless.",
+            ));
+        }
 
         db::set_emergency_shutdown(
             self.db.pool(),
