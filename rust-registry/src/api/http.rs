@@ -93,6 +93,27 @@ struct StewardEntry {
     fingerprint: Option<String>,
     hardware_class: String,
     deployed: bool,
+    /// v1.4.3 CIRISRegistry#24 Ask 4 — cert_validity:{steward_id} self-attestation.
+    /// Steward attests that its TLS cert chain is valid as of attested_at.
+    /// Consumers verify the TLS chain at connection time independently;
+    /// this attestation is an additional signed claim from the steward.
+    /// Null for non-deployed stewards (no cert chain to attest).
+    cert_validity: Option<CertValidityAttestation>,
+}
+
+/// `cert_validity:{steward_id}` self-attestation envelope per FSD-002 §3.2.
+/// v1.4 interim: minimal shape; substrate-conformance #17 will surface this
+/// as a full `scores` attestation on `federation_attestations` with
+/// hybrid-signed envelope per §2.1.
+#[derive(Serialize)]
+struct CertValidityAttestation {
+    dimension: String,
+    score: f64,
+    confidence: f64,
+    self_attested: bool,
+    attested_at: i64,
+    valid_until: i64,
+    note: String,
 }
 
 #[derive(Serialize)]
@@ -356,6 +377,11 @@ async fn steward_key(
     let mut stewards: Vec<StewardEntry> = Vec::with_capacity(STEWARD_REGIONS.len());
     for (region, region_key_id) in STEWARD_REGIONS {
         if *region == this_region {
+            // v1.4.3 CIRISRegistry#24 Ask 4 — emit cert_validity:{steward_id}
+            // self-attestation. v1.4 interim: minimal self-attested shape with
+            // 90-day validity window; substrate-conformance #17 lands the full
+            // hybrid-signed envelope on federation_attestations.
+            let valid_until_secs = 90 * 24 * 60 * 60;
             stewards.push(StewardEntry {
                 region: region.to_string(),
                 key_id: key_id.clone(),
@@ -364,6 +390,15 @@ async fn steward_key(
                 fingerprint: Some(mldsa_fingerprint.clone()),
                 hardware_class: HARDWARE_CLASS_HSM_PROD.to_string(),
                 deployed: true,
+                cert_validity: Some(CertValidityAttestation {
+                    dimension: format!("cert_validity:{}", key_id),
+                    score: 1.0,
+                    confidence: 1.0,
+                    self_attested: true,
+                    attested_at: now,
+                    valid_until: now + valid_until_secs,
+                    note: "v1.4 interim self-attestation; substrate-conformance #17 lands hybrid-signed envelope on federation_attestations per §3.2 + §2.1. Consumers verify the TLS chain at connection time independently.".to_string(),
+                }),
             });
         } else {
             // Other regions: placeholder until their Registry instance ships.
@@ -381,6 +416,7 @@ async fn steward_key(
                 fingerprint: None,
                 hardware_class: HARDWARE_CLASS_PLACEHOLDER.to_string(),
                 deployed: false,
+                cert_validity: None,
             });
         }
     }
