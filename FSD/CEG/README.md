@@ -9,6 +9,28 @@
 
 ---
 
+## How to read this spec without Cartesian default
+
+Before the TOC: one load-bearing reading instruction that prevents the most common misread.
+
+**Self is self, fractally.** At every scale the substrate operates on — key, occurrence, agent, fleet, cell, federation, biosphere — "self" means *the already-relationally-constituted entity speaking at that scale*. The cross-attestations that constituted the entity are upstream of the moment it speaks; when it then emits a self-attestation (`witness_relation: self`, declares its own `confidence`, reports its own `occurrence_id`, names its own `hardware_class`), that is **the relational composition speaking AS itself**, not a Cartesian atom asserting pre-relational identity.
+
+Concretely:
+
+- A `federation_keys` row is not an atomic principal pre-existing the federation that the substrate observes. It is a relational locus already constituted by the cross-attestations of stewards, prior peers, and provisioning ceremony. When the key-bearing entity then signs an attestation, the signature IS that relational composition speaking at this scale.
+- An occurrence within a fleet is not a pre-relational unit reporting its own state. It is constituted within its fleet (the fleet's `AGENT_OCCURRENCE_ID` partitioning, the prior cross-attestations naming this fleet's deployment, the substrate's witness of its emissions). When it reports `occurrence_id`, that is the fleet-constituted occurrence speaking.
+- The federation itself is not prior to its constituents. It IS the relational composition of cells, agents, occurrences, and keys cross-attesting one another.
+
+This is why the wire format admits self-attestation **everywhere it admits attestation at all**: because there is no pre-relational atomic entity available to do the admitting in the first place. Every `attesting_key_id` is already a relational locus. Self is the relational composition speaking from within itself, at the scale of the speaker.
+
+**Common misread to avoid.** A reader importing Cartesian-individualist defaults from PGP / X.509 / atomic-principal cryptographic identity work will see `witness_relation: self` and think "this is a single atom asserting pre-relational identity; surely the substrate should require cross-attestation before admitting." That reading is the misread. The substrate cannot require cross-attestation as a precondition for self-attestation because the cross-attestations are what constitute the self in the first place — they are upstream of the self-attestation, not downstream gates on it. The fractal nesting is the point.
+
+The Recursive Golden Rule ([§1.5](01_foundation.md)) is the structural expression of this: no scale gets to exempt itself from the relational constitution that defines it. CIRIS L3C is constituted by the same cross-attestations that constitute every other federation participant; the federation itself is constituted by its participants; humanity-as-such ([§9](09_humanity_accord.md)) is the one scale outside the federation's participant set, by design.
+
+If you find yourself thinking "the spec should add a cross-attestation gate before admitting this self-attestation" — pause. Cross-attestation already happened upstream; the self-attestation is its downstream voice. Verify by reading [§1.2](01_foundation.md) commitment 1, then continue.
+
+---
+
 ## Table of contents
 
 | § | File | What it covers |

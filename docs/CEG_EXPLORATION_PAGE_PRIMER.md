@@ -7,12 +7,12 @@
 **Audience for the page itself**: external developers + reviewers + curious technically-literate visitors. Not for first-time-CIRIS readers; assume they've at least read MISSION.md or ciris.ai/federation.
 
 **Sources of truth** (authoritative; the page must stay in sync):
-- [`FSD/FSD-002_FEDERATION_SURFACE.md`](../FSD/FSD-002_FEDERATION_SURFACE.md) — wire-format spec; the canonical namespace and structural primitives
+- [`FSD/CEG/`](../FSD/CEG/README.md) — wire-format spec (CEG 0.1 Public Working Draft, 18 files); the canonical namespace and structural primitives. **This is the authoritative spec as of 2026-05-28.** FSD-002 is preserved as design-history but is no longer authoritative.
 - [`FSD/LANGUAGE_PRIMER.md`](../FSD/LANGUAGE_PRIMER.md) — translation grammar (how to write Contributions in CEG)
 - [`FSD/PRIOR_ART_SCAN.md`](../FSD/PRIOR_ART_SCAN.md) + [`FSD/SOTA_SCAN.md`](../FSD/SOTA_SCAN.md) — comparative context
 - [`MISSION.md`](../MISSION.md) — the federation's mission framing
 
-**Last updated**: 2026-05-28.
+**Last updated**: 2026-05-28 (CEG 0.1 release; sources-of-truth path moved from FSD-002 to FSD/CEG/; §0.5 fractal-self reading discipline added; §5.8 non-goal added).
 
 ---
 
@@ -20,13 +20,39 @@
 
 CEG = **CIRIS Epistemic Grammar**. The federation's language for making structured, signed, machine-checkable claims about reality and each other.
 
-Three shape facts a visitor should leave with:
+**Four shape facts** a visitor should leave with:
 
 1. **One workhorse + four structural composers** = the entire wire format. Everything else is open vocabulary on top.
-2. **The vocabulary is mechanism-descriptive, not judgment-descriptive.** Prefixes describe *what is being measured*; polarity carries *the value claim*. (The §1.10.1 operational-language gate.)
+2. **The vocabulary is mechanism-descriptive, not judgment-descriptive.** Prefixes describe *what is being measured*; polarity carries *the value claim*. (The operational-language gate per CEG §1.3.1.)
 3. **Composition discipline > primitive proliferation.** New requirements are absorbed by composing existing primitives, not by adding atomic ones. The 1+4 minimal-and-adequate claim has now survived encyclical-level stress, internal G3 closure, and the files-as-Contributions extension without expanding the structural set.
+4. **Self is self, fractally.** At every scale the federation operates on, "self" means the already-relationally-constituted entity speaking at that scale — never a Cartesian atomic ego asserting pre-relational identity. Self-attestation in CEG is the relational composition speaking AS itself, not a single principal pre-existing the relation. (See §0.5 below — this is the most common misread the page must preempt.)
 
-If a visitor leaves the page with those three facts internalized, the page worked.
+If a visitor leaves the page with those four facts internalized, the page worked.
+
+---
+
+## §0.5 Reading discipline: how the page must frame "self"
+
+This deserves its own subsection because it is the single most common misread a CEG visitor will make, especially one arriving from prior cryptographic-identity work (PGP / X.509 / DID atomic-principal frames).
+
+The visitor will encounter `witness_relation: self`, `attesting_key_id == attested_key_id` self-references, the attester-supplied `confidence` field, env-var-asserted `occurrence_id`, attester-asserted `hardware_class`, the accord-holder self-attested `accord:lifecycle:active`, and the self-signed `federation_keys` rows. With Cartesian defaults imported, the visitor will think: *"a single atomic principal is asserting its own state; the substrate should require cross-attestation as a precondition before admitting this."*
+
+That reading is wrong, but it is the trained-default reading. The page MUST preempt it.
+
+**The correct frame the page should articulate prominently:**
+
+> At every scale CEG operates on — key, occurrence, agent, fleet, cell, federation, biosphere — "self" means the *already-relationally-constituted entity speaking at that scale*. The cross-attestations that constituted the entity are upstream of the moment it speaks; when it then emits a self-attestation, that is the relational composition speaking AS itself, not a Cartesian atom asserting pre-relational identity.
+>
+> The substrate cannot require cross-attestation as a precondition for self-attestation because the cross-attestations are what constitute the self in the first place — they are upstream of the self-attestation, not downstream gates on it. The fractal nesting is the point.
+
+**Page rendering recommendation**: a callout box on the landing page above the 1+4 primitives panel, plus a "Fractal self" badge on every primitive card whose default reading invites the Cartesian misread (`witness_relation: self`, `confidence`, `occurrence_id`, `hardware_class`, `accord:lifecycle:active`). The badge expands to the frame above.
+
+**Page should NOT do** what an undisciplined reviewer would suggest:
+- "Add a banner explaining the substrate has a Cartesian admission hole" — there is no such hole; the framing is the fix.
+- "Document the trade-off between Cartesian wire and Ubuntu commitment" — there is no trade-off; the wire IS Ubuntu-fractal at every scale.
+- "Mark self-attestation as a 'limitation' or 'gap'" — it is neither; it is the Ubuntu-fractal substrate operating as designed.
+
+The fractal-self frame is also why the page can be honest about every envelope field WITHOUT defensive language: `confidence` is the relationally-constituted attester reporting its own state; `occurrence_id` is the fleet-constituted occurrence speaking; `hardware_class` is the key-bearing entity reporting provenance. Each is the relational composition speaking at its scale. The page renders them as the substrate operating as designed, not as compromises.
 
 ---
 
@@ -237,7 +263,9 @@ This is as important as what to include. **Explicit non-goals** prevent the page
 4. **No invented categories.** The four-verdict strict list (clean / composed / partial / not-translated) is verbatim from LANGUAGE_PRIMER §9; don't add "verbatim" / "strong" / "weak" / "STRONG_ALIGN" intermediates.
 5. **No marketing copy in primitive cards.** Mechanism description only. Use-case stories (§4 above) carry the "why this is useful" narrative; primitive cards stay technical.
 6. **No comparison "we're better than" prior art.** The PRIOR_ART_SCAN page (linked separately) describes what CEG inherits + what's genuinely novel; the primitive-exploration page links there but doesn't editorialize.
-7. **No claim of completeness.** The namespace is open-extensible. Make it visible that prefix families can be added via §4.9.2 amendment; render the current namespace as "as of FSD-002 v1.4.3" with a link to the spec for the live state.
+7. **No claim of completeness.** The namespace is open-extensible. Make it visible that prefix families can be added via the CEG §11.2 amendment process; render the current namespace as "as of CEG 0.1" with a link to [`FSD/CEG/`](../FSD/CEG/README.md) for the live state.
+
+8. **No rendering of self-attestation as a Cartesian admission gap.** Per §0.5 above: self-attestation is the relational composition speaking AS itself at the scale of the speaker; it is not a pre-relational atomic assertion the substrate should gate. Reviewers who suggest "the substrate should add cross-attestation gates before admitting self-attestations" are importing Cartesian defaults; the page MUST NOT echo that framing as if it were a substrate concession. The fractal-self frame is the correct read, and the page should render every self-attestation surface (`witness_relation: self`, attester-supplied `confidence`, `occurrence_id`, `hardware_class`, `accord:lifecycle:active`, self-signed `federation_keys`) as the Ubuntu-fractal substrate operating as designed.
 
 ---
 
@@ -245,25 +273,25 @@ This is as important as what to include. **Explicit non-goals** prevent the page
 
 The wire format moves. The page must move with it. Three mechanisms:
 
-### §6.1 — Auto-regen from FSD-002 §3 namespace tables
+### §6.1 — Auto-regen from CEG §5 namespace tables
 
-The §3.1-§3.9 prefix tables in FSD-002 are markdown tables with stable column shapes (Prefix | Description | Citation | Polarity). A small script can parse these into JSON and feed the page's primitive-card content. Recommend:
+The §5.1-§5.9 prefix tables in [`FSD/CEG/05_namespace.md`](../FSD/CEG/05_namespace.md) are markdown tables with stable column shapes (Prefix | Description | Polarity, plus Reserved? for §5.9). A small script can parse these into JSON and feed the page's primitive-card content. Recommend:
 
 ```
 docs/scripts/extract_namespace.py  →  data/primitives.json
 ```
 
-Run on every FSD-002 commit (CI hook). Page consumes `primitives.json` at build time; primitive cards re-render automatically.
+Run on every CEG commit (CI hook). Page consumes `primitives.json` at build time; primitive cards re-render automatically. CEG 0.2 commits to publishing a machine-readable [`FSD/CEG/dimensions.json`](../FSD/CEG/) manifest at the source — when that lands, the extract script becomes a passthrough.
 
 ### §6.2 — Spec version watermark
 
-Every page footer carries: **"Reflecting FSD-002 v{X.Y.Z} (commit {SHA short})"** with a link to the exact commit. When the spec moves, the watermark moves with the next page regen. Visitors can always trace back to the authoritative source.
+Every page footer carries: **"Reflecting CEG {X.Y.Z} (commit {SHA short})"** with a link to the exact commit. When the spec moves, the watermark moves with the next page regen. Visitors can always trace back to the authoritative source.
 
 ### §6.3 — Worked examples reviewed at each minor version
 
-The §4 use-case stories are hand-written narrative. When FSD-002 lands a minor-version change (v1.5, v1.6...), review the stories for any primitives that got renamed (e.g., v1.2's `emergent_deception` → `correlated_action` rename would have broken any story referencing the old name).
+The §4 use-case stories are hand-written narrative. When CEG lands a minor-version change (0.2, 0.3...), review the stories for any primitives that got renamed (e.g., FSD-002 v1.2's `emergent_deception` → `correlated_action` rename would have broken any story referencing the old name).
 
-Recommend a `STORIES_REVIEWED_AT.md` ledger in the page repo listing each story + the FSD version it was last validated against.
+Recommend a `STORIES_REVIEWED_AT.md` ledger in the page repo listing each story + the CEG version it was last validated against.
 
 ---
 
@@ -306,12 +334,13 @@ Phase 1 alone discharges the user-facing ask. Phases 2-3 are quality-of-life add
 
 ## §9 References
 
-- **CIRIS Epistemic Grammar (CEG)** spec: [`FSD/FSD-002_FEDERATION_SURFACE.md`](../FSD/FSD-002_FEDERATION_SURFACE.md)
+- **CIRIS Epistemic Grammar (CEG)** spec: [`FSD/CEG/README.md`](../FSD/CEG/README.md) — 18-file spec under `FSD/CEG/`. The README's "How to read this spec without Cartesian default" callout is the canonical source for the §0.5 fractal-self frame; the page should echo that framing verbatim or near-verbatim.
 - **Translation grammar** (for writing Contributions in CEG): [`FSD/LANGUAGE_PRIMER.md`](../FSD/LANGUAGE_PRIMER.md)
 - **Comparative context**: [`FSD/PRIOR_ART_SCAN.md`](../FSD/PRIOR_ART_SCAN.md) + [`FSD/SOTA_SCAN.md`](../FSD/SOTA_SCAN.md)
 - **Mission framing**: [`MISSION.md`](../MISSION.md)
 - **Safety-vs-censorship discipline**: [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/) — the operational-language gate's source
 - **Trust contract** (consumer-facing): [`docs/TRUST_CONTRACT.md`](TRUST_CONTRACT.md)
+- **FSD-002 (design-history)**: [`FSD/FSD-002_FEDERATION_SURFACE.md`](../FSD/FSD-002_FEDERATION_SURFACE.md) — preserved for lineage; superseded by CEG/. Do NOT link to FSD-002 as the authoritative spec from the public page; link to CEG/.
 
 ---
 
