@@ -594,6 +594,17 @@ enum SystemRole {
   SYSTEM_ADMIN = 1;                     // Full system access (@ciris.ai only)
   SYSTEM_AUDITOR = 2;                   // Read-only across all orgs
   WISE_AUTHORITY = 3;                   // Governance access (9 members max)
+  // CIRISRegistry#16 + FSD-002 §7 v1.4 addition.
+  // Constitutional kill-switch authority. 3 named holders per MISSION §2.2.
+  // 2-of-3 multi-sig required for any HUMANITY_ACCORD-gated operation.
+  // Hardware-attested keys (per FSD-002 §7.3.1 hardware_class taxonomy).
+  // Permanent: no automatic decay; replacement requires out-of-band CIRIS L3C
+  // process per FEDERATION_ANNOUNCEMENT.md §4.5.3.
+  // Authority scope: VALID ONLY on EmergencyShutdown CONSTITUTIONAL severity
+  // (per FSD-002 §7) and corresponding FederationAnnouncement AccordCarrier
+  // priority. Wire-isolated AND scope-isolated — accord-holder signatures
+  // on any other operation are rejected at admission as out-of-role.
+  HUMANITY_ACCORD = 4;
 }
 
 // Organization record (Portal-managed)
@@ -1080,6 +1091,14 @@ enum IncidentSeverity {
   INCIDENT_MEDIUM = 2;                  // Multiple entities affected
   INCIDENT_HIGH = 3;                    // Supply chain or widespread
   INCIDENT_CRITICAL = 4;                // System-wide threat
+  // CIRISRegistry#16 + FSD-002 §7 v1.4 addition.
+  // Constitutional halt invocable ONLY by 2-of-3 HUMANITY_ACCORD multi-sig
+  // (see SystemRole.HUMANITY_ACCORD). All other severities follow standard
+  // SYSTEM_ADMIN authz. CONSTITUTIONAL bypasses all federation-internal
+  // authority — no SYSTEM_ADMIN, no WISE_AUTHORITY, no per-install steward,
+  // and not even an individual accord-holder can invoke alone. The 2-of-3
+  // requirement is constitutional, not configurable.
+  INCIDENT_CONSTITUTIONAL = 5;
 }
 
 // Mass revocation for incident response

@@ -63,38 +63,212 @@ struct ReadinessResponse {
     ready: bool,
 }
 
-/// Response from the /v1/steward-key endpoint.
-/// This format matches what CIRISVerify expects (see ciris-verify-core/src/https.rs).
+/// Response from the /v1/steward-key endpoint (v1.4 multi-steward shape per
+/// FSD-002 §7.7). CIRISVerify v3.1.0+ consumer wiring at
+/// `ciris-verify-core::ThresholdMember` + `verify_threshold_signatures`
+/// per CIRISRegistry#21.
 #[derive(Serialize)]
 struct StewardKeyResponse {
-    classical: ClassicalKeyInfo,
-    pqc: PqcKeyInfo,
+    stewards: Vec<StewardEntry>,
+    verification_policy: VerificationPolicy,
+    rotation_history_uri: String,
     signature_mode: String,
     revision: u64,
     timestamp: i64,
-    next_rotation: Option<i64>,
-    response_signature_classical: Option<String>,
-    response_signature_pqc: Option<String>,
+}
+
+/// One steward entry in the multi-steward response. Non-deployed stewards
+/// (e.g., APAC during the rollout window) carry `deployed: false` +
+/// `hardware_class: placeholder_pending_provisioning` + null pubkeys.
+/// Verify-side `ThresholdMember` construction filters by `deployed=true`.
+#[derive(Serialize)]
+struct StewardEntry {
+    region: String,
+    key_id: String,
+    /// Base64 Ed25519 pubkey, null for non-deployed stewards.
+    classical_pubkey: Option<String>,
+    /// Base64 ML-DSA-65 pubkey, null for non-deployed stewards.
+    pqc_pubkey: Option<String>,
+    /// sha256:... fingerprint of ML-DSA-65 pubkey, null for non-deployed stewards.
+    fingerprint: Option<String>,
+    hardware_class: String,
+    deployed: bool,
 }
 
 #[derive(Serialize)]
-struct ClassicalKeyInfo {
-    algorithm: String,
-    key: String,
-    key_id: String,
-}
-
-#[derive(Serialize)]
-struct PqcKeyInfo {
-    algorithm: String,
-    key: String,
-    key_id: String,
-    fingerprint: String,
+struct VerificationPolicy {
+    threshold: u32,
+    of_total: u32,
+    scheme: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    non_revocable: Option<bool>,
 }
 
 #[derive(Serialize)]
 struct StewardKeyError {
     error: String,
+}
+
+/// Response from the /v1/accord-holders endpoint (FSD-002 §7.7).
+/// v1.4 interim: placeholder fingerprints; provisioned=false signals
+/// to consumers that CONSTITUTIONAL invocations MUST NOT be honored
+/// until real hardware-attested keys land.
+#[derive(Serialize)]
+struct AccordHoldersResponse {
+    holders: Vec<AccordHolderEntry>,
+    verification_policy: VerificationPolicy,
+    constitutional_anchor: bool,
+    rotation_history_uri: String,
+    timestamp: i64,
+}
+
+#[derive(Serialize, Clone)]
+struct AccordHolderEntry {
+    identity_ref: String,
+    classical_pubkey: String,
+    pqc_pubkey: String,
+    fingerprint: String,
+    hardware_class: String,
+    provisioned: bool,
+}
+
+/// Response from the /v1/accord/holders UI wrapper (CIRISRegistry#23 Surface 1).
+/// Adds per-holder accord_emissions[] joined from accord:* attestations.
+/// v1.4 interim: accord_emissions empty for all holders until substrate-
+/// conformance migration lands and accord-holders start emitting.
+#[derive(Serialize)]
+struct AccordHoldersUiResponse {
+    holders: Vec<AccordHolderUiEntry>,
+    timestamp: i64,
+}
+
+#[derive(Serialize)]
+struct AccordHolderUiEntry {
+    key_id: String,
+    identity_ref: String,
+    fingerprint: String,
+    hardware_class: String,
+    provisioned: bool,
+    registered_at: Option<i64>,
+    accord_emissions: Vec<serde_json::Value>,
+}
+
+/// Response from /v1/agent_files/{kind} (CIRISRegistry#23 Surface 2 + #18).
+/// Three-layer trust composition per FSD-002 §6.1.6.
+#[derive(Serialize)]
+struct AgentFilesResponse {
+    kind: String,
+    platform_or_target: Option<String>,
+    canonical_attester: Option<AgentFileAttesterEntry>,
+    open_attesters: Vec<AgentFileAttesterEntry>,
+    vote_then_trust: Vec<AgentFileAttesterEntry>,
+    anti_trick_guarantee: String,
+    timestamp: i64,
+}
+
+#[derive(Serialize)]
+struct AgentFileAttesterEntry {
+    attester_key_id: String,
+    file_sha256: String,
+    attestation_score: f64,
+    confidence: f64,
+    trust_layer: String,
+    note: Option<String>,
+}
+
+/// Response from /v1/partner/{key_id} (CIRISRegistry#23 Surface 3).
+/// Composes from partners + revocations + builds tables for the
+/// CIRISAgent 2.10.0 ProfileScorecard.
+#[derive(Serialize)]
+struct PartnerCompositionResponse {
+    key_id: String,
+    partner_role: Option<String>,
+    bond_posted: Option<BondInfo>,
+    licensure: Vec<LicensureEntry>,
+    revocation_active: bool,
+    revocation_reason: Option<String>,
+    timestamp: i64,
+}
+
+#[derive(Serialize)]
+struct BondInfo {
+    currency: String,
+    amount: String,
+    forfeited: bool,
+}
+
+#[derive(Serialize)]
+struct LicensureEntry {
+    authority_id: String,
+    status: String,
+    expires_at: Option<i64>,
+}
+
+/// Response from /v1/rotation-history (FSD-002 §7.7 audit endpoint).
+/// v1.4 interim: empty events; pre-migration history available via
+/// /v1/audit-log queries on registry_signing_keys table.
+#[derive(Serialize)]
+struct RotationHistoryResponse {
+    events: Vec<serde_json::Value>,
+    note: String,
+    timestamp: i64,
+}
+
+/// FSD-002 §7.3.1 hardware_class taxonomy — placeholder value for v1.4 interim.
+const HARDWARE_CLASS_PLACEHOLDER: &str = "placeholder_pending_provisioning";
+
+/// FSD-002 §10.5 — production stewards run on FIPS 140-3 L3 HSMs.
+const HARDWARE_CLASS_HSM_PROD: &str = "HSM_FIPS_140_3_L3";
+
+/// FSD-002 §10.4 + MISSION §2.1 — the three named accord-holders.
+const ACCORD_HOLDERS: &[(&str, &str)] = &[
+    ("accord_holder_eric_moore",    "eric-moore"),
+    ("accord_holder_eric_kudzin",   "eric-kudzin"),
+    ("accord_holder_haley_bradley", "haley-bradley"),
+];
+
+/// FSD-002 §2.1 — three regional stewards per the multi-party arc.
+/// "us" + "eu" deployed today; "apac" is Spec per MISSION §2.1.
+const STEWARD_REGIONS: &[(&str, &str)] = &[
+    ("us",   "registry-steward-us"),
+    ("eu",   "registry-steward-eu"),
+    ("apac", "registry-steward-apac"),
+];
+
+/// Deterministic placeholder fingerprint for non-provisioned accord-holders
+/// and non-deployed stewards. Lets the endpoint shape be structurally live
+/// for downstream consumer wiring while clearly signaling that the underlying
+/// key material is not yet hardware-attested. Format `sha256:placeholder_<sha>`
+/// with the "placeholder_" prefix encoded in-band so consumers can pattern-match.
+fn placeholder_fingerprint(identity_ref: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"placeholder:");
+    hasher.update(identity_ref.as_bytes());
+    format!("sha256:placeholder_{}", hex::encode(hasher.finalize()))
+}
+
+/// Deterministic placeholder Ed25519 pubkey (32 bytes, base64) for v1.4 interim.
+fn placeholder_ed25519_pubkey(identity_ref: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"placeholder_ed25519:");
+    hasher.update(identity_ref.as_bytes());
+    let b64 = base64::engine::general_purpose::STANDARD;
+    b64.encode(hasher.finalize())
+}
+
+/// Deterministic placeholder ML-DSA-65 pubkey (1952 bytes; here just a base64
+/// scalar marker because real ML-DSA-65 pubkeys are too large for trivial
+/// placeholders — consumers MUST treat any pubkey from a non-provisioned
+/// holder as non-verifiable regardless).
+fn placeholder_mldsa_pubkey(identity_ref: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"placeholder_mldsa65:");
+    hasher.update(identity_ref.as_bytes());
+    let b64 = base64::engine::general_purpose::STANDARD;
+    b64.encode(hasher.finalize())
 }
 
 async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -150,23 +324,25 @@ async fn metrics(State(state): State<AppState>) -> String {
 
 /// Public endpoint: GET /v1/steward-key
 ///
-/// Returns the active registry signing key for CIRISVerify multi-source validation.
-/// This endpoint is unauthenticated — it serves public key material only.
+/// Returns the multi-steward set per FSD-002 §7.7. This instance's region
+/// (derived from REGISTRY_REGION env var; defaults to "us") has its actual
+/// crypto pubkeys; other regions return placeholder pubkeys + `deployed:
+/// false` until their respective Registry instances ship. CIRISVerify v3.1.0+
+/// `ThresholdMember` consumer filters by `deployed=true`.
+///
+/// Closes CIRISRegistry#21 Ask 1 (v1.4 multi-steward shape change).
 async fn steward_key(
     State(state): State<AppState>,
 ) -> Result<Json<StewardKeyResponse>, (StatusCode, Json<StewardKeyError>)> {
-    // Use the crypto provider's keys directly (works with Vault, file, or memory mode)
     let ed25519_pubkey = state.crypto.ed25519_public_key();
     let mldsa_pubkey = state.crypto.mldsa_public_key();
     let key_id = state.crypto.key_id().to_string();
 
-    // Compute fingerprint for ML-DSA-65 public key
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(&mldsa_pubkey);
-    let mldsa_fingerprint = hex::encode(hasher.finalize());
+    let mldsa_fingerprint = format!("sha256:{}", hex::encode(hasher.finalize()));
 
-    // Get revocation list revision (max id)
     let revision: u64 = sqlx::query_scalar::<_, Option<i32>>("SELECT MAX(id) FROM revocations")
         .fetch_one(state.db.pool())
         .await
@@ -176,24 +352,226 @@ async fn steward_key(
     let b64 = base64::engine::general_purpose::STANDARD;
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
 
+    let this_region = std::env::var("REGISTRY_REGION").unwrap_or_else(|_| "us".to_string());
+    let mut stewards: Vec<StewardEntry> = Vec::with_capacity(STEWARD_REGIONS.len());
+    for (region, region_key_id) in STEWARD_REGIONS {
+        if *region == this_region {
+            stewards.push(StewardEntry {
+                region: region.to_string(),
+                key_id: key_id.clone(),
+                classical_pubkey: Some(b64.encode(&ed25519_pubkey)),
+                pqc_pubkey: Some(b64.encode(&mldsa_pubkey)),
+                fingerprint: Some(mldsa_fingerprint.clone()),
+                hardware_class: HARDWARE_CLASS_HSM_PROD.to_string(),
+                deployed: true,
+            });
+        } else {
+            // Other regions: placeholder until their Registry instance ships.
+            // Per FSD-002 §11.2 v1.4 interim — endpoint shape live so Verify-side
+            // ThresholdMember construction works end-to-end; downstream filters
+            // by deployed=true. APAC is Spec per MISSION §2.1; EU+US are
+            // Deployed but each instance only knows its own crypto today
+            // (pre-substrate-conformance #17). Placeholder for the non-this
+            // entries lets v1.4 ship before #17 lands.
+            stewards.push(StewardEntry {
+                region: region.to_string(),
+                key_id: region_key_id.to_string(),
+                classical_pubkey: None,
+                pqc_pubkey: None,
+                fingerprint: None,
+                hardware_class: HARDWARE_CLASS_PLACEHOLDER.to_string(),
+                deployed: false,
+            });
+        }
+    }
+
     Ok(Json(StewardKeyResponse {
-        classical: ClassicalKeyInfo {
-            algorithm: "Ed25519".to_string(),
-            key: b64.encode(&ed25519_pubkey),
-            key_id: key_id.clone(),
+        stewards,
+        verification_policy: VerificationPolicy {
+            threshold: 2,
+            of_total: 3,
+            scheme: "M-of-N hybrid Ed25519 + ML-DSA-65".to_string(),
+            non_revocable: None,
         },
-        pqc: PqcKeyInfo {
-            algorithm: "ML-DSA-65".to_string(),
-            key: b64.encode(&mldsa_pubkey),
-            key_id: key_id.clone(),
-            fingerprint: format!("sha256:{}", mldsa_fingerprint),
-        },
+        rotation_history_uri: "/v1/rotation-history".to_string(),
         signature_mode: "HYBRID_REQUIRED".to_string(),
         revision,
         timestamp: now,
-        next_rotation: None,
-        response_signature_classical: None,
-        response_signature_pqc: None,
+    }))
+}
+
+/// Public endpoint: GET /v1/accord-holders (FSD-002 §7.7)
+///
+/// Returns the three named accord-holders with their key material per
+/// §10.4 + MISSION §2.1. v1.4 interim ships placeholder fingerprints +
+/// `provisioned: false` — consumers MUST NOT honor CONSTITUTIONAL invocations
+/// against these placeholders. Endpoint shape is live so Verify-side
+/// `ThresholdMember` wiring works end-to-end before hardware-attestation
+/// provisioning completes.
+///
+/// Closes CIRISRegistry#21 Ask 2.
+async fn accord_holders(
+    State(_state): State<AppState>,
+) -> Result<Json<AccordHoldersResponse>, (StatusCode, Json<StewardKeyError>)> {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    let holders: Vec<AccordHolderEntry> = ACCORD_HOLDERS
+        .iter()
+        .map(|(_, identity_ref)| AccordHolderEntry {
+            identity_ref: identity_ref.to_string(),
+            classical_pubkey: placeholder_ed25519_pubkey(identity_ref),
+            pqc_pubkey: placeholder_mldsa_pubkey(identity_ref),
+            fingerprint: placeholder_fingerprint(identity_ref),
+            hardware_class: HARDWARE_CLASS_PLACEHOLDER.to_string(),
+            provisioned: false,
+        })
+        .collect();
+
+    Ok(Json(AccordHoldersResponse {
+        holders,
+        verification_policy: VerificationPolicy {
+            threshold: 2,
+            of_total: 3,
+            scheme: "M-of-N hybrid Ed25519 + ML-DSA-65".to_string(),
+            non_revocable: Some(true),
+        },
+        constitutional_anchor: true,
+        rotation_history_uri: "/v1/rotation-history".to_string(),
+        timestamp: now,
+    }))
+}
+
+/// Public endpoint: GET /v1/accord/holders (UI wrapper per CIRISRegistry#23 Surface 1)
+///
+/// UI-shaped wrapper around /v1/accord-holders. Adds per-holder
+/// `accord_emissions[]` — accord:* attestations the holder has signed.
+/// v1.4 interim: emissions list is empty until substrate-conformance
+/// migration (#17) lands and accord-holders start emitting.
+async fn accord_holders_ui(
+    State(_state): State<AppState>,
+) -> Result<Json<AccordHoldersUiResponse>, (StatusCode, Json<StewardKeyError>)> {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    let holders: Vec<AccordHolderUiEntry> = ACCORD_HOLDERS
+        .iter()
+        .map(|(key_id, identity_ref)| AccordHolderUiEntry {
+            key_id: key_id.to_string(),
+            identity_ref: identity_ref.to_string(),
+            fingerprint: placeholder_fingerprint(identity_ref),
+            hardware_class: HARDWARE_CLASS_PLACEHOLDER.to_string(),
+            provisioned: false,
+            registered_at: None,
+            accord_emissions: Vec::new(),
+        })
+        .collect();
+
+    Ok(Json(AccordHoldersUiResponse {
+        holders,
+        timestamp: now,
+    }))
+}
+
+/// Public endpoint: GET /v1/agent_files/{kind}?platform_or_target=...
+/// (CIRISRegistry#23 Surface 2 + #18)
+///
+/// Three-layer trust composition per FSD-002 §6.1.6:
+/// - Layer 1 Canonical: registry-steward-triple attestations on `agent_files:*`
+/// - Layer 2 Open: any federation-key holder may emit
+/// - Layer 3 Vote-then-trust: NodeCore P4 vote accumulation
+///
+/// v1.4 interim: returns empty lists until the substrate trio
+/// (Edge#21 + Persist#103 + NodeCore#11) ships and federation_attestations
+/// table starts carrying agent_files:* claims. The endpoint shape is live
+/// so CIRISAgent 2.10.0 UI wiring works end-to-end.
+async fn agent_files_for_kind(
+    State(_state): State<AppState>,
+    axum::extract::Path(kind): axum::extract::Path<String>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<AgentFilesResponse>, (StatusCode, Json<StewardKeyError>)> {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    let platform_or_target = q.get("platform_or_target").cloned();
+
+    Ok(Json(AgentFilesResponse {
+        kind,
+        platform_or_target,
+        canonical_attester: None,
+        open_attesters: Vec::new(),
+        vote_then_trust: Vec::new(),
+        anti_trick_guarantee: "Canonical attester (registry-steward-triple, score >= 0.7) determines /install endpoint default. Third-party agent_files reachable only via explicit 'Browse alternatives' informed-consent path. Anti-tricking per CIRISRegistry#18 + FSD-002 §6.1.6.".to_string(),
+        timestamp: now,
+    }))
+}
+
+/// Public endpoint: GET /v1/partner/{key_id} (CIRISRegistry#23 Surface 3)
+///
+/// Per-agent partner status badge composed from four prefix families:
+/// partner_role, bond_posted, licensure, revocation_active. Backs the
+/// CIRISAgent 2.10.0 ProfileScorecard UI surface.
+async fn partner_composition(
+    State(state): State<AppState>,
+    axum::extract::Path(key_id): axum::extract::Path<String>,
+) -> Result<Json<PartnerCompositionResponse>, (StatusCode, Json<StewardKeyError>)> {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    let partner_row = db::lookup_partner(state.db.pool(), &key_id).await.ok().flatten();
+
+    let (partner_role, bond_posted, revocation_active, revocation_reason) = match &partner_row {
+        Some(row) => {
+            // Map license_type integer to LICENSE_TYPE string per proto.
+            // Status integer is enum (1=ACTIVE, 2=SUSPENDED, 3=REVOKED per common shape).
+            let role = match row.license_type {
+                1 => Some("COMMUNITY".to_string()),
+                2 => Some("COMMUNITY_PLUS".to_string()),
+                3 => Some("PROFESSIONAL_MEDICAL".to_string()),
+                4 => Some("PROFESSIONAL_LEGAL".to_string()),
+                5 => Some("PROFESSIONAL_FINANCIAL".to_string()),
+                6 => Some("PROFESSIONAL_FULL".to_string()),
+                _ => None,
+            };
+            let revoked = row.status == 3 || row.revocation_reason.is_some();
+            (
+                role,
+                None,
+                revoked,
+                row.revocation_reason.clone(),
+            )
+        }
+        None => (None, None, false, None),
+    };
+
+    let licensure: Vec<LicensureEntry> = match &partner_row {
+        Some(row) => vec![LicensureEntry {
+            authority_id: row.organization_id.clone(),
+            status: if row.status == 1 { "active".to_string() } else { "inactive".to_string() },
+            expires_at: Some(row.expires_at.unix_timestamp()),
+        }],
+        None => Vec::new(),
+    };
+
+    Ok(Json(PartnerCompositionResponse {
+        key_id,
+        partner_role,
+        bond_posted,
+        licensure,
+        revocation_active,
+        revocation_reason,
+        timestamp: now,
+    }))
+}
+
+/// Public endpoint: GET /v1/rotation-history (FSD-002 §7.7 audit endpoint)
+///
+/// Chronological rotation events for stewards and accord-holders.
+/// v1.4 interim: empty events; pre-migration history is queryable via
+/// /v1/audit-log against registry_signing_keys table.
+async fn rotation_history(
+    State(_state): State<AppState>,
+) -> Result<Json<RotationHistoryResponse>, (StatusCode, Json<StewardKeyError>)> {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    Ok(Json(RotationHistoryResponse {
+        events: Vec::new(),
+        note: "rotation_history seeded at substrate-conformance migration; pre-migration history available via /v1/audit-log queries on registry_signing_keys table".to_string(),
+        timestamp: now,
     }))
 }
 
@@ -2186,6 +2564,19 @@ pub async fn serve(
     // device-attestation APIs.
     let public_rate_limited = Router::new()
         .route("/v1/steward-key", get(steward_key))
+        // v1.4 FSD-002 §7.7 — multi-steward + accord-holder discovery
+        // (CIRISRegistry#21 + #23 Surface 1 + #16 spec support).
+        // CIRISVerify v3.1.0+ consumer wiring at ciris-verify-core::ThresholdMember
+        // + verify_threshold_signatures.
+        .route("/v1/accord-holders", get(accord_holders))
+        .route("/v1/accord/holders", get(accord_holders_ui))
+        .route("/v1/rotation-history", get(rotation_history))
+        // v1.4 CIRISRegistry#23 Surface 2 — agent_files trust composition
+        // (FSD-002 §6.1.6 three-layer canonical/open/vote-then-trust).
+        .route("/v1/agent_files/{kind}", get(agent_files_for_kind))
+        // v1.4 CIRISRegistry#23 Surface 3 — partner ProfileScorecard composition
+        // from partners + revocations + bond + licensure tables.
+        .route("/v1/partner/{key_id}", get(partner_composition))
         .route("/v1/revocation/{target_id}", get(check_revocation))
         .route("/v1/verify/binary-manifest/{version}", get(binary_manifest))
         .route(

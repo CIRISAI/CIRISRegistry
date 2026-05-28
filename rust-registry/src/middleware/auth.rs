@@ -14,8 +14,22 @@ use tower::{Layer, Service};
 
 use crate::config::AuthSettings;
 
-/// Role constants (from proto SystemRole enum)
+/// Role constants (from proto SystemRole enum).
+/// Kept in sync with `protocol/ciris_registry.proto` SystemRole enum.
 const ROLE_SYSTEM_ADMIN: i32 = 1;
+#[allow(dead_code)]
+const ROLE_SYSTEM_AUDITOR: i32 = 2;
+#[allow(dead_code)]
+const ROLE_WISE_AUTHORITY: i32 = 3;
+/// CIRISRegistry#16 + FSD-002 §7 v1.4 addition. Constitutional kill-switch
+/// authority — 3 named holders, 2-of-3 multi-sig required. NEVER granted
+/// via JWT alone; HUMANITY_ACCORD operations require multi-sig verification
+/// per FSD-002 §7.7 + ciris-verify-core::verify_threshold_signatures.
+/// The role value is reserved in the JWT shape but a single-signer JWT
+/// claiming role=4 MUST be rejected — accord operations are verified at
+/// the operation level, not the JWT level.
+#[allow(dead_code)]
+const ROLE_HUMANITY_ACCORD: i32 = 4;
 
 /// JWT claims structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
