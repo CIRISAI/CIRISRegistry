@@ -1,0 +1,23 @@
+[← §16 References](16_references.md) | **§17 Cadence**
+
+---
+
+# §17 Update cadence
+
+CEG is updated:
+
+- On every prefix admission to [§5](05_namespace.md) (per [§11](11_governance.md) amendment process)
+- On every envelope field addition to [§4](04_envelope.md)
+- On every endpoint shape addition to [§10](10_endpoints.md)
+- On every anti-pattern admission to [§13](13_anti_patterns.md) (with citation to the stress test or methodology that surfaced it)
+- On every gap state transition in [§15](15_gaps.md)
+- On every CIRISAccord revision affecting the federation surface
+- On every conformance-language or normative-reference change in [§0](00_conformance.md) (MAJOR per [§0.3](00_conformance.md))
+
+Each update lands as a single commit touching the relevant file(s) + a lineage row in [§16.1](16_references.md). The version number bumps per the [§0.3](00_conformance.md) SemVer rules.
+
+Last updated: 2026-05-28 (CEG 0.1 Public Working Draft release; consolidates FSD-002 v1.0 through v1.4.3 + CIRISRegistry#30 v1.5 candidates + critical-review-pass scaffolding).
+
+---
+
+[← §16 References](16_references.md) | **§17 Cadence**

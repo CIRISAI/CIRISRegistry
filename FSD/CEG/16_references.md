@@ -1,0 +1,52 @@
+[← §15 Gaps](15_gaps.md) | **§16 References** | [Next: §17 Cadence →](17_cadence.md)
+
+---
+
+# §16 References + lineage
+
+## §16.1 CEG specification lineage
+
+| Version | Date | Change |
+|---|---|---|
+| FSD-002 v1.0 | 2026-05-24 | Initial federation surface spec; 73 prefix families |
+| FSD-002 v1.1 | 2026-05-26 | §1.10 anthropological commitment; F-3 detector under wrong (Cartesian) name `emergent_deception` |
+| FSD-002 v1.2 | 2026-05-27 | Renamed `emergent_deception` → `correlated_action` per §1.10.1 operational-language gate; added §1.10.1 + §4.9.1 + §4.9.2 disciplines |
+| FSD-002 v1.3 | 2026-05-27 | §4.9.2.5 1-of-6 sign-off (closed G2); §6.1.5 locality-scaled quorum (closed G3); §13.11 concerns + gaps; v1.3 dimension additions (multilateral_participation, locality:decision, distributive:access) + envelope (witness_relation) |
+| FSD-002 v1.4 | 2026-05-27 | Files-as-Contributions (agent_files + holds_bytes); testimonial_witness; need:* (v1.5-loadbearing absorption); goal:planet enum; §7.7 endpoint shapes |
+| FSD-002 v1.4.1 | 2026-05-28 | 3.0 / Compliance spec batch (fidelity:explainability_sla, oversight_mode, skill_import, per-locale build_manifest, etc.); §7.8 STH cosigning |
+| FSD-002 v1.4.2 | 2026-05-28 | Occurrence_id/count/role envelope fields (Persist#110) |
+| FSD-002 v1.4.3 | 2026-05-28 | §3.2.1 canonical-bytes contracts (SkillImportManifest + per-locale Merkle); §3.6.2 Goal substrate cross-ref |
+| (CEG 1.0 attempted) | 2026-05-28 | Consolidated spec under CIRIS Epistemic Grammar name; renumbered to **0.1** after critical-review pass surfaced spec-discipline gaps. The 1.0 attempt is preserved in git history at commit prior to the rename. |
+| **CEG 0.1** | **2026-05-28** | **Public Working Draft. Consolidated spec split into 18 files under `FSD/CEG/`. Adds v1.5 candidates from #30: `testimonial_witness:{kind}` open vocabulary; `hard_case:{kind}` surfaced; `biosphere` in [§2](02_grammar.md) Scope axis; `topical_relation:translation_of` sub-leaf in [§5.6.8](05_namespace.md) (LIVE per CIRISNodeCore b1582cb); [§8.1.7](08_composition.md) Trust-Fresh + [§8.1.8](08_composition.md) Tiered-Scope composition patterns. Records 6 explicit rejections from #30 stress test in [§13.2](13_anti_patterns.md). Glossaries in [§14](14_glossaries.md). Critical-review-pass scaffolding: [§0.1 RFC 2119 anchor](00_conformance.md), [§0.2 conformance levels](00_conformance.md), [§0.3 SemVer policy](00_conformance.md), [§0.4 normative references](00_conformance.md), [§0.5-§0.7 canonicalization](00_conformance.md), [§6.1 concurrent-write precedence](06_relations.md), [§7.0 reserved-prefix enforcement](07_reserved.md), [§8.1.5.1 sub-quorum fallback](08_composition.md), [§9.2.1 invocation discriminator + nonce](09_humanity_accord.md), [§9.2.2 consumer-UI requirement](09_humanity_accord.md), [§10.0 common response shape + error envelope](10_endpoints.md), [§10.1.1-§10.1.2 holds_bytes verification + TTL](10_endpoints.md), [§10.3.1 STH consistency-proof](10_endpoints.md), [§11.2.2 collision rule](11_governance.md), [§11.2.3 meta-amendment entrenchment](11_governance.md), [§13.3 delegation-laundering anti-pattern](13_anti_patterns.md), [§13.4 withdraws-arbitrage countermeasure](13_anti_patterns.md). 83 prefix families.** |
+
+## §16.2 Companion documents
+
+- [`FSD/LANGUAGE_PRIMER.md`](../LANGUAGE_PRIMER.md) — translation grammar (how to write Contributions in CEG)
+- [`FSD/PRIOR_ART_SCAN.md`](../PRIOR_ART_SCAN.md) — design-space comparison (PGP / SPKI-SDSI / W3C VC / Birdwatch / Pol.is / Kleros / Spritely / Holochain / Aragon / Conviction Voting / Sigstore / SLSA)
+- [`FSD/SOTA_SCAN.md`](../SOTA_SCAN.md) — production-validation comparison
+- [`FSD/WITNESS_KIND_REGISTRY.md`](../WITNESS_KIND_REGISTRY.md) — non-normative open-vocabulary registry for `testimonial_witness:{kind}`
+- [`docs/CEG_EXPLORATION_PAGE_PRIMER.md`](../../docs/CEG_EXPLORATION_PAGE_PRIMER.md) — builder primer for the public-facing exploration page
+
+## §16.3 Sibling MISSIONs (the namespace owners)
+
+- [`CIRISAgent/MISSION.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/MISSION.md)
+- [`CIRISVerify/MISSION.md`](https://github.com/CIRISAI/CIRISVerify/blob/main/MISSION.md)
+- [`CIRISPersist/MISSION.md`](https://github.com/CIRISAI/CIRISPersist/blob/main/MISSION.md)
+- [`CIRISEdge/MISSION.md`](https://github.com/CIRISAI/CIRISEdge/blob/main/MISSION.md)
+- [`CIRISLensCore/MISSION.md`](https://github.com/CIRISAI/CIRISLensCore/blob/main/MISSION.md)
+- [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md)
+- [`RATCHET/FSD.md`](https://github.com/CIRISAI/RATCHET/blob/main/FSD.md)
+- [`CIRISBench/README.md`](https://github.com/CIRISAI/CIRISBench)
+- [`MISSION.md`](../../MISSION.md) — CIRISRegistry's own
+
+## §16.4 External references (informational)
+
+- [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/) — the operational-language gate source
+- *Magnifica Humanitas* encyclical (2026-05-15) — first deployment of the bootstrap-content pattern ([§11.3](11_governance.md))
+- [`ciris-response-magnifica-humanitas`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas) — encyclical mapping repo
+
+For normative references see [§0.4](00_conformance.md).
+
+---
+
+[← §15 Gaps](15_gaps.md) | **§16 References** | [Next: §17 Cadence →](17_cadence.md)
