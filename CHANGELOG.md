@@ -38,6 +38,83 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.0.0] — 2026-05-29
+
+**Phase 5 of #33 — CEG 0.2 conformance MAJOR. Substrate-sister adoption complete. `ciris-registry-core` is fold-ready for CIRISAgent's workspace.**
+
+This release is the documentation tag declaring **CEG 0.2 conformance** as the cumulative outcome of Phases 0–4. The codebase delta vs `v1.4.0` is just the version bump + this CHANGELOG entry — every substantive change landed in the preceding minors. Major version is bumped per the project's versioning rule: **MAJOR signals CEG wire-format conformance breaks**.
+
+### Cumulative achievement (v1.1.0 → v2.0.0)
+
+Three load-bearing transitions in one release line:
+
+1. **Substrate-sister adoption** (Phases 1–3-followup):
+   - `ciris-crypto` v1.14.0 → **v4.1.0** (4-major catchup; closes long-standing pkcs8 transitive-pin lag tracked at #10)
+   - `ciris-persist` **NEW** at v3.3.1 (federation directory + blob storage + signing surface)
+   - `ciris-edge` **NEW** at v0.18.0 (Reticulum-native transport substrate)
+   - `ciris-keyring` **NEW** at v4.0.0 (matches cohabit-set transitive pins)
+
+2. **CEG 0.2 §10.1 wire-format conformance** (Phase 3 + Phase 3-followup):
+   - `edge_transport` module with TTL filtering (§10.1.2), full-SHA verification (§10.1.1), ContentMiss-feedback emission, three-layer `agent_files` composition (§8.1.6)
+   - Persist `Engine` constructed at boot with `LocalSigner` derived from HybridCrypto's existing keypair
+   - `FederationDirectory` on `AppState`; NoOp by default, real Persist client when `FEDERATION_DUAL_WRITE_ENABLED=true`
+   - `/v1/agent_files/{kind}` endpoint live — queries federation directory + composes three-layer trust + returns layered `AgentFileAttesterEntry` lists
+   - `PersistPqcAdapter` (local stopgap until cohabit-set unifies on keyring v4.1.0) bridges ciris-crypto's `MlDsa65Signer` to ciris-keyring's `PqcSigner` trait
+
+3. **Crate-ify split for CIRISAgent fold-readiness** (Phase 4):
+   - Workspace shape: `ciris-registry-core` (lib) + `ciris-registry` (bin) at `rust-registry/`
+   - `ciris-registry-core` is the cohabit-target library — CIRISAgent's workspace can pull it alongside `ciris-lens-core` + `ciris-node-core`
+   - Single `Cargo.lock` at workspace root; shared `[profile.release]`
+   - Bin is the thin shim — 190-line `main.rs` constructs the gRPC + HTTP server stack from the lib
+
+### CEG 0.2 conformance posture
+
+What this release CONFORMS to:
+
+- **§5.2** — Registry-emitted attestation strings use the mechanism-only form (`attestation:self_verify` etc.); no `attestation:l{N}:*` strings in Registry code (verified via grep)
+- **§10.1** — transport substrate read-side helpers shipped + Engine wired through federation directory + endpoint composition live
+- **§5.6.7** — `agent_files:*` joint claim with CIRISNodeCore; three-layer trust composition per §8.1.6 implemented + anti-tricking guarantee encoded as test assertions
+- **§5.2.1** — `provenance:build_manifest:*` per-target + per-locale Merkle composition surfaces shipped in earlier work (FSD-002 v1.4.1)
+
+What this release ACKNOWLEDGES as v2.0.x follow-up work (known gaps; documented):
+
+- **§10.3.1** — STH cosignature endpoint accepts cosignatures without verifying consistency proof against prior STH. `witness_quorum_met` is currently "quorum on string" not "quorum on log consistency." Tracked at [#34](https://github.com/CIRISAI/CIRISRegistry/issues/34).
+- **§10.0.1** — HTTP error responses don't conform to the standard error-envelope shape (\`code\`, \`http_status\`, \`message\`, \`request_id\`, \`details\`). Tracked at [#35](https://github.com/CIRISAI/CIRISRegistry/issues/35).
+- **Steward-triple identity vocabulary** — `agent_files` endpoint's three-layer composition queries an empty `steward_triple` set in v2.0.0 (no `federation_keys.identity_type = 'steward_triple_member'` rows yet); awaiting CIRISPersist#102 vocabulary extension. §8.1.6 anti-tricking guarantee is conservatively-correct (no canonical promotion ever) but Layer 1 stays empty until the vocabulary lands.
+
+Per the versioning rule, these gaps land as **v2.0.x minor + patch updates**, not as a future MAJOR — the v2.x series is the CEG-0.2 conformance line.
+
+### CIRISAgent fold-readiness
+
+CIRISAgent's Cargo.toml can now declare:
+
+```toml
+ciris-registry-core = { git = "https://github.com/CIRISAI/CIRISRegistry", tag = "v2.0.0" }
+```
+
+…alongside the existing `ciris-lens-core` and `ciris-node-core` cohabit deps. All three pull from the substrate triple (`ciris-persist`, `ciris-crypto`, `ciris-edge`); all three implement their respective slices of the CEG namespace.
+
+### Closes
+
+- [#17](https://github.com/CIRISAI/CIRISRegistry/issues/17) — substrate-conformance plan + crate-ify as ciris-registry-core ✅
+- [#18](https://github.com/CIRISAI/CIRISRegistry/issues/18) — public installer landing + agent_files Contribution surface ✅ (endpoint structural integration; the actual installer-page deployment is operational work outside this repo)
+- [#32](https://github.com/CIRISAI/CIRISRegistry/issues/32) — SEED_DIMENSIONS.yaml v1.0 → v1.1 refresh (Registry-side dep tracking; the YAML lives in CIRISAgent so the actual file refresh lands there) ✅
+
+### Verification
+
+- `cargo check --workspace` clean
+- `cargo test --workspace` — 150/150 passing
+
+### What's NEXT after v2.0.0
+
+The umbrella [#33](https://github.com/CIRISAI/CIRISRegistry/issues/33) closes with this commit. Post-v2.0.0 work:
+
+- [#34](https://github.com/CIRISAI/CIRISRegistry/issues/34) + [#35](https://github.com/CIRISAI/CIRISRegistry/issues/35) — the two CEG 0.2 conformance gaps named above
+- Content split of the lib/bin boundary (move bin-only modules from lib to bin)
+- CIRISAgent-side fold-in workstream (separate repo)
+
+---
+
 ## [1.4.0] — 2026-05-29
 
 **Phase 4 of #33 — Workspace split: `ciris-registry-core` (lib) + `ciris-registry` (bin).**
@@ -425,7 +502,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.0.0
 [1.4.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.4.0
 [1.3.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.3.0
 [1.3.0-rc.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.3.0-rc.1
