@@ -3,10 +3,19 @@ name = "ciris-registry"
 version = "1.1.0"
 edition = "2021"
 rust-version = "1.84"
-authors = ["CIRIS L3C"]
-description = "CIRISRegistry - Agent and Partner Registry Service"
+authors = ["CIRIS AI <hello@ciris.ai>"]
+description = "Federation registry — agent + partner + license identity for the CIRIS stack."
 license = "AGPL-3.0-or-later"
-repository = "https://github.com/cirisai/cirisregistry"
+repository = "https://github.com/CIRISAI/CIRISRegistry"
+readme = "../README.md"
+publish = false
+
+# Versioning rule: Registry MAJOR version bumps signal CEG wire-format
+# conformance breaks. v1.x = FSD-002 v1.4.3 baseline; v2.x = CEG 0.2.
+# See RELEASE.md for the release process + CHANGELOG.md for per-version
+# notes. Sister packaging discipline matches ciris-persist / ciris-edge /
+# ciris-lens-core / ciris-node-core / ciris-crypto (the substrate triple
+# + the cohabit crates).
 
 [dependencies]
 # gRPC / Protocol Buffers
