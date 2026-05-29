@@ -1,77 +1,134 @@
-//! Persist-backed `FederationDirectory` implementation — STUB.
+//! Persist-backed [`FederationDirectory`] implementation.
 //!
-//! All methods currently return `DirectoryError::NotYetImplemented`.
-//! The real implementation lands when CIRISPersist v0.2.0-pre1 publishes:
+//! As of v1.2.0 (#33 Phase 2), wraps an [`Arc<ciris_persist::engine::Engine>`]
+//! and delegates the 8 CRUD methods to [`Engine::federation_directory`].
+//! The previous stub returned `DirectoryError::NotYetImplemented` on every
+//! call; now each call routes through Persist's real backend (postgres or
+//! sqlite per the DSN passed at engine construction).
 //!
-//! 1. The `FederationDirectory` trait crate location (whether shipped as
-//!    a published `ciris-federation-directory` crate, or as a vendored
-//!    shape — see `docs/FEDERATION_CLIENT.md` "Last updated" note).
-//! 2. The wire transport (HTTP / gRPC / direct DB connection).
-//! 3. A representative `federation_keys` row JSON for serde validation
-//!    against `crate::federation::types`.
+//! Engine construction is the caller's responsibility — typically performed
+//! at boot in `main.rs` once the federation `LocalSigner` is loaded.
+//! `build_client` in [`super`] selects this client when
+//! `FEDERATION_DUAL_WRITE_ENABLED=true` AND an engine has been wired.
 //!
-//! Until then, this module exists so `crate::federation::build_client`
-//! can return a typed-but-non-functional client when
-//! `FEDERATION_DUAL_WRITE_ENABLED=true` and an endpoint is configured.
-//! The misconfiguration guard in `config.rs::FederationSettings` prevents
-//! anyone from accidentally enabling this in production today.
-//!
-//! Once persist v0.2.0-pre1 is published:
-//! 1. Replace the `unimplemented!()` bodies with actual transport calls.
-//! 2. Add cache-aside read-through logic in the registry's lookup paths.
-//! 3. Increment telemetry counters per `docs/FEDERATION_CLIENT.md` §"Telemetry".
+//! Type compatibility: as of Phase 2, [`crate::federation::types`]
+//! re-exports `ciris_persist::federation::types` directly. The vendored
+//! wire-format-parity contract that previously lived in this module's
+//! comments is now structurally enforced — there is no parallel type
+//! definition that could drift.
+
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use ciris_persist::engine::Engine;
 
 use super::{
     Attestation, DirectoryError, FederationDirectory, KeyRecord, Result, Revocation,
     SignedAttestation, SignedKeyRecord, SignedRevocation,
 };
 
+/// Persist-backed federation directory client.
+///
+/// Holds an [`Arc<Engine>`] so the underlying backend (postgres or sqlite)
+/// can be shared across all federation-directory consumers in the process.
+/// Cheap to clone; each method clones the engine's internal `Arc` once
+/// per call when materializing the trait object.
 pub struct PersistFederationClient {
-    /// Endpoint URL or socket path; opaque until persist v0.2.0-pre1
-    /// specifies the transport.
-    #[allow(dead_code)]
-    endpoint: String,
+    engine: Arc<Engine>,
 }
 
 impl PersistFederationClient {
-    pub fn new(endpoint: String) -> Self {
-        Self { endpoint }
+    /// Construct a new client wrapping the given engine.
+    ///
+    /// Caller is responsible for engine lifecycle. Typical use:
+    /// build engine once at boot, share it via `Arc::clone` to any
+    /// component that needs federation-directory access.
+    pub fn new(engine: Arc<Engine>) -> Self {
+        Self { engine }
+    }
+}
+
+/// Convert upstream's [`ciris_persist::federation::Error`] into our
+/// [`DirectoryError`].
+///
+/// The mapping favors specificity where the upstream variant has a
+/// clear consumer-facing analog (`InvalidArgument` → `InvalidArgument`).
+/// Variants without a direct analog (rate-limiting, backend errors,
+/// signature-verification failures) collapse to `Rejected` with the
+/// upstream error's `Display` string preserved for forensic queries.
+impl From<ciris_persist::federation::Error> for DirectoryError {
+    fn from(e: ciris_persist::federation::Error) -> Self {
+        use ciris_persist::federation::Error as E;
+        match e {
+            E::InvalidArgument(s) => DirectoryError::InvalidArgument(s),
+            other => DirectoryError::Rejected(other.to_string()),
+        }
     }
 }
 
 #[async_trait]
 impl FederationDirectory for PersistFederationClient {
-    async fn put_public_key(&self, _record: SignedKeyRecord) -> Result<()> {
-        Err(DirectoryError::NotYetImplemented)
+    async fn put_public_key(&self, record: SignedKeyRecord) -> Result<()> {
+        self.engine
+            .federation_directory()
+            .put_public_key(record)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn lookup_public_key(&self, _key_id: &str) -> Result<Option<KeyRecord>> {
-        Err(DirectoryError::NotYetImplemented)
+    async fn lookup_public_key(&self, key_id: &str) -> Result<Option<KeyRecord>> {
+        self.engine
+            .federation_directory()
+            .lookup_public_key(key_id)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn lookup_keys_for_identity(&self, _identity_ref: &str) -> Result<Vec<KeyRecord>> {
-        Err(DirectoryError::NotYetImplemented)
+    async fn lookup_keys_for_identity(&self, identity_ref: &str) -> Result<Vec<KeyRecord>> {
+        self.engine
+            .federation_directory()
+            .lookup_keys_for_identity(identity_ref)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn put_attestation(&self, _attestation: SignedAttestation) -> Result<()> {
-        Err(DirectoryError::NotYetImplemented)
+    async fn put_attestation(&self, attestation: SignedAttestation) -> Result<()> {
+        self.engine
+            .federation_directory()
+            .put_attestation(attestation)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn list_attestations_for(&self, _attested_key_id: &str) -> Result<Vec<Attestation>> {
-        Err(DirectoryError::NotYetImplemented)
+    async fn list_attestations_for(&self, attested_key_id: &str) -> Result<Vec<Attestation>> {
+        self.engine
+            .federation_directory()
+            .list_attestations_for(attested_key_id)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn list_attestations_by(&self, _attesting_key_id: &str) -> Result<Vec<Attestation>> {
-        Err(DirectoryError::NotYetImplemented)
+    async fn list_attestations_by(&self, attesting_key_id: &str) -> Result<Vec<Attestation>> {
+        self.engine
+            .federation_directory()
+            .list_attestations_by(attesting_key_id)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn put_revocation(&self, _revocation: SignedRevocation) -> Result<()> {
-        Err(DirectoryError::NotYetImplemented)
+    async fn put_revocation(&self, revocation: SignedRevocation) -> Result<()> {
+        self.engine
+            .federation_directory()
+            .put_revocation(revocation)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn revocations_for(&self, _revoked_key_id: &str) -> Result<Vec<Revocation>> {
-        Err(DirectoryError::NotYetImplemented)
+    async fn revocations_for(&self, revoked_key_id: &str) -> Result<Vec<Revocation>> {
+        self.engine
+            .federation_directory()
+            .revocations_for(revoked_key_id)
+            .await
+            .map_err(Into::into)
     }
 }

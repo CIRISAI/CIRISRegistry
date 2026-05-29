@@ -1,6 +1,6 @@
 [package]
 name = "ciris-registry"
-version = "1.2.0-rc.1"
+version = "1.2.0"
 edition = "2021"
 rust-version = "1.84"
 authors = ["CIRIS AI <hello@ciris.ai>"]
@@ -74,7 +74,7 @@ rsa = { version = "0.9", features = ["sha2"] }
 # Originally tracked as CIRISRegistry#10; resolved this phase.
 
 ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v4.0.0",   features = ["pqc-ml-dsa"] }
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.3.0" }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.3.0", features = ["postgres", "sqlite"] }
 ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v0.18.0" }
 
 # pkcs8 transitive-pin resolution (Phase 1 of #33; see comment block above).

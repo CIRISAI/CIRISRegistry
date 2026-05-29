@@ -25,9 +25,9 @@ substrate-sister adoption + CEG 0.2 conformance + fold-readiness for CIRISAgent.
 
 Upcoming phases (in waterfall order):
 
-- **v1.2.0** — Persist wiring (#17 most): replace `PersistFederationClient`
-  `NotYetImplemented` stubs with real `ciris_persist::FederationDirectorySqlite`
-  calls; map vendored federation types to upstream.
+- Phase 2 (v1.2.0) — DONE (this release). Pending follow-up: wire engine
+  construction at boot path + enable `FEDERATION_DUAL_WRITE_ENABLED` in
+  staging.
 - **v1.3.0** — Edge wiring (CEG 0.2 §10.1 + connects #18): `PeerResolver` client
   + `holds_bytes` directory consumption + ContentFetch/ContentBody/ContentMiss
   round-trip with full-SHA verification (§10.1.1) + 24h TTL discipline (§10.1.2).
@@ -35,6 +35,36 @@ Upcoming phases (in waterfall order):
   workspace cohabit with `ciris-lens-core` + `ciris-node-core`) + `ciris-registry`
   binary (standalone deployments).
 - **v2.0.0** — CEG-0.2 conformance MAJOR + fold-readiness; closes #17 + #18 + #32.
+
+---
+
+## [1.2.0] — 2026-05-29
+
+**Phase 2 of #33 — Persist wired. PersistFederationClient delegates to `ciris_persist::engine::Engine::federation_directory()` (closes most of #17 scaffolding).**
+
+### Federation directory wiring
+
+- `crate::federation::types` now re-exports `ciris_persist::federation::types::*` directly. The previously-vendored types had drifted vs upstream v3.3.0 (single `pubkey_base64` field vs the hybrid `pubkey_ed25519_base64` + `pubkey_ml_dsa_65_base64` split; `time::OffsetDateTime` vs `chrono::DateTime<Utc>`; etc.). Re-export eliminates the parity-drift class of bugs the original vendoring was meant to guard against. The "registry hashes the vendored shape; persist hashes its own" contract is now structurally enforced — there is no parallel definition that could drift.
+- `PersistFederationClient` rewritten to hold `Arc<ciris_persist::engine::Engine>`. The 8 trait methods delegate to `engine.federation_directory().method(...).await`. Previous stub state (returning `DirectoryError::NotYetImplemented` on every call) is closed.
+- `From<ciris_persist::federation::Error> for DirectoryError` added — `InvalidArgument` maps directly; all other variants collapse to `Rejected` with the upstream error's `Display` string preserved for forensic queries.
+- `build_client` signature changed from `(settings)` → `(engine: Option<Arc<Engine>>, settings)`. When `dual_write_enabled=true` AND `engine=Some`, returns `PersistFederationClient`; otherwise falls back to `NoOpFederationClient` (defense-in-depth in case the boot misconfig guard at `config.rs::FederationSettings` is somehow bypassed).
+- `DirectoryError::NotYetImplemented` variant retained for forward-compat (the upstream `FederationDirectory` trait has methods Registry's narrower trait does not yet expose — `attach_*_pqc_signature`, hybrid-pending sweep, trust grants, Goals — and a future expansion of Registry's wiring may want this variant as a clear signal for partial impls).
+
+### Persist features enabled
+
+- `ciris-persist = { features = ["postgres", "sqlite"] }` — needed for `Engine::federation_directory()` (gated on `any(feature = "postgres", feature = "sqlite")` upstream).
+
+### Tests
+
+- 129/129 passing (was 132 in v1.2.0-rc.1; the 3-test delta is from removing the vendored `Default` impls that were never used in production paths). `cargo check` clean.
+
+### Not yet integrated into Registry handlers
+
+- Boot path does not yet construct the `Engine`; `build_client(None, ...)` is the only call site, returning `NoOpFederationClient`. Handlers in `services/admin.rs` etc. continue to read from `trusted_primitive_keys` / `partner_keys` / `registry_signing_keys` directly. Engine construction at boot + dual-write enablement lands as a Phase-2-follow-up (small commit) before Phase 3 begins.
+
+### Closes (most of)
+
+- [#17](https://github.com/CIRISAI/CIRISRegistry/issues/17) — substrate-conformance plan: the federation client scaffolding milestone closes. The "crate-ify as ciris-registry-core" half of #17 lands in Phase 4.
 
 ---
 
@@ -143,6 +173,7 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.2.0-rc.1...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.2.0
 [1.2.0-rc.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.2.0-rc.1
 [1.1.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.1.0

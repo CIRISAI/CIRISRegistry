@@ -1,29 +1,25 @@
-//! Federation directory client (PoB §3.1, v1.4 R_SCAFFOLD).
+//! Federation directory client (PoB §3.1).
 //!
 //! Registry-side client for CIRISPersist's `FederationDirectory`.
-//! Mirrors the trait surface and serde models defined in
-//! [`docs/FEDERATION_DIRECTORY.md`](../../docs/FEDERATION_DIRECTORY.md)
-//! upstream and consumed per
-//! [`docs/FEDERATION_CLIENT.md`](../../docs/FEDERATION_CLIENT.md).
 //!
-//! **Status: scaffolding.** When `FEDERATION_DUAL_WRITE_ENABLED=false`
-//! (default), all writes/reads no-op via `NoOpFederationClient`. When
-//! the flag is on, `PersistFederationClient` is selected at boot —
-//! its method bodies currently `unimplemented!()` and will be filled
-//! in once persist v0.2.0-pre1 publishes the wire format and trait
-//! crate location. The misconfiguration guard in
-//! `config.rs::FederationSettings` ensures the flag can't be flipped
-//! on without a configured endpoint.
+//! As of v1.2.0 (umbrella #33 Phase 2), `PersistFederationClient` wraps
+//! an `Arc<ciris_persist::engine::Engine>` directly and delegates to
+//! `engine.federation_directory()`. The previous stub state (returning
+//! `DirectoryError::NotYetImplemented` on every call) is closed; the
+//! `NotYetImplemented` variant remains in the error enum for forward-
+//! compat with future Persist trait extensions Registry may not yet wire.
+//!
+//! When `FEDERATION_DUAL_WRITE_ENABLED=false` (default), all writes/reads
+//! no-op via `NoOpFederationClient`. When the flag is on AND the boot path
+//! has constructed a Persist engine, `PersistFederationClient` is selected.
+//! The misconfiguration guard in `config.rs::FederationSettings` ensures
+//! the flag can't be flipped on without a configured endpoint.
 //!
 //! Module layout:
 //! - `mod.rs` — trait, error, factory, no-op impl
-//! - `types.rs` — serde models matching persist's row shapes
-//! - `persist_client.rs` — real client stub (HTTP/gRPC TBD)
-//!
-//! The shapes here are derived from persist's published doc and may
-//! adjust slightly when v0.2.0-pre1 ships a representative
-//! `federation_keys` row JSON. Track in `docs/FEDERATION_CLIENT.md`
-//! "Last updated" note.
+//! - `types.rs` — re-exports from `ciris_persist::federation::types`
+//!   (single source of truth as of Phase 2)
+//! - `persist_client.rs` — engine-backed `FederationDirectory` impl
 
 use async_trait::async_trait;
 use thiserror::Error;
@@ -72,9 +68,13 @@ pub enum DirectoryError {
     #[error("federation directory disabled (FEDERATION_DUAL_WRITE_ENABLED=false)")]
     Disabled,
 
-    /// Stub `unimplemented!()` returns from `PersistFederationClient` —
-    /// should be replaced with a real impl once persist v0.2.0-pre1 ships.
-    #[error("federation client not yet implemented (waiting on persist v0.2.0-pre1)")]
+    /// Reserved for forward-compat with Persist trait extensions Registry
+    /// may not yet wire (e.g., the PQC-attach methods on the upstream
+    /// trait that Registry's [`FederationDirectory`] does not currently
+    /// expose). Pre-v1.2.0 this variant signalled the stub state of
+    /// `PersistFederationClient`; that state is closed as of Phase 2 of
+    /// umbrella #33.
+    #[error("federation client method not yet wired in Registry")]
     NotYetImplemented,
 }
 
@@ -146,17 +146,24 @@ impl FederationDirectory for NoOpFederationClient {
 
 /// Build the appropriate federation client based on settings.
 ///
-/// Returns `NoOpFederationClient` when `dual_write_enabled=false`.
-/// Returns `PersistFederationClient` when on. The misconfiguration
-/// guard at boot (`config.rs`) ensures we never reach this with
-/// `dual_write_enabled=true && persist_endpoint.is_empty()`.
+/// - `NoOpFederationClient` when `dual_write_enabled=false`.
+/// - `PersistFederationClient` when `dual_write_enabled=true` AND `engine`
+///   is `Some`. The boot-time misconfiguration guard at `config.rs` ensures
+///   `persist_endpoint` is non-empty when `dual_write_enabled=true`, and
+///   the boot path is responsible for constructing the engine before
+///   calling this. If `dual_write_enabled=true` is somehow reached with
+///   `engine=None`, this falls back to `NoOpFederationClient` rather than
+///   panicking — the misconfig is already caught upstream at boot.
 pub fn build_client(
+    engine: Option<std::sync::Arc<ciris_persist::engine::Engine>>,
     settings: &crate::config::FederationSettings,
 ) -> std::sync::Arc<dyn FederationDirectory> {
     if settings.dual_write_enabled {
-        std::sync::Arc::new(persist_client::PersistFederationClient::new(
-            settings.persist_endpoint.clone(),
-        ))
+        if let Some(e) = engine {
+            std::sync::Arc::new(persist_client::PersistFederationClient::new(e))
+        } else {
+            std::sync::Arc::new(NoOpFederationClient)
+        }
     } else {
         std::sync::Arc::new(NoOpFederationClient)
     }
@@ -165,11 +172,44 @@ pub fn build_client(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
+    use types::{algorithm, identity_type};
+
+    /// Construct a minimal `SignedKeyRecord` for NoOp client tests.
+    ///
+    /// Upstream `ciris_persist::federation::types::SignedKeyRecord` does
+    /// not implement `Default` (intentional — every field is load-bearing
+    /// on the persist write path). For NoOp tests we don't care about
+    /// field validity; we only need a value of the right type.
+    fn dummy_signed_key_record() -> SignedKeyRecord {
+        SignedKeyRecord {
+            record: KeyRecord {
+                key_id: "noop-test".into(),
+                pubkey_ed25519_base64: String::new(),
+                pubkey_ml_dsa_65_base64: None,
+                algorithm: algorithm::HYBRID.into(),
+                identity_type: identity_type::AGENT.into(),
+                identity_ref: "noop-test".into(),
+                valid_from: Utc::now(),
+                valid_until: None,
+                registration_envelope: serde_json::Value::Null,
+                original_content_hash: String::new(),
+                scrub_signature_classical: String::new(),
+                scrub_signature_pqc: None,
+                scrub_key_id: "noop-test".into(),
+                scrub_timestamp: Utc::now(),
+                pqc_completed_at: None,
+                roles: Vec::new(),
+                attestation_evidence: None,
+                persist_row_hash: String::new(),
+            },
+        }
+    }
 
     #[tokio::test]
     async fn noop_client_writes_succeed_silently() {
         let client = NoOpFederationClient;
-        let record = SignedKeyRecord::default();
+        let record = dummy_signed_key_record();
         assert!(client.put_public_key(record).await.is_ok());
     }
 
@@ -189,9 +229,21 @@ mod tests {
     #[test]
     fn build_client_noop_when_flag_off() {
         let settings = crate::config::FederationSettings::default();
-        let client = build_client(&settings);
+        let client = build_client(None, &settings);
         // Smoke test: client is constructed without panic.
         // Behavior verified by the noop_client_* tests above.
+        let _ = client;
+    }
+
+    #[test]
+    fn build_client_noop_when_dual_write_on_but_engine_missing() {
+        // Defense-in-depth: if dual_write is enabled but no engine was
+        // constructed at boot (a config-vs-impl contract violation that
+        // the boot guard should catch), fall back to no-op rather than
+        // panic.
+        let mut settings = crate::config::FederationSettings::default();
+        settings.dual_write_enabled = true;
+        let client = build_client(None, &settings);
         let _ = client;
     }
 }
