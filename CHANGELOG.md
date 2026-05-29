@@ -38,6 +38,60 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [1.2.0-rc.1] — 2026-05-29
+
+**Phase 1 of #33 — Substrate triple available as Cargo deps; no wiring yet.**
+
+This release-candidate marks the deps-available-but-unwired state. All three
+substrate sister crates are now declared in `rust-registry/Cargo.toml`;
+Phase 2 + 3 will wire them. The state is intentionally consumable as an RC
+for sister consumers (CIRISVerify v4.0 integration tests, CIRISAgent workspace
+shape experiments) to validate their assumptions against the new resolver
+state before Phase 2 wiring lands.
+
+### Substrate triple now declared
+
+| Crate | Version | Source |
+|---|---|---|
+| `ciris-crypto` | **v4.0.0** (was v1.14.0) | CIRISVerify |
+| `ciris-persist` | **v3.3.0** (NEW) | CIRISPersist |
+| `ciris-edge` | **v0.18.0** (NEW) | CIRISEdge |
+
+All three resolve to their tagged commits per `cargo tree`. Verified with
+`cargo build` clean + full test suite passing (132/132).
+
+### Resolver fix
+
+- **pkcs8 transitive-pin resolved** (closes [#10](https://github.com/CIRISAI/CIRISRegistry/issues/10)).
+  `ciris-crypto` v4.0.0 inherits the `ml-dsa = "=0.1.0-rc.8"` → `pkcs8
+  ^0.11.0-rc.11` chain that previously forced rc.11 to be excluded by Cargo's
+  pre-release caret resolution. Resolved by declaring `pkcs8 = "=0.11.0-rc.11"`
+  explicitly in `[dependencies]` (forces version unification across all
+  transitive deps; Registry does not use pkcs8 directly).
+
+### Not yet wired (Phase 2 + 3 deliverables)
+
+- `ciris-persist::FederationDirectorySqlite` — not yet called; the vendored
+  `PersistFederationClient` stub at `src/federation/persist_client.rs` still
+  returns `NotYetImplemented` on all paths.
+- `ciris-edge::PeerResolver` + `ContentFetch` / `ContentBody` / `ContentMiss` —
+  not yet implemented; CEG 0.2 §10.1 transport substrate wiring deferred to
+  Phase 3.
+
+### No CEG wire-format change
+
+Registry-emitted attestation strings unchanged (no Registry code emits the
+`attestation:l{N}:*` strings affected by CEG 0.2 §5.2 — verified pre-Phase-0
+via grep). CEG-0.2 conformance MAJOR (v2.0.0) lands after Phases 2 + 3 + 4
+per the versioning rule.
+
+### Tests
+
+132/132 passing (71 + 26 + 19 + 16 across the four test binaries). `cargo
+check` clean; 47 pre-existing warnings, none introduced.
+
+---
+
 ## [1.1.0] — 2026-05-29
 
 **Baseline tag retroactively establishing CEG-conformance versioning discipline.**
@@ -89,5 +143,6 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.2.0-rc.1...HEAD
+[1.2.0-rc.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.2.0-rc.1
 [1.1.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.1.0

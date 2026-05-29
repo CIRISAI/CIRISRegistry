@@ -1,6 +1,6 @@
 [package]
 name = "ciris-registry"
-version = "1.1.0"
+version = "1.2.0-rc.1"
 edition = "2021"
 rust-version = "1.84"
 authors = ["CIRIS AI <hello@ciris.ai>"]
@@ -50,22 +50,41 @@ sha2 = "0.10"
 rand = "0.8"
 rsa = { version = "0.9", features = ["sha2"] }
 
-# Cryptography - Hybrid (Ed25519 + ML-DSA-65 / FIPS 204)
-# CIRISVerify v1.14.0 alignment: ciris-crypto provides Ed25519Signer + MlDsa65Signer
-# (the same primitives CIRISLens, CIRISAgent, and CIRISPersist consume).
-# v1.8.5 fixed ML-DSA-65 signature size to FIPS 204 final value (3309 bytes).
-# Registry uses only Ed25519 + ML-DSA-65 signing/verifying — pqc-ml-dsa feature.
+# =============================================================================
+# Substrate triple (Phase 1 of #33 — CEG 0.2 conformance + fold-readiness)
+# =============================================================================
+# CIRISRegistry consumes the same three substrate components that CIRISLens
+# Core, CIRISNodeCore, and (post-fold) CIRISAgent consume — keeping the
+# cohabitation pin discipline consistent so all four cohabit crates resolve
+# to the same substrate versions.
 #
-# Holding at v1.14.0 (not v2.0.x): the v2.0.2+ ciris-crypto pins
-# `ml-dsa = "=0.1.0-rc.8"` which transitively pulls `pkcs8 ^0.11.0-rc.11`.
-# Cargo's pre-release resolution rules mean the caret excludes rc.11
-# itself, forcing pkcs8 0.11.0 stable — which is API-incompatible with
-# ml-dsa rc.8 (Error::KeyMalformed signature changed). Upstream sidesteps
-# this via a workspace Cargo.lock, but consumers can't inherit that.
-# Bumping to v2.0.x requires a [patch.crates-io] pin on pkcs8 here, which
-# is a separate followup. Closes CIRISRegistry#10 (lag eliminated; v2.0.x
-# tracked separately).
-ciris-crypto = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v1.14.0", features = ["pqc-ml-dsa"] }
+#   ciris-crypto   v4.0.0   (Verify; hybrid Ed25519 + ML-DSA-65)
+#   ciris-persist  v3.3.0   (substrate storage; federation_keys + attestations)
+#   ciris-edge     v0.18.0  (Reticulum-native federation transport)
+#
+# Phase-1 state: deps added, NOT YET WIRED. Vendored federation client in
+# `src/federation/persist_client.rs` still returns NotYetImplemented; Edge
+# transport client not yet implemented. See umbrella issue #33 for the
+# Phase 2 + 3 wiring schedule.
+#
+# pkcs8 transitive-pin note: ciris-crypto v2.0.x → v4.0.0 inherited the
+# `ml-dsa = "=0.1.0-rc.8"` → `pkcs8 ^0.11.0-rc.11` chain that previously
+# blocked the v1.14.0 → v2.0.x bump (the comment that lived here pre-1.2
+# documented this). The [patch.crates-io] block below resolves it.
+# Originally tracked as CIRISRegistry#10; resolved this phase.
+
+ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v4.0.0",   features = ["pqc-ml-dsa"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.3.0" }
+ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v0.18.0" }
+
+# pkcs8 transitive-pin resolution (Phase 1 of #33; see comment block above).
+# ciris-crypto v4.0.0 pulls ml-dsa = "=0.1.0-rc.8" which requires
+# pkcs8 ^0.11.0-rc.11. Cargo's caret resolution for pre-release versions
+# would otherwise pick pkcs8 0.11.0 stable (API-incompatible with ml-dsa rc.8).
+# Declaring pkcs8 explicitly at the top level forces version unification to
+# rc.11 across all transitive deps. Registry does NOT use pkcs8 directly;
+# this is purely a resolver constraint to keep ciris-crypto + ml-dsa happy.
+pkcs8 = "=0.11.0-rc.11"
 
 # NOTE on BuildManifest validation:
 # We do NOT pull ciris-verify-core. Reasons:
