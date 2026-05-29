@@ -911,6 +911,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "ciris-crypto"
+version = "4.1.0"
+source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v4.1.0#8805b42447c54c018eb3ad3164ca102d59ff3f9c"
+dependencies = [
+ "ed25519-dalek",
+ "hex",
+ "hkdf",
+ "k256",
+ "ml-dsa",
+ "p256",
+ "pkcs8 0.11.0-rc.11",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "serde",
+ "sha2 0.10.9",
+ "sha3 0.10.9",
+ "signature 2.2.0",
+ "subtle",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "ciris-edge"
 version = "0.18.0"
 source = "git+https://github.com/CIRISAI/CIRISEdge?tag=v0.18.0#13b8fe54a82713ec8207fb02041c6f6079ff5ab9"
@@ -919,7 +941,7 @@ dependencies = [
  "base64 0.22.1",
  "bip39",
  "chrono",
- "ciris-crypto",
+ "ciris-crypto 4.0.0",
  "ciris-keyring",
  "ciris-persist 3.2.0",
  "futures",
@@ -943,7 +965,7 @@ dependencies = [
  "aes-gcm",
  "async-trait",
  "block2",
- "ciris-crypto",
+ "ciris-crypto 4.0.0",
  "core-foundation 0.9.4",
  "core-foundation-sys",
  "dirs",
@@ -978,7 +1000,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "chrono",
- "ciris-crypto",
+ "ciris-crypto 4.0.0",
  "ciris-keyring",
  "ciris-verify-core",
  "ed25519-dalek",
@@ -1005,14 +1027,14 @@ dependencies = [
 
 [[package]]
 name = "ciris-persist"
-version = "3.3.0"
-source = "git+https://github.com/CIRISAI/CIRISPersist?tag=v3.3.0#baad6bfcfe5d861b3d919c278039303ba62122ce"
+version = "3.3.1"
+source = "git+https://github.com/CIRISAI/CIRISPersist?tag=v3.3.1#4bab97fe2e36760a528ea4fb868f06b8b3a6d6a3"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
  "chrono",
- "ciris-crypto",
+ "ciris-crypto 4.0.0",
  "ciris-keyring",
  "ciris-verify-core",
  "deadpool-postgres",
@@ -1042,7 +1064,7 @@ dependencies = [
 
 [[package]]
 name = "ciris-registry"
-version = "1.2.0"
+version = "1.3.0-rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1050,9 +1072,10 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "ciborium",
- "ciris-crypto",
+ "ciris-crypto 4.1.0",
  "ciris-edge",
- "ciris-persist 3.3.0",
+ "ciris-keyring",
+ "ciris-persist 3.3.1",
  "config",
  "der 0.7.10",
  "dotenvy",
@@ -1116,7 +1139,7 @@ dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
  "chrono",
- "ciris-crypto",
+ "ciris-crypto 4.0.0",
  "ciris-keyring",
  "clap",
  "ed25519-dalek",

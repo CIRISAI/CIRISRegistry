@@ -1,9 +1,17 @@
 //! Hybrid cryptography module (Ed25519 + ML-DSA-65, FIPS 204)
 //!
-//! Built on `ciris-crypto` v1.14.0 — the same primitives CIRISLens, CIRISAgent,
+//! Built on `ciris-crypto` v4.1.0 — the same primitives CIRISLens, CIRISAgent,
 //! and CIRISPersist consume. Closes AV-27 (vault-mode dummy-key bug) and
 //! AV-25 (home-rolled crypto extraction risk) by deletion of the legacy
 //! storage_mode plumbing.
+//!
+//! v1.3.0 adds [`persist_signer`] — a local adapter making
+//! `ciris_crypto::MlDsa65Signer` callable as `ciris_keyring::PqcSigner`
+//! so [`HybridCrypto::build_persist_local_signer`] can construct a
+//! `ciris_persist::signing::LocalSigner` for the federation directory
+//! Engine at boot. See module docs there for the CIRISVerify#39 context.
+
+pub mod persist_signer;
 
 use std::path::Path;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -38,6 +46,11 @@ pub struct HsmConnectionTest {
 pub struct HybridCrypto {
     ed25519_seed: [u8; ED25519_SEED_LEN],
     ed25519_signer: Ed25519Signer,
+    /// ML-DSA-65 raw seed bytes. Retained so [`HybridCrypto::build_persist_local_signer`]
+    /// can hand a fresh `MlDsa65Signer` to `ciris_persist::signing::LocalSigner`
+    /// without consuming or sharing this struct's instance. Added in v1.3.0
+    /// (#33 Phase 3-followup) per CIRISVerify#39 closure.
+    mldsa_seed: Vec<u8>,
     mldsa_signer: MlDsa65Signer,
     mldsa_public_key: Vec<u8>,
     key_id: String,
@@ -124,11 +137,53 @@ impl HybridCrypto {
 
         Ok(Self {
             ed25519_seed: seed_owned,
+            mldsa_seed: mldsa_seed.to_vec(),
             ed25519_signer,
             mldsa_signer,
             mldsa_public_key,
             key_id,
         })
+    }
+
+    /// Build a `ciris_persist::signing::LocalSigner` from this hybrid
+    /// crypto's keys.
+    ///
+    /// Used at boot in `main.rs` to construct a `ciris_persist::engine::Engine`
+    /// for the federation directory. The LocalSigner gets:
+    /// - Ed25519: reconstructed `ed25519_dalek::SigningKey` from the
+    ///   retained `ed25519_seed`
+    /// - key_id: this hybrid's `key_id` (same identity)
+    /// - PQC signer: a *fresh* [`MlDsa65Signer`] built from `mldsa_seed`,
+    ///   wrapped in `Arc<dyn ciris_keyring::PqcSigner>` per the
+    ///   v4.1.0 trait impl shipped under CIRISVerify#39
+    /// - PQC key_id: same as Ed25519 key_id (single hybrid identity)
+    ///
+    /// A fresh `MlDsa65Signer` (not this struct's own `mldsa_signer`) is
+    /// constructed because [`MlDsa65Signer`] is not `Clone` and is owned by
+    /// this struct for Registry's own hybrid-signing path. Both signers
+    /// produce identical signatures (same seed → same key); they're
+    /// observationally equivalent.
+    pub fn build_persist_local_signer(
+        &self,
+    ) -> Result<std::sync::Arc<ciris_persist::signing::LocalSigner>> {
+        use std::sync::Arc;
+        // Ed25519 signing key reconstructed from the retained seed.
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&self.ed25519_seed);
+
+        // Fresh MlDsa65Signer for LocalSigner's PQC slot — wrapped via
+        // PersistPqcAdapter (orphan-rules-friendly local impl, stopgap for
+        // CIRISVerify#39's v4.1.0 upstream impl until cohabit set unifies).
+        let pqc_signer = MlDsa65Signer::from_seed(&self.mldsa_seed)
+            .map_err(|e| RegistryError::HsmUnavailable(format!("LocalSigner PQC: {}", e)))?;
+        let pqc_signer_arc = persist_signer::arc_persist_pqc(pqc_signer);
+
+        let local_signer = ciris_persist::signing::LocalSigner::from_parts(
+            signing_key,
+            self.key_id.clone(),
+            Some(pqc_signer_arc),
+            Some(self.key_id.clone()),
+        );
+        Ok(Arc::new(local_signer))
     }
 
     /// Generate ephemeral keys (development / tests / one-shot custodied

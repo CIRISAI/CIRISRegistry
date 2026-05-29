@@ -48,6 +48,13 @@ struct AppState {
     db: Database,
     crypto: Arc<HybridCrypto>,
     metrics_handle: Arc<PrometheusHandle>,
+    /// Federation directory client wired in v1.3.0 (#33 Phase 3-followup).
+    /// When `FEDERATION_DUAL_WRITE_ENABLED=false` (default), this is the
+    /// `NoOpFederationClient` and reads/writes silently no-op. When the
+    /// flag is on and an Engine was constructed at boot, this is the
+    /// `PersistFederationClient` delegating to ciris-persist's federation
+    /// directory.
+    federation: Arc<dyn crate::federation::FederationDirectory>,
 }
 
 #[derive(Serialize)]
@@ -510,30 +517,132 @@ async fn accord_holders_ui(
 /// Public endpoint: GET /v1/agent_files/{kind}?platform_or_target=...
 /// (CIRISRegistry#23 Surface 2 + #18)
 ///
-/// Three-layer trust composition per FSD-002 §6.1.6:
+/// Three-layer trust composition per CEG 0.2 §8.1.6 / FSD-002 §6.1.6:
 /// - Layer 1 Canonical: registry-steward-triple attestations on `agent_files:*`
 /// - Layer 2 Open: any federation-key holder may emit
 /// - Layer 3 Vote-then-trust: NodeCore P4 vote accumulation
 ///
-/// v1.4 interim: returns empty lists until the substrate trio
-/// (Edge#21 + Persist#103 + NodeCore#11) ships and federation_attestations
-/// table starts carrying agent_files:* claims. The endpoint shape is live
-/// so CIRISAgent 2.10.0 UI wiring works end-to-end.
+/// v1.3.0 (#33 Phase 3-followup) wired the federation-directory query
+/// path. The endpoint now queries `state.federation` (NoOp by default;
+/// PersistFederationClient when `FEDERATION_DUAL_WRITE_ENABLED=true`)
+/// and composes via `edge_transport::compose_trust_layers`.
+///
+/// The "target" used for `list_attestations_for(...)` is the synthetic
+/// key `agent_files:{kind}:{platform_or_target}` — the dimension itself,
+/// treated as a denormalized attested entity. This keeps the wire shape
+/// simple at the cost of requiring producers to attest against this key.
+/// A richer index (target → attestations) is the open follow-up but
+/// requires upstream Persist read-path work; deferred until there's
+/// real data to compose over.
+///
+/// When the federation directory is NoOp (default) or has no
+/// matching attestations, the composition returns empty layers — same
+/// shape as the v1.4-interim stub the pre-1.3.0 endpoint returned.
 async fn agent_files_for_kind(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     axum::extract::Path(kind): axum::extract::Path<String>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<AgentFilesResponse>, (StatusCode, Json<StewardKeyError>)> {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
     let platform_or_target = q.get("platform_or_target").cloned();
 
+    // Synthetic attested-key per the strategy above.
+    let attested_key = match &platform_or_target {
+        Some(p) => format!("agent_files:{}:{}", kind, p),
+        None => format!("agent_files:{}", kind),
+    };
+
+    // Query the federation directory. NoOp returns empty; real client
+    // returns whatever attestations the substrate has against this key.
+    let attestations = state
+        .federation
+        .list_attestations_for(&attested_key)
+        .await
+        .unwrap_or_default();
+
+    // Steward triple set per CEG §9 (placeholder — production wires
+    // this from the registry-steward-triple identity rows).
+    // TODO Phase 4: load from `federation_keys` rows where
+    // `identity_type = 'steward_triple_member'` once that vocabulary
+    // ships per CIRISPersist#102.
+    let steward_triple: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // Vote weights per CEG §8.1.6 Layer 3 — supplied by NodeCore's
+    // read API. Empty until NodeCore ships the surface; the composition
+    // function handles empty gracefully (no Layer-3 elevations).
+    let vote_weights: std::collections::HashMap<String, f64> =
+        std::collections::HashMap::new();
+
+    let composition = crate::edge_transport::compose_trust_layers(
+        &attestations,
+        &steward_triple,
+        &vote_weights,
+    );
+
+    // Lookup helper: given a key_id, find the matching OpenAttester
+    // entry so we can populate score + confidence in the response.
+    let lookup = |k: &str| -> Option<&crate::edge_transport::OpenAttester> {
+        composition.open_attesters.iter().find(|a| a.key_id == k)
+    };
+
+    let canonical_entry =
+        composition
+            .canonical_attester
+            .as_ref()
+            .and_then(|k| lookup(k))
+            .map(|a| AgentFileAttesterEntry {
+                attester_key_id: a.key_id.clone(),
+                file_sha256: String::new(), // attestations carry SHA in evidence_refs; index TBD
+                attestation_score: a.score,
+                confidence: a.confidence,
+                trust_layer: "canonical".to_string(),
+                note: Some(
+                    "Layer 1 — registry-steward-triple (CEG §8.1.6 anti-tricking default)".to_string(),
+                ),
+            });
+
+    let open_entries: Vec<AgentFileAttesterEntry> = composition
+        .open_attesters
+        .iter()
+        .filter(|a| {
+            // Exclude the canonical attester from open layer to avoid
+            // double-rendering; UI distinguishes via layer.
+            composition
+                .canonical_attester
+                .as_ref()
+                .map(|c| c != &a.key_id)
+                .unwrap_or(true)
+        })
+        .map(|a| AgentFileAttesterEntry {
+            attester_key_id: a.key_id.clone(),
+            file_sha256: String::new(),
+            attestation_score: a.score,
+            confidence: a.confidence,
+            trust_layer: "open".to_string(),
+            note: None,
+        })
+        .collect();
+
+    let vote_entries: Vec<AgentFileAttesterEntry> = composition
+        .vote_then_trust
+        .iter()
+        .map(|v| AgentFileAttesterEntry {
+            attester_key_id: v.key_id.clone(),
+            file_sha256: String::new(),
+            attestation_score: 0.0,
+            confidence: 0.0,
+            trust_layer: "vote-then-trust".to_string(),
+            note: Some(format!("Layer 3 — accumulated vote_weight={}", v.vote_weight)),
+        })
+        .collect();
+
     Ok(Json(AgentFilesResponse {
         kind,
         platform_or_target,
-        canonical_attester: None,
-        open_attesters: Vec::new(),
-        vote_then_trust: Vec::new(),
-        anti_trick_guarantee: "Canonical attester (registry-steward-triple, score >= 0.7) determines /install endpoint default. Third-party agent_files reachable only via explicit 'Browse alternatives' informed-consent path. Anti-tricking per CIRISRegistry#18 + FSD-002 §6.1.6.".to_string(),
+        canonical_attester: canonical_entry,
+        open_attesters: open_entries,
+        vote_then_trust: vote_entries,
+        anti_trick_guarantee: "Canonical attester (registry-steward-triple, score >= 0.7) determines /install endpoint default. Third-party agent_files reachable only via explicit 'Browse alternatives' informed-consent path. Anti-tricking per CIRISRegistry#18 + CEG 0.2 §8.1.6.".to_string(),
         timestamp: now,
     }))
 }
@@ -3183,11 +3292,13 @@ pub async fn serve(
     db: Database,
     crypto: Arc<HybridCrypto>,
     metrics_handle: PrometheusHandle,
+    federation: Arc<dyn crate::federation::FederationDirectory>,
 ) -> Result<(), std::io::Error> {
     let state = AppState {
         db,
         crypto,
         metrics_handle: Arc::new(metrics_handle),
+        federation,
     };
 
     // Public unauthenticated GET endpoints: rate-limited via the shared

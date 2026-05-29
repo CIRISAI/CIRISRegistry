@@ -67,6 +67,18 @@ pub struct FederationSettings {
     /// `max_stale_cache_age_seconds` (which is a hard backstop in either
     /// mode).
     pub persist_required: bool,
+
+    /// Persist Engine DSN. URL-sniffed per `ciris_persist::engine::Engine::
+    /// with_signer`:
+    /// - `postgresql://...` / `postgres://...` → Postgres backend
+    /// - `sqlite:///path.db` → SQLite (file at `/path.db`)
+    /// - `sqlite::memory:` / `sqlite:///:memory:` → SQLite in-memory
+    ///
+    /// Default is `sqlite::memory:` — federation directory is ephemeral
+    /// and lost on restart. Production deployments override to a
+    /// postgres URL (typically the same database Registry uses for its
+    /// own tables; Persist runs its own migrations and cohabits cleanly).
+    pub persist_dsn: String,
 }
 
 impl Default for FederationSettings {
@@ -77,6 +89,7 @@ impl Default for FederationSettings {
             cache_ttl_seconds: 300,
             max_stale_cache_age_seconds: 3600,
             persist_required: false,
+            persist_dsn: "sqlite::memory:".to_string(),
         }
     }
 }
@@ -282,6 +295,8 @@ impl Settings {
                     persist_required: env::var("FEDERATION_PERSIST_REQUIRED")
                         .map(|v| v == "true" || v == "1")
                         .unwrap_or(false),
+                    persist_dsn: env::var("FEDERATION_PERSIST_DSN")
+                        .unwrap_or_else(|_| "sqlite::memory:".to_string()),
                 }
             },
         })

@@ -84,6 +84,42 @@ async fn main() -> Result<()> {
     let crypto = Arc::new(crypto::HybridCrypto::new(&settings.crypto)?);
     info!("Initialized hybrid cryptography provider");
 
+    // Build the Persist Engine for the federation directory.
+    // v1.3.0 (#33 Phase 3-followup) — constructs a ciris_persist::Engine
+    // wrapping a LocalSigner built from Registry's hybrid crypto. The
+    // Engine is the substrate access point for federation_keys +
+    // federation_attestations + federation_revocations + federation_blobs.
+    //
+    // DSN defaults to `sqlite::memory:` (ephemeral; for dev) — production
+    // overrides via `CIRIS_REGISTRY_FEDERATION__PERSIST_DSN` env var to a
+    // postgres URL, typically the same database Registry uses for its own
+    // tables (Persist runs its own migrations and cohabits cleanly).
+    let persist_engine: Arc<ciris_persist::engine::Engine> = {
+        let local_signer = crypto.build_persist_local_signer()?;
+        let engine = ciris_persist::engine::Engine::with_signer(
+            local_signer,
+            &settings.federation.persist_dsn,
+        )
+        .await
+        .map_err(|e| {
+            crate::error::RegistryError::HsmUnavailable(format!(
+                "ciris_persist Engine::with_signer({}): {}",
+                settings.federation.persist_dsn, e
+            ))
+        })?;
+        info!(
+            dsn = %settings.federation.persist_dsn,
+            "Initialized ciris_persist Engine for federation directory"
+        );
+        Arc::new(engine)
+    };
+
+    // Build the federation directory client. When dual_write_enabled is
+    // off (default), this returns NoOpFederationClient. When on, it
+    // returns PersistFederationClient wrapping the engine above.
+    let federation_directory: Arc<dyn crate::federation::FederationDirectory> =
+        crate::federation::build_client(Some(persist_engine.clone()), &settings.federation);
+
     // Boot-seed the registry's own steward pubkey as a trusted primitive
     // key (project='ciris-registry') ONLY IF NO ROW EXISTS — gives a
     // working default for fresh installs where the registry's runtime
@@ -190,6 +226,7 @@ async fn main() -> Result<()> {
             db.clone(),
             crypto.clone(),
             metrics_handle,
+            federation_directory.clone(),
         )))
     } else {
         None

@@ -38,6 +38,107 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [1.3.0] — 2026-05-29
+
+**Phase 3-followup of #33 — Engine wired at boot, AppState carries federation directory, `/v1/agent_files/{kind}` composes via edge_transport. CEG 0.2 §10.1 read-side helpers now live end-to-end.**
+
+### Deps bumped
+
+- `ciris-crypto` v4.0.0 → **v4.1.0** (CIRISVerify#39 release)
+- `ciris-keyring` **NEW** at v4.0.0 (matches what ciris-persist v3.3.1 / ciris-edge v0.18.0 / ciris-verify-core v4.0.0 transitively pull; Cargo cannot unify across distinct git-tag pins from the same source so we use v4.0.0 to match)
+- `ciris-persist` v3.3.0 → **v3.3.1**
+
+### Adapter: `crate::crypto::persist_signer`
+
+CIRISVerify#39 shipped `impl PqcSigner for MlDsa65Signer` in `ciris-keyring` v4.1.0, but the upstream cohabit set (edge / persist / verify-core) all still pin keyring v4.0.0 transitively. We tried `[patch."https://github.com/CIRISAI/CIRISVerify"]` to force-unify the graph to v4.1.0 — Cargo refused with "patch must point to a different source." So Registry ships its own local adapter as a stopgap:
+
+```rust
+// src/crypto/persist_signer.rs
+pub struct PersistPqcAdapter { inner: MlDsa65Signer }
+
+#[async_trait]
+impl PqcSigner for PersistPqcAdapter {
+    fn algorithm(&self) -> PqcAlgorithm { PqcAlgorithm::MlDsa65 }
+    fn hardware_type(&self) -> HardwareType { HardwareType::SoftwareOnly }
+    async fn public_key(&self) -> Result<Vec<u8>, KeyringError> { ... }
+    async fn sign(&self, data: &[u8]) -> Result<Vec<u8>, KeyringError> { ... }
+    async fn attestation(&self) -> Result<PlatformAttestation, KeyringError> { ... }
+    fn current_alias(&self) -> &str { "ciris-registry/PersistPqcAdapter" }
+    fn storage_descriptor(&self) -> StorageDescriptor { StorageDescriptor::InMemory }
+}
+```
+
+Orphan rules satisfied: local struct (we own) + foreign trait (keyring's). Same net effect as the v4.1.0 upstream impl; the file deletes cleanly once upstream cohabit set pulls v4.1.0.
+
+### `HybridCrypto::build_persist_local_signer`
+
+New method on `HybridCrypto`:
+
+```rust
+pub fn build_persist_local_signer(&self) -> Result<Arc<ciris_persist::signing::LocalSigner>> {
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&self.ed25519_seed);
+    let pqc_signer = MlDsa65Signer::from_seed(&self.mldsa_seed)?;
+    let pqc_signer_arc = persist_signer::arc_persist_pqc(pqc_signer);
+    Ok(Arc::new(LocalSigner::from_parts(
+        signing_key,
+        self.key_id.clone(),
+        Some(pqc_signer_arc),
+        Some(self.key_id.clone()),
+    )))
+}
+```
+
+To support this, `HybridCrypto` now retains `mldsa_seed: Vec<u8>` so the PQC signer can be reconstructed cleanly for the LocalSigner without consuming Registry's own hybrid-signing path.
+
+### Engine at boot (main.rs)
+
+After building `HybridCrypto`, main.rs now constructs:
+
+```rust
+let local_signer = crypto.build_persist_local_signer()?;
+let engine = ciris_persist::engine::Engine::with_signer(
+    local_signer,
+    &settings.federation.persist_dsn,
+).await?;
+let federation_directory = crate::federation::build_client(
+    Some(Arc::new(engine)),
+    &settings.federation,
+);
+```
+
+The federation directory is then passed through to `api::http::serve` and ends up on `AppState`.
+
+### Config: `FEDERATION_PERSIST_DSN`
+
+New env var per `FederationSettings::persist_dsn`. Defaults to `sqlite::memory:` (ephemeral; dev only — federation directory lost on restart). Production overrides to a postgres URL via `FEDERATION_PERSIST_DSN=postgres://...`, typically the same database Registry already uses for its own tables (Persist runs its own migrations and cohabits cleanly per CIRISPersist's design).
+
+### Endpoint live: `/v1/agent_files/{kind}`
+
+Previously returned hard-coded empty lists ("v1.4 interim"). Now:
+
+1. Synthesizes attested-key as `agent_files:{kind}:{platform_or_target}`
+2. Queries `state.federation.list_attestations_for(&attested_key)`
+3. Composes three-layer trust via `edge_transport::compose_trust_layers`
+4. Returns layered `AgentFileAttesterEntry` lists
+
+When the federation directory is NoOp (default `FEDERATION_DUAL_WRITE_ENABLED=false`) or the substrate has no matching attestations, the response is still empty — same shape as before. When the flag is enabled and there's real data, the endpoint composes for real.
+
+### Limitations acknowledged
+
+- **steward_triple set is empty in the composition call**. Production wiring needs to load it from `federation_keys` rows with `identity_type = 'steward_triple_member'` (TBD vocabulary per CIRISPersist#102). Until then, no attester qualifies as Layer 1 canonical regardless of attestation data — the §8.1.6 anti-tricking guarantee is conservatively-correct (no canonical promotion) but Layer 1 stays empty.
+- **vote_weights map is empty**. NodeCore P4 read API isn't wired yet; Layer 3 stays empty.
+- **file_sha256 stays empty** in the response entries. The attestation's `evidence_refs[]` carries the SHA per CEG §5.6.7 but isn't extracted here yet — Phase 4 (crate-ify) is the natural moment to lift this into a typed `agent_files_envelope` extractor.
+
+### CIRISVerify#39 cross-ref
+
+[CIRISVerify#39](https://github.com/CIRISAI/CIRISVerify/issues/39) is closed via v4.1.0. Registry's local adapter at `src/crypto/persist_signer.rs` is the temporary bridge until the cohabit set (edge / persist / verify-core) all release with keyring v4.1.0 pinned. When that lands, the adapter file deletes and Registry adopts the upstream impl directly.
+
+### Tests
+
+150/150 passing (same as v1.3.0-rc.1). `cargo check` clean.
+
+---
+
 ## [1.3.0-rc.1] — 2026-05-29
 
 **Phase 3 (partial) of #33 — Edge transport read-side helpers shipped; runtime integration deferred to v1.3.0 final.**
@@ -220,7 +321,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.3.0-rc.1...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.3.0
 [1.3.0-rc.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.3.0-rc.1
 [1.2.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.2.0
 [1.2.0-rc.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.2.0-rc.1
