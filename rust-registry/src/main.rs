@@ -27,6 +27,7 @@ pub mod play_integrity;
 pub mod rate_limiter;
 pub mod build_manifest;
 pub mod federation;
+pub mod edge_transport;
 mod services;
 mod validation;
 

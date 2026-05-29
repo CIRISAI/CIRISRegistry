@@ -38,6 +38,53 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [1.3.0-rc.1] — 2026-05-29
+
+**Phase 3 (partial) of #33 — Edge transport read-side helpers shipped; runtime integration deferred to v1.3.0 final.**
+
+This release-candidate marks the "read-side helpers complete, runtime
+integration not yet wired" state. The CEG §10.1 normative rules are
+implemented as pure-logic helpers with unit tests proving each invariant;
+lighting them up against live federation data requires the
+Phase-2-follow-up (Engine construction at boot + AppState wiring + DSN
+config) which lands separately.
+
+### New module: `src/edge_transport/`
+
+Four sub-modules, each addressing a CEG §10.1 normative rule:
+
+| Module | Spec section | What it does |
+|---|---|---|
+| `ttl` | §10.1.2 | 24h TTL filtering on `holds_bytes:sha256:{prefix}` attestations; `filter_fresh_holders` + `classify_freshness` |
+| `verify` | §10.1.1 | Full SHA-256 verification of `ContentBody` bytes; type signature `&[u8; 32]` structurally rejects the prefix-short-circuit anti-pattern |
+| `content_miss` | §10.1.2 | `withdraws` emission helper for ContentMiss feedback |
+| `agent_files` | §8.1.6 | Three-layer trust composition (Canonical / Open / Vote-then-trust); anti-tricking guarantee enforced (Layer 3 never promotes to Layer 1) |
+
+21 new unit tests covering:
+- TTL boundary cases (exact-cutoff, one-second-past, tighter-than-default)
+- SHA verification (matching, mismatching, empty, type-signature short-circuit-rejection)
+- ContentMiss emission against NoOp directory
+- Three-layer composition (empty input, steward-above-threshold, steward-below-threshold, non-steward-cannot-promote, multi-steward tiebreak, lex tiebreak, Layer-3 vote weight, anti-tricking guarantee)
+
+### Dependency added
+
+- `chrono = "0.4"` (default-features = false, features = ["std", "clock", "serde"]).
+  Required because `ciris-persist` v3.3.0+ federation types use `chrono::DateTime<Utc>`. Registry's own time handling stays on the `time` crate; chrono is reserved for surfaces touching upstream Persist types directly.
+
+### Deferred to v1.3.0 final (the Phase-2-follow-up)
+
+- **Engine construction at boot in `main.rs`**: needs LocalSigner interop between Registry's `ciris-crypto`-based crypto module and Persist's `LocalSigner` type (via `LocalSigner::from_parts`). Non-trivial adapter work; the `pqc_signer` argument requires wrapping `ciris-crypto`'s PQC signer in Persist's `PqcSigner` trait.
+- **AppState wiring**: add `federation: Arc<dyn FederationDirectory>` field; pass to handlers.
+- **DSN config field**: add `persist_dsn: String` to `FederationSettings` (defaults to `sqlite::memory:` for development).
+- **`/v1/agent_files/{kind}` endpoint integration**: replace the v1.4-interim empty-list stub with a call into `edge_transport::compose_trust_layers`, fetching attestations via `engine.federation_directory()`.
+- **ContentFetch send path**: Registry doesn't fetch bytes from peers; clients do. The "byte fetch round-trip" half of CEG §10.1 is consumer-side (CIRISAgent + CIRISVerify clients), not Registry's responsibility.
+
+### Tests
+
+150/150 passing (was 129 in v1.2.0; +21 from edge_transport). `cargo check` clean.
+
+---
+
 ## [1.2.0] — 2026-05-29
 
 **Phase 2 of #33 — Persist wired. PersistFederationClient delegates to `ciris_persist::engine::Engine::federation_directory()` (closes most of #17 scaffolding).**
@@ -173,7 +220,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.3.0-rc.1...HEAD
+[1.3.0-rc.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.3.0-rc.1
 [1.2.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.2.0
 [1.2.0-rc.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.2.0-rc.1
 [1.1.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.1.0
