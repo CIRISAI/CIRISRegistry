@@ -72,16 +72,17 @@ FROM debian:bookworm-slim
 
 # Runtime libs:
 # - ca-certificates: TLS to upstream Persist / Edge / Verify
-# - libtss2-esys-3.0.2-0 + libtss2-mu-4.0.1-0 + libtss2-tctildr-0-0 +
-#   libtss2-tcti-device-0-0: dynamic TPM libs that ciris-keyring's
-#   tpm-feature code links against at runtime. Without these, the
-#   container starts but tpm-using code paths panic on dlopen.
+# - libtss2-dev: pulls all the runtime TPM .so libs that ciris-keyring's
+#   tpm-feature code dlopens. Using the -dev package is heavier than
+#   strictly necessary (~3MB extra over individual runtime libs) but
+#   reliable across Debian point releases — the individual runtime
+#   package names (libtss2-esys-X.X.X-N etc.) drift between bookworm
+#   minor versions, and a prior attempt with explicit version-suffixed
+#   names broke when one of them (libtss2-tcti-device-0-0) didn't
+#   exist in bookworm-slim's package set.
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    libtss2-esys-3.0.2-0 \
-    libtss2-mu-4.0.1-0 \
-    libtss2-tctildr-0-0 \
-    libtss2-tcti-device-0-0 \
+    libtss2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
