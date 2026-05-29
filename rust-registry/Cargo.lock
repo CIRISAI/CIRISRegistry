@@ -1064,7 +1064,28 @@ dependencies = [
 
 [[package]]
 name = "ciris-registry"
-version = "1.3.0-rc.1"
+version = "1.4.0"
+dependencies = [
+ "anyhow",
+ "ciris-persist 3.3.1",
+ "ciris-registry-core",
+ "http 1.4.0",
+ "hyper",
+ "hyper-util",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "tokio",
+ "tonic",
+ "tonic-reflection",
+ "tower 0.5.3",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "ciris-registry-core"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -15,35 +15,19 @@ use tokio::signal;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-mod api;
-pub mod app_attest;
-pub mod capabilities;
-mod config;
-pub mod crypto;
-mod db;
-mod error;
-mod middleware;
-pub mod play_integrity;
-pub mod rate_limiter;
-pub mod build_manifest;
-pub mod federation;
-pub mod edge_transport;
-mod services;
-mod validation;
-
-use crate::config::Settings;
-use crate::db::Database;
-use crate::services::admin::AdminService;
-use crate::services::portal::PortalService;
-use crate::services::registry::RegistryService;
-
-/// Include generated protobuf code
-pub mod proto {
-    tonic::include_proto!("ciris.registry.v1");
-
-    pub const FILE_DESCRIPTOR_SET: &[u8] =
-        tonic::include_file_descriptor_set!("ciris_registry_descriptor");
-}
+// Phase 4 of #33: this bin is the thin shim around `ciris-registry-core`.
+// All modules (api, crypto, db, services, federation, edge_transport, etc.)
+// live in the lib half; this main.rs only constructs the server stack.
+use ciris_registry_core::{
+    api, crypto, db, federation, middleware, proto, rate_limiter as _rate_limiter,
+    services::{admin::AdminService, portal::PortalService, registry::RegistryService},
+};
+// rate_limiter is used indirectly via the tokio::spawn at server start;
+// the `as _rate_limiter` alias silences the unused-import warning at the
+// top-level use statement while keeping the module reachable.
+use ciris_registry_core::rate_limiter;
+use ciris_registry_core::config::Settings;
+use ciris_registry_core::db::Database;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -102,7 +86,7 @@ async fn main() -> Result<()> {
         )
         .await
         .map_err(|e| {
-            crate::error::RegistryError::HsmUnavailable(format!(
+            ciris_registry_core::error::RegistryError::HsmUnavailable(format!(
                 "ciris_persist Engine::with_signer({}): {}",
                 settings.federation.persist_dsn, e
             ))
@@ -117,8 +101,8 @@ async fn main() -> Result<()> {
     // Build the federation directory client. When dual_write_enabled is
     // off (default), this returns NoOpFederationClient. When on, it
     // returns PersistFederationClient wrapping the engine above.
-    let federation_directory: Arc<dyn crate::federation::FederationDirectory> =
-        crate::federation::build_client(Some(persist_engine.clone()), &settings.federation);
+    let federation_directory: Arc<dyn ciris_registry_core::federation::FederationDirectory> =
+        ciris_registry_core::federation::build_client(Some(persist_engine.clone()), &settings.federation);
 
     // Boot-seed the registry's own steward pubkey as a trusted primitive
     // key (project='ciris-registry') ONLY IF NO ROW EXISTS — gives a
@@ -213,7 +197,7 @@ async fn main() -> Result<()> {
         interval.tick().await; // skip the immediate first tick
         loop {
             interval.tick().await;
-            crate::rate_limiter::cleanup_all();
+            ciris_registry_core::rate_limiter::cleanup_all();
         }
     });
 

@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let proto_file = "../protocol/ciris_registry.proto";
+    // Phase 4 of #33 — proto path updated to reflect the workspace split.
+    // ciris-registry-core lives at rust-registry/ciris-registry-core/,
+    // so the protocol/ directory at the repo root is reached via "../../".
+    let proto_file = "../../protocol/ciris_registry.proto";
 
     // Tell cargo to re-run if proto file changes
     println!("cargo:rerun-if-changed={}", proto_file);
@@ -18,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Output directory
         .out_dir(&out_dir)
         // Compile the proto file
-        .compile_protos(&[proto_file], &["../protocol"])?;
+        .compile_protos(&[proto_file], &["../../protocol"])?;
 
     Ok(())
 }

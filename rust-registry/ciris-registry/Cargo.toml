@@ -1,0 +1,42 @@
+[package]
+name = "ciris-registry"
+version = "1.4.0"
+edition = "2021"
+rust-version = "1.84"
+authors = ["CIRIS AI <hello@ciris.ai>"]
+description = "Federation registry binary — gRPC + HTTP server entrypoint for standalone Registry deployments (Stripe billing, public installer endpoint, admin UI backing)."
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/CIRISAI/CIRISRegistry"
+readme = "../../README.md"
+publish = false
+
+# Phase 4 of #33 — this is the BIN half of the lib/bin split. The lib half
+# (ciris-registry-core) holds the federation-conformance surface that
+# CIRISAgent will pull alongside ciris-lens-core + ciris-node-core post-fold.
+# This bin pulls the lib + adds main.rs only.
+
+[[bin]]
+name = "ciris-registry"
+path = "src/main.rs"
+
+[dependencies]
+# The lib half — provides every module the bin's main.rs imports.
+ciris-registry-core = { path = "../ciris-registry-core" }
+
+# Minimal direct deps for the binary entrypoint itself.
+tokio = { version = "1.44", features = ["full"] }
+tonic = { version = "0.12", features = ["gzip", "tls"] }
+tonic-reflection = "0.12"
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "auth", "limit"] }
+hyper = { version = "1.5", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+http = "1.2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+anyhow = "1.0"
+
+# Required for ciris_persist::engine::Engine::with_signer at boot.
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.3.1", features = ["postgres", "sqlite"] }

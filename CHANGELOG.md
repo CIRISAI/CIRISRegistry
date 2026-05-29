@@ -38,6 +38,110 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [1.4.0] — 2026-05-29
+
+**Phase 4 of #33 — Workspace split: `ciris-registry-core` (lib) + `ciris-registry` (bin).**
+
+The lib half is the cohabit-target library that CIRISAgent will pull into
+its workspace alongside `ciris-lens-core` + `ciris-node-core` post-fold.
+The bin half is the thin shim: a `main.rs` that constructs the gRPC + HTTP
+server stack using everything from the lib.
+
+### Layout
+
+```
+rust-registry/
+├── Cargo.toml              # workspace root
+├── Cargo.lock              # single workspace lock
+├── ciris-registry-core/    # LIB
+│   ├── Cargo.toml
+│   ├── build.rs            # proto codegen (path updated to ../../protocol/)
+│   ├── migrations/         # sqlx migrations
+│   ├── src/
+│   │   ├── lib.rs          # NEW — module declarations
+│   │   ├── api/  config.rs  crypto/  db/  edge_transport/  error.rs
+│   │   ├── federation/  middleware/  proto types  services/
+│   │   └── ... (all existing modules)
+│   └── tests/              # integration tests stay with lib
+└── ciris-registry/         # BIN
+    ├── Cargo.toml          # depends on ciris-registry-core
+    └── src/
+        └── main.rs         # gRPC + HTTP server entrypoint
+```
+
+### Minimal-blast-radius approach
+
+v1.4.0 ships the workspace **structure** with the source tree wholesale-
+moved to the lib crate. The lib's public surface is therefore broader than
+CIRISAgent strictly needs (it includes gRPC/HTTP server modules CIRISAgent
+won't link against). Intentional: structural split first, content split
+later. A future minor (likely v1.4.x or v1.5.0) will relocate bin-only
+modules (`api`, `services`, `middleware`, `rate_limiter`, `play_integrity`,
+`app_attest`) to the bin crate, keeping only the cohabit-target surface in
+the lib.
+
+### Workspace-level configuration
+
+- `[profile.release]` (`lto = true`, `codegen-units = 1`, `strip = true`)
+  moved to workspace root per Cargo's "profiles for the non-root package
+  will be ignored" warning.
+- `[workspace.package]` carries the shared author / license / edition /
+  rust-version / repository values (sister crates can `version.workspace
+  = true` if they want to inherit).
+- `resolver = "2"` declared at workspace.
+- Cargo.lock stays at workspace root — single resolver run across both
+  crates.
+
+### Bin `Cargo.toml` shape
+
+The bin crate's `Cargo.toml` is thin: it pulls `ciris-registry-core` via a
+path dep + just enough direct deps for the boot stack (tokio, tonic,
+metrics, ciris-persist for `Engine::with_signer`). All other deps come
+transitively through the lib.
+
+### Main.rs shim
+
+The bin's `main.rs` previously had ~210 lines of module declarations + boot
+sequencing. The module declarations now live in `lib.rs`; the bin's main.rs
+imports them via `use ciris_registry_core::{...}` and contains only the
+boot sequencing.
+
+### CIRISAgent fold-readiness
+
+CIRISAgent's `Cargo.toml` can now declare:
+
+```toml
+ciris-registry-core = { git = "https://github.com/CIRISAI/CIRISRegistry", tag = "v1.4.0" }
+```
+
+…alongside the existing `ciris-lens-core` and `ciris-node-core` cohabit
+deps. The lib's `pub` surface exposes everything Agent needs:
+`federation::FederationDirectory`, `crypto::HybridCrypto`,
+`edge_transport::compose_trust_layers`, `build_manifest::BuildManifest`, etc.
+
+### Build script path update
+
+`ciris-registry-core/build.rs` updated to reference `../../protocol/`
+(two levels up from the lib crate's `Cargo.toml`, reaching the repo root's
+`protocol/` directory) instead of the old `../protocol/`.
+
+### Verification
+
+- `cargo check --workspace` clean (lib has 10 pre-existing warnings;
+  bin has 0)
+- `cargo test --workspace` — 150/150 passing (same as v1.3.0, all lib
+  unit tests + 4 integration test binaries; the bin has 0 tests, as
+  expected for a thin shim)
+
+### Closes (half of) #17
+
+CIRISRegistry#17 — "crate-ify as ciris-registry-core" half closes with
+this commit. The "prepare to fold into CIRISAgent" half is satisfied
+structurally: CIRISAgent can now pull `ciris-registry-core` directly as
+a workspace dep.
+
+---
+
 ## [1.3.0] — 2026-05-29
 
 **Phase 3-followup of #33 — Engine wired at boot, AppState carries federation directory, `/v1/agent_files/{kind}` composes via edge_transport. CEG 0.2 §10.1 read-side helpers now live end-to-end.**
@@ -321,7 +425,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.4.0
 [1.3.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.3.0
 [1.3.0-rc.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.3.0-rc.1
 [1.2.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.2.0
