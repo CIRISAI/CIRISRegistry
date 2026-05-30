@@ -118,11 +118,18 @@ jobs:
           echo "OK: binary loads cleanly"
 
       # Now that smoke passed, promote :latest by retagging the SHA image.
+      # IMPORTANT: Docker requires lowercase repository names. github.repository
+      # comes through as "CIRISAI/CIRISRegistry" (mixed case), which docker
+      # rejects with "invalid reference format: repository name must be lowercase".
+      # The metadata-action auto-lowercases its outputs; SHA_TAG below is from
+      # that action so it's already lowercase. We lowercase IMAGE_NAME ourselves
+      # for the LATEST_TAG construction.
       - name: Promote :latest (after smoke passed)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           SHA_TAG=$(echo "${{ steps.tags_no_latest.outputs.tags }}" | grep -E ":[0-9a-f]{7,}$" | head -1)
-          LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          IMAGE_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          LATEST_TAG="${{ env.REGISTRY }}/${IMAGE_LOWER}:latest"
           docker tag "$SHA_TAG" "$LATEST_TAG"
           docker push "$LATEST_TAG"
           echo "Promoted $SHA_TAG to $LATEST_TAG"

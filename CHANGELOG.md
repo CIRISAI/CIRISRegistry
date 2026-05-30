@@ -38,6 +38,23 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.1.2] — 2026-05-30
+
+**Hotfix for v2.1.1 — fixes the CI smoke-gate's `:latest` promote step.**
+
+v2.1.1's libsqlite3 fix worked correctly (CI smoke test confirmed "OK: binary loads cleanly" + boot got to "Starting CIRISRegistry v2.1.1" / "Loaded configuration"). But the new `:latest` promote step I added in v2.1.1 had a bug: hand-rolled `LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"` doesn't lowercase the IMAGE_NAME, and Docker rejects mixed-case repository names:
+
+```
+Error parsing reference: "ghcr.io/CIRISAI/CIRISRegistry:latest" is not a valid repository/tag:
+invalid reference format: repository name (CIRISAI/CIRISRegistry) must be lowercase
+```
+
+The `docker/metadata-action` auto-lowercases its outputs (which is why the SHA_TAG worked), but my hand-rolled construction in the Promote step didn't. Fix: explicit `tr '[:upper:]' '[:lower:]'` on IMAGE_NAME before constructing LATEST_TAG.
+
+Net effect: v2.1.1's `:latest` was never promoted (production still on the broken v2.1.0 image until this fix builds + smoke-passes + promotes). v2.1.2 = same code as v2.1.1 + the lowercase fix.
+
+---
+
 ## [2.1.1] — 2026-05-30
 
 **HOTFIX — production crash-loop in both regions on missing `libsqlite3.so.0` after v2.1.0 :latest auto-deploy.**
@@ -621,7 +638,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.2...HEAD
+[2.1.2]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.2
 [2.1.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.1
 [2.1.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.0
 [2.0.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.0.0
