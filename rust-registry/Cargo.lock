@@ -1009,7 +1009,7 @@ dependencies = [
 
 [[package]]
 name = "ciris-registry"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "anyhow",
  "ciris-persist",
@@ -1030,7 +1030,7 @@ dependencies = [
 
 [[package]]
 name = "ciris-registry-core"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1053,6 +1053,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jsonwebtoken",
+ "libsqlite3-sys",
  "metrics",
  "metrics-exporter-prometheus",
  "mockall",

@@ -49,16 +49,83 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      # Build the image with all tags EXCEPT :latest. Push to ghcr.io
+      # under the SHA-pinned + branch + PR tags only — so even if the
+      # binary is broken, watchtower won't see a new :latest and
+      # auto-deploy a crash-looping image to prod. The :latest tag is
+      # gated by the smoke test below.
+      - name: Filter out :latest from tag list (gate :latest behind smoke test)
+        id: tags_no_latest
+        run: |
+          # Output tags minus any line matching ":latest" — preserves
+          # newline-separated multi-tag format the build-push-action expects.
+          echo "tags<<TAGS_EOF" >> "$GITHUB_OUTPUT"
+          echo "${{ steps.meta.outputs.tags }}" | grep -v ":latest$" >> "$GITHUB_OUTPUT"
+          echo "TAGS_EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Build + push (without :latest)
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.tags_no_latest.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # CRITICAL — smoke test the built image BEFORE we tag it :latest.
+      # v2.1.0 (commit 385fd07d) was pushed to :latest with a missing
+      # libsqlite3.so.0 → both production regions crash-looped on
+      # auto-deploy. This step exists so that can't happen again: if
+      # the binary fails to dlopen its shared libs (or any other
+      # fast-fail-at-load issue surfaces), the workflow fails BEFORE
+      # the :latest tag promotion below.
+      - name: Smoke test — verify binary loads (no missing shared libs)
+        if: github.event_name != 'pull_request'
+        run: |
+          set -e
+          SHA_TAG=$(echo "${{ steps.tags_no_latest.outputs.tags }}" | grep -E ":[0-9a-f]{7,}$" | head -1)
+          if [ -z "$SHA_TAG" ]; then
+            echo "ERROR: could not find SHA-pinned tag to smoke-test"
+            echo "Tags emitted:"
+            echo "${{ steps.tags_no_latest.outputs.tags }}"
+            exit 1
+          fi
+          echo "Smoke-testing $SHA_TAG"
+          docker pull "$SHA_TAG"
+          # ldd-equivalent check: any missing shared lib?
+          docker run --rm --entrypoint=/usr/bin/ldd "$SHA_TAG" /app/ciris-registry > /tmp/ldd.out 2>&1 || true
+          echo "=== ldd output ==="
+          cat /tmp/ldd.out
+          if grep -q "not found" /tmp/ldd.out; then
+            echo "ERROR: binary has unresolved shared libraries — refusing to promote to :latest"
+            grep "not found" /tmp/ldd.out
+            exit 1
+          fi
+          # Confirm binary starts to load — boot will fail downstream on
+          # missing DB / env, but we want it to get past dlopen at minimum.
+          # Capture first 5 lines of stderr; fail if we see the
+          # libsqlite3 / loading-shared-libraries class of error.
+          docker run --rm "$SHA_TAG" 2>&1 | head -5 > /tmp/boot.out || true
+          echo "=== boot first lines ==="
+          cat /tmp/boot.out
+          if grep -qE "loading shared libraries|cannot open shared object" /tmp/boot.out; then
+            echo "ERROR: binary fails to load shared libraries at startup — refusing to promote to :latest"
+            exit 1
+          fi
+          echo "OK: binary loads cleanly"
+
+      # Now that smoke passed, promote :latest by retagging the SHA image.
+      - name: Promote :latest (after smoke passed)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          SHA_TAG=$(echo "${{ steps.tags_no_latest.outputs.tags }}" | grep -E ":[0-9a-f]{7,}$" | head -1)
+          LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          docker tag "$SHA_TAG" "$LATEST_TAG"
+          docker push "$LATEST_TAG"
+          echo "Promoted $SHA_TAG to $LATEST_TAG"
 
       # =====================================================================
       # Sign + publish the registry's BuildManifest to the production

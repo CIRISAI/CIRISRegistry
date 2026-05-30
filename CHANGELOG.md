@@ -38,6 +38,71 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.1.1] — 2026-05-30
+
+**HOTFIX — production crash-loop in both regions on missing `libsqlite3.so.0` after v2.1.0 :latest auto-deploy.**
+
+### What broke
+
+v2.1.0's substrate triple migration pulled `ciris-persist v3.6.3+` which transitively pulls `rusqlite v0.31.0` → `libsqlite3-sys v0.28.0`. By default, `libsqlite3-sys` dynamic-links against system `libsqlite3.so.0`. The Dockerfile runtime stage was last updated for v2.0.0 (when persist was at v3.3.1 with bundled libsqlite3) and did NOT install `libsqlite3-0`. Result:
+
+```
+$ docker logs ciris-registry --tail 1
+/app/ciris-registry: error while loading shared libraries:
+libsqlite3.so.0: cannot open shared object file: No such file or directory
+```
+
+Watchtower auto-pulled the new `:latest` on both `registry-us` and `registry-eu` within seconds of publish; both containers crash-looped (260ms/restart, 64+ restarts on each region). All 4 public registry hostnames returned 502.
+
+### Two fixes
+
+**1. Cargo.toml — `libsqlite3-sys` with `bundled` feature**
+
+Forces all transitive consumers (rusqlite, ciris-persist, ciris-edge, ciris-verify-core) to share a single bundled libsqlite3 build via Cargo's feature-union semantics. Binary statically links sqlite3; runtime no longer requires `libsqlite3.so.0`.
+
+**2. Dockerfile — `libsqlite3-0` in runtime apt (belt-and-suspenders)**
+
+Both root `Dockerfile` and `rust-registry/Dockerfile` now `apt-get install libsqlite3-0` in the runtime stage. Even if the bundled feature ever stops propagating (e.g., a future dep adds `default-features = false` and breaks the union), the runtime image still has the system lib.
+
+### CI smoke gate added (prevents recurrence)
+
+`.github/workflows/docker.yml` rewritten to gate `:latest` push behind a smoke test:
+
+1. Build with all tags EXCEPT `:latest`
+2. Push SHA + branch tags
+3. **Smoke-test the SHA-pinned image** — `ldd /app/ciris-registry` MUST NOT show "not found"; binary's first 5 lines of stderr MUST NOT contain "loading shared libraries" or "cannot open shared object"
+4. Only if smoke passes, retag and push `:latest`
+
+This closes the v2.1.0 incident class: a broken binary cannot reach `:latest` even if the build step succeeds.
+
+### CI process audit (gap surfaced by this incident)
+
+The build-push step had been emitting all tags (including `:latest`) in a single push, with the post-build "Sign + publish registry BuildManifest" step running AFTER. So an image that passed build but failed the publish step still went live on `:latest`. The new smoke-gate fixes the immediate crash-class; the publish step still runs after but no longer determines `:latest` promotion.
+
+### Rollback procedure (for ops)
+
+To pin back to the last-known-good image while this fix builds:
+
+```bash
+# Find the last-known-good digest (image published before v2.1.0)
+gh api orgs/CIRISAI/packages/container/cirisregistry/versions \
+  --jq '.[] | select(.metadata.container.tags[] | contains("fd37a30") or contains("2.0.0")) | "\(.created_at)  \(.name)  \(.metadata.container.tags | join(\",\"))"' \
+  | head -3
+
+# Pin docker-compose to the digest, OR temporarily disable watchtower
+# auto-pull on the registry containers until v2.1.1 publishes.
+```
+
+The last-known-good build was the v2.0.0 release at commit `fd37a30f` (published 2026-05-29T19:21Z per watchtower logs).
+
+### Verification
+
+- `cargo check --workspace` clean
+- 150/150 tests passing
+- The bundled libsqlite3 build adds ~30s to build time and ~500KB to the binary (acceptable)
+
+---
+
 ## [2.1.0] — 2026-05-30
 
 **Substrate triple migration to the Conformance-matrix canonical version set + drop the v1.3.0 PersistPqcAdapter local stopgap.**
@@ -556,7 +621,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.1
 [2.1.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.0
 [2.0.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.0.0
 [1.4.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.4.0

@@ -1,6 +1,6 @@
 [package]
 name = "ciris-registry-core"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2021"
 rust-version = "1.84"
 authors = ["CIRIS AI <hello@ciris.ai>"]
@@ -98,6 +98,26 @@ ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v4.4.2
 ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v4.4.2",   default-features = false, features = ["software", "pqc-ml-dsa"] }
 ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.6.3", features = ["postgres", "sqlite"] }
 ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v1.0.1" }
+
+# Force libsqlite3-sys to build with bundled libsqlite3 so the final
+# binary statically links sqlite3 and does NOT require libsqlite3.so.0
+# at runtime. v2.1.0 shipped a runtime stage that lacked libsqlite3-0
+# (the apt-installed runtime lib), and ciris-persist v3.6.3+ pulls
+# rusqlite v0.31.0 → libsqlite3-sys v0.28.0 which, by default, links
+# system libsqlite3 dynamically. Result: production crash-loop with
+# "error while loading shared libraries: libsqlite3.so.0".
+#
+# Adding libsqlite3-sys with `bundled` feature at the workspace level
+# forces ALL transitive consumers (rusqlite, ciris-persist, ciris-edge,
+# ciris-verify-core) to share a single bundled build. Cargo's feature-
+# union semantics make this propagate without requiring per-crate
+# Cargo.toml changes in our deps.
+#
+# Belt-and-suspenders: Dockerfile runtime stage also `apt-get install
+# libsqlite3-0` so even if the bundled feature ever stops propagating
+# (e.g., a future dep adds `default-features = false` and breaks the
+# union), the runtime image still has the system lib.
+libsqlite3-sys = { version = "0.28", features = ["bundled"] }
 
 # pkcs8 transitive-pin resolution (Phase 1 of #33; see comment block above).
 # ciris-crypto v4.0.0 pulls ml-dsa = "=0.1.0-rc.8" which requires
