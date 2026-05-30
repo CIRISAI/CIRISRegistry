@@ -223,14 +223,16 @@ Per CIRISNodeCore commit b1582cb (three-tier interface model). NodeCore ships an
 
 #### §5.6.8.1 external_content sub_kinds
 
-Foundational sub_kinds (CEG 0.1 LIVE per CIRISNodeCore b1582cb):
+Foundational sub_kinds (already shipped in CIRISNodeCore; CEG 0.3 codifies the full set — CEG 0.1 documentation listed only the first four):
 
 | sub_kind | Use |
 |---|---|
-| `encyclopedia_article` | Wikipedia-shape; editor-consensus + revision chain |
-| `news_article` | Publisher-attested; time-decaying + fact-checker composition |
+| `encyclopedia_article` | Wikipedia-shape; editor-consensus + revision chain via `supersedes`; indefinite `valid_until` |
+| `news_article` | Publisher-attested; time-decaying; corrections via `recants` + `topical_relation:corrects` |
 | `accord_data` | Multi-sig signed (HumanityAccord / StewardTriple / WaQuorum / OneOfSix) per [§9.2](09_humanity_accord.md) |
 | `local_data` | User-private; always `cohort_scope: self`; promotable via [§8.1.8.1](08_composition.md) |
+| `chat_message` | Conversational message imported from Discord / Slack / Twitter / iMessage / SMS / XMPP / IRC / Matrix / (or custom). Reply chains form via `topical_relation:replies_to:{target_message_entity_key_id}` (no new primitive). Default cohort_scope tighter than articles (`self` / `family` / `community` / `affiliations`). `valid_until` typically set; consumer policy SHOULD downweight chat in cross-cohort aggregation given privacy sensitivity. **This is the slot Twitter / Mastodon / Bluesky microblog content rides** — no separate microblog sub_kind needed. |
+| `blog_post` | Single-author commentary imported from Medium / Substack / WordPress / Ghost / Tumblr / personal blogs. Distinct from `news_article` (no publisher editorial), from `encyclopedia_article` (no peer-consensus), from `chat_message` (long-form). Comments on blog posts are separate Contributions (typically `chat_message`) citing the post via `topical_relation:comments_on`. |
 
 Multimedia sub_kinds (CEG 0.3 addition per CIRISRegistry#37 + CIRISNodeCore FSD/MEDIA_SHARING.md §4):
 
@@ -251,7 +253,11 @@ Each Source struct conforms to a sub_kind-specific schema documented at CIRISNod
 |---|---|---|
 | `news:*` | News-content claims; publisher-attested + time-decaying + fact-checker composition. | signed |
 | `encyclopedia:*` | Encyclopedia-content claims; editor-consensus + revision chain. | signed |
-| `topical_relation:{kind}` | Inter-content relationship edges. `{kind}` ∈ `references`, `corrects`, `supersedes`, `translation_of`. | enumerated |
+| `chat:*` | Chat-content claims (quality / participant-trust / context). | signed |
+| `blog:*` | Blog-content claims (author-credibility / topic-domain). | signed |
+| `topical_relation:{kind}` | **Open vocabulary** inter-content relationship edges. Canonical kinds: `references`, `corrects`, `supersedes_article` (distinct from the structural primitive `supersedes`), `see_also`, `disambiguates`, `translation_of`, `replies_to`, `comments_on`, `cites_source`. New `{kind}` values are documentation-only registry entries (no §11.2 amendment needed). | enumerated |
+
+**Composition note — threads, replies, comment trees**: NodeCore's `chat_message` + `topical_relation:replies_to` compose into arbitrary thread graphs (Twitter threads, Reddit comment trees, Discord conversations, IRC channels). No new structural primitive is needed; thread traversal is consumer-side composition over the existing edge set. Same shape for blog-post comment threads via `topical_relation:comments_on` + nested `replies_to`. The §1+4 lockdown holds.
 
 #### §5.6.8.3 Multimedia dimension families (CEG 0.3 addition)
 
