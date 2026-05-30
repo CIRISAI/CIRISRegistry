@@ -217,15 +217,143 @@ Canonical leaves: `transport:{kind}`, `delivery:{class}`, `peer_reachability:{ne
 | `agent_files:{kind}:{platform_or_target}` | **Joint claim with [§5.9](#59-cirisregistry--identity--build--license--partner) CIRISRegistry.** Files a CIRIS agent (or installer fetching one) may load. `{kind}` open vocabulary; canonical: `installer:{platform}`, `adapter:{name}`, `config:{kind}`, `build:{target}`, `source:{language}:{module}`, `state:{component}`. Bytes are SHA-256-addressed and resolved via [§10.1](10_endpoints.md) transport substrate (Edge `MessageType::ContentFetch`). NodeCore-side rule: node-mode peers serve bytes; client/relay modes don't. | signed |
 | `holds_bytes:sha256:{prefix}` | Substrate auto-emission per CIRISPersist#103 `federation_blobs.put_blob`. `{prefix}` is a short SHA prefix for index efficiency; full SHA lives in `evidence_refs[]`. Consumed by Edge's `PeerResolver::resolve_holders` to route `ContentFetch` requests. **Consumer MUST verify the full SHA in `evidence_refs[]` matches the received blob before consumption** (see [§10.1](10_endpoints.md)). | boolean-via-score |
 
-### §5.6.8 Content-ingestion prefixes (LIVE)
+### §5.6.8 Content-ingestion prefixes
 
-Per CIRISNodeCore commit b1582cb (three-tier interface model). NodeCore ships four `external_content` sub_kinds (`encyclopedia_article`, `news_article`, `accord_data`, `local_data`) with three feed surfaces (local / community / global) composed against `cohort_scope`. See [§8.1.8](08_composition.md) Tiered-Scope Composition pattern.
+Per CIRISNodeCore commit b1582cb (three-tier interface model). NodeCore ships an open set of `external_content` sub_kinds with three feed surfaces (local / community / global) composed against `cohort_scope`. See [§8.1.8](08_composition.md) Tiered-Scope Composition pattern.
+
+#### §5.6.8.1 external_content sub_kinds
+
+Foundational sub_kinds (CEG 0.1 LIVE per CIRISNodeCore b1582cb):
+
+| sub_kind | Use |
+|---|---|
+| `encyclopedia_article` | Wikipedia-shape; editor-consensus + revision chain |
+| `news_article` | Publisher-attested; time-decaying + fact-checker composition |
+| `accord_data` | Multi-sig signed (HumanityAccord / StewardTriple / WaQuorum / OneOfSix) per [§9.2](09_humanity_accord.md) |
+| `local_data` | User-private; always `cohort_scope: self`; promotable via [§8.1.8.1](08_composition.md) |
+
+Multimedia sub_kinds (CEG 0.3 addition per CIRISRegistry#37 + CIRISNodeCore FSD/MEDIA_SHARING.md §4):
+
+| sub_kind | Use |
+|---|---|
+| `image` | Photo, illustration, screenshot, infographic, meme. Source struct carries dimensions, format, AI-generation disclosure (EU AI Act Art. 50), mandatory `alt_text` accessibility metadata, license info. |
+| `audio` | Music, podcast, lecture, audiobook, generated audio. Source struct carries codec, duration, sample rate, optional `transcript`, AI-generation disclosure, license info. |
+| `video` | General video — vlog, social, screen recording, tutorial. Source struct carries codec, duration, resolution, mandatory `captions` reference, AI-generation disclosure, license info. |
+| `film` | Cinematic / art-bearing video; distinguishable from `video` by `content_class` + distributor attestation chain. Same Source struct as `video` + festival / distribution metadata. |
+| `model_3d` | Three-dimensional content — `gltf`, `usdz`, `fbx`, `gaussian_splat`, `NeRF`. Source struct carries vertex/triangle counts, bounding-box, mandatory `description` accessibility metadata, license info. |
+| `live_stream` (Phase 2) | Real-time streaming surface. Deferred to Phase 2 per MEDIA_SHARING.md. |
+
+Each Source struct conforms to a sub_kind-specific schema documented at CIRISNodeCore FSD/MEDIA_SHARING.md §4; CEG documents the slot, NodeCore documents the per-sub_kind field shapes.
+
+#### §5.6.8.2 Inter-content + relation prefixes
 
 | Prefix | Description | Polarity |
 |---|---|---|
 | `news:*` | News-content claims; publisher-attested + time-decaying + fact-checker composition. | signed |
 | `encyclopedia:*` | Encyclopedia-content claims; editor-consensus + revision chain. | signed |
 | `topical_relation:{kind}` | Inter-content relationship edges. `{kind}` ∈ `references`, `corrects`, `supersedes`, `translation_of`. | enumerated |
+
+#### §5.6.8.3 Multimedia dimension families (CEG 0.3 addition)
+
+Per CIRISRegistry#37 + CIRISNodeCore FSD/MEDIA_SHARING.md §2. All four families are **open vocabulary** per [§11.2.1](11_governance.md) axis-vocabulary discipline; canonical kinds named here, additions via documentation-only registry entries.
+
+| Prefix | Description | Polarity |
+|---|---|---|
+| `content_rating:{scheme}:{rating}` | Multi-scheme content rating. `{scheme}` ∈ `mpaa` (G/PG/PG-13/R/NC-17), `bbfc` (U/PG/12/15/18), `pegi` (3/7/12/16/18), `esrb` (E/E10+/T/M/AO), `ifco`, `csm` (Common Sense Media), or `operator:{operator_id}` for operator-defined rubrics. Polarity carries certifier confidence; not a slashing input. | signed |
+| `content_class:{class}` | Mechanism-descriptive content classification. `{class}` open vocabulary; canonical: `film`, `short_film`, `documentary`, `art_piece`, `theatre`, `performance`, `news`, `educational`, `entertainment`, `vlog`, `adult`, `generated`. Distinct from `cw_class:*` (community declarations) — `content_class` is producer-declared production-class; `cw_class` is community-applied content-warning. | enumerated |
+| `cw_class:{class}` | Community CW (content-warning) declarations. `{class}` open vocabulary; canonical: `art_cinema`, `horror`, `political`, `erotic`, `violence`, `medical`, `nsfw_text`. Cohort-attestable per [§8.3](08_composition.md) Frickerian discipline (low-density cohort CWs not downweighted). | enumerated |
+| `age_assurance:{level}` | Age-assurance attestation. `{level}` ∈ `self` (self-declared age, lowest confidence), `provider:{verifier_key}:adult` (third-party verifier attests adult), `government:{credential_class}:adult` (government-credential-backed adult attestation, highest confidence). NEVER fires `slashing:*` on misdeclaration alone — `moderation:age_assurance_misdeclaration` is the adjudication path. | enumerated |
+
+Media-type prefix families per `external_content` sub_kind (CEG 0.3 addition):
+
+| Prefix | Description | Polarity |
+|---|---|---|
+| `image:*` | Image-content claims (per `external_content:image` sub_kind). | signed |
+| `audio:*` | Audio-content claims (per `external_content:audio` sub_kind). | signed |
+| `video:*` | Video-content claims (per `external_content:video` sub_kind). | signed |
+| `film:*` | Film-content claims (per `external_content:film` sub_kind). Distinguished from `video:*` by distributor attestation chain. | signed |
+| `model_3d:*` | 3D-content claims (per `external_content:model_3d` sub_kind). | signed |
+
+#### §5.6.8.4 Governance subject_kinds (CEG 0.3 addition per CIRISRegistry#37 + #38)
+
+Two new Contribution subject_kinds for governance over multimedia content. Both are **Contribution subject_kinds, not dimension prefixes** — they ride the existing 1+4 wire format ([§3](03_primitives.md)) with `scores` as the attestation type; the `subject_kind` discriminator carries the wire-format slot.
+
+##### `takedown_notice`
+
+A signed wire artifact carrying a legal takedown request. Payload per CIRISNodeCore FSD/MEDIA_SHARING.md §5.1; the field shape is locked here per #38 Question 1.
+
+```
+takedown_notice {
+    content_sha256:           sha256_hex_lowercase       // per §0.6
+    content_holder_key_ids:   [key_id, ...]              // peers known to hold the bytes
+    claimant_key_id:          key_id                     // the federation_keys row issuing the notice
+    legal_basis:              LegalBasis                 // closed-set enum per below
+    jurisdiction:             string                     // ISO 3166-1 alpha-2 + optional sub-division
+    good_faith_statement:     string                     // claimant's good-faith assertion text
+    claim_text:               string                     // the substantive claim being made
+    evidence_refs:            [URI or sha256, ...]       // backing material
+    perceptual_hash:          Option<PerceptualHash>     // optional; PDQ / PhotoDNA / etc.
+    counter_notice_channel:   Option<URI>                // where counter-notices may be filed
+    asserted_at:              rfc3339_canonical          // per §0.5
+    expires_at:               Option<rfc3339_canonical>  // optional auto-expiry
+}
+```
+
+Where `LegalBasis` is the closed-set enum per #38 Question 1 (CEG 0.3 lock):
+
+| `legal_basis` value | Source regime | Discipline |
+|---|---|---|
+| `Dmca512` | US 17 USC §512 | Expeditious-with-counter-notice (10-14 business day window) |
+| `DsaArticle16` | EU Digital Services Act Article 16 | Expeditious-with-counter-notice (Article 17 redress) |
+| `TvecTerrorist` | EU Terrorist Content Regulation 2021/784 | **Immediate** (1-hour removal obligation) |
+| `NcmecCsam` | US 18 USC §2258A (NCMEC) | **Immediate** (substrate-protective; no counter-notice) |
+| `GifctCip` | GIFCT Content Incident Protocol | **Immediate** (within-hours coordinated response) |
+| `CommunityStandards` | Operator-defined community standards | Expeditious-with-counter-notice (operator-set window) |
+| `PerceptualHashCsam` | Hash-match against CSAM clearinghouse (PhotoDNA / Arachnid / etc.) | **Immediate** (substrate-protective) |
+| `OsaIllegalContent` | UK Online Safety Act illegal-content category | Expeditious-with-counter-notice (OSA-defined timelines) |
+| `AvmsdAgeInappropriate` | EU AVMSD age-inappropriate flagging | Compose with `age_assurance:*` gate; not immediate removal |
+| `CourtOrder` | Court-ordered removal (any jurisdiction) | **Immediate** (subject to court's stated timeline) |
+
+**Propagation**: takedown_notice rides existing `withdraws`-against-`holds_bytes` per [§10.1.2](10_endpoints.md) — there is no new structural primitive. Counter-notice rides the existing ReconsiderationRequest path ([§5.6.4](#564-tier-4-governance-steering-prefixes) `reconsideration:{grounds}`). The 1+4 lockdown is preserved.
+
+**Fast-path coordination**: see [§11.4](11_governance.md) for the operator-coordination protocol around immediate-eviction cases (TVEC 1-hour / GIFCT CIP / NCMEC / PerceptualHashCsam / CourtOrder).
+
+##### `key_grant`
+
+Wrapped Data-Encryption-Key (DEK) delivery for restricted / subscription content. Payload per CIRISNodeCore FSD/MEDIA_SHARING.md §6.2; field shape locked here per #38 Question 2.
+
+```
+key_grant {
+    wrap_algorithm:           WrapAlgorithm           // closed-set enum per below
+    recipient_key_id:         key_id                  // the federation_keys row receiving the DEK
+    content_sha256:           sha256_hex_lowercase    // the content this DEK decrypts
+    scope:                    GrantScope              // closed-set enum per below
+    wrapped_dek:              base64url               // the DEK encrypted under recipient's pubkey
+    key_validity_window: {
+        start:                rfc3339_canonical       // per §0.5
+        end:                  Option<rfc3339_canonical>
+    }
+    ratchet_version:          u32                     // monotonic ratchet for rotation
+    rotation_chain:           [key_grant_id, ...]     // prior key_grant ids in the rotation lineage
+    asserted_at:              rfc3339_canonical
+}
+```
+
+Where:
+
+| `wrap_algorithm` | Algorithm |
+|---|---|
+| `X25519AesGcmHkdfSha256` | HPKE RFC 9180 base-mode shape; X25519 KEM + HKDF-SHA-256 KDF + AES-256-GCM AEAD. **v1 default.** |
+
+| `scope` | Use |
+|---|---|
+| `SingleContent` | Grant decrypts exactly one `content_sha256` |
+| `GroupMember` | Grant decrypts all content for which recipient is a member of named group (cohort-scoped) |
+| `SubscriptionTier` | Grant decrypts all content for which recipient holds named subscription tier |
+
+**Retire-key-grants emission** (per #38 Question 3 — CEG 0.3 lock): when a publisher mass-retires key_grants tied to a compromised recipient, the emission uses **a fresh `key_grant` Contribution with a `rotation_chain` entry that supersedes the prior grant** (option **(b)** from #38). NOT a `withdraws` against the prior key_grant (option (a) was considered but rejected — `withdraws` is the holders-directory eviction primitive in [§10.1.2](10_endpoints.md) and overloading it with grant-rotation semantics would muddy the wire-format contract).
+
+The 1+4 lockdown is preserved: `supersedes` is the structural primitive ([§3.2](03_primitives.md)); the new `key_grant` Contribution's envelope carries the supersession via `rotation_chain` field, not via a new attestation_type. Consumer policy resolves the active grant by walking `rotation_chain` to the latest non-superseded entry.
 
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 
@@ -274,8 +402,9 @@ Lineage:
 - v1.4.3: canonical-bytes contracts pinned in §5.2.1; Goal substrate cross-ref documented
 - **CEG 0.1**: opened `testimonial_witness:{kind}` to open vocabulary; surfaced `hard_case:{kind}` open vocabulary in §5.6.6; added `biosphere` to [§2](02_grammar.md) Scope axis; added `topical_relation:translation_of` sub-leaf in §5.6.8 (LIVE per CIRISNodeCore b1582cb); documented "Trust-Fresh" composition pattern in [§8.1.7](08_composition.md); added Tiered-Scope Composition pattern in [§8.1.8](08_composition.md). All polarity columns now populated.
 - **CEG 0.2** (wire break): renamed §5.2 attestation-ladder prefixes from `attestation:l{N}:*` to mechanism-only form (`attestation:self_verify`, `attestation:hardware_rooted`, `attestation:registry_consensus`, `attestation:license_validity`, `attestation:agent_integrity`) per [§1.3.1](01_foundation.md) T2 honest application — L-numbers name ladder-position (a verdict-shape) not mechanism. The L1-L5 ladder is now consumer-side composition per [§8.1.9](08_composition.md) Policy I — Attestation-Ladder Composition. Deprecated wire shape added to [§13.1](13_anti_patterns.md).
+- **CEG 0.3** (additive; per CIRISRegistry#37 + #38 + #39): multimedia tier + governance additions. **Two new subject_kinds** documented: `takedown_notice` (with `LegalBasis` closed-set enum of 10 values + per-basis discipline) and `key_grant` (with `wrap_algorithm` + `scope` enums + `rotation_chain` semantics). **Five new external_content sub_kinds**: `image`, `audio`, `video`, `film`, `model_3d` (+ Phase 2 `live_stream`). **Four new dimension families**: `content_rating:{scheme}:{rating}`, `content_class:{class}`, `cw_class:{class}`, `age_assurance:{level}`. **Five new media-prefix families**: `image:*`, `audio:*`, `video:*`, `film:*`, `model_3d:*`. New composition policy ([§8.1.10](08_composition.md)) for trusted-publisher path + age-assurance gating. New governance sections ([§11.4](11_governance.md) fast-path takedown coordination + [§11.5](11_governance.md) hash-database operator policy). **1+4 wire-format lockdown preserved** — retire-key-grant rides existing `supersedes`; takedown propagation rides existing `withdraws`-against-`holds_bytes`; no new structural primitives.
 
-Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across 5 independent paths ([§1.4](01_foundation.md)).
+Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across 5 independent paths ([§1.4](01_foundation.md)). CEG 0.3 multimedia tier explicitly preserves this — every governance + media addition rides the existing 1+4 set.
 
 ---
 

@@ -141,6 +141,40 @@ Consumers MAY render the ladder as `L1` / `L2` / `L3` / `L4` / `L5` for UI / das
 
 **Migration from CEG 0.1**: prior emissions of `attestation:l{N}:*` MUST be re-emitted as `attestation:{mechanism}` per the table above. Substrate-conformance migration (CIRISRegistry#17) reads-side compatibility: consumers SHOULD accept the deprecated `attestation:l{N}:*` form during the 0.1 → 0.2 transition window but MUST emit only the mechanism form going forward. The deprecated form is rejected at admission once §11.2 amendment formally retires it (target: CEG 0.3).
 
+### §8.1.10 Policy J — Trusted-Publisher composition (CEG 0.3 addition)
+
+Composition pattern for multimedia content discovery per CIRISRegistry#37 + CIRISNodeCore FSD/MEDIA_SHARING.md. Reads as: "this `external_content` Contribution comes from a publisher whose attestation chain is trusted at the cohort level, with content-class + content-rating + age-assurance composed into the gate."
+
+The composition has three layers (analogous to [§8.1.6](#816-policy-f--agent_files-trust-composition) Policy F for agent_files but specialized for multimedia content):
+
+**Layer 1 — Distributor attestation chain**: an `external_content` Contribution with `sub_kind: film` (or any media sub_kind) carries a distributor attestation that chains to a federation_key with `identity_type: distributor`. Distributor identity is established via [§5.9](05_namespace.md) Registry partner_role machinery + an out-of-band distributor-onboarding flow (operator's choice — CIRIS L3C maintains a default trust set; community-run substrates maintain their own).
+
+**Layer 2 — Content-class + content-rating composition**: consumer gates by combining `content_class:{class}` + `content_rating:{scheme}:{rating}` per §5.6.8.3:
+
+```
+gate_decision(content) = match (content.content_class, content.content_rating, consumer.preferences):
+    # Producer-declared content_class is consultable but not authoritative — UI may show
+    # the producer claim alongside cohort cw_class declarations and let the consumer choose.
+    (class, _, prefs) if class in prefs.blocked_classes => Block
+    (_, rating, prefs) if rating.exceeds(prefs.max_rating) => Block
+    (_, _, _) => Allow
+```
+
+Layered with [§8.3](#83-frickerian-discipline--consumer-policy-norms) — `cw_class:*` declarations from low-attestation-density cohorts MUST NOT be downweighted; they ride alongside the gate decision as informational.
+
+**Layer 3 — Age-assurance gating**: for content where `content_rating:*` rises above an age threshold (e.g. PEGI 18, MPAA NC-17), consumer gates via `age_assurance:{level}` per §5.6.8.3:
+
+```
+age_gate(content, consumer):
+    required_level = age_required_for(content.content_rating)
+    consumer_level = consumer.highest_age_assurance_level()
+    return consumer_level >= required_level
+```
+
+Where the `age_assurance:{level}` ordering is: `self < provider:{verifier_key}:adult < government:{credential_class}:adult`. Consumer SHOULD accept the strongest assurance the user has provided; substrate MUST NOT issue `slashing:*` on age-assurance misdeclaration alone — `moderation:age_assurance_misdeclaration` is the adjudication path per [§5.6.4](05_namespace.md).
+
+**Anti-tricking guarantee parallel to §8.1.6**: the canonical-distributor Layer 1 rule MUST apply regardless of vote accumulation. No amount of NodeCore P4 vote weight elevates an unverified distributor into Layer 1; the only path is the operator-set trust list. Binds CIRIS L3C: cannot exempt itself from this rule for its own content distribution.
+
 ## §8.2 Aggregation semantics — opinionated defaults
 
 Per dimension+attested_key_id, the verdict is computed by composing attestations under the chosen policy. Default aggregation by polarity column ([§5](05_namespace.md)):

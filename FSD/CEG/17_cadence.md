@@ -16,7 +16,7 @@ CEG is updated:
 
 Each update lands as a single commit touching the relevant file(s) + a lineage row in [§16.1](16_references.md). The version number bumps per the [§0.3](00_conformance.md) SemVer rules.
 
-Last updated: 2026-05-28 (CEG 0.2 Public Working Draft wire-break — §5.2 attestation-ladder rename to mechanism-only + §8.1.9 Policy I Attestation-Ladder Composition + §13.1 deprecation entry).
+Last updated: 2026-05-29 (CEG 0.3 Public Working Draft — additive multimedia tier + governance per CIRISRegistry#37 + #38 + #39; 1+4 wire-format lockdown preserved).
 
 ---
 

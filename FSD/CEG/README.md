@@ -1,7 +1,11 @@
 # CEG — The CIRIS Epistemic Grammar
 
-**Version**: 0.2 (Public Working Draft)
-**Status**: Public Working Draft (2026-05-28). NOT a stable release. Wire-format primitives and namespace shape are settled in this draft except where 0.x → 0.(x+1) wire-breaks are noted; canonical-encoding details, response schemas, and registry process are scaffolded but not finalized. Implementers SHOULD pin against the 0.x series and expect breaking changes until 1.0 publication. **0.2 carries one wire-break vs 0.1**: [§5.2](05_namespace.md) attestation-ladder prefixes renamed from `attestation:l{N}:*` to mechanism-only form per [§1.3.1](01_foundation.md) T2 (the L-ladder is consumer composition per [§8.1.9](08_composition.md) Policy I, not wire prefix). See [§16.1](16_references.md) lineage.
+**Version**: 0.3 (Public Working Draft)
+**Status**: Public Working Draft (2026-05-29). NOT a stable release. Wire-format primitives and namespace shape are settled in this draft except where 0.x → 0.(x+1) wire-breaks are noted; canonical-encoding details, response schemas, and registry process are scaffolded but not finalized. Implementers SHOULD pin against the 0.x series and expect breaking changes until 1.0 publication.
+
+**0.3 is purely additive vs 0.2** (per CIRISRegistry#37 + #38 + #39): multimedia tier + governance additions. Two new Contribution subject_kinds (`takedown_notice` + `key_grant`), five new `external_content` sub_kinds (`image`/`audio`/`video`/`film`/`model_3d`), four new dimension families (`content_rating:{scheme}:{rating}`, `content_class:{class}`, `cw_class:{class}`, `age_assurance:{level}`), five new media-prefix families (`image:*`/`audio:*`/`video:*`/`film:*`/`model_3d:*`), new composition policy ([§8.1.10](08_composition.md) trusted-publisher), new governance sections ([§11.4](11_governance.md) fast-path takedown, [§11.5](11_governance.md) hash-database operator policy). **1+4 wire-format lockdown preserved** — no new structural primitives.
+
+**0.2 carried one wire-break vs 0.1**: [§5.2](05_namespace.md) attestation-ladder prefixes renamed from `attestation:l{N}:*` to mechanism-only form per [§1.3.1](01_foundation.md) T2. See [§16.1](16_references.md) lineage.
 **License**: AGPL-3.0-or-later
 **Authoritative for**: The federation wire format, attestation primitive set, namespace, composition discipline, and governance for the CIRIS ecosystem.
 **Relationship to prior documents**: Consolidates and supersedes `FSD/FSD-002_FEDERATION_SURFACE.md` v1.0 through v1.4.3 + the v1.5 candidates from CIRISRegistry#30 + the translation discipline from `FSD/LANGUAGE_PRIMER.md` v1.1. FSD-002 remains as design-history; CEG 0.x is the version-stable spec going forward.

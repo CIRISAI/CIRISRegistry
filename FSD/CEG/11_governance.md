@@ -52,6 +52,56 @@ After federation genesis, a curated batch of P5 Contributions is admitted via th
 
 **Multi-source commitment**: subsequent bootstrap batches from CARE Principles (Indigenous data governance), Buddhist economic-justice scholarship, secular humanist instruments, African philosophy of personhood work — all through the same amendment process. The framework is multi-traditional by design.
 
+## §11.4 Fast-path takedown coordination (CEG 0.3 addition; per CIRISRegistry#37 + #38)
+
+For `takedown_notice` Contributions ([§5.6.8.4](05_namespace.md)) whose `legal_basis` falls in the **immediate-removal** category (`TvecTerrorist` / `NcmecCsam` / `GifctCip` / `PerceptualHashCsam` / `CourtOrder`), the §11.2 amendment process timeline is too slow — TVEC mandates a 1-hour removal obligation; GIFCT CIP coordinates within hours; NCMEC + perceptual-hash + court orders demand near-immediate response.
+
+CEG 0.3 carves out a fast-path coordination protocol:
+
+1. **Notice admission**: the `takedown_notice` Contribution arrives at the substrate, signed by `claimant_key_id`. The substrate accepts it without §11.2 quorum; speed matters at this layer.
+2. **Holder eviction**: substrate emits a `withdraws` against the matching `holds_bytes:sha256:{prefix}` directory entry per [§10.1.2](10_endpoints.md). Holders see their advertisement marked withdrawn and SHOULD cease serving the bytes.
+3. **Per-basis dispatch**:
+   - `TvecTerrorist` — operator coordinates via TVEC-designated channel (national regulator notification within 1 hour); substrate logs the notice + the eviction action to its audit chain.
+   - `GifctCip` — operator coordinates via GIFCT Content Incident Protocol communication channel; same audit-chain logging.
+   - `NcmecCsam` + `PerceptualHashCsam` — operator MUST file the NCMEC CyberTipline report (US 18 USC §2258A); substrate retains hash + minimal metadata for the federal-legal retention window only. No content retention.
+   - `CourtOrder` — operator follows the court's stated timeline; substrate logs the order text + the eviction action.
+4. **Audit trail**: every fast-path takedown enters a `hard_case:fast_path_takedown` Contribution ([§5.6.6](05_namespace.md)) for downstream review. Reviewers MAY file a `reconsideration:procedural_error` if the fast-path basis was misclassified.
+5. **No counter-notice for immediate-removal cases**: by `legal_basis` design (TVEC / NCMEC / GIFCT / PerceptualHashCsam / CourtOrder all bypass counter-notice). The `expeditious-with-counter-notice` bases (`Dmca512` / `DsaArticle16` / `CommunityStandards` / `OsaIllegalContent`) route through the standard §11.2 amendment path on counter-notice via `reconsideration:new_evidence`.
+
+**The takedown-isn't-a-coup property**: the §9 HUMANITY_ACCORD remains load-bearing. Fast-path takedowns happen via this protocol but a `takedown_notice` Contribution targeting the substrate itself (e.g., a state actor demanding takedown of `federation_keys` for whole categories of dissenting participants) would not propagate the same way — substrate-protective discipline + HUMANITY_ACCORD veto authority intersect at the substrate level. Operators in jurisdictions where this conflict materializes SHOULD escalate to the HUMANITY_ACCORD triple per §9.2 invocation procedures.
+
+## §11.5 Hash-database operator policy (CEG 0.3 addition; per CIRISRegistry#39)
+
+Perceptual-hash matchers (PhotoDNA / PDQ / Project Arachnid / GIFCT hash-sharing) are pluggable per the CIRISPersist `PerceptualHashMatcher` trait. Operators choose which matcher implementations to enable; CEG governs the access-policy contract.
+
+### §11.5.1 Hash-database access landscape
+
+| Matcher | Access posture |
+|---|---|
+| **PDQ** (Meta, 2019) | Open — algorithm + reference hashes publicly distributed |
+| **PhotoDNA** (Microsoft, 2009) | Access-gated; restricted to vetted orgs (NCMEC + select platforms); substrate operators cannot download the hash database directly |
+| **Project Arachnid** (C3P, 2017) | Access-gated; API access requires C3P partnership |
+| **GIFCT hash-sharing** | TVEC-focused; access via GIFCT membership |
+
+### §11.5.2 Operator path (CEG 0.3 default — option (a) per CIRISRegistry#39)
+
+For a CIRIS substrate operator running a federation node, **the CEG 0.3 default operator path is**:
+
+> **Self-hosted PDQ matcher against publicly-distributed reference feeds** (Microsoft Project Arachnid feed where publicly available, GIFCT-published lists where openly available). No access-governance overhead. Operator carries responsibility for index freshness.
+
+This avoids the federation-dependency-at-substrate-protective-layer problem that option (b) (clearinghouse delegation) would introduce, and the controversy around option (c) (on-device hash-database access via OS-vended hooks, per the iOS NeuralHash 2021 incident).
+
+### §11.5.3 Future hash-coalition path (deferred; awaits CIRIS hash-coalition emergence)
+
+CIRISRegistry will file a follow-up issue when a CIRIS hash-coalition emerges that can serve as a clearinghouse for option (b) — substrate operators delegating perceptual-hash checks to a trusted coalition peer via federation. CEG 0.3 documents the slot; the actual coalition operator-onboarding flow is deferred.
+
+### §11.5.4 What CEG 0.3 documents
+
+- The closed-set of `legal_basis` values that compose with `PerceptualHashCsam` (the only `legal_basis` value that consumes hash-match output as immediate-removal trigger; see [§5.6.8.4](05_namespace.md))
+- The operator-onboarding contract: an operator running a PDQ matcher MUST register their matcher's source feeds (which hash-list source URLs they're pulling from + freshness cadence) via a `system:perceptual_hash_matcher:registered` Contribution. Composes with [§5.3](05_namespace.md) Persist substrate-self-report discipline.
+
+What CEG 0.3 does NOT do: prescribe which hash databases an operator MUST use. Operator choice. CEG documents the wire-format slot + the operator-onboarding contract + the recommended default; concrete matcher selection is operator policy.
+
 ---
 
 [← §10 Endpoints](10_endpoints.md) | **§11 Governance** | [Next: §12 Translation →](12_translation.md)
