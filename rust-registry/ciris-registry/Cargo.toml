@@ -1,6 +1,6 @@
 [package]
 name = "ciris-registry"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 rust-version = "1.84"
 authors = ["CIRIS AI <hello@ciris.ai>"]
@@ -39,4 +39,4 @@ metrics-exporter-prometheus = "0.16"
 anyhow = "1.0"
 
 # Required for ciris_persist::engine::Engine::with_signer at boot.
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.3.1", features = ["postgres", "sqlite"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.6.3", features = ["postgres", "sqlite"] }

@@ -1,17 +1,18 @@
 //! Hybrid cryptography module (Ed25519 + ML-DSA-65, FIPS 204)
 //!
-//! Built on `ciris-crypto` v4.1.0 — the same primitives CIRISLens, CIRISAgent,
+//! Built on `ciris-crypto` v4.4.2 — the same primitives CIRISLens, CIRISAgent,
 //! and CIRISPersist consume. Closes AV-27 (vault-mode dummy-key bug) and
 //! AV-25 (home-rolled crypto extraction risk) by deletion of the legacy
 //! storage_mode plumbing.
 //!
-//! v1.3.0 adds [`persist_signer`] — a local adapter making
-//! `ciris_crypto::MlDsa65Signer` callable as `ciris_keyring::PqcSigner`
-//! so [`HybridCrypto::build_persist_local_signer`] can construct a
-//! `ciris_persist::signing::LocalSigner` for the federation directory
-//! Engine at boot. See module docs there for the CIRISVerify#39 context.
-
-pub mod persist_signer;
+//! v1.3.0 ADDED a `persist_signer` local-adapter module as a CIRISVerify#39
+//! stopgap (the upstream `impl PqcSigner for MlDsa65Signer` was unreachable
+//! due to cohabit-set version skew at the time). v2.1.0 REMOVED it: upstream
+//! ciris-keyring v4.1.0+ ships the impl and the substrate triple has now
+//! converged at keyring v4.4.2 across persist/edge/verify-core, so the
+//! upstream impl is reachable directly. `HybridCrypto::build_persist_local_signer`
+//! wraps the raw `MlDsa65Signer` in `Arc<dyn ciris_keyring::PqcSigner>` via
+//! the upstream impl.
 
 use std::path::Path;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -170,12 +171,14 @@ impl HybridCrypto {
         // Ed25519 signing key reconstructed from the retained seed.
         let signing_key = ed25519_dalek::SigningKey::from_bytes(&self.ed25519_seed);
 
-        // Fresh MlDsa65Signer for LocalSigner's PQC slot — wrapped via
-        // PersistPqcAdapter (orphan-rules-friendly local impl, stopgap for
-        // CIRISVerify#39's v4.1.0 upstream impl until cohabit set unifies).
+        // Fresh MlDsa65Signer for LocalSigner's PQC slot. v2.1.0: upstream
+        // ciris-keyring v4.1.0+ ships `impl PqcSigner for MlDsa65Signer`
+        // (CIRISVerify#39), and the cohabit-set convergence at v4.4.2
+        // across persist/edge/verify-core makes the upstream impl
+        // reachable directly. No local adapter needed.
         let pqc_signer = MlDsa65Signer::from_seed(&self.mldsa_seed)
             .map_err(|e| RegistryError::HsmUnavailable(format!("LocalSigner PQC: {}", e)))?;
-        let pqc_signer_arc = persist_signer::arc_persist_pqc(pqc_signer);
+        let pqc_signer_arc: Arc<dyn ciris_keyring::PqcSigner> = Arc::new(pqc_signer);
 
         let local_signer = ciris_persist::signing::LocalSigner::from_parts(
             signing_key,

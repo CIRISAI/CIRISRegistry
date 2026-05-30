@@ -38,6 +38,60 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.1.0] — 2026-05-30
+
+**Substrate triple migration to the Conformance-matrix canonical version set + drop the v1.3.0 PersistPqcAdapter local stopgap.**
+
+Per [CIRISConformance/matrices/current.yaml](https://github.com/CIRISAI/CIRISConformance/blob/main/matrices/current.yaml) (the cohabit-set canonical version reference), the substrate triple has converged at:
+
+| Crate | Old (v2.0.0) | New (v2.1.0) | Notes |
+|---|---|---|---|
+| `ciris-crypto` | v4.1.0 | **v4.4.2** | |
+| `ciris-keyring` | v4.0.0 | **v4.4.2** | Unifies with what persist/edge now pull transitively |
+| `ciris-persist` | v3.3.1 | **v3.6.3** | Multimedia tier #134 + trust_scoring_capsule #128/#129 + libsqlite3 closure chain. **NOTE**: Conformance matrix specifies v3.6.4 (carries the additional #130 list_holders_json LOCAL-holdings fix), but edge v1.0.1 transitively pins v3.6.3 — Cargo cannot unify across distinct git-tag pins from the same source. Pinning to v3.6.3 aligns the graph; the v3.6.3→v3.6.4 gap is internal to Persist's blob-holder query and not surfaced to Registry consumers. Will close when edge v1.0.2+ bumps its transitive pin. |
+| `ciris-edge` | v0.18.0 | **v1.0.1** | MAJOR bump 0.x → 1.x; carries CIRISEdge#50 durable-send SIGSEGV fix (libsqlite3 auditwheel exclude). |
+
+### Local PqcSigner stopgap deleted
+
+v1.3.0 shipped `src/crypto/persist_signer.rs` — a `PersistPqcAdapter` wrapping `ciris_crypto::MlDsa65Signer` for `ciris_keyring::PqcSigner` because CIRISVerify#39's upstream `impl PqcSigner for MlDsa65Signer` (shipped in keyring v4.1.0) was unreachable from our dep graph at the time (cohabit set still pinned keyring v4.0.0 transitively).
+
+The cohabit-set convergence at v4.4.2 across persist/edge/verify-core makes the upstream impl reachable directly. **`src/crypto/persist_signer.rs` deleted**; `HybridCrypto::build_persist_local_signer` now wraps `MlDsa65Signer` in `Arc<dyn ciris_keyring::PqcSigner>` using the upstream impl.
+
+### Bin Cargo.toml also bumped
+
+`ciris-registry` bin had its own `ciris-persist` dep pinned at v3.3.1 (Phase 3-followup leftover). Bumped to v3.6.3 to match the lib's pin and unify the graph.
+
+### Open issues now visible (post-v2.0.0)
+
+The umbrella #33 closed at v2.0.0; remaining open issues are governance + future-spec work:
+
+| # | Topic |
+|---|---|
+| #40 | CEG 0.4 codification — event_listing + live_stream sub_kinds (downstream from CIRISNodeCore#25) |
+| #36 | CEWP orientation — informational |
+| #35 | CEG §10.0.1 error envelope codes (post-v2.0.0 polish) |
+| #34 | CEG §10.3.1 STH consistency-proof at cosign admission (post-v2.0.0 polish) |
+| #31 | CEG v0.2 candidates from 240-story stress test (spec) |
+| #30 | v1.5 grammar candidates from 283-story stress test (spec) |
+| #25 | Compliance umbrella — federation taxonomy expansion (spec) |
+| #22 | RFC: evidence_refs binding to SEED_DIMENSIONS (spec) |
+| #20 | v1.5+ wire-format candidates from trio mapping (spec) |
+
+None block v2.1.0. The spec-only items (#22 / #25 / #30 / #31 / #40) accumulate in the CEG-spec pipeline; the implementation items (#34 / #35) are post-v2.0.0 polish that bin development can pick up when implementer attention is available.
+
+### Verification
+
+- `cargo check --workspace` clean
+- `cargo test --workspace` — 150/150 passing
+- `cargo tree -i ciris-keyring` shows single v4.4.2 across the dep graph
+- `cargo tree -i ciris-persist` shows single v3.6.3 (no more v3.3.1 leftover; no v3.6.4 conflict)
+
+### Why this is a MINOR not a MAJOR
+
+Per CEG-conformance versioning rule: MAJOR bumps signal CEG wire-format conformance breaks. v2.1.0 carries no CEG-spec change (CEG remains at 0.3); only a substrate-dep version update + an internal cleanup. The Registry CCC + CCP + CCS conformance shape is unchanged.
+
+---
+
 ## [2.0.0] — 2026-05-29
 
 **Phase 5 of #33 — CEG 0.2 conformance MAJOR. Substrate-sister adoption complete. `ciris-registry-core` is fold-ready for CIRISAgent's workspace.**
@@ -502,7 +556,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.0
 [2.0.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.0.0
 [1.4.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.4.0
 [1.3.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v1.3.0

@@ -890,30 +890,8 @@ dependencies = [
 
 [[package]]
 name = "ciris-crypto"
-version = "4.0.0"
-source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v4.0.0#158067557416048204d5c061be3223e7731a4280"
-dependencies = [
- "ed25519-dalek",
- "hex",
- "hkdf",
- "k256",
- "ml-dsa",
- "p256",
- "pkcs8 0.11.0-rc.11",
- "rand_chacha 0.3.1",
- "rand_core 0.6.4",
- "serde",
- "sha2 0.10.9",
- "sha3 0.10.9",
- "signature 2.2.0",
- "subtle",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "ciris-crypto"
-version = "4.1.0"
-source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v4.1.0#8805b42447c54c018eb3ad3164ca102d59ff3f9c"
+version = "4.4.2"
+source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v4.4.2#e3f5f1e1e1b47322938676e5802232a39338bbd1"
 dependencies = [
  "ed25519-dalek",
  "hex",
@@ -934,16 +912,16 @@ dependencies = [
 
 [[package]]
 name = "ciris-edge"
-version = "0.18.0"
-source = "git+https://github.com/CIRISAI/CIRISEdge?tag=v0.18.0#13b8fe54a82713ec8207fb02041c6f6079ff5ab9"
+version = "1.0.1"
+source = "git+https://github.com/CIRISAI/CIRISEdge?tag=v1.0.1#4bc32d7c6c12d275e0c42d062a2f210efc44b505"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bip39",
  "chrono",
- "ciris-crypto 4.0.0",
+ "ciris-crypto",
  "ciris-keyring",
- "ciris-persist 3.2.0",
+ "ciris-persist",
  "futures",
  "parking_lot",
  "qrcodegen",
@@ -959,13 +937,13 @@ dependencies = [
 
 [[package]]
 name = "ciris-keyring"
-version = "4.0.0"
-source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v4.0.0#158067557416048204d5c061be3223e7731a4280"
+version = "4.4.2"
+source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v4.4.2#e3f5f1e1e1b47322938676e5802232a39338bbd1"
 dependencies = [
  "aes-gcm",
  "async-trait",
  "block2",
- "ciris-crypto 4.0.0",
+ "ciris-crypto",
  "core-foundation 0.9.4",
  "core-foundation-sys",
  "dirs",
@@ -994,47 +972,14 @@ dependencies = [
 
 [[package]]
 name = "ciris-persist"
-version = "3.2.0"
-source = "git+https://github.com/CIRISAI/CIRISPersist?tag=v3.2.0#8252932e295ed9dfcb17801b8a14cb83d9b8c4a1"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "chrono",
- "ciris-crypto 4.0.0",
- "ciris-keyring",
- "ciris-verify-core",
- "ed25519-dalek",
- "fs4",
- "futures-core",
- "hex",
- "jsonschema",
- "libc",
- "openssl",
- "parking_lot",
- "redb",
- "refinery",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tracing",
- "uuid",
- "zeroize",
-]
-
-[[package]]
-name = "ciris-persist"
-version = "3.3.1"
-source = "git+https://github.com/CIRISAI/CIRISPersist?tag=v3.3.1#4bab97fe2e36760a528ea4fb868f06b8b3a6d6a3"
+version = "3.6.3"
+source = "git+https://github.com/CIRISAI/CIRISPersist?tag=v3.6.3#651b278d98a7158cf2fb0885f350771cf074b046"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
  "chrono",
- "ciris-crypto 4.0.0",
+ "ciris-crypto",
  "ciris-keyring",
  "ciris-verify-core",
  "deadpool-postgres",
@@ -1064,10 +1009,10 @@ dependencies = [
 
 [[package]]
 name = "ciris-registry"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "anyhow",
- "ciris-persist 3.3.1",
+ "ciris-persist",
  "ciris-registry-core",
  "http 1.4.0",
  "hyper",
@@ -1085,7 +1030,7 @@ dependencies = [
 
 [[package]]
 name = "ciris-registry-core"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1093,10 +1038,10 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "ciborium",
- "ciris-crypto 4.1.0",
+ "ciris-crypto",
  "ciris-edge",
  "ciris-keyring",
- "ciris-persist 3.3.1",
+ "ciris-persist",
  "config",
  "der 0.7.10",
  "dotenvy",
@@ -1151,8 +1096,8 @@ dependencies = [
 
 [[package]]
 name = "ciris-verify-core"
-version = "4.0.0"
-source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v4.0.0#158067557416048204d5c061be3223e7731a4280"
+version = "4.4.2"
+source = "git+https://github.com/CIRISAI/CIRISVerify?tag=v4.4.2#e3f5f1e1e1b47322938676e5802232a39338bbd1"
 dependencies = [
  "android_system_properties",
  "anyhow",
@@ -1160,7 +1105,7 @@ dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
  "chrono",
- "ciris-crypto 4.0.0",
+ "ciris-crypto",
  "ciris-keyring",
  "clap",
  "ed25519-dalek",

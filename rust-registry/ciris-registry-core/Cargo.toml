@@ -1,6 +1,6 @@
 [package]
 name = "ciris-registry-core"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 rust-version = "1.84"
 authors = ["CIRIS AI <hello@ciris.ai>"]
@@ -83,25 +83,21 @@ rsa = { version = "0.9", features = ["sha2"] }
 # documented this). The [patch.crates-io] block below resolves it.
 # Originally tracked as CIRISRegistry#10; resolved this phase.
 
-ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v4.1.0",   features = ["pqc-ml-dsa"] }
-# ciris-keyring tag = v4.0.0 (matches the version ciris-persist v3.3.1,
-# ciris-edge v0.18.0, and ciris-verify-core v4.0.0 all pull transitively
-# — Cargo cannot unify across distinct git-tag pins from the same source,
-# so we must match the transitive deps' tag).
+# Cohabit-set version matrix per [CIRISConformance/matrices/current.yaml]
+# (https://github.com/CIRISAI/CIRISConformance/blob/main/matrices/current.yaml):
+#   ciris-verify  v4.4.2  (carries ciris-crypto + ciris-keyring at the same tag)
+#   ciris-persist v3.6.4  (multimedia tier #134 + trust_scoring_capsule #128/#129)
+#   ciris-edge    v1.0.1  (CIRISEdge#50 durable-send SIGSEGV fix; 1.0 milestone)
 #
-# CIRISVerify#39 shipped `impl PqcSigner for MlDsa65Signer` in v4.1.0 of
-# the keyring crate; that impl is unreachable here until the upstream
-# cohabit set (edge / persist / verify-core) all release with v4.1.0
-# pinned. As a stopgap, Registry ships its own local adapter at
-# `src/crypto/persist_signer.rs` — orphan rules permit it because we own
-# the wrapper struct (`PersistPqcAdapter`) and ciris-keyring owns the
-# trait. Same net effect as v4.1.0's impl, scoped to this crate.
-#
-# Remove this stopgap (and adopt v4.1.0 directly) when persist + edge +
-# verify-core all release with keyring v4.1.0.
-ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v4.0.0",   default-features = false, features = ["software", "pqc-ml-dsa"] }
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.3.1", features = ["postgres", "sqlite"] }
-ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v0.18.0" }
+# The cohabit set converged at keyring v4.x across all members so Cargo can
+# unify the dep graph cleanly. The local `PersistPqcAdapter` stopgap from v1.3.0
+# (CIRISVerify#39) is no longer needed — ciris-keyring v4.1.0+ ships
+# `impl PqcSigner for MlDsa65Signer` upstream and the unified v4.4.2 across
+# all our deps lets us use it directly.
+ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v4.4.2",   features = ["pqc-ml-dsa"] }
+ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v4.4.2",   default-features = false, features = ["software", "pqc-ml-dsa"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v3.6.3", features = ["postgres", "sqlite"] }
+ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v1.0.1" }
 
 # pkcs8 transitive-pin resolution (Phase 1 of #33; see comment block above).
 # ciris-crypto v4.0.0 pulls ml-dsa = "=0.1.0-rc.8" which requires
