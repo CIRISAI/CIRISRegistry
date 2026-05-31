@@ -47,6 +47,19 @@ Reserved leaves:
 
 `transparency_log:cosigned:*` is reserved: emitter rule is `attesting_key_id` MUST match a `federation_keys` row with `identity_type="witness"` (target schema; see [§10.3](10_endpoints.md) for the 0.x interim using `registry_witnesses` table).
 
+## §7.7 Self/family membership-event reservations (CEG 0.7 addition)
+
+Per [§5.6.8.8](05_namespace.md) `identity_occurrence` + [§5.6.8.9](05_namespace.md) `family` subject_kinds. The three substrate-emitted membership-event prefixes:
+
+| Prefix | Emitted on | Emitter rule |
+|---|---|---|
+| `hard_case:identity_occurrence_added:{identity_key_id}` | Substrate admits a new `identity_occurrence` Contribution for `identity_key_id` | `attesting_key_id` MUST match a `federation_keys` row with `identity_type="substrate_persist"` |
+| `hard_case:family_membership_change:{family_key_id}` | Substrate admits an addition or removal in the named family's roster (per the family's `consensus_protocol`) | Same: substrate_persist |
+| `hard_case:family_consensus_protocol_change:{family_key_id}` | Substrate admits a `consensus_protocol` amendment on a non-entrenched family | Same: substrate_persist |
+| `hard_case:family_consensus_protocol_violation:{family_key_id}` | Substrate REJECTS a proposed amendment (rule unsatisfied OR entrenched) | Same: substrate_persist |
+
+Composes with [§7.2](#72-substrate-self-report-reservations-system) — these are part of the same substrate-self-report discipline. Non-substrate emissions on these prefixes are a category error and MUST be rejected.
+
 ---
 
 [← §6 Relations](06_relations.md) | **§7 Reserved** | [Next: §8 Composition →](08_composition.md)

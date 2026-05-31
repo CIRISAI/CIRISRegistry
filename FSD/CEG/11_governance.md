@@ -156,6 +156,56 @@ What CEG 0.6 does NOT do:
 - Provide a decay-protocol library (CIRISAgent's 90-day-decay is the canonical example; other protocols MAY exist)
 - Prescribe per-vertical compliance audit cadence (consumer / regulator concern)
 
+## §11.7 Self/family membership governance (CEG 0.7 addition; per CIRISRegistry#47)
+
+Per [§5.6.8.8](05_namespace.md) `identity_occurrence` + [§5.6.8.9](05_namespace.md) `family` + [§8.1.12](08_composition.md) Policy L + [§10.1.4](10_endpoints.md) structural-invisibility. The four governance decisions for self/family membership.
+
+### §11.7.1 Forward secrecy on member departure — Option A (CEG 0.7 default)
+
+When a member leaves a family (or an occurrence is revoked from a self-collective), the removed party retains existing `key_grant`s for historical content; the substrate stops wrapping new `key_grant`s on subsequent content. No DEK rotation; no re-encryption.
+
+**Rationale**: consistent with [§3.2](03_primitives.md) `withdraws-isn't-retroactive` + [§11.4](#114-fast-path-takedown-coordination-ceg-03-addition-per-cirisregistry37--38) "takedown isn't a coup" + CEG 0.6 [§8.1.11.5](08_composition.md) consent-decay-doesn't-re-encrypt. The substrate's forward-secrecy posture is uniform across consent, takedown, and membership-departure surfaces.
+
+**Option B** (rotate-DEK on member departure; re-wrap all extant content to remaining members) is deferred. CEG 0.7 documents the slot for a future `subject_kind: family_rotation` ceremony that operators can opt into per family; the wire-format primitives are in place (`key_grant.rotation_chain` from CEG 0.3 covers the rotation mechanic) but the ceremony envelope is downstream-demand-driven.
+
+### §11.7.2 Multi-family membership — envelope `family_id` (CEG 0.7 default)
+
+One identity MAY belong to multiple families. Each family has its own DEK and its own membership roster; a `cohort_scope: family` Contribution MUST carry `family_id` ([§4](04_envelope.md) envelope field) naming which family's DEK and visibility apply. Substrate rejects family-scoped Contributions missing `family_id`.
+
+**Rationale**: avoids cross-family DEK confusion when one identity is in N families; gives the substrate an unambiguous routing key for the `key_grant` cascade per [§8.1.12.4](08_composition.md).
+
+### §11.7.3 Reserved-prefix substrate emissions — locked in §7.7
+
+Per [§7.7](07_reserved.md). The four substrate-emitted membership-event prefixes (`hard_case:identity_occurrence_added:*`, `hard_case:family_membership_change:*`, `hard_case:family_consensus_protocol_change:*`, `hard_case:family_consensus_protocol_violation:*`) are reserved to `identity_type="substrate_persist"` emitters. Same discipline as the existing `system:*` substrate-self-report family.
+
+### §11.7.4 Self-occurrence admission — single-vouch (CEG 0.7 default)
+
+A new `identity_occurrence` is admitted on a signature from EITHER the root `identity_key_id` OR any currently-admitted occurrence of that identity (Signal-style "trust any device I've already onboarded"). Higher-assurance setups MAY layer requirements on `hardware_attestation` via consumer policy.
+
+**Rationale**: matches user-intuition for self-membership ("my phone unlocks my laptop's trust posture for new devices"); avoids the operational overhead of multi-vouch for routine onboarding; the security gradient lives in the optional `hardware_attestation` field, not in the admission rule.
+
+### §11.7.5 Family admission — consensus_protocol (CEG 0.7 normative)
+
+Unlike self-occurrence, family membership changes are **NOT single-vouch by default**. The family's `consensus_protocol` field (locked at family creation per [§5.6.8.9](05_namespace.md)) governs admission. Six canonical protocols (`founder_only` / `unanimous` / `majority` / `quorum:M/N` / `weighted:{rubric}` / `custom:{family_id}`); operator vocabulary extends.
+
+The consensus_protocol field is itself subject to amendment via the SAME protocol's rules (meta-amendment shape parallel to [§11.2.3](#1123-meta-amendment--entrenchment)) UNLESS the family is `consensus_protocol_entrenched: true`. Entrenched families reject amendments at the substrate gate; replacement requires the family's documented out-of-band ceremony (HUMANITY_ACCORD per [§9.2](09_humanity_accord.md) / FEDERATION_ANNOUNCEMENT.md §4.5.3 is the canonical entrenched example).
+
+**Rationale**: families are multi-party collectives where membership changes have real consequences (admit-new-member = grant DEK access to all extant cohort_scope: family content). The consensus_protocol gives the family explicit governance over its own boundary. Self-amendment lets families evolve their governance as they grow; entrenchment lets safety-critical families lock the boundary against any internal authority.
+
+### §11.7.6 What CEG 0.7 documents
+
+- The wire-format primitives that compose into self/family membership ([§5.6.8.8](05_namespace.md) + [§5.6.8.9](05_namespace.md))
+- The structural-invisibility discipline at [§10.1.4](10_endpoints.md) (cohort_scope: self/family suppresses holds_bytes:*)
+- The at-rest encryption flow composition at [§8.1.12](08_composition.md) Policy L
+- The consensus_protocol vocabulary (canonical kinds; open-vocab extension)
+- HUMANITY_ACCORD as the canonical entrenched-`family` instance at [§9.1](09_humanity_accord.md)
+
+What CEG 0.7 does NOT do:
+- Lock the consensus_protocol vocabulary (open vocab; canonical kinds named for ecosystem coordination)
+- Provide a key-rotation ceremony for Option B forward secrecy (deferred to downstream-demand-driven future release)
+- Prescribe per-family entrenchment policy (operator/family choice)
+- Document the CIRISPersist#152 at-rest encryption flow details (substrate-side; persist spec)
+
 ---
 
 [← §10 Endpoints](10_endpoints.md) | **§11 Governance** | [Next: §12 Translation →](12_translation.md)

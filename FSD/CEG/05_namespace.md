@@ -460,6 +460,216 @@ Rides existing `scores` attestation_type with `subject_kind=consent_record` disc
 
 The structural primitives close the bilateral shape — no new attestation_type, no new envelope field beyond `subject_key_ids` itself.
 
+#### §5.6.8.8 `identity_occurrence` subject_kind (CEG 0.7 addition)
+
+Per [CIRISRegistry#47](https://github.com/CIRISAI/CIRISRegistry/issues/47) + [CIRISPersist#152](https://github.com/CIRISAI/CIRISPersist/issues/152) (substrate spec) + [ciris.ai/cewp](https://ciris.ai/cewp) structural-invisibility framing. The wire-format primitive that lets one logical identity speak across multiple **trusted participants** — devices (phone / laptop / server / embedded) AND agents (the user's own agents acting on the user's behalf). Today CEG's `occurrence_id` envelope field ([§4](04_envelope.md)) names which occurrence emitted a Contribution; `identity_occurrence` is the **wire-format binding** that lets the substrate know `key_phone` and `key_laptop` and `key_my_agent` all represent the same identity `key_identity`.
+
+Without this primitive: `cohort_scope: self` content cannot reach the user's other devices/agents — the substrate has no structural way to know which keys are co-self. With it: at-rest encryption flow (substrate Ask CIRISPersist#152) automatically wraps DEKs to all admitted occurrences when new content is admitted at `cohort_scope: self`.
+
+```
+identity_occurrence {
+    identity_key_id:        key_id              // root identity (the user's logical identity)
+    occurrence_key_id:      key_id              // this participant's signing key
+    device_class:           DeviceClass         // closed-set enum per below
+    hardware_attestation:   Option<base64>      // TPM / Secure Enclave / StrongBox / SGX
+                                                 //   etc. attestation blob; null for software-only
+    asserted_at:            rfc3339_canonical   // per §0.5
+    valid_until:            Option<rfc3339>     // null = indefinite
+}
+
+DeviceClass (closed-set):
+| value      | scope                                                            |
+|------------|------------------------------------------------------------------|
+| phone      | Mobile device (iOS / Android / etc.); typically hardware-rooted  |
+| laptop     | Personal computing device (macOS / Linux / Windows)              |
+| server     | Always-on infrastructure node (home server, VPS, etc.)           |
+| embedded   | IoT / hardware peripheral / signing dongle                       |
+| agent      | An AI agent acting on the identity's behalf (the agent has its   |
+|            | own signing key but speaks AS the identity — composes with       |
+|            | CIRISAgent#840 self-attestation pattern)                         |
+| service    | Background service / scheduled job / API integration acting      |
+|            | on the identity's behalf                                          |
+```
+
+**Self-attested + single-vouch admission**: an `identity_occurrence` Contribution is admitted when `attesting_key_id == identity_key_id` (the identity claims "this key is also me") OR when `attesting_key_id` is itself a currently-admitted occurrence of `identity_key_id` (any existing self-member vouches for the new self-member — Signal-style "trust any device I've already onboarded"). Higher-assurance setups MAY layer requirements on `hardware_attestation` via consumer policy.
+
+**Revocation**: a `withdraws` against an `identity_occurrence` Contribution issued by `identity_key_id` (or by any current occurrence) evicts the occurrence. Substrate stops wrapping new key_grants to it; previously-delivered DEKs are out of scope per [§8.1.12 Policy L](08_composition.md) forward-secrecy decision (Option A — once shared, always shared at the wire layer; rotation is a separate ceremony).
+
+**Cardinality**: an identity MAY admit unbounded occurrences; the substrate carries no hard cap (operator policy MAY impose per-deployment limits). When a new occurrence is admitted, substrate emits `hard_case:identity_occurrence_added:{identity_key_id}` ([§7.2](07_reserved.md)) so consumer policy can observe membership growth.
+
+**Composition with CIRISAgent CEG-native agent** ([CIRISAgent#840](https://github.com/CIRISAI/CIRISAgent/issues/840)): an agent emitting self-attestations with `attesting_key_id == agent_self_key` AND `attesting_key_id` admitted as an `identity_occurrence` of the user's `identity_key_id` is structurally speaking AS that identity. The agent's local-tier self-attestations remain its own; federation-tier emissions reach the user's other occurrences via the at-rest encryption flow when `cohort_scope: self`.
+
+**1+4 lockdown preserved**: `identity_occurrence` rides existing `scores` attestation_type with subject_kind discriminator. No new structural primitive.
+
+#### §5.6.8.9 `family` subject_kind (CEG 0.7 addition)
+
+Per [CIRISRegistry#47](https://github.com/CIRISAI/CIRISRegistry/issues/47) + cewp structural-invisibility framing. A `family` is a **group of trusted nodes** — each node being a distinct identity (which itself may have multiple `identity_occurrence`s per §5.6.8.8). Families are the wire-format primitive for `cohort_scope: family` visibility scoping: content scoped to a family is admitted into substrate, wrapped under the family DEK, and delivered (via `key_grant` per [§5.6.8.4](#key_grant)) to all current members — but never emits `holds_bytes:sha256:*` to non-members ([§10.1.4](10_endpoints.md)).
+
+One identity MAY belong to multiple families. Each family has its own DEK and its own membership roster.
+
+```
+family {
+    family_key_id:           key_id                    // the family's own federation_keys identity
+    family_name:             string                    // human-readable; non-unique
+    members: [
+        {
+            key_id:          key_id                    // member identity_key (NOT occurrence_key)
+            joined_at:       rfc3339_canonical
+            role:            Option<MemberRole>        // founder | member | null
+        },
+        ...
+    ]
+    founded_at:              rfc3339_canonical
+    consensus_protocol:      ConsensusProtocol         // REQUIRED — see below
+    consensus_protocol_entrenched: bool                // if true, consensus_protocol may not be
+                                                       //   amended even via the protocol's own rules;
+                                                       //   replacement requires out-of-band ceremony
+                                                       //   (see §9 HUMANITY_ACCORD canonical instance)
+}
+
+MemberRole (open vocab; canonical kinds):
+| value     | meaning                                                              |
+|-----------|----------------------------------------------------------------------|
+| founder   | Bootstrapping signer (recorded at founded_at)                        |
+| member    | Standard member; rights per consensus_protocol                       |
+```
+
+**`ConsensusProtocol` — open vocabulary**. The family's chosen consensus mechanism for membership changes. Locked at family creation; changes ride the protocol's own rules (meta-amendment shape parallel to [§11.2.3](11_governance.md)) UNLESS `consensus_protocol_entrenched == true`, in which case replacement requires an out-of-band ceremony.
+
+Canonical `ConsensusProtocol` kinds (CEG 0.7 documentation; operator vocab extends):
+
+| kind | Semantic |
+|---|---|
+| `founder_only` | Original founders are the sole admission authority; new members proposed-and-admitted by any founder. Suits private households / small trust circles. |
+| `unanimous` | Every current member must sign the admission Contribution. Suits very small high-trust groups. |
+| `majority` | > 50% of current members must sign. Suits medium groups where blocking-minority concerns matter. |
+| `quorum:{m}/{n}` | Any `m` of `n` current members must sign (where `n` is the current roster size). The canonical entrenched form: HUMANITY_ACCORD per [§9](09_humanity_accord.md) is `family` with `quorum:2/3` + `consensus_protocol_entrenched: true`. |
+| `weighted:{rubric}` | Sum of member weights (per a named operator rubric) must exceed a threshold. Suits formal organizations with weighted voting. |
+| `custom:{family_specific_id}` | Operator-defined custom protocol (e.g., role-based, time-locked, multi-stage). |
+
+**Membership-change ceremony** (any addition or removal of a member):
+
+```
+1. Proposer (any current member) emits a new `family` Contribution
+   superseding the current family Contribution (per `supersedes`) with
+   the new membership list.
+
+2. Substrate gates admission per the CURRENT family's `consensus_protocol`:
+   - Counts signatures on the proposed Contribution (via the
+     `consensus_protocol` rule)
+   - If the rule is satisfied, admit and emit
+     hard_case:family_membership_change:{family_key_id}
+   - If not, hold the proposal in a pending state until additional
+     member signatures arrive (per a configurable window — operator policy)
+
+3. On admission of an ADD: substrate emits retroactive `key_grant`s wrapping
+   all `cohort_scope: family` content DEKs to the new member's
+   `subject_key_ids` (per CIRISPersist#152 substrate flow).
+
+4. On admission of a REMOVE: per Option A (§8.1.12) the removed member
+   retains existing key_grants (cannot retroactively un-share); the
+   substrate stops wrapping new key_grants to them on subsequent
+   family-scoped Contributions.
+```
+
+**Consensus-protocol amendment**:
+
+```
+A `family` Contribution that supersedes the current family Contribution AND
+changes the `consensus_protocol` field is admitted ONLY IF:
+  (a) consensus_protocol_entrenched == false, AND
+  (b) the CURRENT protocol's rule is satisfied on the amendment Contribution
+
+If consensus_protocol_entrenched == true, the substrate REJECTS the
+amendment. Protocol replacement requires an out-of-band ceremony
+(documented per family; for HUMANITY_ACCORD see §9.2 / FEDERATION_ANNOUNCEMENT.md
+§4.5.3).
+```
+
+**Substrate emissions on family events**:
+- `hard_case:family_membership_change:{family_key_id}` — member added or removed
+- `hard_case:family_consensus_protocol_change:{family_key_id}` — consensus_protocol amended (only when `consensus_protocol_entrenched == false`)
+- `hard_case:family_consensus_protocol_violation:{family_key_id}` — proposed amendment rejected because rule not satisfied OR entrenched
+
+All three are reserved under [§7.2](07_reserved.md) substrate-self-report.
+
+**HUMANITY_ACCORD as canonical entrenched-`family`**: the three accord-holder triple at [§9](09_humanity_accord.md) is structurally an instance of this primitive:
+
+```
+family {
+    family_key_id:                   "humanity-accord",
+    family_name:                     "Humanity Accord",
+    members: [
+        {key_id: "eric-moore-key",      role: "founder"},
+        {key_id: "eric-kudzin-key",     role: "founder"},
+        {key_id: "haley-bradley-key",   role: "founder"}
+    ],
+    consensus_protocol:              "quorum:2/3",
+    consensus_protocol_entrenched:   true                  // replacement only via §9.2 ceremony
+}
+```
+
+§9 remains load-bearing for the *role-recognition policy* + the `AccordCarrier` priority authority + the substrate-protective semantics. CEG 0.7 just makes explicit that the structural shape of `HUMANITY_ACCORD` is a `family` subject_kind instance, generalizing the primitive across the federation.
+
+**Worked example — household with self-devices and family-devices**:
+
+```
+User Alice has:
+  identity_key = alice_root_key
+
+Alice's self (identity_occurrence members):
+  - alice_phone_key      (device_class: phone)       ─┐
+  - alice_laptop_key     (device_class: laptop)       │ Each is an `identity_occurrence`
+  - alice_work_laptop    (device_class: laptop)       │ of `alice_root_key` per §5.6.8.8;
+  - alice_agent_key      (device_class: agent)        │ Alice scrolls Twitter on her phone,
+  - alice_homeserver_key (device_class: server)      ─┘ that content is `cohort_scope: self`
+                                                        and reaches her other devices via
+                                                        the at-rest encryption flow.
+
+Alice's household (a `family` subject_kind instance):
+  family_key_id:                "acme-household"
+  family_name:                  "Acme Household"
+  members: [
+    {key_id: alice_root_key,    role: founder},   ─┐
+    {key_id: bob_root_key,      role: founder},    │ Member entries are IDENTITY keys
+    {key_id: roku_living_room,  role: member},     │ (NOT occurrence keys). Bob has his
+    {key_id: kitchen_tablet,    role: member},     │ own self-collective; the Roku and
+    {key_id: nest_thermostat,   role: member}     ─┘ kitchen tablet have their own
+                                                     identity_keys (they don't belong
+                                                     to any one person via identity_occurrence —
+                                                     they're shared household nodes that the
+                                                     family has admitted as members in their
+                                                     own right).
+  ]
+  consensus_protocol:           "founder_only"   // either founder admits new members
+  consensus_protocol_entrenched: false           // founders can amend the protocol
+
+When Alice's phone sends a family-scoped photo (e.g., dinner photo) at
+cohort_scope: family + family_id: acme-household:
+  - Substrate wraps the DEK under each member's identity key
+  - Photo bytes reach Bob's devices, the Roku, the kitchen tablet,
+    the Nest thermostat — every admitted family node
+  - NO holds_bytes:sha256:* attestation emits (§10.1.4); non-family peers
+    cannot even discover the content exists
+  - Alice's own laptop also receives the photo via the at-rest encryption
+    flow at cohort_scope: self → identity_occurrence
+
+When Bob's mom Carol visits and Bob wants to admit Carol's phone to view
+family photos for a week:
+  - Bob proposes a supersedes Contribution adding {key_id: carol_phone_root,
+    role: member, valid_until: +7d}
+  - consensus_protocol "founder_only" admits on Bob's signature alone
+  - Substrate emits retroactive key_grants for `cohort_scope: family` content
+    to Carol's phone (per CIRISPersist#152 flow)
+  - On Carol leaving (member removal via supersedes, founder-signed):
+    Carol retains existing key_grants per §8.1.12 Option A; substrate stops
+    wrapping new family content to her key
+```
+
+The example demonstrates the clean orthogonality: **`identity_occurrence` is for participants that ARE me** (across my devices and agents); **`family` is for trusted nodes that compose with me** (other people's identities, shared household devices, multi-party collectives). Phone = self device; Roku = family device. The two primitives compose without overlap.
+
+**1+4 lockdown preserved**: `family` rides existing `scores` attestation_type with subject_kind discriminator. Membership changes ride existing `supersedes` primitive. Removed-member key_grant cessation rides existing `key_grant.rotation_chain` semantics from CEG 0.3. Zero new structural primitives.
+
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 
 **Owner**: [`RATCHET/FSD.md`](https://github.com/CIRISAI/RATCHET/blob/main/FSD.md).
@@ -510,9 +720,10 @@ Lineage:
 - **CEG 0.3** (additive; per CIRISRegistry#37 + #38 + #39): multimedia tier + governance additions. **Two new subject_kinds** documented: `takedown_notice` (with `LegalBasis` closed-set enum of 10 values + per-basis discipline) and `key_grant` (with `wrap_algorithm` + `scope` enums + `rotation_chain` semantics). **Five new external_content sub_kinds**: `image`, `audio`, `video`, `film`, `model_3d` (+ Phase 2 `live_stream`). **Four new dimension families**: `content_rating:{scheme}:{rating}`, `content_class:{class}`, `cw_class:{class}`, `age_assurance:{level}`. **Five new media-prefix families**: `image:*`, `audio:*`, `video:*`, `film:*`, `model_3d:*`. New composition policy ([§8.1.10](08_composition.md)) for trusted-publisher path + age-assurance gating. New governance sections ([§11.4](11_governance.md) fast-path takedown coordination + [§11.5](11_governance.md) hash-database operator policy). **1+4 wire-format lockdown preserved** — retire-key-grant rides existing `supersedes`; takedown propagation rides existing `withdraws`-against-`holds_bytes`; no new structural primitives.
 - **CEG 0.4** (additive; per [CIRISRegistry#40](https://github.com/CIRISAI/CIRISRegistry/issues/40) + [CIRISNodeCore#25](https://github.com/CIRISAI/CIRISNodeCore/issues/25) Gap 1 closure at [d0a443a](https://github.com/CIRISAI/CIRISNodeCore/commit/d0a443a)): time-bound state-bearing content. **One new `external_content` sub_kind**: `event_listing` (Eventbrite / Meetup / Lu.ma / calendar / RSVPs / ticketing) with Source struct documented at NodeCore SCHEMA §4.29. **One new dimension family group** ([§5.6.8.5](#5685-event-lifecycle-dimension-families-ceg-04-addition)): `event:lifecycle:{state}` (open / cancelled / completed / superseded) + `event:rsvp_count` + `event:attendance`. **Two new canonical `topical_relation:{kind}` entries** (documentation-only registry additions; no amendment): `rsvps` (RSVP attestation against an event) + `vod_of` (reserved for the deferred live_stream→video relationship). **1+4 wire-format lockdown preserved** — lifecycle state machine composes from `withdraws` / `supersedes` / `delegates_to` + the new dimension's latest non-superseded emission; no new structural primitives. **`live_stream` remains deferred** ([CIRISNodeCore#25](https://github.com/CIRISAI/CIRISNodeCore/issues/25) Gap 2 not yet shipped; substrate-side Edge + Persist decisions pending) — CEG 0.4 codifies only what NodeCore shipped, per the downstream-demand-pulls-CEG-additions discipline established with 0.3.
 - **CEG 0.5** — *in flight* (codification pending) per [CIRISRegistry#44](https://github.com/CIRISAI/CIRISRegistry/issues/44) + [CIRISNodeCore#26](https://github.com/CIRISAI/CIRISNodeCore/issues/26) + [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142): `live_stream` promotion + chunk-DAG composition. Lands when NodeCore#26 substrate decisions ratify. Additive at the namespace layer (no envelope change).
+- **CEG 0.7** (additive at the envelope layer; per [CIRISRegistry#47](https://github.com/CIRISAI/CIRISRegistry/issues/47) + [CIRISPersist#152](https://github.com/CIRISAI/CIRISPersist/issues/152) + [ciris.ai/cewp](https://ciris.ai/cewp) structural-invisibility framing): **self/family membership primitives + wire-format-level structural invisibility.** Two new subject_kinds — `identity_occurrence` ([§5.6.8.8](#5688-identity_occurrence-subject_kind-ceg-07-addition); links occurrence_keys (devices + agents) to a root identity_key; single-vouch admission; `device_class ∈ phone | laptop | server | embedded | agent | service`) and `family` ([§5.6.8.9](#5689-family-subject_kind-ceg-07-addition); group of trusted nodes — members are identity_keys (which may themselves have multi-occurrence sets); one identity MAY belong to multiple families; per-family `consensus_protocol` field (`founder_only` / `unanimous` / `majority` / `quorum:M/N` / `weighted:{rubric}` / `custom:{id}`) governs admission; meta-amendment via the protocol's own rules unless `consensus_protocol_entrenched`). **One new envelope field** ([§4](04_envelope.md)): `family_id` required iff `cohort_scope == family`. **Four new substrate-emitted reserved prefixes** ([§7.7](07_reserved.md)): `hard_case:identity_occurrence_added:*` + `hard_case:family_membership_change:*` + `hard_case:family_consensus_protocol_change:*` + `hard_case:family_consensus_protocol_violation:*`. **New composition policy** ([§8.1.12](08_composition.md)) Policy L — self/family membership composition + DEK key-grant cascade on new-member admission + Option A forward-secrecy on departure. **New endpoint discipline** ([§10.1.4](10_endpoints.md)) structural-invisibility — substrate MUST NOT emit `holds_bytes:sha256:*` for `cohort_scope: self | family` content; the cewp claim "the wire format can't carry them in the first place" is now normative. **New governance section** ([§11.7](11_governance.md)) self/family membership governance — locked the 4 open decisions from #47 (Option A forward-secrecy + envelope `family_id` for multi-family + reserved-prefix substrate ownership + single-vouch self / consensus-protocol family). **Retcon at [§9.1](09_humanity_accord.md)**: HUMANITY_ACCORD triple is the canonical entrenched-`family` instance (3 founders, `consensus_protocol: quorum:2/3`, `consensus_protocol_entrenched: true`). **1+4 wire-format lockdown preserved** — zero new structural primitives; both new subject_kinds ride existing `scores` + subject_kind discriminator; membership changes ride existing `supersedes`; DEK cascade rides existing `key_grant.rotation_chain` from CEG 0.3. Eighth independent path confirming 1+4 minimal-and-adequate ([§1.4](01_foundation.md)) — demonstrates the structural set is rich enough to express collective-scale membership AND the wire-format-level closure of the cewp structural-invisibility privacy claim.
 - **CEG 0.6** (additive at the envelope layer; per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842)): **subject-side consent authority — the missing half of consent at the wire format.** Universal across medical records / photos / interviews / training data / group chat / financial / surveillance / FERPA / multi-party contracts. CEG ≤ 0.5 encoded only producer authority (`attesting_key_id`); CEG 0.6 adds subject authority via **one new optional envelope field** ([§4.2](04_envelope.md)): `subject_key_ids: Vec<KeyId>` — accepts both federation_keys identities AND canonical-hash identifiers (resolves [CIRISAgent#840 OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840)). **Semantic broadening of `withdraws`** ([§3.2.3](03_primitives.md)) to admit subject revocation + delegated proxy chain for canonical-hash subjects; the primitive's wire shape is unchanged. **One new dimension family** ([§5.6.8.6](#5686-consent-namespace-family-ceg-06-addition)): `consent:*` (8 prefixes — `state:*`, `stream:*`, `deletion_sla:*`, `deletion_complete`, `decay:*`, `partnership_grant`, `partnership_accept`, `scope:*`). **One new subject_kind** ([§5.6.8.7](#5687-consent_record-subject_kind-ceg-06-addition)): `consent_record` (ceremony envelope parallel to `key_grant` / `takedown_notice`; both bare-`scores` and ceremony shapes admitted at the same gate). **New composition policy** ([§8.1.11](08_composition.md)) Policy K — CEM composition. **New governance section** ([§11.6](11_governance.md)) vertical compliance mapping (HIPAA / GDPR Art 9 / FERPA / CCPA / AI training right-to-be-forgotten) + dimension-pattern-implies-`subject_key_ids` requirement. **1+4 wire-format lockdown preserved** — zero new structural primitives; one envelope field + one namespace family + one optional subject_kind + one semantic broadening. **CIRISAgent's CEM** (TEMPORARY / PARTNERED / ANONYMOUS streams) becomes a **consumer-policy bundle over the wire primitive**, not a wire-format lockdown; other agents MAY compose other streams over the same primitives.
 
-Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across **7 independent paths** ([§1.4](01_foundation.md)) — CEG 0.6 dual-authority composition is the seventh, demonstrating the lockdown holds when subject authority is added orthogonally to producer authority. The wire format's structural set is stable at 1+4 across content (multimedia + time-bound) AND across consent (dual-authority + decay-protocol + bilateral-pair).
+Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across **8 independent paths** ([§1.4](01_foundation.md)) — CEG 0.7 self/family membership + structural-invisibility composition is the eighth. The wire format's structural set is stable at 1+4 across content (multimedia + time-bound), consent (dual-authority + decay-protocol + bilateral-pair), AND collective-scale membership (devices + agents + families + entrenched-families) — including the wire-format-level closure of the cewp structural-invisibility privacy claim.
 
 ---
 

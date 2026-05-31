@@ -61,6 +61,42 @@ A CEG-Conforming Consumer (CCC) MUST verify the full SHA-256 of received bytes a
 
 A `holds_bytes:sha256:{prefix}` attestation has a default validity of **24 hours** from `signed_at`. After that the holder is considered stale; consumer policy MUST attempt at most 2 holders in parallel and accept the first successful full-SHA verification. On `ContentMiss` (holder no longer has the blob), the consumer MUST emit a `withdraws` against the `holds_bytes:sha256:{prefix}` attestation referencing the stale holder, with `withdrawal_reason: "content_miss"`. Holders consistently failing ContentMiss are downweighted in `PeerResolver::resolve_holders`.
 
+### §10.1.4 Structural invisibility — `holds_bytes:sha256:*` suppression for `cohort_scope: self | family` (CEG 0.7 addition)
+
+Per [CIRISRegistry#47](https://github.com/CIRISAI/CIRISRegistry/issues/47) + [ciris.ai/cewp](https://ciris.ai/cewp) load-bearing claim:
+
+> Self and family content never emits the attestation that would tell the rest of the network it exists. You don't need a privacy policy to keep family photos off the federation — the wire format can't carry them in the first place.
+
+CEG 0.7 codifies this as a normative substrate discipline. When a Contribution carries `cohort_scope: self` OR `cohort_scope: family`, the substrate MUST NOT emit a corresponding `holds_bytes:sha256:{prefix}` directory attestation per [§5.6.7](05_namespace.md) — the content's bytes are delivered to admitted members of the relevant self-collective ([§5.6.8.8](05_namespace.md) `identity_occurrence`) or family ([§5.6.8.9](05_namespace.md)) via the at-rest encryption flow (CIRISPersist#152), NOT via the public holder-discovery directory.
+
+**The privacy property is structural, not policy**:
+
+- A non-member peer cannot issue `ContentFetch` for the bytes because no `holds_bytes:sha256:*` attestation names a holder.
+- A non-member peer cannot even *discover* the bytes exist via the substrate — the only attestations referencing them are scoped to the self-collective / family and never federate beyond it.
+- This is the wire-format-level closure of the cewp **structural invisibility** claim: privacy emerges from format constraints, not from operator policy or legal undertaking.
+
+**Substrate enforcement**:
+
+```
+On admission of a Contribution C with cohort_scope ∈ {self, family}:
+    substrate MUST NOT emit holds_bytes:sha256:* for C's evidence_refs bytes
+    substrate MUST wrap C's DEK via key_grant (§5.6.8.4) to:
+        - if cohort_scope == self:   all current identity_occurrences of C.attesting_key_id
+        - if cohort_scope == family: all current members of family per C.family_id
+    substrate MUST NOT propagate C beyond the self-collective / family scope
+    via any other directory or discovery surface
+```
+
+**Composition with at-rest encryption flow** (CIRISPersist#152): when content is admitted at `cohort_scope: self`, persist wraps the DEK under each currently-admitted `identity_occurrence`'s `occurrence_key_id`. When content is admitted at `cohort_scope: family`, persist wraps under each `member.key_id` in the named family's current roster. New occurrence / new family-member admission triggers retroactive `key_grant` emission for all extant `cohort_scope: self|family` content (the "I bought a new phone and want my Twitter history" / "I added Carol to the household" flows from §5.6.8.9 worked example).
+
+**Locality dividend** (cewp claim): the structural invisibility mechanism is *why* ~65% of activity stays local in the cewp scaling model — `cohort_scope: self|family` content is the bulk of daily activity (family photos, personal notes, in-household device chatter), and that bulk never federates. Operators do not configure this; the wire format enforces it.
+
+**Boundary cases**:
+
+- `cohort_scope: community | affiliations | federation` content emits `holds_bytes:sha256:*` per status-quo behavior. CEG 0.7 changes ONLY the self/family path.
+- A `cohort_scope: self` Contribution that is later promoted via `supersedes` to `cohort_scope: community` (per [§8.1.8.1](08_composition.md) Tiered-Scope promotion) emits `holds_bytes:sha256:*` at promotion time on the NEW Contribution. The original `cohort_scope: self` Contribution's bytes remain structurally-invisible at federation; only the promoted scope's bytes propagate.
+- `cohort_scope: self` content with `subject_key_ids` containing a non-self party (e.g., a private note Alice writes ABOUT Bob) is admitted and stays in Alice's self-collective; Bob does NOT receive a key_grant unless Bob is also in Alice's self (not the case for two distinct identities). Bob's [§4.2](04_envelope.md) subject-side revocation authority over the note still composes per CEG 0.6, but the bytes never reach Bob without Alice's explicit re-emit at a higher cohort_scope including Bob.
+
 ### §10.1.3 Consent revocations are NOT local-tier-eligible (CEG 0.6 addition)
 
 Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) Gap 2 + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842). The [CIRISAgent#840](https://github.com/CIRISAI/CIRISAgent/issues/840) CEG-native agent design proposes **local-tier signature deferral** — self-attestations skip the hybrid Ed25519 + ML-DSA-65 signature path locally and only sign at federation-tier promotion. This is sound for producer-only-authority self-attestations (status quo; empty `subject_key_ids`).

@@ -301,6 +301,134 @@ Per [§5.6.8.6](05_namespace.md) `consent:decay:{stage}` is open vocab. Other de
 
 Per CEG's [§3.4 MISSION.md](../../MISSION.md) layering: CIRISAgent's three streams are a **named bundle** at the consumer-policy layer. Other agents MAY compose other streams over the same wire primitives. CEG documents the canonical bundle for ecosystem coordination; CEG does not lock the bundle.
 
+### §8.1.12 Policy L — Self/family membership composition (CEG 0.7 addition)
+
+Per [CIRISRegistry#47](https://github.com/CIRISAI/CIRISRegistry/issues/47) + [§5.6.8.8](05_namespace.md) `identity_occurrence` + [§5.6.8.9](05_namespace.md) `family` + [§10.1.4](10_endpoints.md) structural-invisibility. Composition pattern for resolving the **current membership set** of an identity's self-collective OR a family, gating the at-rest encryption flow (CIRISPersist#152) that wraps DEKs to admitted members.
+
+Reads as: "for any `cohort_scope: self | family` Contribution, the substrate computes the current member set by walking the latest `identity_occurrence` / `family` Contributions and resolves which keys MUST receive a `key_grant` wrap of the content DEK."
+
+#### §8.1.12.1 Self-collective resolution
+
+For identity `I`, the current self-collective is computed as:
+
+```
+resolve_self(I, now):
+    candidates = federation_attestations
+        .where(subject_kind == "identity_occurrence")
+        .where(envelope.identity_key_id == I)
+        .where(supersedes chain → latest non-superseded)
+        .where(NOT withdrawn by I or by current occurrence)
+        .where(envelope.valid_until IS NULL OR > now)
+    return {c.envelope.occurrence_key_id for c in candidates} ∪ {I}
+```
+
+The root `I` itself is implicitly a member (the identity_key is always an admissible signer for its own content). Single-vouch admission: any current occurrence (including `I` itself) may admit a new occurrence via `attesting_key_id` on a fresh `identity_occurrence` Contribution.
+
+**Concrete**: Alice has admitted `alice_phone`, `alice_laptop`, `alice_agent`. Her self-collective is `{alice_root, alice_phone, alice_laptop, alice_agent}`. When Alice's phone publishes a `cohort_scope: self` Twitter scroll, the substrate wraps the content DEK under all four keys; the content reaches her laptop and agent via the at-rest encryption flow without emitting `holds_bytes:sha256:*`.
+
+#### §8.1.12.2 Family membership resolution
+
+For family `F`, the current member set is computed as:
+
+```
+resolve_family(F, now):
+    latest = federation_attestations
+        .where(subject_kind == "family")
+        .where(envelope.family_key_id == F)
+        .where(supersedes chain → latest non-superseded)
+        .where(admission rule satisfied per CURRENT consensus_protocol;
+               see §8.1.12.3)
+    return {m.key_id for m in latest.envelope.members}
+```
+
+Each `member.key_id` is itself an identity — the substrate does NOT walk into each member's `identity_occurrence` set at family-resolution time. When DEK wrapping happens, each member's identity_key receives a `key_grant`; the member's own substrate then composes Policy L on its own self-collective to propagate to that member's devices/agents (recursive composition).
+
+**Concrete**: The Acme Household family has members `{alice_root, bob_root, roku_living_room, kitchen_tablet, nest_thermostat}`. When Alice's phone publishes a `cohort_scope: family` dinner photo with `family_id: acme-household`, the substrate wraps the DEK under each of those 5 identity keys. Alice's `alice_root` then re-wraps to her self-collective (phone, laptop, agent); Bob's `bob_root` re-wraps to his self-collective; the Roku and kitchen tablet receive directly (single-key identities — they don't have multi-occurrence sets); the Nest thermostat same.
+
+#### §8.1.12.3 Membership-change admission per consensus_protocol
+
+A proposed membership change (addition OR removal) rides a `supersedes` Contribution on the family's latest admitted `family` Contribution. Substrate admission gate evaluates the CURRENT family's `consensus_protocol` against the signatures on the proposal:
+
+```
+admit_family_change(F, proposed: family_record):
+    current = resolve_family(F, now)
+    protocol = current_family_record(F).consensus_protocol
+    signatures = collect_signatures_on(proposed)
+
+    match protocol:
+        "founder_only":
+            return any sig from m where m.role == "founder" in current
+        "unanimous":
+            return every m.key_id in current has signed
+        "majority":
+            return count(sig from m in current) > len(current) / 2
+        "quorum:M/N":
+            return count(sig from m in current) >= M  // N == len(current); operator
+                                                       // policy resolves rebasing when
+                                                       // current roster size differs from N
+        "weighted:{rubric}":
+            return sum(weight(m, rubric) for m in current who signed) >= threshold
+        "custom:{family_id}":
+            return operator-defined predicate evaluates to true
+
+    if admit:
+        emit hard_case:family_membership_change:{F}
+        trigger §8.1.12.4 key_grant cascade
+    else:
+        hold in pending state (per operator-policy window) OR
+        emit hard_case:family_consensus_protocol_violation:{F} and reject
+```
+
+**Consensus-protocol amendment** (changing `consensus_protocol` itself on a non-entrenched family) rides the SAME admission rule on the proposed amendment Contribution — meta-amendment shape parallel to [§11.2.3](11_governance.md). Entrenched families (`consensus_protocol_entrenched == true`) reject amendments at the substrate gate; replacement requires the out-of-band ceremony documented per family (for HUMANITY_ACCORD see [§9.2](09_humanity_accord.md)).
+
+#### §8.1.12.4 Key-grant cascade (the at-rest encryption flow)
+
+On admission of a new `identity_occurrence` OR a `family` membership-add, substrate emits retroactive `key_grant`s wrapping all extant `cohort_scope: self|family` content DEKs to the new member's key:
+
+```
+on_member_added(scope_target, new_member_key):
+    for each Contribution C in federation_attestations where:
+        C.cohort_scope == "self" AND C.attesting_key_id ∈ resolve_self(scope_target)
+        OR
+        C.cohort_scope == "family" AND C.family_id == scope_target
+    AND C is still substrate-admitted (not withdrawn / not expired):
+        emit key_grant {
+            wrap_algorithm:     X25519AesGcmHkdfSha256,  // CEG 0.3 §5.6.8.4 default
+            recipient_key_id:   new_member_key,
+            content_sha256:     C.evidence_refs[0].sha256,
+            scope:              GroupMember,
+            wrapped_dek:        wrap(C.dek, new_member_key.pubkey),
+            ...
+        }
+```
+
+The cascade is the wire-format primitive for the "I got a new phone and want my Twitter history" + "I added Carol to the household for a week" flows. Operator policy MAY bound the cascade depth (e.g., last 90 days of self-content; opt-in for the full historical wrap).
+
+#### §8.1.12.5 Forward secrecy on member removal (Option A, recommended for v1)
+
+Per [CIRISRegistry#47 Decision 1](https://github.com/CIRISAI/CIRISRegistry/issues/47) recommendation, CEG 0.7 adopts **Option A** — once shared, always shared at the wire layer:
+
+```
+on_member_removed(scope_target, removed_member_key):
+    // The removed member retains existing key_grants — cannot retroactively un-share.
+    // Substrate STOPS wrapping NEW key_grants to them on subsequent
+    // cohort_scope: self|family Contributions for scope_target.
+    // No DEK rotation; no re-encryption of historical content.
+```
+
+This is consistent with [§11.4](11_governance.md) "takedown isn't a coup" + [§3.2](03_primitives.md) `withdraws-isn't-retroactive` semantics — historical state isn't retroactively re-keyed. Option B (rotate-DEK on removal) is deferred to a future `subject_kind: family_rotation` ceremony; CEG 0.7 documents the slot, leaves the rotation primitive for a downstream-demand-driven release.
+
+**Why Option A**: aligns with the substrate's existing forward-secrecy posture (consent revocations don't retroactively un-emit per CEG 0.6 §8.1.11; takedowns don't retroactively un-emit per §11.4); matches user-intuition that "leaving the family" governs future content, not historical; bounded substrate cost (no re-wrap-all-content storm on member removal).
+
+#### §8.1.12.6 Composition with CEG 0.6 subject_key_ids[]
+
+`identity_occurrence` + `family` (membership / visibility scoping) compose cleanly with CEG 0.6 `subject_key_ids[]` (revocation authority):
+
+- A `cohort_scope: family` Contribution naming `subject_key_ids: [user_canonical_hash]` is admitted at family visibility AND the named subject retains independent revocation authority per CEG 0.6 §8.1.11.
+- A `cohort_scope: self` Contribution that Alice writes about Bob (Bob in `subject_key_ids`) stays in Alice's self-collective (Bob does NOT receive a key_grant unless Bob's identity is in Alice's self — which it isn't). Bob's subject-side revocation authority still composes: Bob CAN issue `withdraws` against Alice's Contribution (admitted per CEG 0.6 §3.2.3 rule 2 even though Bob can't access the bytes); admission emits `hard_case:consent_sla_breach` clock-start if Alice committed `consent:deletion_sla`.
+
+The orthogonality holds: **`cohort_scope` is producer-side visibility scoping**; **`identity_occurrence` + `family` are substrate-side membership primitives that gate at-rest DEK wrapping**; **`subject_key_ids` is subject-side revocation authority**. Three independent envelope-level concerns that compose without overlap.
+
 ## §8.2 Aggregation semantics — opinionated defaults
 
 Per dimension+attested_key_id, the verdict is computed by composing attestations under the chosen policy. Default aggregation by polarity column ([§5](05_namespace.md)):

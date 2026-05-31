@@ -18,6 +18,24 @@ Three named human key holders. Initial state at federation genesis:
 
 Hardware-attested (per [§9.4](#94-hardware-class-taxonomy) hardware_class taxonomy). Permanent: no automatic decay; replacement requires out-of-band CIRIS L3C process per FEDERATION_ANNOUNCEMENT.md §4.5.3.
 
+**The HUMANITY_ACCORD triple is the canonical entrenched-`family` instance (CEG 0.7 retcon).** Per [§5.6.8.9](05_namespace.md), the accord-holder triple structurally IS a `family` subject_kind with:
+
+```
+family {
+    family_key_id:                   "humanity-accord",
+    family_name:                     "Humanity Accord",
+    members: [
+        {key_id: <eric-moore-key>,      role: founder},
+        {key_id: <eric-kudzin-key>,     role: founder},
+        {key_id: <haley-bradley-key>,   role: founder}
+    ],
+    consensus_protocol:              "quorum:2/3",
+    consensus_protocol_entrenched:   true   // replacement requires §9.2 / FEDERATION_ANNOUNCEMENT.md §4.5.3 ceremony
+}
+```
+
+The 2-of-3 multi-sig verifier at [§9.2.1](#921-invocation-canonical-bytes-anti-replay-01-scaffold) is the `quorum:2/3` consensus_protocol enforcement; the entrenchment property is what prevents any federation-internal authority from amending the protocol. §9 remains load-bearing for the **role-recognition policy** (which dimensions accord-holders may emit — only `accord:*` per [§7.1](07_reserved.md)) and the **scope-isolation** discipline (only `EmergencyShutdown CONSTITUTIONAL` per [§9.2](#92-authority-scope)). CEG 0.7 makes the structural shape explicit — the constitutional asymmetry is "an entrenched family that is wire-scope-isolated to halt authority," not a one-off primitive. Other entrenched-family instances (a national-emergency triple, an international body, a court-ordered preservation triple) MAY appear in operator deployments; HUMANITY_ACCORD is the one CIRIS L3C deployments ship at genesis.
+
 ## §9.2 Authority scope
 
 `HUMANITY_ACCORD` signatures are valid only on `EmergencyShutdown CONSTITUTIONAL` (`IncidentSeverity::INCIDENT_CONSTITUTIONAL = 5`), `accord:invoke:notify:{notify_id}`, `accord:invoke:drill:{drill_id}`, `accord:lifecycle:active`, and the corresponding `FederationAnnouncement` priority `AccordCarrier`. Announcements of any other priority signed by accord-holder keys are rejected at admission (out of role). Federation-side authority cannot sign `AccordCarrier`; humanity-accord authority cannot sign anything else. **Wire-isolated AND scope-isolated.**
