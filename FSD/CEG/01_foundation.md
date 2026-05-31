@@ -64,13 +64,14 @@ Existing prefixes failing T2 (the most slip-prone gate) get renamed; the canonic
 
 ## §1.4 The 1+4 minimal-and-adequate claim
 
-The federation has exactly **one workhorse attestation primitive + four structural composers**. Total wire surface: five. This claim has been examined by five independent paths; future paths may extend or refute it via the [§11.2](11_governance.md) amendment process:
+The federation has exactly **one workhorse attestation primitive + four structural composers**. Total wire surface: five. This claim has been examined by six independent paths; future paths may extend or refute it via the [§11.2](11_governance.md) amendment process:
 
 1. **PRIOR_ART_SCAN structural comparison** — no prior system (PGP / SPKI-SDSI / W3C VC / Birdwatch / Pol.is / Kleros / Spritely / Holochain / Aragon / Conviction Voting / Sigstore / SLSA) covers the same shape with fewer primitives.
 2. **G3 narrow-cell fresh-quorum closure via [§8.1.5](08_composition.md) composition** — two independently-motivated primitives (`locality:decision:{scale}` + NodeCore P10/P11) composed to close a third gap without adding a structural primitive.
 3. **v1.4 files-as-Contributions extension** — arbitrary content (binaries, configs, adapters, source files) carries through the federation via `scores` attestations + SHA-256 `evidence_refs[]` resolved through the substrate transport layer, with no addition to the structural-primitive set.
 4. ***Magnifica Humanitas* encyclical mapping** — ~75-80% transparent translation rate; the 5% T-3 EXPRESSIVE_GAP set produced 10 dimension extensions and ZERO new structural primitives.
 5. **283-story authorial stress test** (CIRISRegistry#30) — 9 generation agents + 5 review agents validated against the spec; 30 grammar-gap observations consolidated to 5 v1.5 spec additions, 6 explicit rejections (Cartesian shortcuts the wire resists), 4 primer fixes. No new structural primitives needed.
+6. **CEG 0.4 time-bound state-bearing content** (per [CIRISRegistry#40](https://github.com/CIRISAI/CIRISRegistry/issues/40) + [CIRISNodeCore#25](https://github.com/CIRISAI/CIRISNodeCore/issues/25) Gap 1 closure) — `event_listing` lifecycle (open / cancelled / completed / superseded + RSVPs + reschedule + ticket transfer) composes from `withdraws` + `supersedes` + `delegates_to` + a new dimension family ([§5.6.8.5](05_namespace.md)). State machines do not require new structural primitives. NodeCore shipped the ingest path composition-only end-to-end at [d0a443a](https://github.com/CIRISAI/CIRISNodeCore/commit/d0a443a).
 
 **Future extensions are dimension prefixes or envelope fields, not new structural primitives.** Proposals to expand the 1+4 set face a high evidentiary bar and route through the [§11.2](11_governance.md) amendment process. A successful refutation requires either: (a) demonstrating an operational claim that cannot be expressed via the existing 1+4 set plus envelope composition, OR (b) demonstrating a structural-primitive consolidation that reduces below 1+4 without loss.
 
