@@ -104,4 +104,50 @@ For long-lived attestations carrying `valid_until` in the future, the freshness 
 
 ---
 
+## §0.8 H3 cell canonicalization (CEG 0.8 addition)
+
+Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48) + [§5.6.8.11](05_namespace.md) `location_proof` + [§5.6.8.10](05_namespace.md) `community` with `cohort_subkind: geographic`.
+
+Geographic primitives in CEG use [H3 hierarchical hexagonal indexing](https://h3geo.org/) as the canonical cell-identifier encoding. H3 partitions the Earth's surface into hexagonal cells at 16 resolution levels (0 = coarsest, ~4.3 M km² per cell; 15 = finest, ~0.9 m² per cell). Each cell has a 64-bit integer ID, conventionally encoded as a 15-character lowercase hex string.
+
+**Canonical form for `cell_id`**:
+
+- 15-character lowercase hex string (no `0x` prefix; per [§0.6](#06-hexadecimal-canonicalization))
+- The high 4 bits encode the resolution (0-15); the next 60 bits encode the cell address
+- Leading zeros preserved (a resolution-0 cell at base position 0 is `8001fffffffffff`, not `1fffffffffff`)
+
+**Canonical form for `cell_resolution`**:
+
+- Integer in `[0, 15]`
+- MUST equal the resolution extracted from the high 4 bits of `cell_id` (substrate verifies the redundancy on admission; mismatched pairs MUST be rejected as malformed)
+
+### §0.8.1 Rough-only enforcement for `location_proof` (normative)
+
+Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48) privacy invariant. A `location_proof` subject_kind Contribution ([§5.6.8.11](05_namespace.md)) MUST carry `cell_resolution ≤ 7` (H3 resolution 7 hexagons average ~5 km² edge-length, sufficient for city/borough-level disclosure without block/building precision). Producers attempting to emit finer-resolution `location_proof` Contributions MUST have admission rejected at the substrate gate.
+
+This is the wire-format-enforced privacy promise: **rough is rough by protocol**, not by operator policy. A producer cannot accidentally over-share at the protocol layer; a malformed client cannot publish a precise location even if its UI fails to gate. Substrate emits `hard_case:location_proof_resolution_violation` ([§7.8](07_reserved.md)) on rejection so operators can observe malformed-producer patterns.
+
+### §0.8.2 Cell containment
+
+A cell `C` at resolution `R_C` is **contained within** a cell `B` at resolution `R_B` iff:
+
+- `R_C >= R_B` (the contained cell is at equal or finer resolution); AND
+- The parent-walk from `C` at resolution `R_C - 1, R_C - 2, ..., R_B` reaches exactly `B` (standard H3 hierarchy semantics; `h3ToParent` library call)
+
+Used by community admission gates per [§8.1.13](08_composition.md) Policy M: a `location_proof` Contribution's `cell_id` MUST be contained within the geographic community's `geographic_constraint.cell_id` for membership admission.
+
+### §0.8.3 What CEG 0.8 documents
+
+- The lowercase-hex canonical form for `cell_id`
+- The resolution-redundancy check (high 4 bits of `cell_id` MUST match `cell_resolution`)
+- The rough-only enforcement (`location_proof.cell_resolution ≤ 7`)
+- The containment semantics for community admission
+
+What CEG 0.8 does NOT do:
+- Mandate H3 over alternative geospatial systems (S2, Geohash) — H3 is chosen for hex-cell uniformity, well-defined parent/child hierarchy, and protocol-agnostic absence of a centralized gazetteer dependency. Operator-internal use of other systems is unconstrained; the wire format uses H3.
+- Provide a place-name registry. Communities self-name; cell IDs are the substrate-level binding. UI may map cell IDs to human-readable names per consumer policy.
+- Restrict community-side `geographic_constraint.cell_resolution`. A community CAN scope itself at any resolution (e.g., an "Austin metro" community at resolution 5, ~250 km²; a smaller-scale "Downtown Austin" community at resolution 7, ~5 km²). The rough-only invariant applies to `location_proof`, NOT to community definitions.
+
+---
+
 [← Back to CEG README](README.md) | **§0 Conformance** | [Next: §1 Foundation →](01_foundation.md)

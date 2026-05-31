@@ -670,6 +670,177 @@ The example demonstrates the clean orthogonality: **`identity_occurrence` is for
 
 **1+4 lockdown preserved**: `family` rides existing `scores` attestation_type with subject_kind discriminator. Membership changes ride existing `supersedes` primitive. Removed-member key_grant cessation rides existing `key_grant.rotation_chain` semantics from CEG 0.3. Zero new structural primitives.
 
+#### §5.6.8.10 `community` subject_kind (CEG 0.8 addition)
+
+Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48). A `community` is a **larger node-collective with explicit admission semantics** — sibling subject_kind to `family` (CEG 0.7 [§5.6.8.9](#5689-family-subject_kind-ceg-07-addition)) but with different defaults: content scoped `cohort_scope: community` **federates within the cohort** (emits `holds_bytes:sha256:*` per status quo); there is NO at-rest DEK cascade; [§10.1.4](10_endpoints.md) structural-invisibility applies to self/family only.
+
+Communities differ from families along three axes:
+
+| | `family` (CEG 0.7) | `community` (CEG 0.8) |
+|---|---|---|
+| **Scale** | Household / intimate trust circle (typically ≤ 20 members) | City / professional / interest (10s to 100Ks of members) |
+| **At-rest encryption** | Yes — DEK cascade per [§8.1.12.4](08_composition.md); `holds_bytes:*` suppressed | No — content federates per status quo |
+| **Subkind discriminator** | None | `cohort_subkind` field (open vocab; canonical: `geographic`) |
+| **Typical admission** | `founder_only` / `unanimous` for small intimate groups | `majority` / `weighted` / per-subkind protocol (e.g., geographic requires `location_proof`) |
+
+```
+community {
+    community_key_id:                  key_id                    // community's own federation key
+    community_name:                    string                    // human-readable; non-unique
+    cohort_subkind:                    string                    // open vocab; canonical: "geographic"
+    members: [
+        {
+            key_id:                    key_id                    // member identity_key (NOT occurrence)
+            joined_at:                 rfc3339_canonical
+            role:                      Option<MemberRole>        // founder | member | null
+        },
+        ...
+    ]
+    founded_at:                        rfc3339_canonical
+    consensus_protocol:                ConsensusProtocol         // same six canonical kinds as family
+    consensus_protocol_entrenched:     bool                      // same semantics as family
+    cohort_subkind_payload:            Option<SubkindPayload>    // subkind-specific fields; see below
+}
+```
+
+**`cohort_subkind` is the discriminator** — open vocabulary per [§11.2.1](11_governance.md) axis-vocabulary discipline. CEG 0.8 codifies one canonical kind (`geographic`); operator vocabularies extend.
+
+##### Canonical `cohort_subkind: geographic`
+
+The first codified community subkind. Membership additionally requires the candidate to emit a valid `location_proof` ([§5.6.8.11](#56811-location_proof-subject_kind-ceg-08-addition)) whose `cell_id` is contained ([§0.8.2](00_conformance.md)) within the community's `geographic_constraint.cell_id`.
+
+The `cohort_subkind_payload` for `geographic`:
+
+```
+geographic_constraint {
+    cell_id:                           string                    // H3 cell, lowercase hex per §0.8
+    cell_resolution:                   u8                        // 0-15; community-side may be any
+                                                                 //   resolution (NOT bounded to ≤ 7;
+                                                                 //   that bound applies only to
+                                                                 //   location_proof emissions)
+}
+```
+
+**Worked example — Austin geographic community**:
+
+```
+community {
+    community_key_id:                  "austin-community",
+    community_name:                    "Austin",
+    cohort_subkind:                    "geographic",
+    cohort_subkind_payload: {
+        geographic_constraint: {
+            cell_id:                   "85283473fffffff",      // H3 res 5, ~250 km² covering Austin metro
+            cell_resolution:           5
+        }
+    },
+    members: [
+        {key_id: alice_root_key,       role: founder},
+        {key_id: bob_root_key,         role: founder},
+        ...
+    ],
+    consensus_protocol:                "majority",
+    consensus_protocol_entrenched:     false
+}
+```
+
+For Alice to join Austin, she emits a `location_proof` with a `cell_id` (resolution 7 — ~5 km²) that is contained within the Austin community's `85283473fffffff` (resolution 5) constraint. The community's `majority` admission rule then evaluates her membership proposal.
+
+**Privacy as opt-in**: joining a geographic community is a **one-way disclosure**. Per [§11.8](11_governance.md), the `location_proof` remains in the audit chain even after the member leaves; rough-only is wire-format-enforced (§0.8.1). The substrate's role is to enforce the opt-in mechanically — produce a `location_proof` to join; cannot emit finer than rough.
+
+**Membership change ceremony**: same shape as family (per [§5.6.8.9](#5689-family-subject_kind-ceg-07-addition)) — rides existing `supersedes` primitive; admission gated by current `consensus_protocol`; additionally for `geographic` subkind, the candidate's most-recent `location_proof` (within `valid_until`) MUST be contained in the geographic_constraint.
+
+**Substrate emissions on community events**:
+- `hard_case:community_membership_change:{community_key_id}`
+- `hard_case:community_consensus_protocol_change:{community_key_id}`
+- `hard_case:community_consensus_protocol_violation:{community_key_id}`
+
+All three reserved under [§7.8](07_reserved.md).
+
+**No at-rest cascade**: community content emits `holds_bytes:sha256:*` per status quo. Visibility scoping happens via consumer policy reading the community's roster + the Contribution's `community_id` envelope field; there is no substrate-level DEK wrap. Reasons: communities can be LARGE (10K+ members); per-member DEK wrap on every emission would be operationally infeasible; the privacy property for communities is **cohort-filtered visibility**, not **byte-level invisibility** (that's for self/family).
+
+**Worked example — civic-engagement + emergency-messaging composition pattern**:
+
+CEG 0.8 + earlier specs compose cleanly for civic / democratic participation AND emergency / public-safety messaging use cases. None require new structural primitives; all ride the existing 1+4 set + the namespace additions. The two surfaces share the same underlying primitives (geographic community + location_proof + identity authority + cohort-scoped distribution) but differ in authority/priority shape — civic is bottom-up democratic participation; emergency is top-down authoritative broadcast.
+
+| Civic shape | CEG composition |
+|---|---|
+| **Neighborhood association** | `community` with `cohort_subkind: geographic` + small `geographic_constraint` (e.g., H3 resolution 8-10 for a few city blocks); `consensus_protocol: majority` typical. Members emit `location_proof` at resolution 7 (rough-only privacy preserved); the community's constraint at higher resolution defines the *bounded scope*, not the *required disclosure precision* |
+| **Municipal/city community** | `community` with `cohort_subkind: geographic` at resolution 5-6 (city-scale ~250-1700 km²); `consensus_protocol: majority` or `weighted:{voter_registration_rubric}` for formal civic governance; members compose with `partner_role:*` ([§5.9](#59-cirisregistry--identity--build--license--partner)) for licensed public officials |
+| **Voting district** | `community` with `cohort_subkind: geographic` matched to district boundaries; the H3 hex approximation has known edge cases at gerrymandered district lines — operators use `cohort_subkind: custom:voting_district_X` with a polygon-based admission predicate when hex approximation is insufficient (the open vocab discipline accommodates this) |
+| **Public town hall meeting** | `event_listing` (CEG 0.4 [§5.6.8.1](#5681-external_content-sub_kinds)) hosted by the geographic community; `subject_key_ids` ([§4.2](04_envelope.md)) names the organizer; `cohort_scope: community` + `community_id: <municipal_community>` scopes attendee visibility |
+| **Ballot initiative / referendum** | The initiative itself is a `community` Contribution or an `event_listing` with `topical_relation:rsvps` repurposed as votes; individual votes ride `consent_record` (CEG 0.6 [§5.6.8.7](#5687-consent_record-subject_kind-ceg-06-addition)) with `stance: granted` ("yes") or `stance: revoked` ("no" or withdrawal of support); vote tallies are consumer-side composition over the `consent_record` chain |
+| **Public comment** | `chat_message` (CEG 0.3) scoped to `cohort_scope: community` with `community_id` naming the relevant civic community; `topical_relation:comments_on` links to the ballot/initiative/hearing Contribution |
+| **Petition signing** | `consent_record` with `stance: granted` + `scope: [share, publish]` against the petition Contribution; signatures aggregate via the same consumer-side composition as ballot votes |
+| **Public official self-attestation** | Official's `identity_occurrence` (CEG 0.7 [§5.6.8.8](#5688-identity_occurrence-subject_kind-ceg-07-addition)) links their personal identity_key to their `device_class: service` key on `city.gov`; cross-binding via `identity:canonical_binding:{canonical_hash}` (CEG 0.6 + 0.7) authenticates their public statements |
+| **FOIA / public records request** | `consent_record` with `scope: [publish]` requested against a producer (city agency); SLA enforcement via CEG 0.6 [§8.1.11.3](08_composition.md) substrate-side watcher emits `hard_case:consent_sla_breach` if the agency misses the response window |
+| **Citizen-journalist coverage** | `news_article` (CEG 0.3) sub_kind authored by an individual member; `cohort_scope: community` + `community_id: <municipal>` for local-first distribution, promotable via [§8.1.8.1](08_composition.md) Tiered-Scope Composition to wider scope on consensus |
+| **Whistleblower disclosure** | `cohort_scope: self` for in-graph composition; promote via `supersedes` to `cohort_scope: community` (a trusted journalists' community with `cohort_subkind: professional` once that subkind ships); `subject_key_ids` empty (no consent-revocation by the disclosed party). The §11.4 fast-path takedown coordination + §9 HUMANITY_ACCORD substrate-protective discipline apply to bad-actor takedown attempts against whistleblower content |
+| **Civic mutual-aid network** | `community` with `cohort_subkind: geographic` matching the neighborhood; CEG 0.6 `consent:scope:[retain, share]` for resource-sharing posts; `event_listing` for distribution events; the at-rest encryption for self/family scope (CEG 0.7 [§10.1.4](10_endpoints.md)) keeps individual aid requests private while community-scoped offers federate |
+
+**Emergency messaging shapes** — same primitive composition, different authority + priority profile:
+
+| Emergency shape | CEG composition |
+|---|---|
+| **Severe weather warning** (NWS / met office) | `news_article` (CEG 0.3) authored by a `partner_role: emergency_authority` ([§5.9](#59-cirisregistry--identity--build--license--partner) co-owned with the community's `cohort_subkind: geographic`); `cohort_scope: community` with `community_id` per affected H3 cells — cascade-by-containment per [§0.8.2](00_conformance.md) propagates to all geographic communities whose constraint overlaps; `event:lifecycle:{state}` (CEG 0.4) carries `active` → `cleared` → `superseded` state machine; `valid_until` envelope field bounds advisory window |
+| **AMBER Alert / Silver Alert / abduction notice** | `news_article` with `partner_role: emergency_authority` from law enforcement key; geographic targeting via `community_id` of affected jurisdictions; subject person identified via `subject_key_ids` (canonical-hash of the missing person identifier — opt-out semantic deferred per the substrate-protective discipline since recovering the missing person is the consent-overriding case); `topical_relation:supersedes_article` chain for status updates |
+| **Active shooter / hostile event notice** | Same shape as AMBER but with `cohort_scope: community` scoped to the precise affected H3 cell (resolution 8-10 for building/campus-level precision is permitted on the COMMUNITY-side `geographic_constraint`; the `location_proof` rough-only bound at resolution 7 still applies to recipient location disclosures, NOT to alert targeting) |
+| **Shelter-in-place / evacuation order** | `event_listing` with `event:lifecycle:active`; geographic targeting via `community_id`; recipients ack via `consent_record` with `stance: granted` and `scope: [retain]` against the order Contribution (acknowledgement, not consent to the underlying order — operator-policy distinction) |
+| **Disease outbreak alert** (CDC / health authority) | `news_article` with `partner_role: health_authority`; `cohort_scope: community` scoped to affected geography; composes with CEG 0.6 `consent:scope:[analyze]` for contact-tracing opt-in (subject-side authority preserved — `subject_key_ids` of the affected person carry revocation rights per §3.2.3 rule 2) |
+| **Mass casualty incident coordination** | Authority emits `event_listing` for the incident; first responders join via `community` with `cohort_subkind: professional` (future spec round) OR ad-hoc `cohort_subkind: custom:incident_response_X`; coordination uses `chat_message` scoped to the responder cohort; resource requests use the mutual-aid composition pattern above |
+| **Infrastructure failure notice** (boil-water / power outage / gas leak) | `news_article` from utility authority with `cohort_scope: community` scoped to affected geographic cells; `event:lifecycle:{state}` for advisory progression; FOIA-shape `consent_record` later for post-incident reports |
+| **Disaster recovery / mutual aid activation** | Federation of geographic communities (each `community` is a member of a parent `community` via membership composition — the multi-level family/community shape works the same way; resource flow rides `consent:scope:[share]` per CEG 0.6); time-bound activation rides `event_listing` lifecycle states |
+| **CONSTITUTIONAL-level federation halt** (the existing CEG 0.6+/§9 HUMANITY_ACCORD invocation) | Per [§9.2](09_humanity_accord.md) `EmergencyShutdown CONSTITUTIONAL` + `accord:invoke:notify:{notify_id}` / `accord:invoke:drill:{drill_id}`. The accord-holder triple is structurally a `family` with `consensus_protocol: quorum:2/3` + `entrenched: true` (per CEG 0.7 retcon); the constitutional asymmetry rides existing primitives + scope-isolation rules. Distinct from operator-level emergency messaging (which is geographic-scoped + authority-emitted) — accord invocation is federation-wide-halt-level, not local-incident-level |
+
+**No new structural primitives needed for emergency messaging either.** The authority profile (who can emit emergency advisories) composes via CEG 0.7 `identity_occurrence` cross-attestation from licensed authorities + the geographic community's roster/admission gate (`partner_role: emergency_authority` is the typed authority dimension). The priority profile (urgency / immediacy) composes via existing `oversight_mode` envelope field + per-cohort `consensus_protocol` (many emergency emitters bypass per-message consensus per their pre-cross-attested authority status — same shape as substrate-self-report `system:*` reservations from [§7.2](07_reserved.md)). The geographic propagation (cascade-by-containment) composes via [§0.8.2](00_conformance.md) containment semantics.
+
+**The compositional reach is the point**: civic participation AND emergency messaging do not require new structural primitives at any layer of CEG 0.x. Geographic communities + location_proof admission + opt-in privacy disclosure (CEG 0.8) compose with consent / DSAR / partnership ceremonies (CEG 0.6) + identity / family (CEG 0.7) + content sub_kinds and event_listing (CEG 0.3/0.4) into the full civic-engagement surface.
+
+The 1+4 lockdown holds across this entire surface — ninth-path confirmation that the wire format is rich enough for democratic-participation use cases without expanding the structural set.
+
+**1+4 lockdown preserved**: `community` rides existing `scores` attestation_type with subject_kind discriminator. Membership changes ride existing `supersedes`. Zero new structural primitives.
+
+#### §5.6.8.11 `location_proof` subject_kind (CEG 0.8 addition)
+
+Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48). The wire-format primitive for a subject's rough-location declaration. Required for admission to `cohort_subkind: geographic` communities ([§5.6.8.10](#56810-community-subject_kind-ceg-08-addition)); MAY be used independently as a stand-alone disclosure.
+
+```
+location_proof {
+    subject_key_id:                    key_id                    // the asserting party's
+                                                                 //   federation_keys.key_id
+    cell_id:                           string                    // H3 cell, lowercase hex per §0.8
+    cell_resolution:                   u8                        // MUST be ≤ 7 per §0.8.1
+    asserted_at:                       rfc3339_canonical
+    valid_until:                       Option<rfc3339_canonical> // null = indefinite (but consumer
+                                                                 //   policy SHOULD treat as stale
+                                                                 //   after 30 days for liveness)
+    attestation_evidence:              Option<base64>            // optional hardware-attested
+                                                                 //   location claim from ciris-keyring
+                                                                 //   (TPM / Secure Enclave) — null for
+                                                                 //   software-only / self-asserted
+}
+```
+
+**Substrate does NOT verify location truth.** No GPS oracle exists at this layer; the substrate cannot independently confirm that a key in Austin actually emitted from Austin. The truth-grounding is consumer-side:
+
+- The community's `consensus_protocol` admission decides whether to accept the claim (e.g., `majority` of existing Austin members vote to admit, presumably because they have out-of-band evidence the candidate really is in Austin)
+- The `attestation_evidence` field MAY carry hardware-attested location data (e.g., a TPM-signed GNSS fix from a known-good device) for higher-assurance communities
+- Repeat offenders (claim-Austin-then-emit-from-Tokyo) get caught by consumer-side detection (LensCore composition; not substrate-side gate)
+
+**Rough-only is wire-format-enforced.** Per [§0.8.1](00_conformance.md): `cell_resolution ≤ 7`. Producers attempting finer resolution have admission rejected; substrate emits `hard_case:location_proof_resolution_violation` ([§7.8](07_reserved.md)).
+
+**Typical cohort_scope**: `federation` (the disclosure IS the opt-in; non-private by design). Producers MAY scope to `community` with a specific `community_id` if they want the proof readable only by that community's members — but then they re-emit for each community they want admission to. Operator/UI choice.
+
+**Lifecycle**:
+
+- `asserted_at` + optional `valid_until` per envelope
+- `withdraws` against a `location_proof` evicts forward visibility (consumer policy treats the subject as "no current location proof" for community admission purposes from withdrawal-time forward)
+- The withdrawn `location_proof` remains in the audit chain — per [§3.2](03_primitives.md) `withdraws-isn't-retroactive`, leaving doesn't un-disclose
+
+**Composition with `consent_record` (CEG 0.6)**: a subject who wants to withdraw their location_proof AND compel deletion from substrate may emit a `consent_record` with `stance: revoked` + `scope: [retain, share]` against the location_proof Contribution. The substrate-side consent SLA watcher (CEG 0.6 [§8.1.11.3](08_composition.md)) clocks producer compliance. Note: this is the consent-revocation surface, distinct from the structural withdraws-forward-only semantic above.
+
+**1+4 lockdown preserved**: `location_proof` rides existing `scores` attestation_type with subject_kind discriminator. Withdrawal rides existing `withdraws`. Consent revocation composes via CEG 0.6 primitives. Zero new structural primitives.
+
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 
 **Owner**: [`RATCHET/FSD.md`](https://github.com/CIRISAI/RATCHET/blob/main/FSD.md).
@@ -720,10 +891,11 @@ Lineage:
 - **CEG 0.3** (additive; per CIRISRegistry#37 + #38 + #39): multimedia tier + governance additions. **Two new subject_kinds** documented: `takedown_notice` (with `LegalBasis` closed-set enum of 10 values + per-basis discipline) and `key_grant` (with `wrap_algorithm` + `scope` enums + `rotation_chain` semantics). **Five new external_content sub_kinds**: `image`, `audio`, `video`, `film`, `model_3d` (+ Phase 2 `live_stream`). **Four new dimension families**: `content_rating:{scheme}:{rating}`, `content_class:{class}`, `cw_class:{class}`, `age_assurance:{level}`. **Five new media-prefix families**: `image:*`, `audio:*`, `video:*`, `film:*`, `model_3d:*`. New composition policy ([§8.1.10](08_composition.md)) for trusted-publisher path + age-assurance gating. New governance sections ([§11.4](11_governance.md) fast-path takedown coordination + [§11.5](11_governance.md) hash-database operator policy). **1+4 wire-format lockdown preserved** — retire-key-grant rides existing `supersedes`; takedown propagation rides existing `withdraws`-against-`holds_bytes`; no new structural primitives.
 - **CEG 0.4** (additive; per [CIRISRegistry#40](https://github.com/CIRISAI/CIRISRegistry/issues/40) + [CIRISNodeCore#25](https://github.com/CIRISAI/CIRISNodeCore/issues/25) Gap 1 closure at [d0a443a](https://github.com/CIRISAI/CIRISNodeCore/commit/d0a443a)): time-bound state-bearing content. **One new `external_content` sub_kind**: `event_listing` (Eventbrite / Meetup / Lu.ma / calendar / RSVPs / ticketing) with Source struct documented at NodeCore SCHEMA §4.29. **One new dimension family group** ([§5.6.8.5](#5685-event-lifecycle-dimension-families-ceg-04-addition)): `event:lifecycle:{state}` (open / cancelled / completed / superseded) + `event:rsvp_count` + `event:attendance`. **Two new canonical `topical_relation:{kind}` entries** (documentation-only registry additions; no amendment): `rsvps` (RSVP attestation against an event) + `vod_of` (reserved for the deferred live_stream→video relationship). **1+4 wire-format lockdown preserved** — lifecycle state machine composes from `withdraws` / `supersedes` / `delegates_to` + the new dimension's latest non-superseded emission; no new structural primitives. **`live_stream` remains deferred** ([CIRISNodeCore#25](https://github.com/CIRISAI/CIRISNodeCore/issues/25) Gap 2 not yet shipped; substrate-side Edge + Persist decisions pending) — CEG 0.4 codifies only what NodeCore shipped, per the downstream-demand-pulls-CEG-additions discipline established with 0.3.
 - **CEG 0.5** — *in flight* (codification pending) per [CIRISRegistry#44](https://github.com/CIRISAI/CIRISRegistry/issues/44) + [CIRISNodeCore#26](https://github.com/CIRISAI/CIRISNodeCore/issues/26) + [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142): `live_stream` promotion + chunk-DAG composition. Lands when NodeCore#26 substrate decisions ratify. Additive at the namespace layer (no envelope change).
+- **CEG 0.8** (additive at the envelope layer; per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48)): **`community` subject_kind + `location_proof` subject_kind + `cohort_subkind: geographic` discriminator + wire-format-enforced rough-only location precision.** Sibling to CEG 0.7 `family` but with different defaults (community content federates per status quo; no at-rest DEK cascade; [§10.1.4](10_endpoints.md) structural-invisibility does NOT extend to community). Adds: **two new subject_kinds** — `community` ([§5.6.8.10](#56810-community-subject_kind-ceg-08-addition); larger node-collective with `cohort_subkind` discriminator; canonical `geographic` subkind with `geographic_constraint` payload; same six `consensus_protocol` kinds as family) and `location_proof` ([§5.6.8.11](#56811-location_proof-subject_kind-ceg-08-addition); H3 cell_id + cell_resolution ≤ 7 rough-only enforcement; optional `attestation_evidence` from ciris-keyring). **One new envelope field** ([§4](04_envelope.md)): `community_id` required iff `cohort_scope == community` (parallel to `family_id` but semantics differ — community federates per status quo). **One new canonicalization section** ([§0.8](00_conformance.md)): H3 cell canonicalization (lowercase hex; resolution-redundancy check; rough-only enforcement; containment semantics). **Three new substrate-emitted reserved prefixes** ([§7.8](07_reserved.md)): `hard_case:community_membership_change:*` + `hard_case:community_consensus_protocol_change:*` + `hard_case:community_consensus_protocol_violation:*` + `hard_case:location_proof_resolution_violation` (4-prefix total). **New composition policy** ([§8.1.13](08_composition.md)) Policy M — community membership composition + geographic admission gate (parallel to Policy L but without at-rest cascade). **New governance section** ([§11.8](11_governance.md)) geographic-community privacy invariant — joining is opt-in disclosure; rough-only is wire-format-enforced; leaving is forward-only (the audit chain preserves the historical claim). **1+4 wire-format lockdown preserved** — zero new structural primitives; both new subject_kinds ride existing `scores` + subject_kind discriminator; admission gates ride existing `consensus_protocol` machinery from CEG 0.7. Ninth independent path confirming 1+4 minimal-and-adequate ([§1.4](01_foundation.md)) — demonstrates the wire format can express **rough-precision geospatial constraints as canonicalization rules** (§0.8) + subject_kind admission gates, without new structural primitives.
 - **CEG 0.7** (additive at the envelope layer; per [CIRISRegistry#47](https://github.com/CIRISAI/CIRISRegistry/issues/47) + [CIRISPersist#152](https://github.com/CIRISAI/CIRISPersist/issues/152) + [ciris.ai/cewp](https://ciris.ai/cewp) structural-invisibility framing): **self/family membership primitives + wire-format-level structural invisibility.** Two new subject_kinds — `identity_occurrence` ([§5.6.8.8](#5688-identity_occurrence-subject_kind-ceg-07-addition); links occurrence_keys (devices + agents) to a root identity_key; single-vouch admission; `device_class ∈ phone | laptop | server | embedded | agent | service`) and `family` ([§5.6.8.9](#5689-family-subject_kind-ceg-07-addition); group of trusted nodes — members are identity_keys (which may themselves have multi-occurrence sets); one identity MAY belong to multiple families; per-family `consensus_protocol` field (`founder_only` / `unanimous` / `majority` / `quorum:M/N` / `weighted:{rubric}` / `custom:{id}`) governs admission; meta-amendment via the protocol's own rules unless `consensus_protocol_entrenched`). **One new envelope field** ([§4](04_envelope.md)): `family_id` required iff `cohort_scope == family`. **Four new substrate-emitted reserved prefixes** ([§7.7](07_reserved.md)): `hard_case:identity_occurrence_added:*` + `hard_case:family_membership_change:*` + `hard_case:family_consensus_protocol_change:*` + `hard_case:family_consensus_protocol_violation:*`. **New composition policy** ([§8.1.12](08_composition.md)) Policy L — self/family membership composition + DEK key-grant cascade on new-member admission + Option A forward-secrecy on departure. **New endpoint discipline** ([§10.1.4](10_endpoints.md)) structural-invisibility — substrate MUST NOT emit `holds_bytes:sha256:*` for `cohort_scope: self | family` content; the cewp claim "the wire format can't carry them in the first place" is now normative. **New governance section** ([§11.7](11_governance.md)) self/family membership governance — locked the 4 open decisions from #47 (Option A forward-secrecy + envelope `family_id` for multi-family + reserved-prefix substrate ownership + single-vouch self / consensus-protocol family). **Retcon at [§9.1](09_humanity_accord.md)**: HUMANITY_ACCORD triple is the canonical entrenched-`family` instance (3 founders, `consensus_protocol: quorum:2/3`, `consensus_protocol_entrenched: true`). **1+4 wire-format lockdown preserved** — zero new structural primitives; both new subject_kinds ride existing `scores` + subject_kind discriminator; membership changes ride existing `supersedes`; DEK cascade rides existing `key_grant.rotation_chain` from CEG 0.3. Eighth independent path confirming 1+4 minimal-and-adequate ([§1.4](01_foundation.md)) — demonstrates the structural set is rich enough to express collective-scale membership AND the wire-format-level closure of the cewp structural-invisibility privacy claim.
 - **CEG 0.6** (additive at the envelope layer; per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842)): **subject-side consent authority — the missing half of consent at the wire format.** Universal across medical records / photos / interviews / training data / group chat / financial / surveillance / FERPA / multi-party contracts. CEG ≤ 0.5 encoded only producer authority (`attesting_key_id`); CEG 0.6 adds subject authority via **one new optional envelope field** ([§4.2](04_envelope.md)): `subject_key_ids: Vec<KeyId>` — accepts both federation_keys identities AND canonical-hash identifiers (resolves [CIRISAgent#840 OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840)). **Semantic broadening of `withdraws`** ([§3.2.3](03_primitives.md)) to admit subject revocation + delegated proxy chain for canonical-hash subjects; the primitive's wire shape is unchanged. **One new dimension family** ([§5.6.8.6](#5686-consent-namespace-family-ceg-06-addition)): `consent:*` (8 prefixes — `state:*`, `stream:*`, `deletion_sla:*`, `deletion_complete`, `decay:*`, `partnership_grant`, `partnership_accept`, `scope:*`). **One new subject_kind** ([§5.6.8.7](#5687-consent_record-subject_kind-ceg-06-addition)): `consent_record` (ceremony envelope parallel to `key_grant` / `takedown_notice`; both bare-`scores` and ceremony shapes admitted at the same gate). **New composition policy** ([§8.1.11](08_composition.md)) Policy K — CEM composition. **New governance section** ([§11.6](11_governance.md)) vertical compliance mapping (HIPAA / GDPR Art 9 / FERPA / CCPA / AI training right-to-be-forgotten) + dimension-pattern-implies-`subject_key_ids` requirement. **1+4 wire-format lockdown preserved** — zero new structural primitives; one envelope field + one namespace family + one optional subject_kind + one semantic broadening. **CIRISAgent's CEM** (TEMPORARY / PARTNERED / ANONYMOUS streams) becomes a **consumer-policy bundle over the wire primitive**, not a wire-format lockdown; other agents MAY compose other streams over the same primitives.
 
-Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across **8 independent paths** ([§1.4](01_foundation.md)) — CEG 0.7 self/family membership + structural-invisibility composition is the eighth. The wire format's structural set is stable at 1+4 across content (multimedia + time-bound), consent (dual-authority + decay-protocol + bilateral-pair), AND collective-scale membership (devices + agents + families + entrenched-families) — including the wire-format-level closure of the cewp structural-invisibility privacy claim.
+Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across **9 independent paths** ([§1.4](01_foundation.md)) — CEG 0.8 community + location_proof + rough-precision-as-canonicalization composition is the ninth. The wire format's structural set is stable at 1+4 across content (multimedia + time-bound), consent (dual-authority + decay-protocol + bilateral-pair), collective-scale membership (devices + agents + families + entrenched-families), AND geospatial admission constraints with wire-format-enforced privacy precision.
 
 ---
 

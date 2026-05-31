@@ -60,6 +60,19 @@ Per [§5.6.8.8](05_namespace.md) `identity_occurrence` + [§5.6.8.9](05_namespac
 
 Composes with [§7.2](#72-substrate-self-report-reservations-system) — these are part of the same substrate-self-report discipline. Non-substrate emissions on these prefixes are a category error and MUST be rejected.
 
+## §7.8 Community + location-event reservations (CEG 0.8 addition)
+
+Per [§5.6.8.10](05_namespace.md) `community` + [§5.6.8.11](05_namespace.md) `location_proof` subject_kinds. Four substrate-emitted prefixes:
+
+| Prefix | Emitted on | Emitter rule |
+|---|---|---|
+| `hard_case:community_membership_change:{community_key_id}` | Substrate admits an addition or removal in the named community's roster (per the community's `consensus_protocol`; for `cohort_subkind: geographic` admission additionally requires valid `location_proof`) | `attesting_key_id` MUST match `federation_keys` row with `identity_type="substrate_persist"` |
+| `hard_case:community_consensus_protocol_change:{community_key_id}` | Substrate admits a `consensus_protocol` amendment on a non-entrenched community | Same: substrate_persist |
+| `hard_case:community_consensus_protocol_violation:{community_key_id}` | Substrate REJECTS a proposed community amendment (rule unsatisfied OR entrenched) | Same: substrate_persist |
+| `hard_case:location_proof_resolution_violation` | Substrate REJECTS a `location_proof` Contribution with `cell_resolution > 7` per [§0.8.1](00_conformance.md) rough-only enforcement; emitted against the producer's `key_id` so operators can observe malformed-client patterns | Same: substrate_persist |
+
+Composes with [§7.2](#72-substrate-self-report-reservations-system) + [§7.7](#77-selffamily-membership-event-reservations-ceg-07-addition) — part of the same substrate-self-report discipline. Non-substrate emissions on these prefixes are a category error and MUST be rejected.
+
 ---
 
 [← §6 Relations](06_relations.md) | **§7 Reserved** | [Next: §8 Composition →](08_composition.md)

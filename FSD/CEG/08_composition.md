@@ -429,6 +429,149 @@ This is consistent with [§11.4](11_governance.md) "takedown isn't a coup" + [§
 
 The orthogonality holds: **`cohort_scope` is producer-side visibility scoping**; **`identity_occurrence` + `family` are substrate-side membership primitives that gate at-rest DEK wrapping**; **`subject_key_ids` is subject-side revocation authority**. Three independent envelope-level concerns that compose without overlap.
 
+### §8.1.13 Policy M — Community membership composition (CEG 0.8 addition)
+
+Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48) + [§5.6.8.10](05_namespace.md) `community` + [§5.6.8.11](05_namespace.md) `location_proof`. Composition pattern for resolving the **current membership set** of a community, gating cohort-filtered visibility for `cohort_scope: community` content.
+
+Sibling to [§8.1.12 Policy L](#8112-policy-l--selffamily-membership-composition-ceg-07-addition) (self/family) but with different defaults — community content federates (emits `holds_bytes:sha256:*` per status quo); there is NO at-rest DEK cascade.
+
+#### §8.1.13.1 Community membership resolution
+
+For community `C`, the current member set is computed as:
+
+```
+resolve_community(C, now):
+    latest = federation_attestations
+        .where(subject_kind == "community")
+        .where(envelope.community_key_id == C)
+        .where(supersedes chain → latest non-superseded)
+        .where(admission rule satisfied per CURRENT consensus_protocol;
+               see §8.1.13.2)
+    return {m.key_id for m in latest.envelope.members}
+```
+
+Same shape as `resolve_family` ([§8.1.12.2](#81122-family-membership-resolution)). Each `member.key_id` is an identity (which may itself have a multi-occurrence set via CEG 0.7 `identity_occurrence`).
+
+#### §8.1.13.2 Community admission per `consensus_protocol` + `cohort_subkind`
+
+A proposed membership change rides a `supersedes` Contribution on the community's latest admitted `community` Contribution. Substrate evaluates the CURRENT community's `consensus_protocol` (same six canonical kinds as family) AND any subkind-specific admission requirements:
+
+```
+admit_community_change(C, proposed: community_record):
+    current = resolve_community(C, now)
+    protocol = current_community_record(C).consensus_protocol
+    subkind = current_community_record(C).cohort_subkind
+
+    signatures_ok = evaluate_consensus_protocol(protocol, current, proposed.signatures)
+    if not signatures_ok:
+        emit hard_case:community_consensus_protocol_violation:{C}
+        reject
+
+    subkind_ok = evaluate_subkind_admission(subkind, current, proposed)
+    if not subkind_ok:
+        // For geographic: subkind admission failed (e.g., new member's location_proof
+        // not contained in geographic_constraint, or expired location_proof)
+        emit hard_case:community_consensus_protocol_violation:{C}  // same observability prefix
+        reject
+
+    admit
+    emit hard_case:community_membership_change:{C}
+```
+
+The `evaluate_subkind_admission` predicate dispatches per `cohort_subkind`:
+
+```
+evaluate_subkind_admission(subkind, current, proposed):
+    match subkind:
+        "geographic":
+            # Per §5.6.8.10 geographic admission requirement
+            for each NEW member in proposed.members (not in current):
+                their_proof = latest valid location_proof from new_member.key_id
+                if their_proof IS NULL:
+                    return false  // no location_proof on file
+                if their_proof.cell_id NOT contained in current.geographic_constraint.cell_id:
+                    return false  // location outside community's geographic bound
+                if their_proof.valid_until passed:
+                    return false  // expired
+            return true
+        _:
+            return true  // unknown subkinds admit on consensus_protocol alone
+```
+
+Operator vocabularies extending `cohort_subkind` provide their own `evaluate_subkind_admission` predicates per the `custom:{id}` consensus_protocol hook pattern from CEG 0.7 [§8.1.12.3](#81123-membership-change-admission-per-consensus_protocol).
+
+#### §8.1.13.3 No at-rest DEK cascade (the load-bearing difference vs Policy L)
+
+CEG 0.7 [§8.1.12.4](#81124-key-grant-cascade-the-at-rest-encryption-flow) Policy L cascade does NOT apply to community. Reasons:
+
+- Communities can be LARGE (10K+ members)
+- Per-member DEK wrap on every emission would be operationally infeasible
+- The privacy property for communities is **cohort-filtered visibility** (consumer policy reads roster + envelope `community_id`), NOT **byte-level invisibility** (that's for self/family)
+- Content emitted at `cohort_scope: community` emits `holds_bytes:sha256:*` per status quo; non-community peers see the directory entries but consumer policy filters them out
+
+Consumer policy reading a `cohort_scope: community` Contribution composes:
+
+```
+consumer_allows_visibility(C, viewer_key):
+    if C.cohort_scope != "community":
+        return apply_other_cohort_rules(C, viewer_key)
+
+    community = resolve_community(C.community_id, now)
+    return viewer_key ∈ community
+```
+
+This is consumer-side; substrate emits per status quo.
+
+#### §8.1.13.4 No automatic forward-secrecy decision (community has no removed-member-can-still-decrypt problem)
+
+CEG 0.7 [§8.1.12.5](#81125-forward-secrecy-on-member-removal-option-a-recommended-for-v1) Option A doesn't apply because there's no DEK to retain. Removed community members lose visibility forward (consumer policy stops including their queries in the cohort filter) but had byte-level access during membership via the public `holds_bytes:*` chain. No re-encryption ceremony needed; no key_grant cascade to cancel.
+
+The byte-level audit-trail discipline carries the symmetric Option-A semantic implicitly: bytes the removed member received during membership remain in their local cache; they cannot continue to receive NEW community content via the cohort filter post-removal. "Once shared, always shared" forward-secrecy is preserved by default at the consumer-policy layer.
+
+#### §8.1.13.5 Geographic-community admission flow (worked example)
+
+```
+1. Alice publishes a location_proof:
+   subject_kind: location_proof
+   subject_key_id: alice_root_key
+   cell_id: "872830828ffffff"      // H3 res 7, ~5 km², downtown Austin
+   cell_resolution: 7
+   asserted_at: now
+   valid_until: now + 30 days
+   cohort_scope: federation         // public; the disclosure IS the opt-in
+
+   Substrate admits (resolution 7 ≤ 7 OK). Emission federates.
+
+2. Alice proposes joining Austin community:
+   subject_kind: community
+   community_key_id: austin-community
+   supersedes: prior_austin_community_record_id
+   members: [...existing..., {key_id: alice_root_key, joined_at: now, role: member}]
+   signatures: [...current_member_sigs]   // satisfies majority rule
+
+3. Substrate admission gate (per §8.1.13.2):
+   - signatures_ok: majority rule satisfied ✓
+   - subkind: "geographic" → evaluate_subkind_admission:
+     - alice_root_key's latest valid location_proof exists
+     - cell_id "872830828ffffff" CONTAINED in "85283473fffffff" (austin metro, res 5)
+       via §0.8.2 containment (res 7 ≥ res 5; parent-walk reaches the constraint)
+     - valid_until in the future
+     - subkind_ok ✓
+   - admit + emit hard_case:community_membership_change:austin-community
+
+4. Alice now receives cohort-filtered visibility for cohort_scope:community content
+   with community_id: austin-community. No key_grant cascade (community is unencrypted);
+   no at-rest wrap; substrate emits holds_bytes:* for community content per status quo.
+```
+
+#### §8.1.13.6 Composition with CEG 0.6 + 0.7
+
+Communities compose with consent (CEG 0.6) and self-collectives (CEG 0.7) cleanly:
+
+- A community member who is also a CIRISAgent-using individual has an `identity_occurrence` set (CEG 0.7); community content arriving at the member's identity_key is then propagated to their occurrences via Policy L's at-rest cascade (if the member's local substrate chose to re-emit the community content at `cohort_scope: self` for cross-device sync; otherwise community content stays at the cohort_scope: community visibility on each device the member uses to query)
+- A community member who is also a subject in `subject_key_ids` of a community-scoped Contribution retains revocation authority per CEG 0.6 [§3.2.3](03_primitives.md) rule 2; the orthogonality between cohort_scope (visibility) and subject_key_ids (revocability) holds at community scope same as at family scope
+- A geographic community whose `geographic_constraint` covers a region that overlaps a family's at-home location does NOT cross-contaminate: families are not auto-admitted to communities; communities are not auto-admitted to families. Each membership is explicit, ceremony-shaped, and independent.
+
 ## §8.2 Aggregation semantics — opinionated defaults
 
 Per dimension+attested_key_id, the verdict is computed by composing attestations under the chosen policy. Default aggregation by polarity column ([§5](05_namespace.md)):

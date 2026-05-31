@@ -206,6 +206,57 @@ What CEG 0.7 does NOT do:
 - Prescribe per-family entrenchment policy (operator/family choice)
 - Document the CIRISPersist#152 at-rest encryption flow details (substrate-side; persist spec)
 
+## §11.8 Geographic-community privacy invariant (CEG 0.8 addition; per CIRISRegistry#48)
+
+Per [§5.6.8.10](05_namespace.md) `community` with `cohort_subkind: geographic` + [§5.6.8.11](05_namespace.md) `location_proof` + [§0.8](00_conformance.md) H3 cell canonicalization + [§8.1.13](08_composition.md) Policy M.
+
+CEG 0.8 codifies a load-bearing privacy invariant: **joining a geographic community is a one-way disclosure**. Three sub-properties make this wire-format-level, not policy-level.
+
+### §11.8.1 Rough-only is wire-format-enforced
+
+Per [§0.8.1](00_conformance.md): `location_proof.cell_resolution ≤ 7`. H3 resolution 7 hexagons average ~5 km² edge-length — sufficient for city/borough disclosure without block/building precision. Producers attempting finer resolution have admission rejected at the substrate gate.
+
+**This is the closure of an entire class of accidental over-share**: a malformed UI cannot publish precise location even if the client-side gating fails. The wire-format-level enforcement is the privacy primitive; UI is the second line.
+
+Substrate emits `hard_case:location_proof_resolution_violation` ([§7.8](07_reserved.md)) on rejection so operators can observe malformed-client patterns. This is observability for operator debugging, NOT a slashing trigger — malformed producers are usually buggy clients, not attackers.
+
+### §11.8.2 Leaving is forward-only — the audit chain preserves the historical claim
+
+Per [§3.2](03_primitives.md) `withdraws-isn't-retroactive` + CEG 0.7 [§11.7.1](#1171-forward-secrecy-on-member-departure--option-a-ceg-07-default) Option A forward-secrecy. When a subject withdraws their location_proof (or leaves a geographic community):
+
+- Forward visibility evicts (consumer policy treats the subject as "no current location proof" for new admission decisions from withdrawal-time forward)
+- The withdrawn `location_proof` Contribution **remains in the audit chain** — federation peers retain the historical record
+- "I was in Austin from May to August" is permanent; "I am currently in Austin" is what withdraws/expiry govern
+
+This is the cost the subject opts into when emitting the `location_proof`. Per the [CEWP](https://ciris.ai/cewp) structural-not-policy framing, the wire format does not promise to expunge historical claims — that promise would be hollow (federation peers retain copies; the substrate can mark forward-only). What the wire format DOES promise:
+
+- **Rough-only** (§11.8.1): the historical claim is bounded to resolution ≤ 7, never finer
+- **Opt-in** (§11.8.3): the historical claim exists only because the subject signed and emitted it
+- **Auditability**: the subject can prove what they did or did not claim, when (the audit chain is the receipt)
+
+### §11.8.3 Joining is opt-in — substrate does NOT solicit location
+
+A `location_proof` Contribution is emitted **only** by the subject themselves (`attesting_key_id == subject_key_id`) or by a `delegates_to` chain with `scope: [consent_revocation]` per CEG 0.6 — the substrate has no path to mint a location_proof on behalf of a key without an explicit signature.
+
+Communities cannot **require** a location_proof from non-members (they can only **gate admission** on whether a member has produced one). The substrate has no mechanism for "involuntary location disclosure" via the wire format. A bad actor cannot force-publish another key's location_proof; without the subject's signature, the substrate rejects.
+
+**Compose with [§9 HUMANITY_ACCORD](09_humanity_accord.md) substrate-protective discipline**: a state actor demanding the substrate emit location_proofs for non-consenting subjects is exactly the substrate-protective case that the HUMANITY_ACCORD halt authority exists to address. The substrate's role at this primitive is mechanical opt-in enforcement; political/legal disputes route through the §9 + §11.4 takedown coordination + the HUMANITY_ACCORD `EmergencyShutdown CONSTITUTIONAL` path if necessary.
+
+### §11.8.4 What CEG 0.8 documents
+
+- The rough-only enforcement primitive at [§0.8.1](00_conformance.md) (resolution ≤ 7 for location_proof)
+- The forward-only leave semantics at [§3.2](03_primitives.md) (withdraws-isn't-retroactive applied to location_proof)
+- The opt-in admission flow at [§5.6.8.11](05_namespace.md) (location_proof signed by subject only or delegates_to proxy chain)
+- The geographic-community admission composition at [§8.1.13.2](08_composition.md) (Policy M evaluate_subkind_admission for geographic)
+- The substrate-self-report observability at [§7.8](07_reserved.md) (4 hard_case prefixes)
+
+What CEG 0.8 does NOT do:
+- Mandate H3 over alternative geospatial systems for operator-internal use (operator choice; wire format uses H3 only)
+- Provide a place-name registry (communities self-name; H3 cells are the substrate-level binding)
+- Define specific cell-resolution conventions for community-side `geographic_constraint` (only `location_proof` is bounded to ≤ 7; communities MAY scope themselves at any resolution per operator/founder choice)
+- Codify non-geographic community subkinds (`professional` / `interest` / `local-business` / `event-attendees` / etc. are downstream-demand-driven future spec rounds — same discipline that drove 0.3 → 0.4 → 0.5 → 0.6 → 0.7 → 0.8)
+- Address `affiliations` (the fourth cohort_scope tier; deferred to CEG 0.9 candidate)
+
 ---
 
 [← §10 Endpoints](10_endpoints.md) | **§11 Governance** | [Next: §12 Translation →](12_translation.md)
