@@ -38,6 +38,31 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.1.3] — 2026-05-30
+
+**Substrate triple sync to Conformance-matrix canonical (post-v2.1.x cascade):**
+
+| Crate | v2.1.2 | v2.1.3 | What landed upstream |
+|---|---|---|---|
+| `ciris-crypto` | v4.4.2 | **v4.4.3** | Workspace-level rusqlite drops macOS from `bundled`; macOS now links against `/usr/lib/libsqlite3.dylib` (CIRISVerify#45) |
+| `ciris-keyring` | v4.4.2 | **v4.4.3** | Same workspace-level bump |
+| `ciris-persist` | v3.6.3 | **v3.6.9** | Mach-O parity CI gate (CIRISPersist#141); bundled-libsqlite3 reopen on darwin closure ; verify pin bump |
+| `ciris-edge` | v1.0.1 | **v1.1.3** | MINOR 1.0→1.1 cascade: routing-table FFI Leviculum gap-stub flips (CIRISEdge#44), scrub_signer routing (#137/#138 mirror), darwin libsqlite3 cascade closure (CIRISEdge#50 darwin follow-on) |
+
+### macOS-only fix; doesn't affect Registry's Linux Docker image
+
+The upstream cascade closed a darwin-only cohabitation bug: when both `ciris-persist` and `ciris-edge` Python wheels statically bundled libsqlite3, dyld loaded two separate copies in the same Python process and edge's never-initialized copy crashed (SIGSEGV). Fix: drop macOS from rusqlite's `bundled` feature so both wheels share `/usr/lib/libsqlite3.dylib` via dyld.
+
+**Registry runs on Linux (Debian bookworm Docker image) and ships as a standalone binary, not a Python wheel**. The macOS-cohabit failure mode doesn't apply. Our [`libsqlite3-sys` bundled feature](#211--2026-05-30) from v2.1.1 stays — correct for our Linux standalone-binary case.
+
+### Verification
+
+- `cargo check --workspace` clean
+- `cargo test --workspace` — 150/150 passing
+- `cargo tree -i ciris-{persist,keyring,edge}` confirms single unified version each across the dep graph
+
+---
+
 ## [2.1.2] — 2026-05-30
 
 **Hotfix for v2.1.1 — fixes the CI smoke-gate's `:latest` promote step.**
@@ -638,7 +663,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.2...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.3...HEAD
+[2.1.3]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.3
 [2.1.2]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.2
 [2.1.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.1
 [2.1.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.0
