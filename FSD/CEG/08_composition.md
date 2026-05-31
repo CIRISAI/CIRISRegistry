@@ -175,6 +175,132 @@ Where the `age_assurance:{level}` ordering is: `self < provider:{verifier_key}:a
 
 **Anti-tricking guarantee parallel to §8.1.6**: the canonical-distributor Layer 1 rule MUST apply regardless of vote accumulation. No amount of NodeCore P4 vote weight elevates an unverified distributor into Layer 1; the only path is the operator-set trust list. Binds CIRIS L3C: cannot exempt itself from this rule for its own content distribution.
 
+### §8.1.11 Policy K — CEM composition (CEG 0.6 addition)
+
+Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842). Composition pattern for dual-authority Contributions where the subject is named via [§4.2](04_envelope.md) `subject_key_ids`, with consent state composed from the [§5.6.8.6](05_namespace.md) `consent:*` namespace family.
+
+Reads as: "this Contribution names a subject whose consent state evolves over time; consumer policy resolves the effective consent verdict by walking the subject's latest non-superseded `consent:state:*` emission, gated by `valid_until`, and tracks producer deletion-SLA obligations on revocation."
+
+#### §8.1.11.1 Effective consent resolution (read path)
+
+For a target Contribution `T` carrying `subject_key_ids` of length ≥ 1, the effective consent state per subject `s ∈ T.subject_key_ids` is computed as:
+
+```
+resolve_consent(T, s, now):
+    candidates = federation_attestations
+        .where(target == T)
+        .where(attesting_key_id == s OR
+               attesting_key_id ∈ delegates_to(s).proxies)
+        .where(dimension matches "consent:state:*")
+        .where(supersedes_id IS NULL OR replaced by latest in supersedes chain)
+        .where(valid_until IS NULL OR valid_until > now)
+        .order_by(asserted_at DESC)
+
+    latest = first(candidates)
+    return:
+        granted   if latest.dimension == "consent:state:granted"
+        revoked   if latest.dimension == "consent:state:revoked"
+        expired   if latest.dimension == "consent:state:expired" OR
+                                   latest.valid_until passed without renewal
+        unspecified  if no candidates (subject named but never declared)
+```
+
+Substrate MAY cache the resolution per `(T, s)` keyed on the latest `asserted_at`; invalidate on any new `consent:*` write from `s` or `s`'s proxy chain.
+
+#### §8.1.11.2 Multi-subject revocation (any-subject-binding)
+
+When `len(T.subject_key_ids) > 1`, each subject is an **independent** revocation authority. A `withdraws` admitted under [§3.2.3 rule 2 or 3](03_primitives.md) from ANY single subject in `T.subject_key_ids` evicts the Contribution. Consumer policy MUST treat `T` as revoked from the perspective of all subjects (no "majority-rules" or "all-subjects-must-agree" softening) — this is the subject-as-individual principle from MISSION.md §1.5 applied at the subject-authority layer.
+
+Concrete cases:
+- Group photo with three subjects: any one subject revokes → the photo is evicted from federation propagation.
+- Group chat export with N participants: any one participant revokes → the export is evicted.
+- Multi-party contract: any one signatory revokes → the contract Contribution is evicted (separate from the legal-validity question, which is consumer-side; the substrate just removes the wire artifact).
+
+Producers MAY mitigate by partitioning content into per-subject Contributions (e.g., one chat-message Contribution per author, linked via `topical_relation:replies_to`) so that one subject's revocation doesn't evict another's content.
+
+#### §8.1.11.3 Deletion-SLA watcher (substrate emission)
+
+When subject `s` emits `consent:state:revoked` (or an admitted `withdraws`) against target `T`, substrate watches for producer compliance:
+
+```
+watch_sla(T, s, revocation_at):
+    sla = T.attestations
+        .where(attesting_key_id == T.attesting_key_id)
+        .where(dimension == "consent:deletion_sla:*")
+        .latest()
+        .extract_days()
+
+    if sla is None:
+        return  # no SLA commitment; no watcher
+
+    deadline = revocation_at + sla.days
+    completion = T.attestations
+        .where(attesting_key_id == T.attesting_key_id)
+        .where(dimension == "consent:deletion_complete")
+        .where(asserted_at > revocation_at)
+        .first()
+
+    if now > deadline and completion is None:
+        emit hard_case:consent_sla_breach against T
+```
+
+The `hard_case:*` emission is the **primitive observability signal**; per [§11.6](11_governance.md) governance, LensCore composes derived detectors on top (`detection:consent:repeat_sla_breach`, etc.).
+
+#### §8.1.11.4 Bilateral pair composition (PARTNERED ceremony)
+
+For the bilateral partnership shape per [§5.6.8.7](05_namespace.md) `consent_record`:
+
+```
+ratified_pair(pair_id):
+    subject_half = federation_attestations
+        .where(subject_kind == "consent_record")
+        .where(envelope.bilateral_pair_id == pair_id)
+        .where(envelope.stance == "granted")
+        .where(envelope.subject_key_id == attesting_key_id)  # subject signing for self
+        .first()
+
+    producer_half = federation_attestations
+        .where(subject_kind == "consent_record")
+        .where(envelope.bilateral_pair_id == pair_id)
+        .where(envelope.stance == "granted")
+        .where(envelope.target_key_id == subject_half.subject_key_id)
+        .where(attesting_key_id != subject_half.subject_key_id)  # producer signing
+        .first()
+
+    return subject_half AND producer_half  # both required for ratification
+```
+
+`topical_relation:bilateral_pair` is the open-vocab edge documenting the pair linkage (recommended, not required for ratification — `bilateral_pair_id` is the binding mechanism).
+
+#### §8.1.11.5 Decay-protocol stage composition (CIRISAgent CEM ANONYMOUS)
+
+For consent_records carrying `decay_protocol: "ciris-agent-90day"` (or any named decay path):
+
+```
+decay_state(consent_record, now):
+    elapsed = now - revocation_event(consent_record).asserted_at
+
+    walk substrate emissions on dimension `consent:decay:*` against consent_record,
+    matching the decay_protocol's stage map. CIRISAgent 90-day decay:
+
+    elapsed < 30d  → consent:decay:identity_severed (substrate emits at elapsed=0)
+    30d ≤ elapsed < 60d  → consent:decay:patterns_anonymized (substrate emits at elapsed=30d)
+    60d ≤ elapsed < 90d  → (in flight; no new stage emission)
+    elapsed ≥ 90d  → consent:decay:complete (substrate emits at elapsed=90d)
+```
+
+Per [§5.6.8.6](05_namespace.md) `consent:decay:{stage}` is open vocab. Other decay protocols MAY name other stage sequences; substrate honors the producer's published `decay_protocol` string and emits stages per the protocol's stage map.
+
+#### §8.1.11.6 What Policy K composes
+
+| CIRISAgent CEM stream | Policy K composition |
+|---|---|
+| **TEMPORARY** (14d default) | `consent:state:granted` + envelope `valid_until = asserted_at + 14d` + auto-renew dimension on interaction (consumer-policy concern) |
+| **PARTNERED** | Bilateral pair per §8.1.11.4: subject `consent:partnership_grant` + producer `consent:partnership_accept` under same `bilateral_pair_id`; no `valid_until` |
+| **ANONYMOUS** | Revocation + decay-protocol per §8.1.11.5: substrate emits stage milestones; agent honors stage-appropriate processing constraints |
+
+Per CEG's [§3.4 MISSION.md](../../MISSION.md) layering: CIRISAgent's three streams are a **named bundle** at the consumer-policy layer. Other agents MAY compose other streams over the same wire primitives. CEG documents the canonical bundle for ecosystem coordination; CEG does not lock the bundle.
+
 ## §8.2 Aggregation semantics — opinionated defaults
 
 Per dimension+attested_key_id, the verdict is computed by composing attestations under the chosen policy. Default aggregation by polarity column ([§5](05_namespace.md)):

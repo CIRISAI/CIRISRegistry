@@ -379,6 +379,87 @@ Per [CIRISRegistry#40](https://github.com/CIRISAI/CIRISRegistry/issues/40) + [CI
 
 **Composition note**: event_listing demonstrates that complex state-bearing content shapes do NOT require new structural primitives. The state machine (open → cancelled / completed / superseded) is composed by consumer policy walking the 1+4 set (`withdraws` / `supersedes` / `delegates_to` for ticket grants) + this dimension family's latest emission. The 1+4 minimal-and-adequate claim ([§1.4](01_foundation.md)) holds against time-bound state-bearing content — fifth independent path post-CEG 0.3.
 
+#### §5.6.8.6 Consent namespace family (CEG 0.6 addition)
+
+Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842). The wire-format primitives for subject-side consent authority over Contributions where the subject is named via [§4.2](04_envelope.md) `subject_key_ids`. Open vocabulary per [§11.2.1](11_governance.md); canonical kinds named here.
+
+| Prefix | Description | Polarity | Emitted by |
+|---|---|---|---|
+| `consent:state:{granted\|revoked\|expired}` | Subject's stance on the target Contribution. Closed-set stance values; `revoked` overrides prior `granted`; `expired` is substrate-emitted when `valid_until` passes without renewal. **Common case**: bare `scores` from a subject_key_id of the target. | enumerated | subject_key_id (1, 2) / substrate (3) |
+| `consent:stream:{kind}` | Pre-packaged stream bundle. Recommended canonical kinds: `temporary` (14d auto-expire, default), `partnered` (bilateral + persistent), `anonymous` (decay-protocol target). Open vocab; recommended-not-mandatory per the [CIRISAgent CEM](https://github.com/CIRISAI/CIRISAgent/blob/main/docs/CIRIS_CONSENT_SERVICE.md) bundle; other agents MAY compose other streams. | enumerated | subject_key_id |
+| `consent:deletion_sla:{days}` | Producer's commitment at publication: time-to-delete-after-revoke. Numeric value carries the SLA window. Composes with [§8.1.11 Policy K](08_composition.md) SLA-breach watcher. | signed | attesting_key_id (producer) |
+| `consent:deletion_complete` | Producer's attestation that subject-revoked content has been evicted from local stores. Cancels the SLA-breach watcher. | positive-only | attesting_key_id (producer) |
+| `consent:decay:{stage}` | Substrate emission during multi-stage decay protocols. Canonical stages: `identity_severed` / `patterns_anonymized` / `complete` (CIRISAgent 90-day decay). Open vocab; other agents MAY define other decay paths. | enumerated | substrate (Persist) |
+| `consent:partnership_grant` | Subject side of a bilateral grant; pairs with producer's `consent:partnership_accept` via `topical_relation:bilateral_pair`. | positive-only | subject_key_id |
+| `consent:partnership_accept` | Producer side of a bilateral grant. | positive-only | attesting_key_id (producer) |
+| `consent:scope:{kind}` | Scope qualifier on a `consent:state:granted` — names what the grant covers. Canonical kinds: `retain` (keep the bytes), `share` (propagate across federation), `analyze` (derive features / scores / classifications), `train` (use as training input), `publish` (publish to external systems). Open vocab with sub-scoping: `retain:90d`, `share:cohort:family`, etc. | enumerated | subject_key_id |
+
+**Composition pattern (the common case)**:
+
+```
+1. Producer publishes a Contribution with subject_key_ids = [user_key]
+2. User (or a delegates_to chain rooted at user) emits a bare `scores` on
+   `consent:state:granted` against the producer's Contribution, with
+   `consent:scope:[retain, share, analyze]` companion attestations
+3. Later: user issues `withdraws` against the producer's Contribution
+   (admitted under §3.2.3 rule 2 — subject revocation)
+4. Substrate watcher (per §8.1.11) starts SLA clock if producer committed
+   `consent:deletion_sla:{days}` at publication
+5. Producer emits `consent:deletion_complete` within the window OR
+   substrate emits `hard_case:consent_sla_breach` as observability signal
+```
+
+**1+4 lockdown preserved**: every step rides existing structural primitives (`scores` / `withdraws`) plus the new `consent:*` dimensions. No new attestation_type.
+
+#### §5.6.8.7 `consent_record` subject_kind (CEG 0.6 addition)
+
+Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45). The canonical envelope shape when consent is the primary subject of the Contribution itself (parallel to [`key_grant`](#key_grant) and [`takedown_notice`](#takedown_notice) — ceremony-shape over the underlying primitive). Use cases: standalone partnership grants, DSAR-shape consent declarations, multi-party contracts, explicit consent ceremonies with locked field schemas.
+
+**Both shapes admitted at the same gate**: subject-side consent MAY ride a bare `scores` on `consent:state:*` against any target Contribution (the common case, see [§5.6.8.6](#5686-consent-namespace-family-ceg-06-addition) composition pattern), OR ride this `consent_record` subject_kind when an explicit ceremony envelope is wanted. Per the [§3.4 MISSION.md layering principle](../../MISSION.md), bare `scores` is the primitive; `consent_record` is the ceremony UX shape over the primitive.
+
+```
+consent_record {
+    subject_key_id:       key_id              // the subject declaring stance (federation_keys
+                                              //   OR canonical-hash per §4.2.2)
+    target_key_id:        key_id | null       // optional: producer/recipient for bilateral grants
+    stance:               ConsentStance       // closed-set enum per below
+    scope:                [ConsentScope, ...] // open vocab; see §5.6.8.6
+    asserted_at:          rfc3339_canonical   // per §0.5
+    valid_until:          Option<rfc3339>     // null = indefinite
+    deletion_sla_days:    Option<u32>         // for revocations: producer obligation window
+                                              //   (composes with `consent:deletion_sla:{days}`)
+    decay_protocol:       Option<string>      // optional: named multi-stage decay path
+                                              //   (e.g., "ciris-agent-90day")
+    bilateral_pair_id:    Option<string>      // for bilateral grants: pairs subject + producer
+                                              //   Contributions via topical_relation:bilateral_pair
+}
+
+ConsentStance (closed-set):
+| value     | meaning                                                                 |
+|-----------|-------------------------------------------------------------------------|
+| granted   | Subject affirms; processing may proceed within scope and valid_until    |
+| revoked   | Subject withdraws; producer must initiate deletion within sla window    |
+| expired   | Substrate emission when valid_until passes without renewal              |
+```
+
+Rides existing `scores` attestation_type with `subject_kind=consent_record` discriminator. No new attestation_type. 1+4 preserved.
+
+**Bilateral pair pattern** (per [CIRISAgent CEM](https://github.com/CIRISAI/CIRISAgent/blob/main/docs/CIRIS_CONSENT_SERVICE.md) PARTNERED stream):
+
+```
+1. Subject emits consent_record(subject_key_id, stance: granted,
+                                 bilateral_pair_id: <fresh-uuid>) +
+                  scores on `consent:partnership_grant`
+2. Producer emits consent_record(subject_key_id, target_key_id: subject_key_id,
+                                 stance: granted, bilateral_pair_id: <same-uuid>) +
+                  scores on `consent:partnership_accept`
+3. topical_relation:bilateral_pair links the two Contributions
+4. Consumer policy treats the partnership as ratified iff both halves present
+   under the same bilateral_pair_id with stance: granted
+```
+
+The structural primitives close the bilateral shape — no new attestation_type, no new envelope field beyond `subject_key_ids` itself.
+
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 
 **Owner**: [`RATCHET/FSD.md`](https://github.com/CIRISAI/RATCHET/blob/main/FSD.md).
@@ -428,8 +509,10 @@ Lineage:
 - **CEG 0.2** (wire break): renamed §5.2 attestation-ladder prefixes from `attestation:l{N}:*` to mechanism-only form (`attestation:self_verify`, `attestation:hardware_rooted`, `attestation:registry_consensus`, `attestation:license_validity`, `attestation:agent_integrity`) per [§1.3.1](01_foundation.md) T2 honest application — L-numbers name ladder-position (a verdict-shape) not mechanism. The L1-L5 ladder is now consumer-side composition per [§8.1.9](08_composition.md) Policy I — Attestation-Ladder Composition. Deprecated wire shape added to [§13.1](13_anti_patterns.md).
 - **CEG 0.3** (additive; per CIRISRegistry#37 + #38 + #39): multimedia tier + governance additions. **Two new subject_kinds** documented: `takedown_notice` (with `LegalBasis` closed-set enum of 10 values + per-basis discipline) and `key_grant` (with `wrap_algorithm` + `scope` enums + `rotation_chain` semantics). **Five new external_content sub_kinds**: `image`, `audio`, `video`, `film`, `model_3d` (+ Phase 2 `live_stream`). **Four new dimension families**: `content_rating:{scheme}:{rating}`, `content_class:{class}`, `cw_class:{class}`, `age_assurance:{level}`. **Five new media-prefix families**: `image:*`, `audio:*`, `video:*`, `film:*`, `model_3d:*`. New composition policy ([§8.1.10](08_composition.md)) for trusted-publisher path + age-assurance gating. New governance sections ([§11.4](11_governance.md) fast-path takedown coordination + [§11.5](11_governance.md) hash-database operator policy). **1+4 wire-format lockdown preserved** — retire-key-grant rides existing `supersedes`; takedown propagation rides existing `withdraws`-against-`holds_bytes`; no new structural primitives.
 - **CEG 0.4** (additive; per [CIRISRegistry#40](https://github.com/CIRISAI/CIRISRegistry/issues/40) + [CIRISNodeCore#25](https://github.com/CIRISAI/CIRISNodeCore/issues/25) Gap 1 closure at [d0a443a](https://github.com/CIRISAI/CIRISNodeCore/commit/d0a443a)): time-bound state-bearing content. **One new `external_content` sub_kind**: `event_listing` (Eventbrite / Meetup / Lu.ma / calendar / RSVPs / ticketing) with Source struct documented at NodeCore SCHEMA §4.29. **One new dimension family group** ([§5.6.8.5](#5685-event-lifecycle-dimension-families-ceg-04-addition)): `event:lifecycle:{state}` (open / cancelled / completed / superseded) + `event:rsvp_count` + `event:attendance`. **Two new canonical `topical_relation:{kind}` entries** (documentation-only registry additions; no amendment): `rsvps` (RSVP attestation against an event) + `vod_of` (reserved for the deferred live_stream→video relationship). **1+4 wire-format lockdown preserved** — lifecycle state machine composes from `withdraws` / `supersedes` / `delegates_to` + the new dimension's latest non-superseded emission; no new structural primitives. **`live_stream` remains deferred** ([CIRISNodeCore#25](https://github.com/CIRISAI/CIRISNodeCore/issues/25) Gap 2 not yet shipped; substrate-side Edge + Persist decisions pending) — CEG 0.4 codifies only what NodeCore shipped, per the downstream-demand-pulls-CEG-additions discipline established with 0.3.
+- **CEG 0.5** — *in flight* (codification pending) per [CIRISRegistry#44](https://github.com/CIRISAI/CIRISRegistry/issues/44) + [CIRISNodeCore#26](https://github.com/CIRISAI/CIRISNodeCore/issues/26) + [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142): `live_stream` promotion + chunk-DAG composition. Lands when NodeCore#26 substrate decisions ratify. Additive at the namespace layer (no envelope change).
+- **CEG 0.6** (additive at the envelope layer; per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842)): **subject-side consent authority — the missing half of consent at the wire format.** Universal across medical records / photos / interviews / training data / group chat / financial / surveillance / FERPA / multi-party contracts. CEG ≤ 0.5 encoded only producer authority (`attesting_key_id`); CEG 0.6 adds subject authority via **one new optional envelope field** ([§4.2](04_envelope.md)): `subject_key_ids: Vec<KeyId>` — accepts both federation_keys identities AND canonical-hash identifiers (resolves [CIRISAgent#840 OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840)). **Semantic broadening of `withdraws`** ([§3.2.3](03_primitives.md)) to admit subject revocation + delegated proxy chain for canonical-hash subjects; the primitive's wire shape is unchanged. **One new dimension family** ([§5.6.8.6](#5686-consent-namespace-family-ceg-06-addition)): `consent:*` (8 prefixes — `state:*`, `stream:*`, `deletion_sla:*`, `deletion_complete`, `decay:*`, `partnership_grant`, `partnership_accept`, `scope:*`). **One new subject_kind** ([§5.6.8.7](#5687-consent_record-subject_kind-ceg-06-addition)): `consent_record` (ceremony envelope parallel to `key_grant` / `takedown_notice`; both bare-`scores` and ceremony shapes admitted at the same gate). **New composition policy** ([§8.1.11](08_composition.md)) Policy K — CEM composition. **New governance section** ([§11.6](11_governance.md)) vertical compliance mapping (HIPAA / GDPR Art 9 / FERPA / CCPA / AI training right-to-be-forgotten) + dimension-pattern-implies-`subject_key_ids` requirement. **1+4 wire-format lockdown preserved** — zero new structural primitives; one envelope field + one namespace family + one optional subject_kind + one semantic broadening. **CIRISAgent's CEM** (TEMPORARY / PARTNERED / ANONYMOUS streams) becomes a **consumer-policy bundle over the wire primitive**, not a wire-format lockdown; other agents MAY compose other streams over the same primitives.
 
-Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across **6 independent paths** ([§1.4](01_foundation.md)) — CEG 0.4 event-lifecycle composition is the sixth, demonstrating the lockdown holds against time-bound state-bearing content. CEG 0.3 multimedia + CEG 0.4 time-bound additions both preserve the 1+4 set.
+Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across **7 independent paths** ([§1.4](01_foundation.md)) — CEG 0.6 dual-authority composition is the seventh, demonstrating the lockdown holds when subject authority is added orthogonally to producer authority. The wire format's structural set is stable at 1+4 across content (multimedia + time-bound) AND across consent (dual-authority + decay-protocol + bilateral-pair).
 
 ---
 

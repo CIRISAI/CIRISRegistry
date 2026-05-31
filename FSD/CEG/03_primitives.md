@@ -58,6 +58,25 @@ A constitutional or framework claim can name its source-of-authority by emitting
 
 Per `PRIOR_ART_SCAN.md` Bucket 1: no prior identity system (PGP, SPKI/SDSI, W3C VC) typed epistemic-error-admission as a wire primitive distinct from retraction. CEG types both because the Recursive Golden Rule applies to attesters: admitting error is a primary act, not a derivative of retraction. Consumer policy can apply different trust adjustments to attesters who `recant` versus those who `withdraw`.
 
+### §3.2.3 `withdraws` admission rule — CEG 0.6 broadening (semantic, not structural)
+
+Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) and [§4.2](04_envelope.md) `subject_key_ids`. CEG ≤ 0.5 admitted `withdraws` only from the original attester (producer self-withdraw). CEG 0.6 broadens the admission rule to recognize subject-side revocation authority. **The primitive's wire shape is unchanged**; only the substrate admission rule broadens. The 1+4 lockdown is preserved (this is a semantic broadening of an existing primitive, not a new structural primitive).
+
+Substrate MUST admit a `withdraws` Contribution against target `T` when the issuer's `key_id` satisfies **ANY** of:
+
+| # | Authority path | Description |
+|---|---|---|
+| 1 | `issuer.key_id == T.attesting_key_id` | Producer self-withdraw (today's shape; unchanged) |
+| 2 | `issuer.key_id ∈ T.subject_key_ids` | Federation-keys subject revocation (NEW — CEG 0.6) |
+| 3 | ∃ `delegates_to` chain: `issuer →* canonical_hash` where `canonical_hash ∈ T.subject_key_ids` AND `scope ⊇ {consent_revocation}` | Proxy authority for non-federation-enrolled subjects (NEW — CEG 0.6; resolves [CIRISAgent#840 OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840)) |
+| 4 | `issuer` holds valid `delegates_to → any of 1-3` | Delegated revocation (existing primitive, new admission path) |
+
+**Rule (3) is the elegant answer to the un-enrolled-party case.** When a subject is a Discord user-id, a content-sha256-bound entity, or any other non-federation party (per [§4.2.2](04_envelope.md)), revocation authority is mediated through a `delegates_to` chain from a federation-keys signer (typically the agent that holds data on behalf of the external party) to the canonical-hash subject. The agent emits `delegates_to(canonical_hash → agent_key, scope: [consent_revocation])` at proxy-establishment time; subsequent `withdraws` from the agent against any Contribution carrying `canonical_hash` in its `subject_key_ids` is admitted under rule (3).
+
+**Per-rule audit metadata**: substrate SHOULD record which admission rule (1-4) admitted each `withdraws` Contribution in `federation_attestations` metadata so downstream consumers can compose policy (e.g., higher confidence weight for subject self-revocation rule 2 than for proxy rule 3).
+
+**Composition with `recants`**: subject-side authority does NOT extend to `recants` (the falsity-admission primitive) — only the original attester can `recant` their own claim. A subject who believes the producer's claim about them is FACTUALLY wrong (not merely unwanted) issues `scores` with negative polarity on a contradicting dimension; that is the consumer-side rebuttal path, distinct from consent revocation. The `recants` / `withdraws` distinction matters precisely because subject authority covers the consent dimension (revocability) but not the truth dimension (falsity).
+
 ---
 
 [← §2 Grammar](02_grammar.md) | **§3 Primitives** | [Next: §4 Envelope →](04_envelope.md)

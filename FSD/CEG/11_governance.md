@@ -102,6 +102,60 @@ CIRISRegistry will file a follow-up issue when a CIRIS hash-coalition emerges th
 
 What CEG 0.3 does NOT do: prescribe which hash databases an operator MUST use. Operator choice. CEG documents the wire-format slot + the operator-onboarding contract + the recommended default; concrete matcher selection is operator policy.
 
+## §11.6 Vertical compliance + subject-bearing dimension governance (CEG 0.6 addition; per CIRISRegistry#45)
+
+Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842). The wire-format primitives in [§4.2](04_envelope.md) `subject_key_ids` + [§5.6.8.6](05_namespace.md) `consent:*` family + [§5.6.8.7](05_namespace.md) `consent_record` + [§8.1.11](08_composition.md) Policy K compose into regulatory-vertical compliance mappings. CEG documents the canonical mappings as **informational**; the wire-format primitives are domain-agnostic and operator-configurable.
+
+### §11.6.1 Vertical compliance mapping (informational)
+
+| Regulatory framework | CEG primitive | How it composes |
+|---|---|---|
+| **GDPR Article 7** (consent) | `consent:state:granted` + `consent_record.subject_key_id` | Subject's wire-format declaration of consent; revocable via [§3.2.3](03_primitives.md) rule 2 |
+| **GDPR Article 9** (special category — health, biometric, sexual orientation, etc.) | `subject_key_ids` MANDATORY for special-category content; producer's `consent:deletion_sla` SHOULD be ≤ 30 days | Substrate-level recognition that special category requires subject-side wire authority |
+| **GDPR Article 17** (right to erasure) | `consent:state:revoked` → substrate-watched `consent:deletion_sla:{days}` → producer emits `consent:deletion_complete` OR substrate emits `hard_case:consent_sla_breach` | The §8.1.11.3 SLA watcher is the wire-format observability primitive for Article 17 compliance |
+| **GDPR Article 20** (data portability) | DSAR export via `attestations.where(s ∈ subject_key_ids)` query | CIRISAgent's `DSARExportPackage` (per [`docs/CIRIS_CONSENT_SERVICE.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/docs/CIRIS_CONSENT_SERVICE.md)) composes from this query trivially |
+| **HIPAA 45 CFR 164.502** (uses + disclosures) | `consent:scope:{retain\|share\|analyze\|train\|publish}` + `cohort_scope` | scope qualifier names the permitted use; cohort_scope names the permitted visibility (orthogonal per [§4.2.4](04_envelope.md)) |
+| **HIPAA 45 CFR 164.524** (patient right of access) | DSAR export per Article 20 above | Same composition |
+| **FERPA 34 CFR Part 99** (educational records) | `subject_key_ids: [student_key]` + `delegates_to(parent_key → student_canonical_hash, scope: [consent_revocation])` for minors | Parental authority composes via the existing `delegates_to` primitive; no new shape needed |
+| **CCPA §1798.105** (right to delete) | Same composition as GDPR Article 17 | Substrate-watched SLA + `consent:deletion_complete` |
+| **EU AI Act Article 50** (training data transparency + opt-out) | `consent:scope:train` + `is_ai_generated` field at content publish + subject's `consent:state:revoked` against the training-datum Contribution | Subject can withdraw training-set consent; producer's deletion-SLA fires on the training-corpus Contribution |
+| **CIRIS Accord M-1** (sustainable adaptive coherence — consent revocability) | The entire CEG 0.6 surface | The constitutional anchor — "consent (M-1's load-bearing property) requires revocability, and revocability requires a halt-authority that lives outside the system being halted" ([§9](09_humanity_accord.md) + MISSION.md §1.5). CEG 0.6 extends this recognition from accord-carriers (federation-as-a-whole halt) to all subject-authorities (per-Contribution halt) at scale. |
+
+CEG does NOT prescribe which regulatory framework an operator MUST comply with; the wire primitives compose to ANY of them based on operator policy. Operators in regulated verticals (medical / legal / financial / educational) SHOULD pin compliance mappings as configuration above the wire primitives, not as new wire shapes.
+
+### §11.6.2 Subject-bearing dimension governance (normative)
+
+Per [§4.2.6](04_envelope.md). Dimensions whose namespace pattern names a subject MUST carry `subject_key_ids` containing that subject. This closes the default-leak failure mode where subject-bearing content publishes without wire-level subject authority (Gap 4 from the [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842) gap audit).
+
+**Subject-bearing dimension patterns** (open catalog; operator vocabularies extend):
+
+| Pattern | Example | Required `subject_key_ids` entry |
+|---|---|---|
+| `observed:user:{key_id}:*` | `observed:user:abc123:interaction_count` | `abc123` (or its canonical-hash form) |
+| `epistemic:about:{key_id}:*` | `epistemic:about:abc123:trust_assessment` | `abc123` |
+| `epistemic:memory:topic={topic}` (when topic names a person/entity) | `epistemic:memory:topic=patient_xyz_session` | `patient_xyz` canonical-hash |
+| `consent:partnered:{user_key}` (CIRISAgent CEM agent-side stance) | `consent:partnered:abc123` | `abc123` |
+| `agent_files:*:{subject_target}` (when target names a person) | `agent_files:medical_record:patient_xyz` | `patient_xyz` canonical-hash |
+| `licensure:{authority_id}:{practitioner_key}` (when practitioner is named) | `licensure:CA_medical_board:dr_jones_key` | `dr_jones_key` |
+
+**Substrate enforcement**: substrate admission gate MAY reject Contributions where the dimension matches a subject-bearing pattern but `subject_key_ids` is empty / does not contain the named subject. This is **operator-policy** (not normative across all substrates) — some operator configurations may admit and emit a `hard_case:subject_authority_missing` for review-queue handling instead of rejection.
+
+**The takedown-isn't-a-coup parallel** ([§11.4 fast-path takedown](#114-fast-path-takedown-coordination-ceg-03-addition-per-cirisregistry37--38)) applies: substrate enforcement of subject-bearing dimension discipline cannot be used as a coup against the substrate itself (e.g., a state actor publishing `observed:user:dissenter_key:*` with `subject_key_ids = []` and demanding substrate admission). The §9 HUMANITY_ACCORD remains load-bearing; admission-gate rules apply uniformly.
+
+### §11.6.3 What CEG 0.6 documents
+
+- The wire-format primitives that compose into vertical compliance (informational mapping above)
+- The dimension-pattern-implies-`subject_key_ids` requirement (normative gate)
+- The bilateral-pair shape for ceremony grants per [§8.1.11.4](08_composition.md)
+- The decay-protocol stage composition per [§8.1.11.5](08_composition.md)
+- The SLA watcher boundary (substrate emits `hard_case:*`; LensCore composes `detection:*`) per [§8.1.11.3](08_composition.md)
+
+What CEG 0.6 does NOT do:
+- Bundle CIRISAgent's CEM streams as the only valid stream set (open vocab; CEG names `temporary` / `partnered` / `anonymous` as recommended canonical kinds, not lockdown)
+- Define specific SLA values for any regulatory framework (operator policy — though informational guidance: GDPR Article 9 default ≤ 30 days; CCPA default 45 days; etc.)
+- Provide a decay-protocol library (CIRISAgent's 90-day-decay is the canonical example; other protocols MAY exist)
+- Prescribe per-vertical compliance audit cadence (consumer / regulator concern)
+
 ---
 
 [← §10 Endpoints](10_endpoints.md) | **§11 Governance** | [Next: §12 Translation →](12_translation.md)

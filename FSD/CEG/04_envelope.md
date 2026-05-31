@@ -23,8 +23,53 @@ Every `scores` Attestation carries this envelope. Field semantics consolidated h
 | `occurrence_count` | no | Total occurrences in the deployment fleet emitting the attestation; integer ≥ 1. Default `null` → `1` (single-occurrence). Same self-assertion caveat as `occurrence_id`. |
 | `occurrence_role` | no | `primary` \| `shared` \| `replica`. Names the occurrence's role within the fleet. Default `null` → `primary` for backward compat. Substrate-self-report attestations (`system:*` prefixes per [§5.3 + §5.4](05_namespace.md)) SHOULD carry occurrence_id + occurrence_count + occurrence_role so post-facto compliance reviewers can reconstruct "which occurrence agreed to which mandate." |
 | `stake` | no | Per [§2](02_grammar.md) Stake axis; default `reputational`. Composes with the attester's actual stake-backed-by attestations from [§5.9](05_namespace.md). |
+| `subject_key_ids` | no | **CEG 0.6 addition.** List of consent-holder `key_id`s for this Contribution. Each entry MAY be a `federation_keys.key_id` OR a canonical-hash identifier (per [§4.2](#42-subject_key_ids-semantics-ceg-06) below). Each listed key has substrate-recognized authority to (a) issue `withdraws` against this Contribution (per [§3.2](03_primitives.md) broadened admission rule) and (b) emit `consent:*` dimensions about this Contribution (per [§5.6.8.6](05_namespace.md)). Default `null`/empty = no subject authority (status quo; producer-only authority). Orthogonal to `cohort_scope` — see [§4.2](#42-subject_key_ids-semantics-ceg-06). |
 
 **`epistemic_mode` vs `witness_relation` — distinct dimensions**: these co-vary at edges but name different concerns. `epistemic_mode` names the *process* by which the claim was formed; `witness_relation` names the *relational position* of the attester to the attested. F-3 detector attestations carry both (`epistemic_mode: derivative` + `witness_relation: derived`). Most encyclical-sourced translations are `witness_relation: external` + `epistemic_mode: hearsay`. When in doubt, set both.
+
+## §4.2 `subject_key_ids` semantics (CEG 0.6)
+
+Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45). The missing half of consent at the wire format: CEG 0.x baseline encoded only **producer authority** (`attesting_key_id`); CEG 0.6 adds **subject authority** for content where the subject of the data is not the producer of the data.
+
+### §4.2.1 The shape
+
+`subject_key_ids` is an OPTIONAL list. When present, each entry names a party with substrate-recognized authority over this Contribution's continued processing. The basic shape:
+
+> A consent record is a signed declaration by a subject about the substrate's continued processing of content where that subject appears.
+
+The medical record / photo / interview / training-datum / group-chat case all share the same shape — a producer publishes a Contribution; one or more subjects appear in it; the subjects retain revocation authority. The non-medical example table at [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) walks 13 content shapes uniformly.
+
+### §4.2.2 Federation-key vs canonical-hash identifier
+
+`subject_key_ids[i]` MAY be either:
+
+1. **A `federation_keys.key_id`** — the subject is a federation-enrolled identity that can sign on its own behalf. Direct revocation: subject signs a `withdraws` against this Contribution; substrate admits via rule (2) of [§3.2 broadened `withdraws` admission](03_primitives.md).
+2. **A canonical-hash identifier** — the subject is an external party with no federation_keys row (Discord user-id, channel-id, content-sha256-bound entity, etc.). Format: a canonical string identifier, hashed per [§0.6](00_conformance.md) hex canonicalization. The substrate cannot verify a signature from this entity directly; **revocation rides a `delegates_to` proxy chain** per rule (3) of [§3.2 broadened admission](03_primitives.md).
+
+Resolves [CIRISAgent#840 OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840) — "self-attestation about un-enrolled parties — canonical-hash or pseudonymous federation_keys?" — with the answer "both, distinguished by whether the issuer can sign on its own behalf."
+
+### §4.2.3 Self-as-subject ceremony
+
+When `attesting_key_id ∈ subject_key_ids`, the Contribution is a **self-consent ceremony** — the same identity is attesting AS subject AND producer. This composes naturally with the [CIRISAgent#840](https://github.com/CIRISAI/CIRISAgent/issues/840) CEG-native agent's self-attestation pattern: agent attests `identity:current` about itself with `subject_key_ids = [self.key_id]`, asserting consent-authority over its own identity claims (D08 autonomy claim).
+
+### §4.2.4 Orthogonality with `cohort_scope`
+
+`cohort_scope` (producer-side) names **who can SEE the data** — visibility authority. `subject_key_ids` (subject-side) names **who can REVOKE the data** — revocability authority. They are orthogonal and may coexist on the same Contribution:
+
+```
+A `cohort_scope: family` contribution carrying `subject_key_ids: [user_canonical_hash]`
+publishes the bytes at family-cohort visibility; the user retains revocation authority.
+```
+
+This orthogonality is load-bearing for the multi-occurrence consent shape (per [`MULTI_OCCURRENCE_CONSENT_ANALYSIS.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/docs/MULTI_OCCURRENCE_CONSENT_ANALYSIS.md)): subject-side revocation applies federation-wide regardless of producer's `occurrence_id`; per-occurrence lifecycle consent is a producer-side concern, separately tracked.
+
+### §4.2.5 Empty/absent = status-quo
+
+`subject_key_ids: null` or `[]` is the status-quo shape (producer-only authority; same as all CEG ≤ 0.5 Contributions). All CEG 0.x consumers that don't read the field see status-quo behavior. CEG 0.6 is additive at the envelope layer.
+
+### §4.2.6 Subject-bearing dimensions (governance requirement)
+
+Per [§11.6](11_governance.md), dimensions whose namespace pattern names a subject (e.g., `observed:user:{key_id}:*`, `epistemic:about:{key_id}:*`, `consent:partnered:{user_key}`, `agent_files:*:{subject_target}`) MUST carry `subject_key_ids` containing that subject. The substrate MAY reject admission of subject-naming dimensions that omit `subject_key_ids`. This closes the default-leak failure mode where subject-bearing content publishes without wire-level subject authority.
 
 ## §4.1 Forward-compatibility rule
 
