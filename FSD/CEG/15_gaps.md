@@ -82,6 +82,61 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 | **O3** — `credits:*:substrate_building` was miscounted as new prefix | CORRECTED — recounted as `{subject}` value. |
 | **O4** — [§8.1](08_composition.md) reference policy structure (A/B/C base + D/E/F/G/H modifiers) | Cosmetic restructuring; documented inline. |
 
+## §15.6 CEG 0.10 / RC1 candidate — observer-share + streaming multicast (IN DESIGN; substrate-pending)
+
+Decision register for the RC1 delivery-axis fork. CEG today has a **visibility** axis (`cohort_scope`) and a **revocability** axis (`subject_key_ids`, [§4.2](04_envelope.md)) but **no delivery axis** — who actively *receives* + how the substrate fans out. Observer-share (1:1, [CIRISLensCore#857](https://github.com/CIRISAI/CIRISLensCore/issues/857)) and media/streaming multicast (1:N, absorbs the parked [#44](https://github.com/CIRISAI/CIRISRegistry/issues/44) CEG 0.5 `live_stream`) are the **same primitive at different cardinality**. Cross-team design thread (P1–P4 Persist / V1–V3 Verify / E1–E4 Edge) consolidated here because it is the CEG authority; Edge mirrors its half to its own `FSD/OPEN_QUESTIONS.md`.
+
+**Framing lock (§3 untouched):** §3 is exactly five primitives (`scores` + `delegates_to` / `supersedes` / `withdraws` / `recants`). 0.10 is **NOT a grammar change** — it lands as `delivery_mode:{pull|push}` envelope flag ([§4](04_envelope.md)) + a [§8.1.13 Policy M](08_composition.md) delivery extension + a **new [§10](10_endpoints.md) endpoint section** (proposed `§10.5`; see OQ-RC1-2). `holds_bytes` / `key_grant` / `live_stream` / `has_chunk` are §10/transport-or-nonexistent, not grammar.
+
+### §15.6.1 Bifurcation — DECIDED (Option A, router-confirmed)
+
+| Half | Rides | RC1 status |
+|---|---|---|
+| Observer-share / directed delivery (single Contribution → subscriber-set; **no `stream_id`**) | community roster ([§8.1.13](08_composition.md) Policy M) + `key_grant` ([§5.6.8.4](05_namespace.md) / [§10.1.4](10_endpoints.md)) — **both shipping** | **impl RC1-live** |
+| Media/streaming multicast (`live_stream` chunk-DAG, per-`(stream_id, epoch)` keys) | greenfield substrate (`put_blob_chunk` / `seal_stream` / stream-chunk table — **0 occurrences today**) | **spec now, impl substrate-pending [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142)** |
+
+### §15.6.2 Locked cross-team decisions (grounded)
+
+| Tag | Locked decision | Anchor |
+|---|---|---|
+| Subscription model | No new subject_kind — subscriber-set = `community` (Policy M) admitted `producer_gated\|open`; only new wire bit is `delivery_mode:{pull\|push}`. Inherits revocation/consensus/structural-invisibility free. | [§8.1.13](08_composition.md) + [§4](04_envelope.md) |
+| D1 roster visibility | Substrate-private default; per-membership `listed:public` opt-in (mirrors [§11.8.3](11_governance.md)); never globally enumerable. | producer-side refusal (Edge `cohort_scope` v0.19.1 / #48-A) |
+| D2 rekey (long pole) | Stream-epoch DEK seals content **O(1)**; per-subscriber `key_grant` cascade distributes the 32-byte epoch key **O(N)/epoch** (sender-key/Megolm). MLS O(log N) tree = **1.x**, additive (tree-position on the opaque grant payload — no table migration). | [§5.6.8.4](05_namespace.md) + [§8.1.12.4](08_composition.md) |
+| D3 epoch triggers | Removal → **mandatory rotation** (= the forward-only-unsubscribe enforcement); add → no rotation + Option-A catch-up; time/bytes → optional. FS = **forward-only, no PCS**. New `history_on_join:{full\|from_join}`. Epoch index **greenfield, per `stream_id`** — NOT `rotation_chain`. | [§11.7.1](11_governance.md) Option A |
+| D4 chunk integrity | **Per-stream transparency-log instance** (`log_id = stream_id`), RFC 6962 reused; per-leaf root-after-K verified against nearest signed STH ≥ K. NOT a hash-chain. Stream-log MUST NOT be the federation provenance log. | [§10.3](10_endpoints.md) |
+| V1 stream-root | Producer signs the STH (**mandatory** authenticity root); witness cosign **optional** = the best-effort/accountable split; [§10.3.1](10_endpoints.md) consistency-proof (#34 enforcement) = anti-equivocation. Cadence K/T at epoch boundary + `sealed_at`; cosign per-epoch. | [§10.3](10_endpoints.md) / [§10.3.1](10_endpoints.md) |
+| V2 nonce | 12B = **7B HKDF-derived prefix ‖ 4B BE counter ‖ 1B last-flag**; prefix `= HKDF(epoch_dek; "ciris-stream-nonce/v1" ‖ stream_id ‖ epoch)`, derived not transmitted; forced epoch-roll before 2³² wrap; cross-epoch reset nonce-safe (DEK changes). | — |
+| D5 / V3 receipts | Best-effort default; opt-in signed `delivery_receipt:{stream_id}` (**new [§7](07_reserved.md) reserved prefix**), **validated-not-adjudicated** (MISSION fail-honest). Verify check is a JOIN: sig + `chunk_root` is a **real published STH root** (+ inclusion proof for accountable). **Proof-of-delivery, NOT proof-of-consumption.** | [§7](07_reserved.md) + [§10.3](10_endpoints.md) |
+| D6 liveness | Two sets: **entitlement roster** (signed CEG, edge-propagated, durable, logged) vs **live-delivery set** (node-local, TTL sec/min, **NEVER an attestation / `holds_bytes` / logged**). | [§10.1.2](10_endpoints.md) TTL is `EdgeConfig.holds_bytes_ttl_seconds` |
+| P3 scale | Flat-cascade ships RC1; **ship the P4 operator cascade-bound WITH the cascade** (else 10⁶ grant Contributions/rekey). Roster shape doesn't preclude the 1.x tree. | — |
+| P4 catch-up | Bound = `min(operator depth cap [Lens-core knob, NOT a substrate constant], chunk-eviction horizon)`. Three distinct windows (chunk-eviction ≠ `holds_bytes` 24h TTL ≠ grant durability). Catch-up over an evicted epoch returns **`ContentMiss` — fail-honest, no silent gap**. | [src/retention] (Persist) |
+
+### §15.6.3 Open items — BLOCKING normative 0.10 text
+
+| OQ | Open item | Owner | Gating |
+|---|---|---|---|
+| **RC1-1** | Confirm `key_grant.rotation_chain` **impl index** shape matches the [§5.6.8.4](05_namespace.md) grant-supersession semantics. *Concept is spec-corroborated (it's a lineage of `key_grant_id`s, NOT a stream epoch); only the impl index is Persist-word-only.* | Persist | 🔴 P1 hinge |
+| **RC1-2** | Ratify **`§10.5`** as the streaming-clause home. *`§10.1.5` does NOT exist (phantom — corrected §15.6.4).* | Registry / router | 🔴 |
+| **RC1-3** | E1 — transit-key is a **hop-by-hop wrap UNDER the E2E epoch DEK** (two layers), NOT replacing the cascade. | Edge | 🔴 security |
+| **RC1-4** | E2 — RC1 multicast = **pull-only** (relay/fan-out tree → 1.x, ties #46/#43). | Edge | 🔴 scope |
+| **RC1-5** | E3 — live-delivery-set ownership (Persist holds the node-local set; Edge sends). | Edge | — |
+| **RC1-6** | E4 — durable entitlement rides the existing federation-attestation edge path ([#41](https://github.com/CIRISAI/CIRISRegistry/issues/41) cutover); no net-new Edge transport for the durable side. | Edge | — |
+| **RC1-7** | Ratify constants (K=64 / T=2s / cosign per-epoch / `MAX_CHUNKS_PER_EPOCH=2²⁴`) + accountable-stream quorum = Policy E ([§8.1.5](08_composition.md) locality-scaled, not fixed N). | router | — |
+
+### §15.6.4 Grounding corrections (recorded so phantom citations do not re-propagate)
+
+| Claimed in the design thread | Corrected against sources |
+|---|---|
+| "§10.1.5 Merkle" as an existing anchor | **§10.1.5 does not exist.** §10 = `.0/.0.1/.1/.1.1/.1.2/.1.4/.1.3/.2/.3/.3.1/.4`. Streaming = new **§10.5** (proposed; OQ-RC1-2). |
+| MISSION:66 / :148 | Misquoted. Fail-honest doctrine at MISSION **182/197/414/447 + AV-42**; ContentFetch/Body/Miss at **223** (#21). |
+| `cohort_scope::suppresses_holds_bytes` symbol; "3.9.0/3.9.2" | Not a symbol — **producer-side refusal at `Edge::send_*`**; **v0.19.1 / #48-A** (crate now v1.1.5). |
+| "DEK cascade rides `key_grant.rotation_chain`" ([§11.7.1](11_governance.md) + 0.7 lineage) | `rotation_chain` = **grant-supersession lineage** ([§5.6.8.4](05_namespace.md)), not key rotation; epoch rotation is greenfield per `stream_id`. → §11.7.1 + [§1.4](01_foundation.md) path-8 + [§5.6.8.9](05_namespace.md) + [§16.1](16_references.md) 0.7 lineage need a **hygiene edit folded into 0.10**. |
+| Streaming as a grammar change | §3 = exactly five primitives, untouched; 0.10 = §4 flag + §8.1.13 ext + new §10 section. |
+
+### §15.6.5 Status
+
+Verify ✅ done (5 original + V1–V3). Persist ✅ done (P1–P4) modulo **OQ-RC1-1**. Edge ⬜ **OQ-RC1-3..6**. Router ⬜ **OQ-RC1-2, RC1-7** (Option A + #44 absorption already confirmed). Normative 0.10 text is gated on **RC1-1 + RC1-2 + RC1-3 + RC1-4**; once pinned, observer-share lands RC1-live and the streaming half lands as §10.5 substrate-pending-#142, with the §15.6.4 `rotation_chain` hygiene corrections folded into the same pass.
+
 ---
 
 [← §14 Glossaries](14_glossaries.md) | **§15 Gaps** | [Next: §16 References →](16_references.md)
