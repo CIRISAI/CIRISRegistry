@@ -255,7 +255,50 @@ What CEG 0.8 does NOT do:
 - Provide a place-name registry (communities self-name; H3 cells are the substrate-level binding)
 - Define specific cell-resolution conventions for community-side `geographic_constraint` (only `location_proof` is bounded to ≤ 7; communities MAY scope themselves at any resolution per operator/founder choice)
 - Codify non-geographic community subkinds (`professional` / `interest` / `local-business` / `event-attendees` / etc. are downstream-demand-driven future spec rounds — same discipline that drove 0.3 → 0.4 → 0.5 → 0.6 → 0.7 → 0.8)
-- Address `affiliations` (the fourth cohort_scope tier; deferred to CEG 0.9 candidate)
+- Address `affiliations` (the fourth cohort_scope tier; deferred — CEG 0.9 took the [§7.0.1](#119-identity_type-as-a-set--single-key-role-cohabitation-ceg-09-addition-per-cirisregistry49--cirisagent856) identity_type-as-set cut instead; affiliations remains a later candidate round)
+
+## §11.9 `identity_type` as a set — single-key role cohabitation (CEG 0.9 addition; per CIRISRegistry#49 + CIRISAgent#856)
+
+Per [§7.0.1](07_reserved.md) + [CIRISRegistry#49](https://github.com/CIRISAI/CIRISRegistry/issues/49) + [CIRISAgent#856](https://github.com/CIRISAI/CIRISAgent/issues/856). CEG 0.9 generalizes `federation_keys.identity_type` from a single scalar role to a **set of roles**, so the [§7](07_reserved.md) reserved-prefix gates are evaluated by set membership (`X ∈ identity_type`). This amendment routed through the [§11.2](#112-amendment-process--federation-contribution--wa-quorum--1-of-6-sign-off) process; CIRISAgent#856 is the driver, CIRISRegistry#49 the CEG-authority mirror.
+
+### §11.9.1 What the amendment changes — and what it deliberately does not
+
+| Surface | Before 0.9 | At 0.9 |
+|---|---|---|
+| `federation_keys.identity_type` representation | scalar string | set of role strings (legacy scalar = singleton set) |
+| §7 emitter-rule evaluation | `identity_type == "X"` | `X ∈ identity_type` ([§7.0.1](07_reserved.md)) |
+| §5 dimension namespace | — | unchanged |
+| Envelope ([§4](04_envelope.md)) | — | unchanged |
+| 1+4 structural primitives ([§3](03_primitives.md)) | — | unchanged |
+| subject_kinds ([§5.6.8](05_namespace.md)) | — | unchanged |
+
+This is a **wire-break at the `federation_keys` row representation only** — the second 0.x wire-break after the [§0.2](16_references.md) attestation-ladder rename. It is **semantically null for every legacy single-role key**: `X ∈ {X}` ≡ `X == X`. It is NOT a [§1.4](01_foundation.md) "Nth path" confirmation (it adds no namespace surface); it is a [§7](07_reserved.md)-layer enforcement generalization that unblocks the CIRISAgent fold-in (one key, many roles) without expanding the wire's expressive surface.
+
+### §11.9.2 Settled in CIRISAgent#856, carried as-is
+
+- **Capacity self-emission ([§7.5](07_reserved.md))**: unchanged. The anti-Goodhart `attesting_key_id ≠ attested_key_id` rule binds regardless of how many roles a key holds. A folded `{agent, lenscore_detector}` key still MUST NOT score its own `capacity:*`. Role cohabitation does not create a self-attestation backdoor.
+- **Reasoning-trace dimensions**: no separate reserved `identity_type` required; reasoning-trace emission rides the agent role's open-vocabulary surface. Cohabitation does not change this.
+- **Agent-intent / LensCore-envelope split**: a cohabiting key emits agent-intent attestations under the agent dimensions and detector verdicts under `detection:*` ([§7.4](07_reserved.md) worked example). The namespace keeps the two surfaces distinct; cohabitation grants the right to emit on each, never merges them.
+
+### §11.9.3 Cohabitation discipline for constitutional + substrate roles
+
+Set membership grants the wire-level *right* to emit per held role, but two roles carry defense-in-depth guidance against cohabitation:
+
+- **`accord_holder` ([§7.1](07_reserved.md) + [§9](09_humanity_accord.md))**: the one constitutional asymmetry. Consumer policy SHOULD treat an `accord_holder` key that also holds non-constitutional roles (e.g., `{accord_holder, agent}`) with elevated scrutiny — the HUMANITY_ACCORD triple's halt authority is strongest when its keys are single-purpose. CEG 0.9 does NOT forbid the cohabitation at the wire layer (the substrate cannot adjudicate constitutional intent), but the §9 entrenched-`family` discipline RECOMMENDS dedicated accord-holder keys.
+- **`substrate_persist` / `substrate_edge` ([§7.2](07_reserved.md))**: substrate-self-report roles remain cross-attested by the full steward-triple per §7.2. A key cohabiting a substrate role with an application role (e.g., `{substrate_persist, agent}`) MUST still satisfy the steward cross-attestation requirement for the substrate-role emissions; cohabitation does not relax the cross-attestation gate.
+
+### §11.9.4 What CEG 0.9 documents
+
+- The set-membership reading of every §7 reserved-prefix emitter rule ([§7.0.1](07_reserved.md))
+- The canonical-bytes encoding for the set (sorted-ascending, deduplicated, comma-joined; single-role keys encode identically to their pre-0.9 scalar form)
+- The LensCore-fold worked example ([§7.4](07_reserved.md))
+- The cohabitation discipline for constitutional + substrate roles (§11.9.3)
+
+What CEG 0.9 does NOT do:
+- Expand the §5 dimension namespace, the §4 envelope, the §3 structural-primitive set, or the §5.6.8 subject_kinds (zero new wire surface beyond the `identity_type` representation)
+- Enumerate a closed set of role values — `identity_type` members remain an open vocabulary owned per [§7](07_reserved.md) reservations + sibling-component vocabulary extensions (e.g., CIRISPersist#102 `witness`)
+- Forbid any cohabitation at the wire layer (substrate enforces gates by membership; constitutional/substrate cohabitation discipline is consumer/operator policy per §11.9.3)
+- Address `affiliations` (the fourth `cohort_scope` tier; remains deferred to a later candidate round)
 
 ---
 
