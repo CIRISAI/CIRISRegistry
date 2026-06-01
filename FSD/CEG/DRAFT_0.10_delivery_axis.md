@@ -11,10 +11,14 @@
 ## Open gates — MUST pin before this is normative + version-bumped
 
 - [ ] **RC1-1** (Persist) — confirm `key_grant.rotation_chain` impl-index `(content_sha256, recipient_key_id)` / V054 matches the [§5.6.8.4](05_namespace.md) grant-supersession semantics, and is **distinct from** the new per-`(stream_id, epoch)` epoch-key index in §10.5.3.
-- [ ] **RC1-3** (Edge E1) — transit-key = hop-by-hop wrap **under** the E2E epoch DEK (two layers), not replacing the cascade.
-- [ ] **RC1-4** (Edge E2) — RC1 multicast = pull-only (relay/fan-out tree → 1.x).
+- [ ] **RC1-1b** (Persist — V2) — confirm the `KEY_GRANT_V1_INFO` versioned-context HKDF pattern exists in `key_grant.rs`; the §10.5.2 nonce-prefix derivation reuses it. Unverifiable from Edge.
 - [ ] **RC1-7** (router) — ratify constants `K=64` / `T=2s` / cosign per-epoch / `MAX_CHUNKS_PER_EPOCH=2²⁴` + accountable-stream quorum = Policy E ([§8.1.5](08_composition.md)).
 - [x] **RC1-2** — `§10.5` ratified as the streaming-clause home (2026-06-01).
+- [x] **RC1-3** (Edge E1) — ✅ two-layer: transit-key wraps **under** the E2E epoch DEK; does not replace the cascade.
+- [x] **RC1-4** (Edge E2) — ✅ RC1 multicast = **pull-only**; relay/fan-out tree → 1.x.
+- [x] **RC1-5** (Edge E3) — ✅ fan-out = **entitled ∧ reachable**: Edge owns transport-reachability (`reachability.rs`, #29), Persist owns durable entitlement. *Supersedes the earlier "Persist holds the live set."*
+- [x] **RC1-6** (Edge E4) — ✅ durable entitlement rides the existing federation-attestation edge path (#41).
+- **Dependency refinement:** **best-effort** streaming tier pends **#142** only; **accountable** tier (witness-cosigned anti-equivocation) pends **#142 + [#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)** (STH consistency-proof enforcement).
 - (impl, not spec-gating) **CIRISPersist#142** — `put_blob_chunk` / `seal_stream` / stream-chunk table (greenfield; 0 occurrences today).
 
 ## File-landing map (when woven into 00–17)
@@ -48,7 +52,7 @@ A stream is **its own per-stream transparency-log instance** (`log_id = stream_i
 ### §10.5.1 Per-stream log + stream-root [LOCKED — V1]
 - `log_id = stream_id`; chunks = leaves; stream-root = `SignedTreeHead{ log_id: stream_id, tree_size: chunk_count, root_hash, timestamp, signature }`.
 - **Producer signs the STH — mandatory** (authenticity root; hybrid Ed25519 + ML-DSA-65 via the §10.3 `signing_bytes` discipline).
-- **Witness cosign — optional**, via the [§10.3](10_endpoints.md) path verbatim = the best-effort / accountable split (D5). For accountable streams, [§10.3.1](10_endpoints.md) consistency-proof is the **anti-equivocation** guarantee (producer can't show different chunk-K to different subscribers, can't rewrite mid-stream).
+- **Witness cosign — optional**, via the [§10.3](10_endpoints.md) path verbatim = the best-effort / accountable split (D5). For accountable streams, [§10.3.1](10_endpoints.md) consistency-proof is the **anti-equivocation** guarantee (producer can't show different chunk-K to different subscribers, can't rewrite mid-stream). **Accountable tier is impl-pending [#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)** (STH consistency-proof enforcement) in addition to #142; best-effort tier pends #142 only.
 - **Cadence:** signed root every `K` chunks OR `T` sec (whichever first), always at an **epoch boundary** + at `sealed_at`; witness cosign runs **per-epoch** (off the hot path). `K=64` / `T=2s` — TODO(RC1-7 ratify).
 - **Incremental verify (D4):** the per-leaf "root-after-K" + verify chunk K's inclusion against the nearest signed STH ≥ K via the consistency path. No new commitment structure.
 
@@ -72,17 +76,17 @@ A stream is **its own per-stream transparency-log instance** (`log_id = stream_i
 - **Semantics:** proof-of-**delivery** (received bytes committing to chunk K), **NOT** proof-of-consumption (subscriber may not hold the epoch DEK). Consumers must not overclaim.
 - Best-effort default; **accountable opt-in for profiles C/D** (registry propagation, emergency) — receipts are the ACK set. Quorum = Policy E ([§8.1.5](08_composition.md)) — TODO(RC1-7).
 
-### §10.5.5 Transport [TODO — Edge]
-- **TODO(E2 / RC1-4):** RC1 multicast = **pull-only** — producer seals chunks under the epoch DEK → `holds_bytes` directory → subscribers pull. Relay/fan-out tree → 1.x (#46/#43).
-- **TODO(E1 / RC1-3, security-critical):** transit-key (prod-lens-via-transit-key, #857) = **hop-by-hop transport wrap UNDER the E2E epoch DEK** (two layers); MUST NOT replace the cascade (else a relay reads plaintext).
-- **TODO(E3):** live-delivery set is **node-local (Persist holds; Edge sends)**; entitlement∩liveness join happens at fan-out.
-- **TODO(E4):** durable entitlement (roster + epoch-key grants) rides the **existing federation-attestation edge path** (#41 cutover) — just more `federation_attestations`; no net-new Edge transport for the durable side.
+### §10.5.5 Transport [LOCKED — Edge E1–E4]
+- **E2 (pull-only RC1):** RC1 multicast = **pull-only** — producer seals chunks under the epoch DEK → `holds_bytes` directory → subscribers pull. Relay/fan-out tree → 1.x (#46/#43).
+- **E1 (two-layer, security-critical):** transit-key (prod-lens-via-transit-key, #857) = **hop-by-hop transport wrap UNDER the E2E epoch DEK** (two independent layers); MUST NOT replace the cascade (a relay never sees plaintext).
+- **E3 (fan-out = entitled ∧ reachable):** **Persist owns durable entitlement** (the roster); **Edge owns transport-reachability** via `reachability.rs` (#29) node-local presence tracker. Fan-out targets the intersection. *(Supersedes the earlier "Persist holds the live set" — Edge already owns a liveness substrate.)*
+- **E4 (durable side rides existing path):** durable entitlement (roster + epoch-key grants) rides the **existing federation-attestation edge path** (#41 cutover) — just more `federation_attestations`; no net-new Edge transport.
 
 ## §7 — new reserved prefix [LOCKED, emitter TBD]
 `delivery_receipt:{stream_id}` — validated-not-adjudicated. Emitter rule TODO: the validating substrate/verify role (per CEG 0.9 [§7.0.1](07_reserved.md) identity_type-as-set, the emitter's role-set must contain the relevant validating role).
 
-## D6 liveness invariant [LOCKED]
-Two sets, never conflated: **entitlement roster** (signed CEG envelope, edge-propagated, durable, logged — it's evidence, must propagate + be auditable) vs **live-delivery set** (node-local, TTL sec/min — generalizing the [§10.1.2](10_endpoints.md) `EdgeConfig.holds_bytes_ttl_seconds` 24h default down to seconds/minutes — **NEVER an attestation, never `holds_bytes`, never replicated, never logged**). Heartbeat-suppression is a **producer-side-refusal invariant** (same class as the [§10.1.4](10_endpoints.md) `cohort_scope: self|family` holds_bytes suppression). Missed members fall back to pull on reconnect.
+## D6 liveness invariant [LOCKED — ownership corrected per E3]
+Two sets, never conflated: **entitlement roster** (Persist-owned; signed CEG envelope, edge-propagated, durable, logged — it's evidence, must propagate + be auditable) vs **live-reachability set** (**Edge-owned via `reachability.rs` / #29**; node-local, TTL sec/min — generalizing the [§10.1.2](10_endpoints.md) `EdgeConfig.holds_bytes_ttl_seconds` 24h default down to seconds/minutes — **NEVER an attestation, never `holds_bytes`, never replicated, never logged**). **Fan-out = entitled ∧ reachable.** Heartbeat-suppression is a **producer-side-refusal invariant** (same class as the [§10.1.4](10_endpoints.md) `cohort_scope: self|family` holds_bytes suppression). Missed (entitled-but-unreachable) members fall back to pull on reconnect.
 
 ## `rotation_chain` hygiene corrections (fold into the 0.10 pass) [from §15.6.4]
 - **[§11.7.1](11_governance.md):** strike "the wire-format primitives are in place (`key_grant.rotation_chain` from CEG 0.3 covers the rotation mechanic)" — `rotation_chain` does not provide key rotation, and Option A does no rotation.

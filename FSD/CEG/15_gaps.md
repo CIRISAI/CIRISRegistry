@@ -107,7 +107,7 @@ Decision register for the RC1 delivery-axis fork. CEG today has a **visibility**
 | V1 stream-root | Producer signs the STH (**mandatory** authenticity root); witness cosign **optional** = the best-effort/accountable split; [§10.3.1](10_endpoints.md) consistency-proof (#34 enforcement) = anti-equivocation. Cadence K/T at epoch boundary + `sealed_at`; cosign per-epoch. | [§10.3](10_endpoints.md) / [§10.3.1](10_endpoints.md) |
 | V2 nonce | 12B = **7B HKDF-derived prefix ‖ 4B BE counter ‖ 1B last-flag**; prefix `= HKDF(epoch_dek; "ciris-stream-nonce/v1" ‖ stream_id ‖ epoch)`, derived not transmitted; forced epoch-roll before 2³² wrap; cross-epoch reset nonce-safe (DEK changes). | — |
 | D5 / V3 receipts | Best-effort default; opt-in signed `delivery_receipt:{stream_id}` (**new [§7](07_reserved.md) reserved prefix**), **validated-not-adjudicated** (MISSION fail-honest). Verify check is a JOIN: sig + `chunk_root` is a **real published STH root** (+ inclusion proof for accountable). **Proof-of-delivery, NOT proof-of-consumption.** | [§7](07_reserved.md) + [§10.3](10_endpoints.md) |
-| D6 liveness | Two sets: **entitlement roster** (signed CEG, edge-propagated, durable, logged) vs **live-delivery set** (node-local, TTL sec/min, **NEVER an attestation / `holds_bytes` / logged**). | [§10.1.2](10_endpoints.md) TTL is `EdgeConfig.holds_bytes_ttl_seconds` |
+| D6 liveness | Two sets: **entitlement roster** (Persist; signed CEG, edge-propagated, durable, logged) vs **live-reachability set** (**Edge-owned via `reachability.rs` / #29**; node-local, TTL sec/min, **NEVER an attestation / `holds_bytes` / logged**). **Fan-out = entitled ∧ reachable.** | [§10.1.2](10_endpoints.md) TTL; Edge `reachability.rs` #29 |
 | P3 scale | Flat-cascade ships RC1; **ship the P4 operator cascade-bound WITH the cascade** (else 10⁶ grant Contributions/rekey). Roster shape doesn't preclude the 1.x tree. | — |
 | P4 catch-up | Bound = `min(operator depth cap [Lens-core knob, NOT a substrate constant], chunk-eviction horizon)`. Three distinct windows (chunk-eviction ≠ `holds_bytes` 24h TTL ≠ grant durability). Catch-up over an evicted epoch returns **`ContentMiss` — fail-honest, no silent gap**. | [src/retention] (Persist) |
 
@@ -116,11 +116,12 @@ Decision register for the RC1 delivery-axis fork. CEG today has a **visibility**
 | OQ | Open item | Owner | Gating |
 |---|---|---|---|
 | **RC1-1** | Confirm `key_grant.rotation_chain` **impl index** shape matches the [§5.6.8.4](05_namespace.md) grant-supersession semantics. *Concept is spec-corroborated (it's a lineage of `key_grant_id`s, NOT a stream epoch); only the impl index is Persist-word-only.* | Persist | 🔴 P1 hinge |
+| **RC1-1b** | Confirm the `KEY_GRANT_V1_INFO` versioned-context HKDF pattern exists in `key_grant.rs` (the §10.5.2 V2 nonce-prefix derivation reuses it). Unverifiable from Edge. | Persist | 🔴 V2 |
 | **RC1-2** | ✅ **RESOLVED (2026-06-01)** — `§10.5` "Streaming transport, per-stream logs & delivery receipts" ratified as the streaming-clause home. *`§10.1.5` does not exist; corrected §15.6.4.* | Registry / router | done |
-| **RC1-3** | E1 — transit-key is a **hop-by-hop wrap UNDER the E2E epoch DEK** (two layers), NOT replacing the cascade. | Edge | 🔴 security |
-| **RC1-4** | E2 — RC1 multicast = **pull-only** (relay/fan-out tree → 1.x, ties #46/#43). | Edge | 🔴 scope |
-| **RC1-5** | E3 — live-delivery-set ownership (Persist holds the node-local set; Edge sends). | Edge | — |
-| **RC1-6** | E4 — durable entitlement rides the existing federation-attestation edge path ([#41](https://github.com/CIRISAI/CIRISRegistry/issues/41) cutover); no net-new Edge transport for the durable side. | Edge | — |
+| **RC1-3** | ✅ **RESOLVED** — E1: transit-key is a **hop-by-hop wrap UNDER the E2E epoch DEK** (two layers), not replacing the cascade. | Edge | done |
+| **RC1-4** | ✅ **RESOLVED** — E2: RC1 multicast = **pull-only**; relay/fan-out tree → 1.x (#46/#43). | Edge | done |
+| **RC1-5** | ✅ **RESOLVED** — E3: fan-out = **entitled ∧ reachable**. Edge owns transport-reachability (`reachability.rs`, #29); Persist owns durable entitlement. *Supersedes the earlier "Persist holds the live set" — Edge already owns a liveness substrate.* | Edge | done |
+| **RC1-6** | ✅ **RESOLVED** — E4: durable entitlement rides the existing federation-attestation edge path ([#41](https://github.com/CIRISAI/CIRISRegistry/issues/41) cutover); no net-new Edge transport. | Edge | done |
 | **RC1-7** | Ratify constants (K=64 / T=2s / cosign per-epoch / `MAX_CHUNKS_PER_EPOCH=2²⁴`) + accountable-stream quorum = Policy E ([§8.1.5](08_composition.md) locality-scaled, not fixed N). | router | — |
 
 ### §15.6.4 Grounding corrections (recorded so phantom citations do not re-propagate)
@@ -135,7 +136,9 @@ Decision register for the RC1 delivery-axis fork. CEG today has a **visibility**
 
 ### §15.6.5 Status
 
-Verify ✅ done (5 original + V1–V3). Persist ✅ done (P1–P4) modulo **OQ-RC1-1**. Edge ⬜ **OQ-RC1-3..6**. Router: **RC1-2 ✅ §10.5 ratified**; **RC1-7** (constants) pending. Option A + #44 absorption confirmed. Normative 0.10 text now gated only on **RC1-1 + RC1-3 + RC1-4**. The 0.10 skeleton is staged at [`DRAFT_0.10_delivery_axis.md`](DRAFT_0.10_delivery_axis.md) — a fill-in once Edge E1/E2 + Persist RC1-1 land. Observer-share lands RC1-live; streaming lands as §10.5 substrate-pending-#142; §15.6.4 `rotation_chain` hygiene corrections fold into the same pass.
+Verify ✅ done (5 original + V1–V3). Persist ✅ done (P1–P4) modulo **RC1-1 + RC1-1b**. **Edge ✅ closed** (E1 two-layer transit / E2 pull-only RC1 / E3 entitled∧reachable via `reachability.rs` #29 / E4 existing federation-attestation path; recorded in Edge `FSD/CEG_RC1_BIFURCATION.md` + `FSD/OPEN_QUESTIONS.md` OQ-14..17). Router: **RC1-2 ✅ §10.5 ratified**; **RC1-7** (constants) pending. Option A + #44 absorption confirmed.
+
+**Observer-share half is fully unblocked** (rides existing community roster [§8.1.13](08_composition.md) + `key_grant`; no Persist confirm, no #142) — **normative-ready now**. **Streaming half** final blockers: **RC1-1 + RC1-1b** (Persist) + **RC1-7** (router constants); **best-effort tier impl-pending #142**, **accountable tier impl-pending #142 + [#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)** (STH consistency-proof enforcement). The 0.10 skeleton is staged at [`DRAFT_0.10_delivery_axis.md`](DRAFT_0.10_delivery_axis.md); §15.6.4 `rotation_chain` hygiene corrections fold into the weave.
 
 ---
 
