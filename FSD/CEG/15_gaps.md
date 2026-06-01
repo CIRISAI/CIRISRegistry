@@ -115,8 +115,9 @@ Decision register for the RC1 delivery-axis fork. CEG today has a **visibility**
 
 | OQ | Open item | Owner | Gating |
 |---|---|---|---|
-| **RC1-1** | Confirm `key_grant.rotation_chain` **impl index** shape matches the [§5.6.8.4](05_namespace.md) grant-supersession semantics. *Concept is spec-corroborated (it's a lineage of `key_grant_id`s, NOT a stream epoch); only the impl index is Persist-word-only.* | Persist | 🔴 P1 hinge |
-| **RC1-1b** | Confirm the `KEY_GRANT_V1_INFO` versioned-context HKDF pattern exists in `key_grant.rs` (the §10.5.2 V2 nonce-prefix derivation reuses it). Unverifiable from Edge. | Persist | 🔴 V2 |
+| **RC1-1** | ✅ **RESOLVED (Persist, on record)** — V054 = two single-column partial indexes (`media_content_sha256`, `key_grant_recipient_key_id`), planner-AND'd; `rotation_chain` is a payload-level [§5.6.8.4](05_namespace.md) supersession lineage (not a column/index), walked reader-side. **Separate addressing axis** from the §10.5.3 `(stream_id, epoch)` epoch-key; **shared payload-level supersession**. Wire-invisible. | Persist | done |
+| **RC1-1c** | ⚠️ **Coupling caveat** — the V054 cross-column CHECK requires content-addressed `key_grant`s; the §10.5.3 epoch axis needs a **parallel CHECK arm** (content- OR stream/epoch-addressed) — a bounded constraint migration, **not a pure index-add**. Recorded so 0.10 doesn't claim "purely additive" at the Persist constraint layer. | Persist (@ #142) | flagged |
+| **RC1-1b** | Confirm the `KEY_GRANT_V1_INFO` versioned-context HKDF pattern exists in `key_grant.rs` (the §10.5.2 V2 nonce-prefix derivation reuses it). Unverifiable from Edge. *(Still owed.)* | Persist | 🔴 V2 |
 | **RC1-2** | ✅ **RESOLVED (2026-06-01)** — `§10.5` "Streaming transport, per-stream logs & delivery receipts" ratified as the streaming-clause home. *`§10.1.5` does not exist; corrected §15.6.4.* | Registry / router | done |
 | **RC1-3** | ✅ **RESOLVED** — E1: transit-key is a **hop-by-hop wrap UNDER the E2E epoch DEK** (two layers), not replacing the cascade. | Edge | done |
 | **RC1-4** | ✅ **RESOLVED** — E2: RC1 multicast = **pull-only**; relay/fan-out tree → 1.x (#46/#43). | Edge | done |
@@ -136,9 +137,9 @@ Decision register for the RC1 delivery-axis fork. CEG today has a **visibility**
 
 ### §15.6.5 Status
 
-Verify ✅ done (5 original + V1–V3). Persist ✅ done (P1–P4) modulo **RC1-1 + RC1-1b**. **Edge ✅ closed** (E1 two-layer transit / E2 pull-only RC1 / E3 entitled∧reachable via `reachability.rs` #29 / E4 existing federation-attestation path; recorded in Edge `FSD/CEG_RC1_BIFURCATION.md` + `FSD/OPEN_QUESTIONS.md` OQ-14..17). Router: **RC1-2 ✅ §10.5 ratified**; **RC1-7** (constants) pending. Option A + #44 absorption confirmed.
+Verify ✅ done (5 original + V1–V3). **Edge ✅ closed** (E1 two-layer transit / E2 pull-only RC1 / E3 entitled∧reachable via `reachability.rs` #29 / E4 existing federation-attestation path; recorded in Edge `FSD/CEG_RC1_BIFURCATION.md` + `FSD/OPEN_QUESTIONS.md` OQ-14..17). **Persist:** P1–P4 done; **RC1-1 ✅ resolved** (V054 separate addressing axis, shared payload-level supersession), **RC1-1b** (`KEY_GRANT_V1_INFO`) still owed, **RC1-1c** CHECK parallel-arm coupling flagged. Router: **RC1-2 ✅ §10.5 ratified**; **RC1-7** (constants) pending. Option A + #44 absorption confirmed.
 
-**Observer-share half is fully unblocked** (rides existing community roster [§8.1.13](08_composition.md) + `key_grant`; no Persist confirm, no #142) — **normative-ready now**. **Streaming half** final blockers: **RC1-1 + RC1-1b** (Persist) + **RC1-7** (router constants); **best-effort tier impl-pending #142**, **accountable tier impl-pending #142 + [#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)** (STH consistency-proof enforcement). The 0.10 skeleton is staged at [`DRAFT_0.10_delivery_axis.md`](DRAFT_0.10_delivery_axis.md); §15.6.4 `rotation_chain` hygiene corrections fold into the weave.
+**Observer-share half — ZERO remaining blockers, normative-ready now** (rides existing community roster [§8.1.13](08_composition.md) + `key_grant`; needs no Persist confirm, no #142, no RC1-7). **Streaming half** final blockers: **RC1-1b** (Persist) + **RC1-7** (router constants) + the **RC1-1c** V054 CHECK parallel-arm; impl **greenfield-blocked on #142 step 3** (`stream_id`, v3.9 target — **unowned/unscheduled**, roadmap call), accountable tier additionally on **[#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)**. The 0.10 skeleton is staged at [`DRAFT_0.10_delivery_axis.md`](DRAFT_0.10_delivery_axis.md); §15.6.4 `rotation_chain` hygiene corrections fold into the weave.
 
 ---
 

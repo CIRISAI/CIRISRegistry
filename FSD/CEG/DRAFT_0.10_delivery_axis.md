@@ -10,8 +10,9 @@
 
 ## Open gates — MUST pin before this is normative + version-bumped
 
-- [ ] **RC1-1** (Persist) — confirm `key_grant.rotation_chain` impl-index `(content_sha256, recipient_key_id)` / V054 matches the [§5.6.8.4](05_namespace.md) grant-supersession semantics, and is **distinct from** the new per-`(stream_id, epoch)` epoch-key index in §10.5.3.
-- [ ] **RC1-1b** (Persist — V2) — confirm the `KEY_GRANT_V1_INFO` versioned-context HKDF pattern exists in `key_grant.rs`; the §10.5.2 nonce-prefix derivation reuses it. Unverifiable from Edge.
+- [x] **RC1-1** (Persist) — ✅ **RESOLVED on record.** V054 = two single-column partial indexes (`media_content_sha256`, `key_grant_recipient_key_id`) AND-ed by the planner; `rotation_chain` is a **payload-level** [§5.6.8.4](05_namespace.md) supersession lineage (not a column/index), walked reader-side. **Separate addressing axis** from the §10.5.3 `(stream_id, epoch)` epoch-key (content-addressed vs transport-coordinate-addressed; disjoint), **shared payload-level supersession mechanism**. Wire-invisible (persist-internal denormalizations).
+- [ ] **RC1-1c** (Persist — coupling caveat) — ⚠️ the V054 cross-column CHECK requires `key_grant` rows be content-addressed, so the §10.5.3 axis needs a **parallel CHECK arm** (content-addressed OR stream/epoch-addressed): a bounded constraint migration, **not a pure index-add**. On record so 0.10 does not claim "purely additive" at the Persist constraint layer.
+- [ ] **RC1-1b** (Persist — V2) — confirm the `KEY_GRANT_V1_INFO` versioned-context HKDF pattern exists in `key_grant.rs`; the §10.5.2 nonce-prefix derivation reuses it. Unverifiable from Edge. *(Still owed.)*
 - [ ] **RC1-7** (router) — ratify constants `K=64` / `T=2s` / cosign per-epoch / `MAX_CHUNKS_PER_EPOCH=2²⁴` + accountable-stream quorum = Policy E ([§8.1.5](08_composition.md)).
 - [x] **RC1-2** — `§10.5` ratified as the streaming-clause home (2026-06-01).
 - [x] **RC1-3** (Edge E1) — ✅ two-layer: transit-key wraps **under** the E2E epoch DEK; does not replace the cascade.
@@ -19,7 +20,7 @@
 - [x] **RC1-5** (Edge E3) — ✅ fan-out = **entitled ∧ reachable**: Edge owns transport-reachability (`reachability.rs`, #29), Persist owns durable entitlement. *Supersedes the earlier "Persist holds the live set."*
 - [x] **RC1-6** (Edge E4) — ✅ durable entitlement rides the existing federation-attestation edge path (#41).
 - **Dependency refinement:** **best-effort** streaming tier pends **#142** only; **accountable** tier (witness-cosigned anti-equivocation) pends **#142 + [#34](https://github.com/CIRISAI/CIRISRegistry/issues/34)** (STH consistency-proof enforcement).
-- (impl, not spec-gating) **CIRISPersist#142** — `put_blob_chunk` / `seal_stream` / stream-chunk table (greenfield; 0 occurrences today).
+- (impl, not spec-gating) **CIRISPersist#142** — streaming substrate; internal sequencing `get_range` (v3.7) → `BlobBody::ChunkDag` + manifest (v3.8) → `put_blob_chunk`/`seal_stream` + `federation_stream_chunks` (v3.9, **births `stream_id`**). **Unowned, unscheduled** (no assignee/milestone — roadmap call). Self-declares deps on #44 (CEG 0.5 `live_stream`) + NodeCore chunk-append/`seal_stream`.
 
 ## File-landing map (when woven into 00–17)
 
@@ -64,7 +65,7 @@ A stream is **its own per-stream transparency-log instance** (`log_id = stream_i
 
 ### §10.5.3 Epoch keying + cascade [LOCKED — D2/D3; substrate-pending #142]
 - **Stream-epoch DEK seals content O(1)**; **per-subscriber `key_grant` cascade distributes the 32-byte epoch key O(N)/epoch** (sender-key/Megolm shape) = [§8.1.12.4](08_composition.md) Policy-L cascade applied to a community roster against a *rotating key*.
-- **Epoch index: monotonic, per `stream_id`, greenfield** — NOT `key_grant.rotation_chain` (that's content-addressed grant supersession, [§5.6.8.4](05_namespace.md); separate axis). substrate-pending [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142) (`put_blob_chunk`/`seal_stream`/stream-chunk table); the epoch-key grant is then `key_grant` scoped to `(stream_id, epoch)` — a parallel index, not a new mechanism. TODO(RC1-1) Persist confirm.
+- **Epoch index: monotonic, per `stream_id`, greenfield** — a **separate addressing axis** from `key_grant.rotation_chain` (content-addressed grant supersession, [§5.6.8.4](05_namespace.md), payload-level). The epoch-key grant = `key_grant` addressed by `(stream_id, epoch)`, **reusing the same payload-level supersession lineage** on the new axis (RC1-1 ✅ Persist on record: V054 ships two single-column partials AND-ed; `rotation_chain` is payload-level, not indexed). substrate-pending [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142) **step 3** (`put_blob_chunk`/`seal_stream` + `federation_stream_chunks(stream_id, seq)`, v3.9.0 target — where `stream_id` is born and `transport_epoch` becomes scopable; **not landed; unowned/unscheduled**). ⚠️ **Not pure-additive at Persist (RC1-1c):** the V054 cross-column CHECK requires content-addressed `key_grant`s, so this axis needs a **parallel CHECK arm** (content- OR stream/epoch-addressed) — a bounded constraint migration.
 - **Triggers (D3):** removal → **mandatory rotation** (the forward-only-unsubscribe enforcement); add → **no rotation** + Option-A catch-up ([§11.7.1](11_governance.md)); time/bytes → optional hygiene.
 - **FS = forward-only, no PCS** (consistent with 0.7). MLS O(log N) rekey tree = **1.x, additive** (tree-position on the opaque grant payload; no table migration).
 - **Catch-up bound (P4):** `min(operator depth cap [Lens-core knob, NOT a substrate constant], chunk-eviction horizon)`. An evicted-epoch grant returns **`ContentMiss` — fail-honest, no silent gap** (MISSION 182/197/414/447). Ship the operator bound **with** the cascade (P3: 10⁶ grants/rekey otherwise).
