@@ -116,7 +116,7 @@ Decision register for the RC1 delivery-axis fork. CEG today has a **visibility**
 | OQ | Open item | Owner | Gating |
 |---|---|---|---|
 | **RC1-1** | Confirm `key_grant.rotation_chain` **impl index** shape matches the [§5.6.8.4](05_namespace.md) grant-supersession semantics. *Concept is spec-corroborated (it's a lineage of `key_grant_id`s, NOT a stream epoch); only the impl index is Persist-word-only.* | Persist | 🔴 P1 hinge |
-| **RC1-2** | Ratify **`§10.5`** as the streaming-clause home. *`§10.1.5` does NOT exist (phantom — corrected §15.6.4).* | Registry / router | 🔴 |
+| **RC1-2** | ✅ **RESOLVED (2026-06-01)** — `§10.5` "Streaming transport, per-stream logs & delivery receipts" ratified as the streaming-clause home. *`§10.1.5` does not exist; corrected §15.6.4.* | Registry / router | done |
 | **RC1-3** | E1 — transit-key is a **hop-by-hop wrap UNDER the E2E epoch DEK** (two layers), NOT replacing the cascade. | Edge | 🔴 security |
 | **RC1-4** | E2 — RC1 multicast = **pull-only** (relay/fan-out tree → 1.x, ties #46/#43). | Edge | 🔴 scope |
 | **RC1-5** | E3 — live-delivery-set ownership (Persist holds the node-local set; Edge sends). | Edge | — |
@@ -135,7 +135,7 @@ Decision register for the RC1 delivery-axis fork. CEG today has a **visibility**
 
 ### §15.6.5 Status
 
-Verify ✅ done (5 original + V1–V3). Persist ✅ done (P1–P4) modulo **OQ-RC1-1**. Edge ⬜ **OQ-RC1-3..6**. Router ⬜ **OQ-RC1-2, RC1-7** (Option A + #44 absorption already confirmed). Normative 0.10 text is gated on **RC1-1 + RC1-2 + RC1-3 + RC1-4**; once pinned, observer-share lands RC1-live and the streaming half lands as §10.5 substrate-pending-#142, with the §15.6.4 `rotation_chain` hygiene corrections folded into the same pass.
+Verify ✅ done (5 original + V1–V3). Persist ✅ done (P1–P4) modulo **OQ-RC1-1**. Edge ⬜ **OQ-RC1-3..6**. Router: **RC1-2 ✅ §10.5 ratified**; **RC1-7** (constants) pending. Option A + #44 absorption confirmed. Normative 0.10 text now gated only on **RC1-1 + RC1-3 + RC1-4**. The 0.10 skeleton is staged at [`DRAFT_0.10_delivery_axis.md`](DRAFT_0.10_delivery_axis.md) — a fill-in once Edge E1/E2 + Persist RC1-1 land. Observer-share lands RC1-live; streaming lands as §10.5 substrate-pending-#142; §15.6.4 `rotation_chain` hygiene corrections fold into the same pass.
 
 ---
 
