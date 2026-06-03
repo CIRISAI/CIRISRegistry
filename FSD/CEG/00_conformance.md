@@ -150,4 +150,111 @@ What CEG 0.8 does NOT do:
 
 ---
 
+## §0.9 Envelope canonicalization — JCS + the omit-vs-materialize rule (CEG 0.9 addition)
+
+Per external critical-review surface (the round-trip-determinism concern that landed against CEG ≤ 0.8). Closes the canonical-bytes ambiguity that accumulated as CEG 0.x acquired optional fields with documented defaults — `epistemic_mode`/`witness_relation`/`occurrence_*`/`stake` (pre-0.4 baseline), `oversight_mode` (pre-0.4 + CEG 0.2 ladder rework), `subject_key_ids` (CEG 0.6), `family_id` (CEG 0.7), `community_id` (CEG 0.8).
+
+**The hazard is structural and the reviewer named it correctly.** If Producer A omits an optional field (relying on the [§4](04_envelope.md) documented default) and Relay R re-serializes the attestation with the default materialized into the byte stream, the canonical bytes diverge and the Ed25519 + ML-DSA-65 signatures no longer verify. Pre-§0.9 CEG implicitly required producers, substrates, relays, and consumers to all make the same choice; §0.9 makes the rule explicit and normative.
+
+### §0.9.1 Canonical encoding format (normative)
+
+CEG envelope signing bytes are computed via **JCS — JSON Canonicalization Scheme, [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785)** (Rundgren, Jordan, Erdtman; March 2020). JCS pins, in summary:
+
+- Object members sorted lexicographically by member name (UTF-16 code-unit order, RFC 8785 §3.2.3)
+- No insignificant whitespace
+- UTF-8 byte encoding (RFC 8259 §8.1)
+- Strings escaped per RFC 8259 §7 with the JCS narrowing on `\uXXXX` form
+- Numbers serialized per the ES6-derived rule (RFC 8785 §3.2.2.3) — integers without trailing `.0`, no exponent unless the magnitude requires it
+
+A CEG-Conforming Producer (CCP per [§0.2](#02-conformance-levels)) MUST produce signing bytes via JCS over the envelope object. A CEG-Conforming Consumer (CCC) MUST recompute signing bytes via the same JCS rule for signature verification. A CEG-Conforming Substrate (CCS) MUST preserve the as-received envelope object bytes for relay (per §0.9.2 below); it MAY store a parsed representation alongside, but the canonical-bytes contract is against the as-received form, not the parsed-and-re-serialized form.
+
+### §0.9.2 The round-trip rule — defaults are interpretation-time, not encoding-time (normative)
+
+The canonical bytes are computed over **the literal envelope members the producer signs**. Optional fields that the producer omits MUST NOT be materialized into canonical bytes by any party — producer, substrate, relay, or consumer. Optional fields that the producer explicitly emits (even at their default value) MUST be preserved in the canonical bytes by any party. Documented defaults from [§4](04_envelope.md) are **interpretation-time semantics**, not encoding-time content.
+
+**Two valid encodings of the semantically-identical attestation**:
+
+```
+# Producer A — omits epistemic_mode (relies on §4 default)
+{"attested_key_id":"...","attesting_key_id":"...","confidence":0.9,"dimension":"licensure:CA_medical_board","score":0.8}
+
+# Producer B — explicitly emits epistemic_mode at its default value
+{"attested_key_id":"...","attesting_key_id":"...","confidence":0.9,"dimension":"licensure:CA_medical_board","epistemic_mode":"direct","score":0.8}
+```
+
+Both producers compute different canonical bytes (Producer B's includes the `"epistemic_mode":"direct"` member) and emit different signatures. **Both signatures verify under their respective canonical bytes.** Both are **semantically equivalent** — a CEG-Conforming Consumer evaluates `effective_epistemic_mode(envelope) = envelope.epistemic_mode if present else "direct"` and proceeds identically. The wire-format admits both encodings; the consumer policy admits no observable difference.
+
+**Relay discipline (normative)**. A substrate, relay, or consumer that re-stores or forwards an attestation MUST preserve member presence/absence exactly as the producer signed it:
+
+- Stripping an explicitly-emitted default ("the producer wrote `epistemic_mode:direct` but I'll save bytes by removing it") MUST NOT happen
+- Materializing an omitted default ("the producer omitted `epistemic_mode` so I'll fill in `direct` for clarity") MUST NOT happen
+- Reordering object members on re-emission is REQUIRED (JCS lexicographic order; if a producer somehow emits non-canonical order, the relay re-canonicalizes — but member presence/absence stays fixed)
+
+This composes with the [§4.1](04_envelope.md) forward-compatibility rule (which already mandates preserving unknown fields on read and re-emission). §0.9.2 extends the same preservation discipline to known-optional fields.
+
+### §0.9.3 Per-field encoding table (informational)
+
+The §0.9.2 rule applies uniformly to every optional [§4](04_envelope.md) field. Catalog as of CEG 0.9:
+
+| Field | Introduced | Default per §4 | Canonical when omitted | Canonical when explicit |
+|---|---|---|---|---|
+| `epistemic_mode` | pre-0.4 | `direct` | member absent | `"epistemic_mode":"direct"` (or other enum value) |
+| `witness_relation` | pre-0.4 | `external` | member absent | `"witness_relation":"self"` (or other enum value) |
+| `oversight_mode` | pre-0.4 | `null` (per-cell default applies) | member absent | `"oversight_mode":"HITL"` (or other enum value) |
+| `occurrence_id` | pre-0.4 | `null` → `"occurrence-0"` at interpretation | member absent | `"occurrence_id":"occurrence-1"` |
+| `occurrence_count` | pre-0.4 | `null` → `1` at interpretation | member absent | `"occurrence_count":3` |
+| `occurrence_role` | pre-0.4 | `null` → `"primary"` at interpretation | member absent | `"occurrence_role":"shared"` |
+| `stake` | pre-0.4 | `reputational` | member absent | `"stake":"capital"` (or other enum value) |
+| `context` | pre-0.4 | absent | member absent | `"context":"..."` (free-form) |
+| `evidence_refs` | pre-0.4 | absent | member absent | `"evidence_refs":["..."]` |
+| `valid_until` | pre-0.4 | absent | member absent | `"valid_until":"2026-12-31T00:00:00.000Z"` |
+| `subject_key_ids` | CEG 0.6 | `null`/empty | member absent | `"subject_key_ids":["..."]` |
+| `family_id` | CEG 0.7 | n/a (REQUIRED iff `cohort_scope == family`) | member absent (admission rejects if cohort_scope == family) | `"family_id":"..."` |
+| `community_id` | CEG 0.8 | n/a (REQUIRED iff `cohort_scope == community`) | member absent (admission rejects if cohort_scope == community) | `"community_id":"..."` |
+
+The conditional-required fields `family_id` and `community_id` are NOT optional-with-default — substrate rejects mis-shape per [§4.2.6](04_envelope.md) + [§11.6.2](11_governance.md) + [§11.7.2](11_governance.md) — but they encode under the same JCS rule when present.
+
+### §0.9.4 Verification flow (informational)
+
+```
+On signature verify:
+    1. Receive envelope from wire as object O (preserved as-received)
+       and signature S
+    2. Compute canonical bytes B = JCS(O)
+    3. Verify S over B via the hybrid Ed25519 + ML-DSA-65 path per §5.2.1
+    4. If signature valid:
+        a. Compute effective semantics by applying §4 defaults to absent
+           optional fields (interpretation-time only)
+        b. Apply consumer policy per §8 over the resulting semantic shape
+    5. If forwarding/storing:
+        a. Store/forward object O AS RECEIVED — do not normalize, strip,
+           or materialize defaults
+        b. Forward original signature S unchanged
+```
+
+### §0.9.5 Worked attack the §0.9 rule closes
+
+Pre-§0.9 (implicit / unspecified) failure mode:
+
+> Alice's CEG-Conforming Producer signs an envelope omitting `epistemic_mode`. Bob's CEG-Conforming Relay receives, parses, materializes the default `"direct"`, re-serializes via JCS, and forwards to Carol. Carol receives the relay-modified envelope with the new bytes, computes JCS, verifies signature → **FAILS** because Alice signed over bytes without the `epistemic_mode` member. Carol cannot distinguish "Bob is a malicious relay corrupting the bytes" from "Bob is honestly applying defaults to be helpful." Carol rejects. The attestation is lost in transit despite no party acting in bad faith.
+
+Post-§0.9 (explicit, normative):
+
+> Bob's relay MUST preserve member presence/absence exactly. Bob forwards the as-received bytes. Carol's verify succeeds. The semantic interpretation step at Carol (applying default `"direct"` to the absent member) happens AFTER signature verification.
+
+### §0.9.6 What CEG 0.9 (this section) documents
+
+- The JCS-as-canonical-encoding rule for envelope signing bytes
+- The omit-vs-materialize rule for optional fields with documented defaults (the round-trip-determinism fix)
+- The relay-preservation discipline that closes the worked attack at §0.9.5
+- The per-field encoding catalog (§0.9.3) covering every optional [§4](04_envelope.md) field introduced through CEG 0.8
+
+What CEG 0.9 (this section) does NOT do:
+- Introduce a new encoding format — JCS is the only encoding
+- Change any semantic interpretation — defaults still apply at interpretation time per [§4](04_envelope.md)
+- Modify the §0.5 datetime / §0.6 hex / §0.7 time / §0.8 H3 sub-rules — those are domain-specific and compose under JCS
+- Wire-break prior 0.x emissions — pre-§0.9 emissions that omitted optional fields remain valid; pre-§0.9 emissions that explicitly emitted defaults likewise remain valid; what §0.9 normatively prohibits is RELAY-TIME mutation of presence/absence, which was always wrong but is now explicitly so
+
+---
+
 [← Back to CEG README](README.md) | **§0 Conformance** | [Next: §1 Foundation →](01_foundation.md)

@@ -45,7 +45,7 @@ Do not invent intermediate categories.
 4. **Fill the envelope** ([§4](04_envelope.md)).
 5. **Compose only when needed.** Multi-primitive translations for paragraphs that genuinely name multiple structural objects.
 
-A machine-readable namespace manifest (`FSD/CEG/dimensions.json`) is planned for CEG 0.2 — it will enable mechanical prefix lookup, polarity reading, and per-dimension aggregation defaults without human scanning of §5.
+A machine-readable namespace manifest (`FSD/CEG/dimensions.json`) is planned for CEG 1.0 — it will enable mechanical prefix lookup, polarity reading, and per-dimension aggregation defaults without human scanning of §5. (Originally targeted for 0.2 per the early-draft roadmap; the 0.3 → 0.8 wave prioritized substantive namespace additions over tooling, so the manifest now lands alongside the 1.0 lock when the namespace stabilizes.)
 
 ---
 

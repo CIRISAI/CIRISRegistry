@@ -75,6 +75,10 @@ Per [§11.6](11_governance.md), dimensions whose namespace pattern names a subje
 
 ## §4.1 Forward-compatibility rule
 
+> **Canonical-bytes contract**: the canonical-bytes encoding of this envelope for signing follows [§0.9](00_conformance.md) (JCS over the envelope object; defaults are interpretation-time, NOT encoding-time; relay MUST preserve member presence/absence exactly as the producer signed). Optional fields with documented defaults in the table above ride the §0.9.2 omit-vs-materialize rule. Conditional-required fields (`family_id` per CEG 0.7, `community_id` per CEG 0.8) are NOT optional-with-default and substrate rejects mis-shape per [§4.2.6](#426-subject-bearing-dimensions-governance-requirement) + [§11.6.2](11_governance.md) + [§11.7.2](11_governance.md).
+
+
+
 A Conforming Consumer (CCC per [§0.2](00_conformance.md)) that receives an envelope carrying a field-name it does not recognize MUST:
 
 - Preserve the unknown field on read (do not strip).
