@@ -89,6 +89,16 @@ Per [§5.6.8.10](05_namespace.md) `community` + [§5.6.8.11](05_namespace.md) `l
 
 Composes with [§7.2](#72-substrate-self-report-reservations-system) + [§7.7](#77-selffamily-membership-event-reservations-ceg-07-addition) — part of the same substrate-self-report discipline. Non-substrate emissions on these prefixes are a category error and MUST be rejected.
 
+## §7.9 Delivery-receipt reservation (CEG 0.10 addition)
+
+Per [§10.5.4](10_endpoints.md) delivery receipts (V3 lock). One reserved prefix for subscriber-emitted delivery acknowledgements:
+
+| Prefix | Description | Emitter rule |
+|---|---|---|
+| `delivery_receipt:{stream_id}` | Subscriber's signed acknowledgement that they received chunk K under the named stream + epoch. Best-effort default; opt-in for accountable streams. Validated-not-adjudicated per [§1.4](01_foundation.md) MISSION fail-honest invariant — substrate / Verify authenticate origin + JOIN against published STH root per [§10.5.4](10_endpoints.md), but do not compose "delivered"/"owes N" verdicts (consumer policy). | `attesting_key_id` MUST be a current member of the community/stream the `{stream_id}` belongs to, per [§8.1.13](08_composition.md) Policy M membership resolution. NOT substrate-self-report (distinct from §7.2 / §7.7 / §7.8 substrate emissions). |
+
+**Composition with CEG 0.9 [§7.0.1](#70-the-enforcement-rule-normative) identity_type-as-set**: a subscriber who is also a witness MAY emit delivery_receipt under the subscriber role; the role-set must contain a subscriber-eligible role (per the community's admission semantics from [§8.1.13](08_composition.md) Policy M).
+
 ---
 
 [← §6 Relations](06_relations.md) | **§7 Reserved** | [Next: §8 Composition →](08_composition.md)

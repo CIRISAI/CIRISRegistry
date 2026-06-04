@@ -25,7 +25,10 @@ Every `scores` Attestation carries this envelope. Field semantics consolidated h
 | `stake` | no | Per [§2](02_grammar.md) Stake axis; default `reputational`. Composes with the attester's actual stake-backed-by attestations from [§5.9](05_namespace.md). |
 | `community_id` | no (REQUIRED iff `cohort_scope == community`) | **CEG 0.8 addition.** The `community_key_id` of the community this Contribution is scoped to, per [§5.6.8.10](05_namespace.md) `community` subject_kind. One identity MAY belong to multiple communities; the field disambiguates which community's roster gates visibility. Required iff `cohort_scope == community` (substrate rejects community-scoped Contributions missing the field). Parallel to `family_id` (CEG 0.7) but with different semantics: community content DOES emit `holds_bytes:sha256:*` (federates within the cohort per [§5.6.7](05_namespace.md)); [§10.1.4](10_endpoints.md) structural-invisibility applies to self/family only. |
 | `family_id` | no (REQUIRED iff `cohort_scope == family`) | **CEG 0.7 addition.** The `family_key_id` of the family this Contribution is scoped to, per [§5.6.8.9](05_namespace.md) `family` subject_kind. One identity MAY belong to multiple families ([§8.1.12](08_composition.md) Policy L); the field disambiguates which family's DEK applies and which membership roster gates visibility. Required iff `cohort_scope == family` (substrate rejects family-scoped Contributions missing the field). Composes with [§10.1.4](10_endpoints.md) structural-invisibility — `cohort_scope: self \| family` content never emits `holds_bytes:sha256:*`, so the field is only consulted in-substrate, never on the wire to non-members. |
-| `subject_key_ids` | no | **CEG 0.6 addition.** List of consent-holder `key_id`s for this Contribution. Each entry MAY be a `federation_keys.key_id` OR a canonical-hash identifier (per [§4.2](#42-subject_key_ids-semantics-ceg-06) below). Each listed key has substrate-recognized authority to (a) issue `withdraws` against this Contribution (per [§3.2](03_primitives.md) broadened admission rule) and (b) emit `consent:*` dimensions about this Contribution (per [§5.6.8.6](05_namespace.md)). Default `null`/empty = no subject authority (status quo; producer-only authority). Orthogonal to `cohort_scope` — see [§4.2](#42-subject_key_ids-semantics-ceg-06). |
+| `subject_key_ids` | no | **CEG 0.6 addition.** List of consent-holder `key_id`s for this Contribution. Each entry MAY be a `federation_keys.key_id` OR a canonical-hash identifier (per [§4.2](#42-subject_key_ids-semantics-ceg-06) below). Each listed key has substrate-recognized authority to (a) issue `withdraws` against this Contribution (per [§3.2](03_primitives.md) broadened admission rule) and (b) emit `consent:*` dimensions about this Contribution (per [§5.6.8.6](05_namespace.md)). Default `null`/empty = no subject authority (status quo; producer-only authority). Orthogonal to `cohort_scope` AND `delivery_mode` — see [§4.2.4](#424-orthogonality-with-cohort_scope-and-delivery_mode). |
+| `delivery_mode` | no | **CEG 0.10 addition.** `pull \| push`. Default `pull`. `pull` = subscribers discover via the `holds_bytes:sha256:*` directory ([§5.6.7](05_namespace.md)) + fetch via [§10.1](10_endpoints.md) `ContentFetch`. `push` = substrate fans out to the live-delivery set per [§10.5.6](10_endpoints.md) `fan_out = entitled ∩ reachable`. Composes with [§8.1.13](08_composition.md) Policy M for community-scoped delivery; with [§10.5](10_endpoints.md) streaming for `live_stream` chunk-DAG delivery. Distinct from `cohort_scope` (visibility) and `subject_key_ids` (revocability) — see [§4.2.4](#424-orthogonality-with-cohort_scope-and-delivery_mode). RC1: pull-only multicast; push tree → 1.x per CIRISRegistry#46 / #43. |
+| `listed` | no | **CEG 0.10 addition.** Per-membership opt-in flag — value `public`. Default absent (roster is producer- + self-queryable, NEVER globally enumerable). Public listing mirrors the [§11.8.3](11_governance.md) location opt-in discipline: opting into roster visibility is a one-way disclosure the member chooses; substrate does NOT solicit. Composes with [§8.1.13](08_composition.md) Policy M community membership and the new [§10.5](10_endpoints.md) streaming endpoint set. |
+| `history_on_join` | no | **CEG 0.10 addition.** `full \| from_join`. Default `from_join`. Per-target — names what content a new community/stream member receives at admission. `full` = Option-A retroactive catch-up (trace / registry-export backlog) per [§11.7.1](11_governance.md); `from_join` = current epoch forward only (live media). For `full` on streams: catch-up is bounded by `min(operator depth cap, chunk-eviction horizon)` per [§10.5.3](10_endpoints.md) P4; an evicted-epoch grant returns `ContentMiss` — fail-honest, no silent gap. |
 
 **`epistemic_mode` vs `witness_relation` — distinct dimensions**: these co-vary at edges but name different concerns. `epistemic_mode` names the *process* by which the claim was formed; `witness_relation` names the *relational position* of the attester to the attested. F-3 detector attestations carry both (`epistemic_mode: derivative` + `witness_relation: derived`). Most encyclical-sourced translations are `witness_relation: external` + `epistemic_mode: hearsay`. When in doubt, set both.
 
@@ -54,16 +57,34 @@ Resolves [CIRISAgent#840 OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840) 
 
 When `attesting_key_id ∈ subject_key_ids`, the Contribution is a **self-consent ceremony** — the same identity is attesting AS subject AND producer. This composes naturally with the [CIRISAgent#840](https://github.com/CIRISAI/CIRISAgent/issues/840) CEG-native agent's self-attestation pattern: agent attests `identity:current` about itself with `subject_key_ids = [self.key_id]`, asserting consent-authority over its own identity claims (D08 autonomy claim).
 
-### §4.2.4 Orthogonality with `cohort_scope`
+### §4.2.4 Orthogonality with `cohort_scope` AND `delivery_mode` (3-axis per CEG 0.10)
 
-`cohort_scope` (producer-side) names **who can SEE the data** — visibility authority. `subject_key_ids` (subject-side) names **who can REVOKE the data** — revocability authority. They are orthogonal and may coexist on the same Contribution:
+CEG envelope encodes **three independent envelope-level concerns** that compose without overlap:
+
+| Axis | Field | Authority | Names |
+|---|---|---|---|
+| **Visibility** | `cohort_scope` + (`family_id` or `community_id` when set) | Producer-side | Who can SEE the data |
+| **Revocability** | `subject_key_ids` (CEG 0.6) | Subject-side | Who can REVOKE the data |
+| **Delivery** | `delivery_mode` + `listed` + `history_on_join` (CEG 0.10) | Substrate / subscriber | Who actively RECEIVES the data + how the substrate fans out |
+
+All three may coexist on the same Contribution:
 
 ```
-A `cohort_scope: family` contribution carrying `subject_key_ids: [user_canonical_hash]`
-publishes the bytes at family-cohort visibility; the user retains revocation authority.
+A `cohort_scope: family` contribution
+  carrying `subject_key_ids: [user_canonical_hash]`
+  carrying `delivery_mode: push` + `history_on_join: from_join`
+  carrying `family_id: <acme_household>`
+
+publishes the bytes at family-cohort visibility (cohort_scope);
+the user retains revocation authority (subject_key_ids);
+the substrate actively fans out to currently-reachable members
+  with new-members getting forward-only content (delivery_mode + history_on_join);
+the named family roster gates the membership set (family_id).
 ```
 
 This orthogonality is load-bearing for the multi-occurrence consent shape (per [`MULTI_OCCURRENCE_CONSENT_ANALYSIS.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/docs/MULTI_OCCURRENCE_CONSENT_ANALYSIS.md)): subject-side revocation applies federation-wide regardless of producer's `occurrence_id`; per-occurrence lifecycle consent is a producer-side concern, separately tracked.
+
+The delivery axis is the **third orthogonal axis** per CEG 0.10 — CEG ≤ 0.9 encoded visibility + revocability only; the substrate had no envelope-level handle on who actively *receives* + how the substrate fans out. Per [§10.5](10_endpoints.md), 0.10 closes that gap with three new optional envelope fields + the new §10.5 endpoint section + a delivery extension to [§8.1.13](08_composition.md) Policy M.
 
 ### §4.2.5 Empty/absent = status-quo
 

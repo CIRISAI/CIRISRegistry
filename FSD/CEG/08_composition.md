@@ -572,6 +572,57 @@ Communities compose with consent (CEG 0.6) and self-collectives (CEG 0.7) cleanl
 - A community member who is also a subject in `subject_key_ids` of a community-scoped Contribution retains revocation authority per CEG 0.6 [§3.2.3](03_primitives.md) rule 2; the orthogonality between cohort_scope (visibility) and subject_key_ids (revocability) holds at community scope same as at family scope
 - A geographic community whose `geographic_constraint` covers a region that overlaps a family's at-home location does NOT cross-contaminate: families are not auto-admitted to communities; communities are not auto-admitted to families. Each membership is explicit, ceremony-shaped, and independent.
 
+#### §8.1.13.7 Delivery extension — `delivery_mode` × Policy M (CEG 0.10 addition)
+
+Per [CIRISRegistry#44 absorbed](https://github.com/CIRISAI/CIRISRegistry/issues/44) + [CIRISLensCore#857](https://github.com/CIRISAI/CIRISLensCore/issues/857). Policy M's community-membership composition extends to govern the **delivery axis** (`delivery_mode` envelope field per [§4](04_envelope.md)). The subscriber-set for any push-delivery flow IS a `community` Contribution; "subscribe = join the community"; inherits revocation, consensus, and structural-invisibility from Policy M unchanged.
+
+**Subscriber-set composition**:
+
+```
+For a Contribution C with delivery_mode = push AND cohort_scope = community:
+    subscriber_set(C) = resolve_community(C.community_id, now)
+                        per §8.1.13.1 community membership resolution
+
+The community is admitted under the standard Policy M consensus_protocol
+options (founder_only / unanimous / majority / quorum:M/N / weighted /
+custom) per §8.1.13.2. Subscription-specific admission semantics —
+producer_gated (publisher approves each member) vs open (anyone can
+join) — ride the consensus_protocol choice:
+
+    producer_gated → consensus_protocol = "founder_only" with the
+                     publisher as sole founder; the publisher authorizes
+                     each new subscriber
+    open           → consensus_protocol = "open:self_admit" (open-vocab
+                     extension hook) where any subject signs their own
+                     admission Contribution
+```
+
+**Cardinality unified across observer-share and multicast**:
+
+| Cardinality | Per-subscriber crypto | Epoch handling |
+|---|---|---|
+| **N=1 (observer-share)** | Single `key_grant` ([§5.6.8.4](05_namespace.md)); no epoch needed (one recipient, one DEK) | No epoch — single grant, single DEK; revocation = `withdraws` against the grant |
+| **N>1 (multicast)** | Flat per-epoch `key_grant` cascade — one grant per (subscriber, epoch); the stream-epoch DEK seals content O(1), the cascade distributes the 32-byte epoch key O(N)/epoch per [§10.5.3](10_endpoints.md) | Per-`(stream_id, epoch)` axis; epoch rolls on member removal (mandatory) + time/bytes (optional) per [§10.5.3](10_endpoints.md) D3 |
+
+The same Policy M machinery handles both cardinalities — the difference is purely the cascade fan-out factor.
+
+**Composition with `delivery_mode: pull` (RC1 default)**:
+
+For `delivery_mode: pull`, subscribers discover via the standard `holds_bytes:sha256:*` directory per [§10.1](10_endpoints.md). Policy M still resolves the community for visibility-filtering (consumer reads `community_id` envelope field, walks the membership, filters out non-member peers from the discovery surface). No fan-out push; no `delivery_receipt` emission required (best-effort).
+
+**Composition with `delivery_mode: push` (RC1 substrate-pending; live in 1.x)**:
+
+For `delivery_mode: push`, the substrate fans out to `entitled ∧ reachable` per [§10.5.6](10_endpoints.md) D6 liveness invariant. Entitlement = Policy M membership resolution (durable, signed CEG, replicated, logged); reachability = Edge `reachability.rs` ([CIRISEdge#29](https://github.com/CIRISAI/CIRISEdge/issues/29)) node-local presence tracker (TTL sec/min, NEVER an attestation, never replicated, never logged). Missed (entitled-but-unreachable) members fall back to pull on reconnect per [§10.5.6](10_endpoints.md).
+
+**`history_on_join` × Policy M membership additions**:
+
+On a new-member admission via Policy M, the new member's `history_on_join` envelope value (per [§4](04_envelope.md)) determines retroactive content delivery:
+
+- `from_join` (default) — new member receives current-epoch content forward only; no retroactive `key_grant` cascade
+- `full` — new member receives `key_grant`s for prior epochs subject to the [§10.5.3](10_endpoints.md) P4 catch-up bound (`min(operator depth cap, chunk-eviction horizon)`); evicted-epoch grants return `ContentMiss` per the [`MISSION.md`](../../MISSION.md) fail-honest invariant
+
+This composes with [§8.1.12.5](#81125-forward-secrecy-on-member-removal-option-a-recommended-for-v1) Option A forward-secrecy: removed members retain extant `key_grant`s for content they were entitled to during membership; new members may or may not get retroactive grants per `history_on_join`. The substrate's forward-secrecy posture is uniform across consent, takedown, membership-departure, AND delivery-onboarding surfaces.
+
 ## §8.2 Aggregation semantics — opinionated defaults
 
 Per dimension+attested_key_id, the verdict is computed by composing attestations under the chosen policy. Default aggregation by polarity column ([§5](05_namespace.md)):

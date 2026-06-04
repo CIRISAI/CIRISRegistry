@@ -166,7 +166,7 @@ When a member leaves a family (or an occurrence is revoked from a self-collectiv
 
 **Rationale**: consistent with [§3.2](03_primitives.md) `withdraws-isn't-retroactive` + [§11.4](#114-fast-path-takedown-coordination-ceg-03-addition-per-cirisregistry37--38) "takedown isn't a coup" + CEG 0.6 [§8.1.11.5](08_composition.md) consent-decay-doesn't-re-encrypt. The substrate's forward-secrecy posture is uniform across consent, takedown, and membership-departure surfaces.
 
-**Option B** (rotate-DEK on member departure; re-wrap all extant content to remaining members) is deferred. CEG 0.7 documents the slot for a future `subject_kind: family_rotation` ceremony that operators can opt into per family; the wire-format primitives are in place (`key_grant.rotation_chain` from CEG 0.3 covers the rotation mechanic) but the ceremony envelope is downstream-demand-driven.
+**Option B** (rotate-DEK on member departure; re-wrap all extant content to remaining members) is deferred. CEG 0.7 documents the slot for a future `subject_kind: family_rotation` ceremony that operators can opt into per family; the per-`(family_id, epoch)` rotation axis would parallel CEG 0.10's per-`(stream_id, epoch)` axis ([§10.5.3](10_endpoints.md)) — a distinct axis from CEG 0.3's `key_grant.rotation_chain` (which is content-addressed grant-supersession lineage per [§5.6.8.4](05_namespace.md), not key rotation). The ceremony envelope is downstream-demand-driven; the wire-format primitives needed are the `key_grant` wrap + Option-A re-grant on existing members (which already work today).
 
 ### §11.7.2 Multi-family membership — envelope `family_id` (CEG 0.7 default)
 

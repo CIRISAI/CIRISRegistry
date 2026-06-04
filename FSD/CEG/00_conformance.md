@@ -211,6 +211,9 @@ The §0.9.2 rule applies uniformly to every optional [§4](04_envelope.md) field
 | `subject_key_ids` | CEG 0.6 | `null`/empty | member absent | `"subject_key_ids":["..."]` |
 | `family_id` | CEG 0.7 | n/a (REQUIRED iff `cohort_scope == family`) | member absent (admission rejects if cohort_scope == family) | `"family_id":"..."` |
 | `community_id` | CEG 0.8 | n/a (REQUIRED iff `cohort_scope == community`) | member absent (admission rejects if cohort_scope == community) | `"community_id":"..."` |
+| `delivery_mode` | CEG 0.10 | `pull` | member absent | `"delivery_mode":"push"` |
+| `listed` | CEG 0.10 | absent (private roster) | member absent | `"listed":"public"` (opt-in only per [§11.8.3](11_governance.md)-shape; producers MUST omit unless subject has opted in) |
+| `history_on_join` | CEG 0.10 | `from_join` | member absent | `"history_on_join":"full"` |
 
 The conditional-required fields `family_id` and `community_id` are NOT optional-with-default — substrate rejects mis-shape per [§4.2.6](04_envelope.md) + [§11.6.2](11_governance.md) + [§11.7.2](11_governance.md) — but they encode under the same JCS rule when present.
 

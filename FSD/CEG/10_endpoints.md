@@ -219,6 +219,141 @@ Register a new witness. **0.1 scaffold note**: in 0.1 interim this is bearer-tok
 
 Full response schemas for these endpoints land in the Rust handlers + OpenAPI export; CEG 0.2 commits to publishing a versioned OpenAPI spec alongside this document.
 
+## §10.5 Streaming transport, per-stream logs & delivery receipts (CEG 0.10 addition)
+
+Per [CIRISRegistry#44 absorbed](https://github.com/CIRISAI/CIRISRegistry/issues/44) + [CIRISLensCore#857](https://github.com/CIRISAI/CIRISLensCore/issues/857) (observer-share driver) + [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142) (streaming substrate prerequisite). §10.5 is the **delivery axis** — the third orthogonal envelope concern alongside visibility (`cohort_scope`) and revocability (`subject_key_ids` per [§4.2](04_envelope.md)). [§3](03_primitives.md)'s 1+4 primitive set is untouched; §10.5 is endpoint + envelope + composition extension, NOT a grammar change.
+
+**Bifurcation (per [§15.6.1](15_gaps.md))**:
+
+| Half | Cardinality | RC1 status |
+|---|---|---|
+| **Observer-share / directed delivery** (single Contribution → subscriber-set; no `stream_id`) | N=1 typical; per-subscriber `key_grant` | **impl-live**; substrate paths shipping per [§5.6.8.4](05_namespace.md) `key_grant` + [§8.1.13](08_composition.md) Policy M membership |
+| **Media / streaming multicast** (`live_stream` chunk-DAG; per-`(stream_id, epoch)` keys) | N>1; flat per-epoch `key_grant` cascade | **spec-now, impl substrate-pending [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142)**; subsections §10.5.2 / §10.5.3 / §10.5.4 ride this dependency |
+
+### §10.5.0 Framing (normative)
+
+A stream is **its own per-stream transparency-log instance** (`log_id = stream_id`). A `live_stream` (CEG 0.5 sub_kind absorbed into 0.10) MUST NOT append chunks into the federation provenance log ([§10.3](#103-sth-cosigning--witness-directory)'s global log carrying builds / licenses / identities) — millions of media chunks would pollute provenance and inflate the global tree. The §10.5 path **reuses** the §10.3 `SignedTreeHead` / `ConsistencyProof` / `WitnessConsistencyProof` / cosign abstractions, instantiated per-stream as separate log instances under the same RFC 6962 algorithm.
+
+The 1+4 wire-format lockdown holds: there are no new `attestation_type` values. Stream chunks ride content addressing; stream-roots ride the existing `SignedTreeHead` shape; delivery receipts ride `scores` against the new `delivery_receipt:{stream_id}` reserved prefix ([§7.9](07_reserved.md)).
+
+### §10.5.1 Per-stream log + stream-root (normative — V1 lock)
+
+For each live_stream:
+
+- `log_id = stream_id`; chunks = leaves; stream-root = `SignedTreeHead{ log_id: stream_id, tree_size: chunk_count, root_hash, timestamp, signature }`
+- **Producer signs the STH — MANDATORY** authenticity root; hybrid Ed25519 + ML-DSA-65 per the [§10.3](#103-sth-cosigning--witness-directory) `signing_bytes` discipline; canonical bytes per [§0.9](00_conformance.md) JCS for the envelope-bearing wrapper
+- **Witness cosign — OPTIONAL**, via the [§10.3](#103-sth-cosigning--witness-directory) path verbatim. This is the best-effort / accountable split (D5 per [§15.6.2](15_gaps.md)):
+  - **Best-effort** (open media) → producer-signed root only; impl-pending [CIRISPersist#142](https://github.com/CIRISAI/CIRISPersist/issues/142) only
+  - **Accountable** (paid media, registry propagation, emergency) → witness cosign per [§10.3.1](#1031-consistency-proof-requirement-normative-addresses-ceg-01-distsys-review) consistency-proof, which is the **anti-equivocation guarantee** — producer cannot show different chunk-K to different subscribers nor rewrite mid-stream. Accountable tier is impl-pending BOTH #142 AND [CIRISRegistry#34](https://github.com/CIRISAI/CIRISRegistry/issues/34) (STH consistency-proof enforcement)
+- **Cadence**: producer publishes a signed root every `K` chunks OR `T` seconds (whichever first), **always at an epoch boundary** (§10.5.3) + at `sealed_at`. Witness cosign runs **per-epoch** (coarser than per-K to keep cosign-quorum cost off the hot path). Default pins: **K=64, T=2s** (operator-tunable; ratification pending per [§15.6.3](15_gaps.md) RC1-7)
+- **Incremental verify** (D4): each leaf's "root-after-K" lets a subscriber verify chunk K's inclusion against the nearest signed STH ≥ K via the [§10.3.1](#1031-consistency-proof-requirement-normative-addresses-ceg-01-distsys-review) consistency path. No new commitment structure beyond the per-leaf chain-link + periodic STH that §10.3 already provides.
+- **Accountable-stream quorum**: Policy E ([§8.1.5](08_composition.md) locality-scaled quorum) applies — not a fixed N. Emergency-channel roots want a higher quorum than a paid-media stream; locality scaling provides the gradient.
+
+### §10.5.2 Chunk seal + STREAM nonce (normative — V2 lock)
+
+Per-chunk content sealing uses AES-256-GCM (NIST FIPS 197 + SP 800-38D). The 12-byte (96-bit) nonce follows the **STREAM** layout (Hoang, Reyhanitabar, Rogaway, Vizár — *Online Authenticated-Encryption and its Nonce-Reuse Misuse-Resistance*, CRYPTO 2015):
+
+```
+nonce[12] = prefix[7] ‖ counter_be[4] ‖ last_flag[1]
+```
+
+- **`prefix[7]`** — derived, NOT transmitted: `prefix = HKDF-SHA256(epoch_dek; info = "ciris-stream-nonce/v1" ‖ stream_id ‖ epoch)[0..7]`. Matches the **`KEY_GRANT_V1_INFO`** versioned-context HKDF pattern at [`CIRISVerify/src/ciris-crypto/src/key_grant.rs:71`](https://github.com/CIRISAI/CIRISVerify/blob/main/src/ciris-crypto/src/key_grant.rs) (`b"cewp-key-grant/v1"`, used at `key_grant.rs:163` in `kdf::hkdf_sha256(shared_secret, &salt, KEY_GRANT_V1_INFO, 32)`). Per-`(stream_id, epoch)` unique; verifiable by any holder of the epoch DEK
+- **`counter_be[4]`** — 32-bit big-endian; hard ceiling 2³²−1 chunks per epoch. Substrate MUST force an epoch roll before wrap. Recommended operational cap: **`MAX_CHUNKS_PER_EPOCH = 2²⁴`** (~16.7M chunks/epoch) to keep per-epoch state + proof sizes bounded (operator-tunable; ratification pending per RC1-7)
+- **`last_flag[1]`** — `0x01` on the final chunk of an epoch (sealed by `seal_stream` per §10.5.3); `0x00` otherwise. The distinct nonce on the final chunk gives **truncation + append resistance**: an adversary cannot drop the final chunk and pass off a short stream, nor append past a sealed segment
+
+**Cross-epoch counter reset is nonce-safe (normative reasoning)**: GCM's catastrophic case is reuse of a `(key, nonce)` pair. On epoch roll the DEK changes, so a reset counter lives in a different keyspace — `(DEK_e, nonce=0)` and `(DEK_{e+1}, nonce=0)` are distinct pairs. The enforced invariant is therefore only within a single epoch: counter strictly monotonic, never wraps (guaranteed by the forced roll). Across epochs, reset is free.
+
+### §10.5.3 Epoch keying + cascade (normative — D2 / D3; substrate-pending #142)
+
+The stream-epoch DEK seals content **O(1)**; the per-subscriber `key_grant` cascade distributes the 32-byte epoch key **O(N)/epoch** (sender-key / Megolm shape) = [§8.1.12.4](08_composition.md) Policy-L cascade applied to a community roster against a *rotating* key.
+
+**Epoch index is monotonic, per-`stream_id`, greenfield** — a **separate addressing axis** from `key_grant.rotation_chain`:
+
+| Axis | Addressing | Where it lives | Supersession |
+|---|---|---|---|
+| Content-addressed grant supersession (CEG 0.3) | `(content_sha256, recipient_key_id)` | [`cirisnode_contributions`](https://github.com/CIRISAI/CIRISPersist) V054 partial indexes (planner-AND'd) | `rotation_chain` payload-level lineage (list of prior `key_grant_id`s); walked reader-side |
+| Stream/epoch-addressed grant supersession (CEG 0.10) | `(stream_id, epoch[, recipient])` | `federation_stream_chunks(stream_id, seq)` (Persist#142 step 3; v3.9.0 target; **NOT YET LANDED — unowned/unscheduled**) | Same `rotation_chain` payload-level supersession **reused on the new axis** (RC1-1 ✅ Persist on record) |
+
+⚠️ **Not pure-additive at the Persist constraint layer (RC1-1c)**: the V054 cross-column CHECK requires `key_grant` rows be content-addressed (`media_content_sha256 IS NOT NULL`). The §10.5.3 epoch-key axis with NULL `media_content_sha256` would be REJECTED by today's CHECK. Introducing the new axis requires a **parallel CHECK arm migration** at Persist (content-addressed OR stream/epoch-addressed) — a bounded constraint migration, not a pure index-add. The spec text does not claim "purely additive" at the Persist constraint layer.
+
+**Epoch triggers (D3)**:
+
+| Trigger | Behavior | Forward-secrecy implication |
+|---|---|---|
+| Member removal | **MANDATORY rotation** — the forward-only-unsubscribe enforcement | Subsequent epochs sealed under a DEK the removed member doesn't have |
+| Member addition | NO rotation + Option-A catch-up per [§11.7.1](11_governance.md) (subject to `history_on_join`) | New member gets `key_grant`s for the current epoch + (optionally) prior epochs per the `history_on_join` envelope field ([§4](04_envelope.md)) |
+| Time / bytes | Optional hygiene rotation | Operator policy; default off |
+
+**Forward secrecy = forward-only, NO PCS** (consistent with the [§11.7.1](11_governance.md) CEG 0.7 Option A discipline). MLS-style O(log N) rekey tree = **1.x, additive** (tree-position rides on the opaque `key_grant` payload; no table migration).
+
+**Catch-up bound (P4)**: `min(operator depth cap [LensCore knob, NOT a substrate constant], chunk-eviction horizon)`. Three distinct windows that are NOT conflated: chunk-eviction horizon ≠ [§10.1.2](#1012-holder-directory-ttl--contentmiss-feedback) `holds_bytes` 24h TTL ≠ grant durability. A catch-up request against an evicted epoch returns **`ContentMiss` — fail-honest, no silent gap** (consistent with the [`MISSION.md`](../../MISSION.md) fail-honest invariant). Operators MUST ship the P4 cap **with** the cascade, else 10⁶ grant Contributions per rekey is the unbounded worst case.
+
+### §10.5.4 Delivery receipts (normative — D5 / V3 lock)
+
+A `delivery_receipt:{stream_id}` Contribution (new reserved prefix per [§7.9](07_reserved.md)) is a subscriber's signed acknowledgement that they received chunk K under the named stream + epoch. **Best-effort default**; opt-in for **accountable** profiles (registry propagation, emergency).
+
+**Canonical bytes** (domain-separated + length-prefixed, matching `SignedTreeHead::signing_bytes` discipline; per [§0.9](00_conformance.md) the envelope-bearing wrapper is JCS-encoded, but the receipt's signed-bytes inner payload follows the explicit-length-prefix shape below):
+
+```
+receipt_signing_bytes =
+    "ciris-delivery-receipt/v1"                       // domain separator
+  ‖ len(subscriber_key) ‖ subscriber_key
+  ‖ len(stream_id)      ‖ stream_id
+  ‖ epoch        (u64 LE)
+  ‖ chunk_root   ([u8; 32])
+  ‖ K            (u64 LE)
+```
+
+Both `epoch` (key-rotation index — for per-epoch entitlement / billing) and `K`/`chunk_root` (chunk position + its committed root) are independent indices — both required (each names a distinct authorization scope).
+
+**Verify check is a JOIN, NOT a sig-check**:
+
+1. **Signature valid** over the canonical bytes (subscriber hybrid Ed25519 + ML-DSA-65 sig). Necessary but **not sufficient**.
+2. **`chunk_root` is a real published STH root** — MUST equal a `SignedTreeHead.root_hash` actually published for `log_id = stream_id` at `tree_size ≥ K`. A phantom / self-invented root → REJECT. For accountable streams, "published" means **witness-cosigned** (the §10.3 path), so the subscriber cannot collude with the producer on a private root.
+3. *(Recommended for accountable)* **Inclusion proof** chunk K → `chunk_root`. Upgrades the receipt from "subscriber saw a root" to "subscriber saw a root that provably commits to chunk K".
+
+**Semantics — proof-of-DELIVERY, not proof-of-CONSUMPTION**: the receipt proves the subscriber received bytes committing to chunk K. It does NOT prove they decrypted those bytes (they may not hold the epoch DEK). Consumers MUST NOT overclaim a delivery receipt as proof of consumption. Per the [`MISSION.md`](../../MISSION.md) fail-honest invariant + [§1.4](01_foundation.md) "Verify authenticates origin, does not compose 'delivered'/'owes N'", Verify's role is validation-not-adjudication: emit the validated receipt as an attestation on `delivery_receipt:{stream_id}` — the "delivered" verdict is consumer policy.
+
+**Accountable-stream receipt quorum**: Policy E ([§8.1.5](08_composition.md) locality-scaled) — same shape as the §10.5.1 STH quorum. Ratification pending per RC1-7.
+
+### §10.5.5 Transport — Edge layer (normative — E1–E4 lock per [§15.6.2](15_gaps.md))
+
+| Decision | Behavior |
+|---|---|
+| **E2 — pull-only RC1** | RC1 multicast = **pull-only**: producer seals chunks under the epoch DEK → emits `holds_bytes:sha256:*` (per [§10.1](#101-transport-substrate-for-byte-level-content)) → subscribers pull via the existing `ContentFetch` path. Relay / fan-out tree → 1.x (CIRISRegistry#46 / #43) |
+| **E1 — two-layer crypto (security-critical)** | Transit-key (per [CIRISLensCore#857](https://github.com/CIRISAI/CIRISLensCore/issues/857) prod-lens-via-transit-key) is a **hop-by-hop transport wrap UNDER the E2E epoch DEK** (two independent crypto layers). MUST NOT replace the cascade — a relay never sees plaintext. Transit-key is for path-confidentiality; epoch-DEK is for end-to-end content confidentiality |
+| **E3 — fan-out = entitled ∧ reachable** | **Persist owns durable entitlement** (the roster: signed CEG envelopes, replicated, logged). **Edge owns transport-reachability** via [`reachability.rs`](https://github.com/CIRISAI/CIRISEdge) (CIRISEdge#29) node-local presence tracker. Fan-out targets the intersection. Reachability is NEVER an attestation, never `holds_bytes`, never replicated, never logged — consistent with the [§10.1.4](#1014-structural-invisibility--holds_bytessha256-suppression-for-cohort_scope-self--family-ceg-07-addition) `cohort_scope: self\|family` structural-invisibility shape |
+| **E4 — durable side rides existing federation-attestation path** | Durable entitlement (roster + epoch-key grants) rides the **existing federation-attestation Edge path** (CIRISRegistry#41 handler cutover) — just more `federation_attestations` rows. NO net-new Edge transport for the durable side. Net-new is only on §10.5.1 streaming-log endpoints |
+
+### §10.5.6 D6 liveness invariant — entitled vs reachable (normative)
+
+Two sets are NEVER conflated:
+
+- **Entitlement roster** (Persist-owned): signed CEG envelope, Edge-propagated, durable, logged. It's **evidence** — it MUST propagate + be auditable. Per [§8.1.13](08_composition.md) Policy M community-membership composition
+- **Live-reachability set** (Edge-owned): generalizes the [§10.1.2](#1012-holder-directory-ttl--contentmiss-feedback) `EdgeConfig.holds_bytes_ttl_seconds` 24h default down to seconds-to-minutes for live-multicast. Node-local presence tracker (Edge `reachability.rs` per CIRISEdge#29). **NEVER an attestation, never `holds_bytes`, never replicated, never logged**
+
+**Fan-out invariant: `fan_out(C) = entitled(C) ∩ reachable(now)`**.
+
+**Heartbeat-suppression discipline**: this is a **producer-side-refusal invariant** (same class as the [§10.1.4](#1014-structural-invisibility--holds_bytessha256-suppression-for-cohort_scope-self--family-ceg-07-addition) `cohort_scope: self|family` `holds_bytes` suppression). Missed (entitled-but-unreachable) members fall back to pull on reconnect — substrate does NOT keep retrying push, does NOT emit a "delivery_failed" attestation, does NOT log liveness state. The reconnect-then-pull catch-up rides §10.5.3 `history_on_join`.
+
+### §10.5.7 What CEG 0.10 documents
+
+- The delivery axis as the third orthogonal envelope concern (visibility + revocability + delivery)
+- The bifurcated observer-share (impl-live) vs streaming multicast (substrate-pending #142) split
+- Per-stream transparency-log instances ([§10.5.1](#1051-per-stream-log--stream-root-normative--v1-lock))
+- STREAM nonce derivation ([§10.5.2](#1052-chunk-seal--stream-nonce-normative--v2-lock)) reusing the `KEY_GRANT_V1_INFO` HKDF pattern
+- Epoch-keying cascade on a separate addressing axis from `rotation_chain` ([§10.5.3](#1053-epoch-keying--cascade-normative--d2--d3-substrate-pending-142))
+- Delivery-receipt canonical bytes + the validated-not-adjudicated discipline ([§10.5.4](#1054-delivery-receipts-normative--d5--v3-lock))
+- Edge transport with two-layer crypto + pull-only RC1 + entitled-∧-reachable fan-out ([§10.5.5](#1055-transport--edge-layer-normative--e1e4-lock-per-156215_gapsmd))
+- D6 liveness invariant ([§10.5.6](#1056-d6-liveness-invariant--entitled-vs-reachable-normative))
+
+What CEG 0.10 does NOT do:
+
+- Change the 1+4 primitive set ([§3](03_primitives.md)) — delivery rides existing primitives
+- Bundle the streaming-half substrate impl in Persist — that lives at Persist#142 + the RC1-1c parallel CHECK arm migration
+- Specify the relay / fan-out tree shape for push-mode multicast — RC1 is pull-only; push tree → 1.x (CIRISRegistry#46 / #43)
+- Lock the constants K / T / MAX_CHUNKS_PER_EPOCH or the accountable-stream quorum — operator-tunable; ratification pending per [§15.6.3](15_gaps.md) RC1-7
+
 ---
 
 [← §9 HUMANITY_ACCORD](09_humanity_accord.md) | **§10 Endpoints** | [Next: §11 Governance →](11_governance.md)
