@@ -66,6 +66,8 @@ All key-id fields in every envelope below are **plain strings** (`federation_key
 
 Every ceremony envelope carries a `witness_set` — a list of `{ signer_key_id, signature }` pairs where each `signature` is over the **canonical envelope bytes** (the JCS-canonical form of the envelope `payload` per CEG §0.9, excluding the `witness_set` and `verify_countersignature` members themselves). This is the load-bearing invariant: the witness set MUST be cryptographically verifiable by any peer, not merely a count. CIRISVerify's `HybridVerifier` multi-sig aggregation validates each witness signature against the same canonical bytes before counter-signing. A `witness_set` whose signatures do not verify over the canonical envelope bytes is malformed and rejected at the gate.
 
+**Reuse the substrate's existing `WitnessSet` type — do NOT invent a ceremony-private one.** The federation substrate already ships `WitnessSet` (`ciris_persist::cirisnode::types::WitnessSet`, types.rs:105) carried on `ContributionEnvelope.witness_set` (types.rs:164), and NodeCore's engine already enforces a **jump-threshold witness-set gate** (NodeCore §3.5/§3.7 — a `witness_set` is required whenever an action "jumps" a target's standing: expertise-attestation jumping target standing, registry-vouch jumping K_C coherence, moderation events always). **Ceremony admission is an instance of that same jump-threshold pattern**: a family/community member-add *jumps the roster* (changes standing), so it carries a `witness_set` and the gate enforces it. The ceremony `witness_set` IS `ContributionEnvelope.witness_set`, not a parallel field; the §5 gate IS the jump-threshold gate specialized to membership-roster changes, calling the same `evaluate_consensus_protocol` predicate (NodeCore, shipped) the rest of the jump-threshold surface uses. This keeps one `WitnessSet` type, one jump-threshold semantic, and one consensus predicate across the federation.
+
 ---
 
 ## §1 Common ceremony-envelope frame
@@ -657,7 +659,11 @@ This is not a standalone lifecycle ceremony that creates a roster row; it is a *
 
 ## §5 Ceremony → consensus_protocol gate map
 
-Each ceremony must pass a gate before Verify counter-signs. The gate is the **signature-counting predicate** — Ask 2 of CIRISRegistry#52, a **separate issue/phase**. This FSD names *which* gate each ceremony invokes and the witness-set rule per protocol; it does NOT implement the predicate (see [§9](#9-what-this-spec-does-not-do)). Forward-reference: the Rust `check_consensus_admission(...)` predicate sketched in CIRISRegistry#52 Ask 2.
+Each ceremony must pass a gate before Verify counter-signs. The gate is the **signature-counting predicate** — Ask 2 of CIRISRegistry#52, a **separate issue/phase**. This FSD names *which* gate each ceremony invokes and the witness-set rule per protocol; it does NOT implement the predicate (see [§9](#9-what-this-spec-does-not-do)).
+
+**Single-implementation rule (the gate CALLS NodeCore's shipped predicate — it does NOT reimplement it).** The signature-counting predicate already exists: NodeCore shipped `ciris_node_core::evaluate_consensus_protocol(protocol, current_members, witness_sigs) → ConsensusResult` (commit [7469dcc](https://github.com/CIRISAI/CIRISNodeCore/commit/7469dcc), per [CIRISNodeCore#30](https://github.com/CIRISAI/CIRISNodeCore/issues/30)) — all six canonical kinds + `WeightedRubricResolver` / `CustomPredicateResolver` hooks, non-member-sig filtering, duplicate-sig dedup. The Ask-2 Registry gate is **orchestration that calls this predicate**, NOT a fresh `match protocol.as_str() { … }` reimplementation. A reimplementation would be the *third* copy of signature-counting (Registry gate + NodeCore evaluator + any Persist re-check) and would drift the moment one adds a 7th protocol kind. The predicate is implemented **exactly once** (NodeCore); the gate's novel surface is witness-set collection → call the predicate → entrenchment refusal → Verify counter-sign → emit Contribution. This composes in-process under the CEWP single-process cohabitation model (registry-core + node-core + persist in one process). Full boundary table at [CIRISRegistry#52 comment](https://github.com/CIRISAI/CIRISRegistry/issues/52#issuecomment-4635757400).
+
+The §5.2 per-protocol rules below are therefore the **documented contract of NodeCore's `evaluate_consensus_protocol` arms**, not a second specification of them.
 
 ### §5.1 Per-ceremony gate
 
@@ -686,7 +692,7 @@ For the consensus-gated ceremonies, the witness-set requirement per the six cano
 | `founder_only` | ≥ 1 valid witness signature from a member with `role: founder`. |
 | `unanimous` | A valid witness signature from **every** current member counted by the rule (for removal/dissolution: every member except the one being removed — [§8.3](#83-self-removal-counting-is-not-addressed-by-ceg-1175)). |
 | `majority` | Valid witness signatures from **> 50%** of the counted roster. |
-| `quorum:{m}/{n}` | Valid witness signatures from **≥ m** of the `n` counted members, where `n` is the **current roster size at the pinned snapshot** (CEG §5.6.8.9 "`n` is the current roster size"). If the literal `n` in the protocol string disagrees with the live roster size, **this FSD cannot resolve the precedence from CEG — see [§8.6](#86-quorummn-n-vs-live-roster-size-precedence-is-ambiguous)**. |
+| `quorum:{m}/{n}` | Valid witness signatures from **≥ m** members — `m` is **absolute** (never rescales with roster growth); `n` is documentary. **RESOLVED in CEG §8.1.12.3.1** (was flagged at [§8.6](#86-quorummn-n-vs-live-roster-size-precedence-is-resolved)): a `quorum:2/3` collective grown to 5 still admits at 2 sigs. Operators wanting roster-proportional quorum use `weighted:{rubric}`, not `quorum:`. |
 | `weighted:{rubric}` | Sum of member weights (per the named operator rubric) of the valid witnesses **exceeds the rubric's threshold**. The rubric is operator-defined; **CEG does not specify where the rubric's weight table or threshold lives — see [§8.7](#87-weightedrubric-rubric-resolution-is-not-specified)**. |
 | `custom:{id}` | Operator-defined predicate. CEG §11.7.5 leaves this fully open; the gate dispatches to an operator-registered predicate. **Not resolvable from CEG — operator-supplied.** |
 
@@ -710,9 +716,14 @@ Registry emits the counter-signed ceremony envelope as a Contribution. Persist a
 | `remove_community_member` | `put_community_membership_revocation(SignedCommunityMembershipRevocation)` | V061 (CIRISPersist#161 Ask 1) |
 | `location_proof` | standard Contribution put (not a V059/V060 row) | — |
 
+**Persist v4.0 DAS convergence (verified 2026-06-05 against `../CIRISPersist`).** Persist's own [v4.0 Data Access Surface FSD](https://github.com/CIRISAI/CIRISPersist/blob/main/FSD/V4_0_DATA_ACCESS_SURFACE.md) §4.6 **already defers to this FSD** — its `put_*` admission table reads: *"`put_identity_occurrence` / `put_family` / `put_community` — Membership-roster writes — admission is the ceremony witness-set (CIRISRegistry#52), not a cohort_scope claim; no downgrade concept."* The two specs are convergent; Persist is waiting on FSD-003, not diverging from it. Confirmed substrate state:
+- `src/federation/` is **NOT** moved by the v4.0 `src/read/* → src/ceg/*` reorg (DAS §3.3 explicit) — the `put_*` entrypoints below keep their `src/federation/` home; the `src/ceg/{family,community,identity}/` modules are the *read-surface* that consumes the federation substrate, not a replacement.
+- Substrate tables are `federation_keys` / `federation_identity_occurrences` / `federation_families` / `federation_communities`. V060 (`federation_communities`) **landed** (Persist commit `bae5e72`). V059 (identity_occurrence + family) present. V061 (revocations) is Persist#161-pending.
+- `src/ceg/streaming/` exists — the CEG 0.10 streaming substrate (Persist#142) is beginning to land.
+
 ### §6.2 The `witness_set` field is the boundary contract
 
-Persist's current admission is **value-validation only** (form check) — its inline docs at `src/federation/mod.rs:307-311` and `:352-357` defer the consensus enforcement to "the v3.13+ admission gate." This FSD pins the field that carries the Registry-validated decision across the boundary:
+Persist's current admission is **value-validation only** (form check) — its `src/federation/mod.rs` inline docs (the `self-vouch / single-vouch admission per §5.6.8.8 ... v3.13+ admission gate` + `consensus-protocol enforcement ... v3.13+ admission gate` notes, ~mod.rs:308/311/356) defer the consensus enforcement to "the v3.13+ admission gate." This FSD pins the field that carries the Registry-validated decision across the boundary:
 
 - Each `Signed*` substrate type carries a `witness_set` field (CIRISPersist#161 sketches `witness_set: Vec<KeyId>` on the revocation types; read as `Vec<String>` per [§0.3](#03-key-id-representation)). For the ceremony layer the carried value is the **full `{ signer_key_id, signature }` set from the envelope**, not just the key-ids — so persist can re-verify cryptographically, not merely trust a count.
 - Persist's `engine.rs` already has a `witness_set: None` slot (`src/engine.rs:2276`) — the materialization point for this contract.
@@ -777,9 +788,9 @@ No CEG section names family/community dissolution. This FSD models `dissolve_fam
 
 CEG §4 defines `listed` as a per-Contribution envelope field (CEG 0.10), not a lifecycle ceremony. §4.5 here lifts it into a signed `set_membership_listed` ceremony so the opt-in is itself auditable. This is a modeling choice: the alternative is that `listed: public` is simply set on each Contribution with no standalone ceremony record. **Flagged: confirm whether a standalone signed opt-in record is wanted, or whether the per-Contribution envelope flag suffices.** If the latter, drop the §4.5 ceremony and treat `listed` purely as a §6 envelope-field passthrough.
 
-### §8.6 `quorum:{m}/{n}` — `n` vs live roster size precedence is ambiguous
+### §8.6 `quorum:{m}/{n}` — `n` vs live roster size precedence is RESOLVED
 
-CEG §5.6.8.9 says `quorum:{m}/{n}` means "any `m` of `n` current members ... where `n` is the current roster size." But `{n}` is also a **literal in the protocol string**. When the roster grows or shrinks (via prior add/remove), the literal `{n}` and the live roster size diverge. CEG does not say which wins: does `quorum:2/3` on a now-5-member family mean "2 of 3" (literal) or "2 of 5 ⌈ rescaled ⌉" (live)? The HUMANITY_ACCORD canonical example (`quorum:2/3`, fixed 3-founder entrenched family) never exercises the divergence. **This FSD cannot resolve the precedence from CEG; the Ask 2 predicate needs CEG to state whether `{n}` is literal-fixed or live-rescaled.** Until resolved, the gate is under-specified for non-entrenched `quorum:` families whose roster size ≠ `{n}`.
+~~CEG §5.6.8.9 leaves it ambiguous whether the literal `{n}` is fixed or rescales with the live roster.~~ **RESOLVED in CEG [§8.1.12.3.1](CEG/08_composition.md)** (pinned 2026-06-05): **`m` is absolute, `n` is documentary.** A `quorum:2/3` collective grown to 5 members still admits at **2** signatures; `m` never rescales. Rationale: matches NodeCore's shipped `evaluate_consensus_protocol` (already treats `m` as absolute), simpler invariant for a deterministic gate, and roster-proportional quorum stays expressible via `weighted:{rubric}` (members weight 1, threshold = `ceil(roster/2)` recomputed by the rubric resolver). Applies identically to community admission (CEG §8.1.13.2). The gate is no longer under-specified for non-entrenched `quorum:` families whose roster ≠ `{n}`.
 
 ### §8.7 `weighted:{rubric}` rubric resolution is not specified
 
