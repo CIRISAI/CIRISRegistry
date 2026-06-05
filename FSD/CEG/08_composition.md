@@ -363,9 +363,7 @@ admit_family_change(F, proposed: family_record):
         "majority":
             return count(sig from m in current) > len(current) / 2
         "quorum:M/N":
-            return count(sig from m in current) >= M  // N == len(current); operator
-                                                       // policy resolves rebasing when
-                                                       // current roster size differs from N
+            return count(sig from m in current) >= M  // M is ABSOLUTE — see §8.1.12.3.1
         "weighted:{rubric}":
             return sum(weight(m, rubric) for m in current who signed) >= threshold
         "custom:{family_id}":
@@ -377,6 +375,14 @@ admit_family_change(F, proposed: family_record):
     else:
         hold in pending state (per operator-policy window) OR
         emit hard_case:family_consensus_protocol_violation:{F} and reject
+
+##### §8.1.12.3.1 `quorum:M/N` is absolute-M (normative; per CIRISRegistry#52 + NodeCore#30)
+
+The `M` in `quorum:M/N` is an **absolute signature count**, NOT a fraction that rebases with roster size. A `quorum:2/3` collective that grows to 5 members still admits at **2** signatures; the `N` is documentary (records the roster size at protocol-adoption time) and is NOT recomputed against the live roster. This was an ambiguity in the pre-pin §8.1.12.3 pseudocode ("operator policy resolves rebasing"); CIRISRegistry#52's ceremony gate ([§52 design](https://github.com/CIRISAI/CIRISRegistry/issues/52)) requires a deterministic, operator-independent reading, so absolute-`M` is pinned.
+
+**Rationale**: absolute-`M` is the simpler invariant (the gate is a pure `count >= M` with no live-roster division), it matches NodeCore's shipped `evaluate_consensus_protocol` ([NodeCore#30](https://github.com/CIRISAI/CIRISNodeCore/issues/30) commit 7469dcc) so the single shared predicate needs no change, and proportional/rebasing quorum is still expressible for operators who want it via `weighted:{rubric}` (assign each member weight 1, set threshold = `ceil(roster_size / 2)` recomputed by the rubric resolver). Collectives that want "M grows with the roster" therefore use `weighted:`, not `quorum:` — keeping `quorum:M/N` unambiguous.
+
+This rule applies identically to `community` admission ([§8.1.13.2](#81132-community-admission-per-consensus_protocol-cohort_subkind-dispatch)) — the `quorum:M/N` arm there is the same absolute-`M` reading.
 ```
 
 **Consensus-protocol amendment** (changing `consensus_protocol` itself on a non-entrenched family) rides the SAME admission rule on the proposed amendment Contribution — meta-amendment shape parallel to [§11.2.3](11_governance.md). Entrenched families (`consensus_protocol_entrenched == true`) reject amendments at the substrate gate; replacement requires the out-of-band ceremony documented per family (for HUMANITY_ACCORD see [§9.2](09_humanity_accord.md)).
