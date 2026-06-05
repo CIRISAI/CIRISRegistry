@@ -132,11 +132,6 @@ struct VerificationPolicy {
     non_revocable: Option<bool>,
 }
 
-#[derive(Serialize)]
-struct StewardKeyError {
-    error: String,
-}
-
 /// Response from the /v1/accord-holders endpoint (FSD-002 §7.7).
 /// v1.4 interim: placeholder fingerprints; provisioned=false signals
 /// to consumers that CONSTITUTIONAL invocations MUST NOT be honored
@@ -361,7 +356,7 @@ async fn metrics(State(state): State<AppState>) -> String {
 /// Closes CIRISRegistry#21 Ask 1 (v1.4 multi-steward shape change).
 async fn steward_key(
     State(state): State<AppState>,
-) -> Result<Json<StewardKeyResponse>, (StatusCode, Json<StewardKeyError>)> {
+) -> Result<Json<StewardKeyResponse>, crate::api::error::ApiError> {
     let ed25519_pubkey = state.crypto.ed25519_public_key();
     let mldsa_pubkey = state.crypto.mldsa_public_key();
     let key_id = state.crypto.key_id().to_string();
@@ -455,7 +450,7 @@ async fn steward_key(
 /// Closes CIRISRegistry#21 Ask 2.
 async fn accord_holders(
     State(_state): State<AppState>,
-) -> Result<Json<AccordHoldersResponse>, (StatusCode, Json<StewardKeyError>)> {
+) -> Result<Json<AccordHoldersResponse>, crate::api::error::ApiError> {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
 
     let holders: Vec<AccordHolderEntry> = ACCORD_HOLDERS
@@ -492,7 +487,7 @@ async fn accord_holders(
 /// migration (#17) lands and accord-holders start emitting.
 async fn accord_holders_ui(
     State(_state): State<AppState>,
-) -> Result<Json<AccordHoldersUiResponse>, (StatusCode, Json<StewardKeyError>)> {
+) -> Result<Json<AccordHoldersUiResponse>, crate::api::error::ApiError> {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
 
     let holders: Vec<AccordHolderUiEntry> = ACCORD_HOLDERS
@@ -542,7 +537,7 @@ async fn agent_files_for_kind(
     State(state): State<AppState>,
     axum::extract::Path(kind): axum::extract::Path<String>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> Result<Json<AgentFilesResponse>, (StatusCode, Json<StewardKeyError>)> {
+) -> Result<Json<AgentFilesResponse>, crate::api::error::ApiError> {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
     let platform_or_target = q.get("platform_or_target").cloned();
 
@@ -655,7 +650,7 @@ async fn agent_files_for_kind(
 async fn partner_composition(
     State(state): State<AppState>,
     axum::extract::Path(key_id): axum::extract::Path<String>,
-) -> Result<Json<PartnerCompositionResponse>, (StatusCode, Json<StewardKeyError>)> {
+) -> Result<Json<PartnerCompositionResponse>, crate::api::error::ApiError> {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
 
     let partner_row = db::lookup_partner(state.db.pool(), &key_id).await.ok().flatten();
@@ -782,12 +777,6 @@ struct CosignWitnessSigOut {
     ml_dsa_65: String,
 }
 
-#[derive(Serialize)]
-struct TransparencyError {
-    error: String,
-    message: String,
-}
-
 /// Default witness quorum threshold per FSD-002 §7.8 ("N/2 + 1 of
 /// registered witnesses"). Policy-tunable; v1.4 interim ships the default.
 fn witness_quorum_threshold(num_witnesses: usize) -> u32 {
@@ -822,64 +811,34 @@ fn format_hash_sha256(bytes: &[u8]) -> String {
 async fn sth_cosign(
     State(state): State<AppState>,
     Json(req): Json<CosignRequest>,
-) -> Result<Json<CosignResponse>, (StatusCode, Json<TransparencyError>)> {
+) -> Result<Json<CosignResponse>, crate::api::error::ApiError> {
     // 1. Look up witness
     let witness = match db::lookup_witness(state.db.pool(), &req.witness_key_id).await {
         Ok(Some(w)) => w,
         Ok(None) => {
-            return Err((
-                StatusCode::FORBIDDEN,
-                Json(TransparencyError {
-                    error: "unknown_witness".to_string(),
-                    message: format!(
-                        "witness_key_id={} not in directory; admin must register via POST /v1/transparency/witnesses first",
-                        req.witness_key_id
-                    ),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::unknown_witness(format!(
+                "witness_key_id={} not in directory; admin must register via POST /v1/transparency/witnesses first",
+                req.witness_key_id
+            )));
         }
         Err(e) => {
             warn!("witness lookup failed: {}", e);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(TransparencyError {
-                    error: "internal_error".to_string(),
-                    message: "witness lookup failed".to_string(),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "witness lookup failed".to_string()));
         }
     };
 
     // 2. Parse root hash
     let root_hash = parse_hash_bytes(&req.root_hash).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(TransparencyError {
-                error: "bad_root_hash".to_string(),
-                message: e,
-            }),
-        )
+        crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, e)
     })?;
 
     // 3. Parse signatures
     let b64 = base64::engine::general_purpose::STANDARD;
     let ed_sig = b64.decode(&req.witness_signature.ed25519).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(TransparencyError {
-                error: "bad_signature".to_string(),
-                message: format!("ed25519 base64 decode: {}", e),
-            }),
-        )
+        crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("ed25519 base64 decode: {}", e))
     })?;
     let mldsa_sig = b64.decode(&req.witness_signature.ml_dsa_65).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(TransparencyError {
-                error: "bad_signature".to_string(),
-                message: format!("mldsa65 base64 decode: {}", e),
-            }),
-        )
+        crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("mldsa65 base64 decode: {}", e))
     })?;
 
     // 4. Parse signed_at
@@ -888,13 +847,7 @@ async fn sth_cosign(
         &time::format_description::well_known::Rfc3339,
     )
     .map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(TransparencyError {
-                error: "bad_timestamp".to_string(),
-                message: format!("signed_at ISO8601 parse: {}", e),
-            }),
-        )
+        crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("signed_at ISO8601 parse: {}", e))
     })?;
 
     // 5. Verify hybrid signature over (tree_size || root_hash || signed_at) canonical bytes.
@@ -911,13 +864,7 @@ async fn sth_cosign(
         .verify(&witness.ed25519_pubkey, &canonical, &ed_sig)
         .unwrap_or(false);
     if !ed_ok {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(TransparencyError {
-                error: "verification_failed".to_string(),
-                message: "Ed25519 signature did not verify against witness pubkey".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::signature_failed("Ed25519 signature did not verify against witness pubkey").with_details(serde_json::json!({"algorithm":"ed25519"})));
     }
     // ML-DSA-65 over bound payload (canonical || ed25519_sig)
     let mut bound = Vec::with_capacity(canonical.len() + ed_sig.len());
@@ -927,13 +874,7 @@ async fn sth_cosign(
         .verify(&witness.mldsa65_pubkey, &bound, &mldsa_sig)
         .unwrap_or(false);
     if !mldsa_ok {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(TransparencyError {
-                error: "verification_failed".to_string(),
-                message: "ML-DSA-65 signature did not verify against witness pubkey".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::signature_failed("ML-DSA-65 signature did not verify against witness pubkey").with_details(serde_json::json!({"algorithm":"ml-dsa-65"})));
     }
 
     // 6. Persist cosignature
@@ -949,13 +890,7 @@ async fn sth_cosign(
     .await
     {
         warn!("record_cosignature failed: {}", e);
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(TransparencyError {
-                error: "persist_failed".to_string(),
-                message: format!("persist cosignature: {}", e),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, format!("persist cosignature: {}", e)));
     }
 
     info!(
@@ -981,16 +916,10 @@ async fn sth_cosign(
 /// CIRISPersist#102 vocabulary extension supersedes with federation_keys).
 async fn list_witnesses_handler(
     State(state): State<AppState>,
-) -> Result<Json<WitnessesResponse>, (StatusCode, Json<TransparencyError>)> {
+) -> Result<Json<WitnessesResponse>, crate::api::error::ApiError> {
     let witnesses = db::list_witnesses(state.db.pool()).await.map_err(|e| {
         warn!("list_witnesses failed: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(TransparencyError {
-                error: "internal_error".to_string(),
-                message: format!("list_witnesses: {}", e),
-            }),
-        )
+        crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, format!("list_witnesses: {}", e))
     })?;
 
     let b64 = base64::engine::general_purpose::STANDARD;
@@ -1026,18 +955,12 @@ async fn list_witnesses_handler(
 async fn cosignatures_for_sth(
     State(state): State<AppState>,
     axum::extract::Path(tree_size): axum::extract::Path<i64>,
-) -> Result<Json<CosignaturesForSthResponse>, (StatusCode, Json<TransparencyError>)> {
+) -> Result<Json<CosignaturesForSthResponse>, crate::api::error::ApiError> {
     let cosigs = db::list_cosignatures_for_sth(state.db.pool(), tree_size)
         .await
         .map_err(|e| {
             warn!("list_cosignatures_for_sth failed: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(TransparencyError {
-                    error: "internal_error".to_string(),
-                    message: format!("list_cosignatures: {}", e),
-                }),
-            )
+            crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, format!("list_cosignatures: {}", e))
         })?;
 
     // Compute witness quorum status (all registered witnesses denominator;
@@ -1107,16 +1030,10 @@ async fn register_witness_http(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<RegisterWitnessRequest>,
-) -> Result<Json<RegisterWitnessResponse>, (StatusCode, Json<TransparencyError>)> {
+) -> Result<Json<RegisterWitnessResponse>, crate::api::error::ApiError> {
     let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
     if admin_token.is_empty() {
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(TransparencyError {
-                error: "configuration_error".to_string(),
-                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "REGISTRY_ADMIN_TOKEN not configured".to_string()));
     }
     let auth_header = headers
         .get("authorization")
@@ -1124,33 +1041,15 @@ async fn register_witness_http(
         .unwrap_or("");
     let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
     if provided_token != admin_token {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(TransparencyError {
-                error: "unauthorized".to_string(),
-                message: "Invalid or missing authorization token".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::UNAUTHORIZED, "Invalid or missing authorization token".to_string()));
     }
 
     let b64 = base64::engine::general_purpose::STANDARD;
     let ed_pub = b64.decode(&req.ed25519_pubkey).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(TransparencyError {
-                error: "bad_pubkey".to_string(),
-                message: format!("ed25519 base64 decode: {}", e),
-            }),
-        )
+        crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("ed25519 base64 decode: {}", e))
     })?;
     let mldsa_pub = b64.decode(&req.ml_dsa_65_pubkey).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(TransparencyError {
-                error: "bad_pubkey".to_string(),
-                message: format!("mldsa65 base64 decode: {}", e),
-            }),
-        )
+        crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("mldsa65 base64 decode: {}", e))
     })?;
 
     use sha2::{Digest, Sha256};
@@ -1169,13 +1068,7 @@ async fn register_witness_http(
     .await
     .map_err(|e| {
         warn!("register_witness failed: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(TransparencyError {
-                error: "persist_failed".to_string(),
-                message: format!("register_witness: {}", e),
-            }),
-        )
+        crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, format!("register_witness: {}", e))
     })?;
 
     info!(
@@ -1203,7 +1096,7 @@ async fn register_witness_http(
 /// `federation_keys` for the cross-region view once that lands.
 async fn rotation_history(
     State(state): State<AppState>,
-) -> Result<Json<RotationHistoryResponse>, (StatusCode, Json<StewardKeyError>)> {
+) -> Result<Json<RotationHistoryResponse>, crate::api::error::ApiError> {
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
 
     let events = match db::list_signing_keys(state.db.pool(), true).await {
@@ -1293,12 +1186,6 @@ struct RevocationHit {
 }
 
 /// Response for binary manifest not found
-#[derive(Serialize)]
-struct BinaryManifestNotFound {
-    error: String,
-    message: String,
-}
-
 /// Request to register a binary manifest (from CI)
 #[derive(serde::Deserialize)]
 struct RegisterBinaryManifestRequest {
@@ -1322,12 +1209,6 @@ struct RegisterBinaryManifestResponse {
 }
 
 /// Error response for register endpoint
-#[derive(Serialize)]
-struct RegisterBinaryManifestError {
-    error: String,
-    message: String,
-}
-
 /// Optional `?project=` query string for project-aware lookups.
 /// Empty/missing → "ciris-agent" (backwards compat).
 #[derive(serde::Deserialize, Default)]
@@ -1377,46 +1258,22 @@ async fn binary_manifest(
     State(state): State<AppState>,
     axum::extract::Path(version): axum::extract::Path<String>,
     axum::extract::Query(q): axum::extract::Query<ProjectQuery>,
-) -> Result<Json<db::BinaryManifestResponse>, (StatusCode, Json<BinaryManifestNotFound>)> {
+) -> Result<Json<db::BinaryManifestResponse>, crate::api::error::ApiError> {
     // Validate version format (basic semver check)
     if version.is_empty() || !version.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(BinaryManifestNotFound {
-                error: "bad_request".to_string(),
-                message: "Invalid version format".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "Invalid version format".to_string()));
     }
 
     if let Err(reason) = q.validate() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(BinaryManifestNotFound {
-                error: "bad_request".to_string(),
-                message: reason,
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
     match db::get_binary_manifest(state.db.pool(), &version, q.as_opt()).await {
         Ok(Some(manifest)) => Ok(Json(manifest.to_response())),
-        Ok(None) => Err((
-            StatusCode::NOT_FOUND,
-            Json(BinaryManifestNotFound {
-                error: "not_found".to_string(),
-                message: format!("Binary manifest not found for version {}", version),
-            }),
-        )),
+        Ok(None) => Err(crate::api::error::ApiError::from_status(StatusCode::NOT_FOUND, format!("Binary manifest not found for version {}", version))),
         Err(e) => {
             warn!("Error fetching binary manifest: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(BinaryManifestNotFound {
-                    error: "internal_error".to_string(),
-                    message: "Failed to fetch binary manifest".to_string(),
-                }),
-            ))
+            Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch binary manifest".to_string()))
         }
     }
 }
@@ -1428,17 +1285,11 @@ async fn register_binary_manifest(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<RegisterBinaryManifestRequest>,
-) -> Result<Json<RegisterBinaryManifestResponse>, (StatusCode, Json<RegisterBinaryManifestError>)> {
+) -> Result<Json<RegisterBinaryManifestResponse>, crate::api::error::ApiError> {
     // Check authorization
     let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
     if admin_token.is_empty() {
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(RegisterBinaryManifestError {
-                error: "configuration_error".to_string(),
-                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "REGISTRY_ADMIN_TOKEN not configured".to_string()));
     }
 
     let auth_header = headers
@@ -1451,24 +1302,12 @@ async fn register_binary_manifest(
         .unwrap_or(auth_header);
 
     if provided_token != admin_token {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(RegisterBinaryManifestError {
-                error: "unauthorized".to_string(),
-                message: "Invalid or missing authorization token".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::UNAUTHORIZED, "Invalid or missing authorization token".to_string()));
     }
 
     // Validate project name (empty → "ciris-agent")
     if let Err(reason) = crate::validation::validate_project_name(&req.project) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(RegisterBinaryManifestError {
-                error: "bad_request".to_string(),
-                message: reason,
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
     // Parse generated_at timestamp
@@ -1537,13 +1376,7 @@ async fn register_binary_manifest(
         }
         Err(e) => {
             warn!("Error registering binary manifest: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(RegisterBinaryManifestError {
-                    error: "internal_error".to_string(),
-                    message: "Failed to register binary manifest".to_string(),
-                }),
-            ))
+            Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to register binary manifest".to_string()))
         }
     }
 }
@@ -1585,12 +1418,6 @@ struct FunctionManifestSignatureRequest {
 }
 
 /// Response for function manifest errors
-#[derive(Serialize)]
-struct FunctionManifestError {
-    error: String,
-    message: String,
-}
-
 /// Response for registering a function manifest
 #[derive(Serialize)]
 struct RegisterFunctionManifestResponse {
@@ -1739,12 +1566,6 @@ impl From<BuildRow> for BuildRecordResponse {
     }
 }
 
-#[derive(Serialize)]
-struct BuildNotFound {
-    error: String,
-    message: String,
-}
-
 /// Public endpoint: GET /v1/builds/{version}?project=...
 ///
 /// Returns a build record by version. Used by CIRISVerify for file integrity verification.
@@ -1754,46 +1575,22 @@ async fn get_build_by_version(
     State(state): State<AppState>,
     axum::extract::Path(version): axum::extract::Path<String>,
     axum::extract::Query(q): axum::extract::Query<BuildVersionQuery>,
-) -> Result<Json<BuildRecordResponse>, (StatusCode, Json<BuildNotFound>)> {
+) -> Result<Json<BuildRecordResponse>, crate::api::error::ApiError> {
     // Validate version format
     if version.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(BuildNotFound {
-                error: "bad_request".to_string(),
-                message: "Version is required".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "Version is required".to_string()));
     }
 
     if let Err(reason) = q.validate() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(BuildNotFound {
-                error: "bad_request".to_string(),
-                message: reason,
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
     match get_build(state.db.pool(), Some(&version), None, q.project_opt(), q.target_opt()).await {
         Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
-        Ok(None) => Err((
-            StatusCode::NOT_FOUND,
-            Json(BuildNotFound {
-                error: "not_found".to_string(),
-                message: format!("Build not found for version {}", version),
-            }),
-        )),
+        Ok(None) => Err(crate::api::error::ApiError::from_status(StatusCode::NOT_FOUND, format!("Build not found for version {}", version))),
         Err(e) => {
             warn!("Error fetching build by version: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(BuildNotFound {
-                    error: "internal_error".to_string(),
-                    message: "Failed to fetch build".to_string(),
-                }),
-            ))
+            Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch build".to_string()))
         }
     }
 }
@@ -1814,16 +1611,10 @@ async fn get_build_by_version(
 async fn get_build_by_hash(
     State(state): State<AppState>,
     axum::extract::Path(build_hash): axum::extract::Path<String>,
-) -> Result<Json<BuildRecordResponse>, (StatusCode, Json<BuildNotFound>)> {
+) -> Result<Json<BuildRecordResponse>, crate::api::error::ApiError> {
     // Validate hash format (should be hex)
     if build_hash.is_empty() || build_hash.len() != 64 || !build_hash.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(BuildNotFound {
-                error: "bad_request".to_string(),
-                message: "Invalid build hash format (expected 64 hex characters)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::canonical_bytes("Invalid build hash format (expected 64 hex characters)"));
     }
 
     // Multi-target releases share build_hash (mig 029); LIMIT 1 in
@@ -1831,22 +1622,10 @@ async fn get_build_by_hash(
     // ordering — sufficient for liveness checks.
     match get_build(state.db.pool(), None, Some(&build_hash), None, None).await {
         Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
-        Ok(None) => Err((
-            StatusCode::NOT_FOUND,
-            Json(BuildNotFound {
-                error: "not_found".to_string(),
-                message: format!("Build not found for hash {}", &build_hash[..16]),
-            }),
-        )),
+        Ok(None) => Err(crate::api::error::ApiError::from_status(StatusCode::NOT_FOUND, format!("Build not found for hash {}", &build_hash[..16]))),
         Err(e) => {
             warn!("Error fetching build by hash: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(BuildNotFound {
-                    error: "internal_error".to_string(),
-                    message: "Failed to fetch build".to_string(),
-                }),
-            ))
+            Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch build".to_string()))
         }
     }
 }
@@ -1858,38 +1637,20 @@ async fn function_manifest(
     State(state): State<AppState>,
     axum::extract::Path((version, target)): axum::extract::Path<(String, String)>,
     axum::extract::Query(q): axum::extract::Query<ProjectQuery>,
-) -> Result<Json<db::FunctionManifestResponse>, (StatusCode, Json<FunctionManifestError>)> {
+) -> Result<Json<db::FunctionManifestResponse>, crate::api::error::ApiError> {
     if let Err(reason) = q.validate() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(FunctionManifestError {
-                error: "bad_request".to_string(),
-                message: reason,
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
     match db::get_function_manifest(state.db.pool(), &version, &target, q.as_opt()).await {
         Ok(Some(manifest)) => Ok(Json(manifest.to_response())),
-        Ok(None) => Err((
-            StatusCode::NOT_FOUND,
-            Json(FunctionManifestError {
-                error: "not_found".to_string(),
-                message: format!(
+        Ok(None) => Err(crate::api::error::ApiError::from_status(StatusCode::NOT_FOUND, format!(
                     "Function manifest not found for version {} target {}",
                     version, target
-                ),
-            }),
-        )),
+                ))),
         Err(e) => {
             warn!("Error fetching function manifest: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(FunctionManifestError {
-                    error: "internal_error".to_string(),
-                    message: "Failed to fetch function manifest".to_string(),
-                }),
-            ))
+            Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch function manifest".to_string()))
         }
     }
 }
@@ -1901,40 +1662,22 @@ async fn list_function_manifest_targets(
     State(state): State<AppState>,
     axum::extract::Path(version): axum::extract::Path<String>,
     axum::extract::Query(q): axum::extract::Query<ProjectQuery>,
-) -> Result<Json<db::AvailableTargetsResponse>, (StatusCode, Json<FunctionManifestError>)> {
+) -> Result<Json<db::AvailableTargetsResponse>, crate::api::error::ApiError> {
     if let Err(reason) = q.validate() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(FunctionManifestError {
-                error: "bad_request".to_string(),
-                message: reason,
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
     match db::list_function_manifest_targets(state.db.pool(), &version, q.as_opt()).await {
         Ok(targets) => {
             if targets.is_empty() {
-                Err((
-                    StatusCode::NOT_FOUND,
-                    Json(FunctionManifestError {
-                        error: "not_found".to_string(),
-                        message: format!("No function manifests found for version {}", version),
-                    }),
-                ))
+                Err(crate::api::error::ApiError::from_status(StatusCode::NOT_FOUND, format!("No function manifests found for version {}", version)))
             } else {
                 Ok(Json(db::AvailableTargetsResponse { version, targets }))
             }
         }
         Err(e) => {
             warn!("Error listing function manifest targets: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(FunctionManifestError {
-                    error: "internal_error".to_string(),
-                    message: "Failed to list function manifest targets".to_string(),
-                }),
-            ))
+            Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to list function manifest targets".to_string()))
         }
     }
 }
@@ -1946,17 +1689,11 @@ async fn register_function_manifest(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<RegisterFunctionManifestRequest>,
-) -> Result<Json<RegisterFunctionManifestResponse>, (StatusCode, Json<FunctionManifestError>)> {
+) -> Result<Json<RegisterFunctionManifestResponse>, crate::api::error::ApiError> {
     // Check authorization
     let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
     if admin_token.is_empty() {
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(FunctionManifestError {
-                error: "configuration_error".to_string(),
-                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "REGISTRY_ADMIN_TOKEN not configured".to_string()));
     }
 
     let auth_header = headers
@@ -1967,24 +1704,12 @@ async fn register_function_manifest(
     let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
 
     if provided_token != admin_token {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(FunctionManifestError {
-                error: "unauthorized".to_string(),
-                message: "Invalid or missing authorization token".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::UNAUTHORIZED, "Invalid or missing authorization token".to_string()));
     }
 
     // Validate project name (empty → "ciris-agent")
     if let Err(reason) = crate::validation::validate_project_name(&req.project) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(FunctionManifestError {
-                error: "bad_request".to_string(),
-                message: reason,
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
     // Parse generated_at timestamp
@@ -2022,13 +1747,7 @@ async fn register_function_manifest(
         }
         Err(e) => {
             warn!("Failed to sign function manifest: {}", e);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(FunctionManifestError {
-                    error: "signing_error".to_string(),
-                    message: "Failed to sign function manifest".to_string(),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to sign function manifest".to_string()));
         }
     };
 
@@ -2072,13 +1791,7 @@ async fn register_function_manifest(
         }
         Err(e) => {
             warn!("Error registering function manifest: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(FunctionManifestError {
-                    error: "internal_error".to_string(),
-                    message: "Failed to register function manifest".to_string(),
-                }),
-            ))
+            Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to register function manifest".to_string()))
         }
     }
 }
@@ -2099,12 +1812,6 @@ struct VerifiedBuildManifestResponse {
     /// Operators can compare against `ListTrustedPrimitiveKeys` output to
     /// confirm which key authorized the registration.
     verifying_key_fingerprint: String,
-    message: String,
-}
-
-#[derive(Serialize)]
-struct VerifiedBuildManifestError {
-    error: String,
     message: String,
 }
 
@@ -2131,17 +1838,11 @@ async fn register_verified_build_manifest(
     State(state): State<AppState>,
     headers: HeaderMap,
     body: axum::body::Bytes,
-) -> Result<Json<VerifiedBuildManifestResponse>, (StatusCode, Json<VerifiedBuildManifestError>)> {
+) -> Result<Json<VerifiedBuildManifestResponse>, crate::api::error::ApiError> {
     // Auth gate (mirrors register_function_manifest pattern).
     let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
     if admin_token.is_empty() {
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(VerifiedBuildManifestError {
-                error: "configuration_error".to_string(),
-                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "REGISTRY_ADMIN_TOKEN not configured".to_string()));
     }
     let auth_header = headers
         .get("authorization")
@@ -2149,13 +1850,7 @@ async fn register_verified_build_manifest(
         .unwrap_or("");
     let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
     if provided_token != admin_token {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(VerifiedBuildManifestError {
-                error: "unauthorized".to_string(),
-                message: "Invalid or missing authorization token".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::UNAUTHORIZED, "Invalid or missing authorization token".to_string()));
     }
 
     // 1. Parse without verifying first, so we can extract the project
@@ -2164,13 +1859,7 @@ async fn register_verified_build_manifest(
         match serde_json::from_slice(&body) {
             Ok(m) => m,
             Err(e) => {
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    Json(VerifiedBuildManifestError {
-                        error: "invalid_manifest".to_string(),
-                        message: format!("BuildManifest parse failed: {}", e),
-                    }),
-                ));
+                return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("BuildManifest parse failed: {}", e)));
             }
         };
     let project = manifest_preview.primitive.project_name();
@@ -2180,27 +1869,15 @@ async fn register_verified_build_manifest(
     let trusted = match db::get_trusted_primitive_key(state.db.pool(), &project).await {
         Ok(Some(t)) => t,
         Ok(None) => {
-            return Err((
-                StatusCode::FORBIDDEN,
-                Json(VerifiedBuildManifestError {
-                    error: "no_trusted_key".to_string(),
-                    message: format!(
+            return Err(crate::api::error::ApiError::from_status(StatusCode::FORBIDDEN, format!(
                         "No trusted primitive key registered for project='{}'. \
                          A SYSTEM_ADMIN must call RegisterTrustedPrimitiveKey first.",
                         project
-                    ),
-                }),
-            ));
+                    )));
         }
         Err(e) => {
             warn!("trusted_primitive_key lookup failed for project={}: {}", project, e);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(VerifiedBuildManifestError {
-                    error: "internal_error".to_string(),
-                    message: "Trusted-key lookup failed".to_string(),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Trusted-key lookup failed".to_string()));
         }
     };
 
@@ -2219,13 +1896,7 @@ async fn register_verified_build_manifest(
                 "BuildManifest verification rejected: {}",
                 e
             );
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(VerifiedBuildManifestError {
-                    error: "verification_failed".to_string(),
-                    message: format!("BuildManifest verification failed: {}", e),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("BuildManifest verification failed: {}", e)));
         }
     };
 
@@ -2262,13 +1933,7 @@ async fn register_verified_build_manifest(
     .await
     {
         warn!("Failed to persist verified BuildManifest: {}", e);
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(VerifiedBuildManifestError {
-                error: "persist_failed".to_string(),
-                message: "Failed to persist verified manifest".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to persist verified manifest".to_string()));
     }
 
     info!(
@@ -2309,15 +1974,9 @@ async fn register_verified_build_manifest(
 async fn get_verified_build_manifest(
     State(state): State<AppState>,
     axum::extract::Path((project, version, target)): axum::extract::Path<(String, String, String)>,
-) -> Result<axum::response::Response, (StatusCode, Json<VerifiedBuildManifestError>)> {
+) -> Result<axum::response::Response, crate::api::error::ApiError> {
     if let Err(reason) = crate::validation::validate_project_name(&project) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(VerifiedBuildManifestError {
-                error: "bad_request".to_string(),
-                message: reason,
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
     let body = match db::get_function_manifest_raw_body(
@@ -2330,28 +1989,16 @@ async fn get_verified_build_manifest(
     {
         Ok(Some(b)) => b,
         Ok(None) => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                Json(VerifiedBuildManifestError {
-                    error: "not_found".to_string(),
-                    message: format!(
+            return Err(crate::api::error::ApiError::from_status(StatusCode::NOT_FOUND, format!(
                         "No verbatim BuildManifest stored for project={} version={} target={}. \
                          Either no row exists, or the row was POSTed via the legacy \
                          /v1/verify/function-manifest endpoint (no raw body captured).",
                         project, version, target
-                    ),
-                }),
-            ));
+                    )));
         }
         Err(e) => {
             warn!("Path B fetch failed: {}", e);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(VerifiedBuildManifestError {
-                    error: "internal_error".to_string(),
-                    message: "Failed to fetch verbatim BuildManifest".to_string(),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch verbatim BuildManifest".to_string()));
         }
     };
 
@@ -2451,12 +2098,6 @@ struct RegisterBuildHttpResponse {
     message: String,
 }
 
-#[derive(Serialize)]
-struct RegisterBuildHttpError {
-    error: String,
-    message: String,
-}
-
 /// Canonical signing form for a Build registration (v2, since v1.4.1).
 /// Field order is the wire contract — see module-level comment above.
 ///
@@ -2500,17 +2141,11 @@ async fn register_build_http(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<RegisterBuildHttpRequest>,
-) -> Result<Json<RegisterBuildHttpResponse>, (StatusCode, Json<RegisterBuildHttpError>)> {
+) -> Result<Json<RegisterBuildHttpResponse>, crate::api::error::ApiError> {
     // Auth gate (mirrors register_binary_manifest pattern).
     let admin_token = std::env::var("REGISTRY_ADMIN_TOKEN").unwrap_or_default();
     if admin_token.is_empty() {
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(RegisterBuildHttpError {
-                error: "configuration_error".to_string(),
-                message: "REGISTRY_ADMIN_TOKEN not configured".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "REGISTRY_ADMIN_TOKEN not configured".to_string()));
     }
     let auth_header = headers
         .get("authorization")
@@ -2518,13 +2153,7 @@ async fn register_build_http(
         .unwrap_or("");
     let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or(auth_header);
     if provided_token != admin_token {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(RegisterBuildHttpError {
-                error: "unauthorized".to_string(),
-                message: "Invalid or missing authorization token".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::UNAUTHORIZED, "Invalid or missing authorization token".to_string()));
     }
 
     if req.project.is_empty()
@@ -2533,23 +2162,11 @@ async fn register_build_http(
         || req.build_hash.is_empty()
         || req.build_id.is_empty()
     {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(RegisterBuildHttpError {
-                error: "bad_request".to_string(),
-                message: "project, version, target, build_hash, and build_id are required"
-                    .to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "project, version, target, build_hash, and build_id are required"
+                    .to_string()));
     }
     if let Err(reason) = crate::validation::validate_project_name(&req.project) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(RegisterBuildHttpError {
-                error: "bad_request".to_string(),
-                message: reason,
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
     let project = req.project.clone();
@@ -2558,27 +2175,15 @@ async fn register_build_http(
     let trusted = match db::get_trusted_primitive_key(state.db.pool(), &project).await {
         Ok(Some(t)) => t,
         Ok(None) => {
-            return Err((
-                StatusCode::FORBIDDEN,
-                Json(RegisterBuildHttpError {
-                    error: "no_trusted_key".to_string(),
-                    message: format!(
+            return Err(crate::api::error::ApiError::from_status(StatusCode::FORBIDDEN, format!(
                         "No trusted primitive key registered for project='{}'. \
                          A SYSTEM_ADMIN must call RegisterTrustedPrimitiveKey first.",
                         project
-                    ),
-                }),
-            ));
+                    )));
         }
         Err(e) => {
             warn!("trusted_primitive_key lookup failed for project={}: {}", project, e);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(RegisterBuildHttpError {
-                    error: "internal_error".to_string(),
-                    message: "Trusted-key lookup failed".to_string(),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Trusted-key lookup failed".to_string()));
         }
     };
 
@@ -2589,25 +2194,13 @@ async fn register_build_http(
     let classical_sig = match b64.decode(&req.signature_classical) {
         Ok(s) => s,
         Err(e) => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(RegisterBuildHttpError {
-                    error: "invalid_signature".to_string(),
-                    message: format!("classical signature base64 decode: {}", e),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("classical signature base64 decode: {}", e)));
         }
     };
     let pqc_sig = match b64.decode(&req.signature_pqc) {
         Ok(s) => s,
         Err(e) => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(RegisterBuildHttpError {
-                    error: "invalid_signature".to_string(),
-                    message: format!("pqc signature base64 decode: {}", e),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, format!("pqc signature base64 decode: {}", e)));
         }
     };
 
@@ -2617,13 +2210,7 @@ async fn register_build_http(
         .unwrap_or(false);
     if !ed_ok {
         warn!(project = %project, "POST /v1/builds Ed25519 verification failed");
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(RegisterBuildHttpError {
-                error: "verification_failed".to_string(),
-                message: "Ed25519 signature did not verify".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::signature_failed("Ed25519 signature did not verify").with_details(serde_json::json!({"algorithm":"ed25519"})));
     }
     let mut bound = Vec::with_capacity(canonical.len() + classical_sig.len());
     bound.extend_from_slice(&canonical);
@@ -2633,13 +2220,7 @@ async fn register_build_http(
         .unwrap_or(false);
     if !pqc_ok {
         warn!(project = %project, "POST /v1/builds ML-DSA-65 verification failed");
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(RegisterBuildHttpError {
-                error: "verification_failed".to_string(),
-                message: "ML-DSA-65 signature did not verify".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::signature_failed("ML-DSA-65 signature did not verify").with_details(serde_json::json!({"algorithm":"ml-dsa-65"})));
     }
 
     // Synthesize the BuildRecord proto for db::register_build. file_manifest_hash
@@ -2701,13 +2282,11 @@ async fn register_build_http(
             } else {
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
             };
-            return Err((
+            return Err(crate::api::error::ApiError::from_status(
                 status,
-                Json(RegisterBuildHttpError {
-                    error: code.to_string(),
-                    message: format!("register_build failed: {}", err_str),
-                }),
-            ));
+                format!("register_build failed: {}", err_str),
+            )
+            .with_details(serde_json::json!({ "slug": code })));
         }
     };
 
@@ -2756,12 +2335,6 @@ struct KeyVerifyResponse {
 }
 
 /// Error response for key verification
-#[derive(Serialize)]
-struct KeyVerifyError {
-    error: String,
-    message: String,
-}
-
 /// Public endpoint: GET /v1/verify/key/{fingerprint}
 ///
 /// Verify a signing key by its Ed25519 fingerprint (SHA-256 hex).
@@ -2774,16 +2347,10 @@ struct KeyVerifyError {
 async fn verify_key_by_fingerprint(
     State(state): State<AppState>,
     axum::extract::Path(fingerprint): axum::extract::Path<String>,
-) -> Result<Json<KeyVerifyResponse>, (StatusCode, Json<KeyVerifyError>)> {
+) -> Result<Json<KeyVerifyResponse>, crate::api::error::ApiError> {
     // Validate fingerprint format (64 hex chars = SHA-256)
     if fingerprint.len() != 64 || !fingerprint.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(KeyVerifyError {
-                error: "bad_request".to_string(),
-                message: "Invalid fingerprint format (expected 64 hex characters)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::canonical_bytes("Invalid fingerprint format (expected 64 hex characters)"));
     }
 
     match db::lookup_key_by_fingerprint(state.db.pool(), &fingerprint).await {
@@ -2829,13 +2396,7 @@ async fn verify_key_by_fingerprint(
         })),
         Err(e) => {
             warn!("Error looking up key by fingerprint: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(KeyVerifyError {
-                    error: "internal_error".to_string(),
-                    message: "Failed to lookup key".to_string(),
-                }),
-            ))
+            Err(crate::api::error::ApiError::from_status(StatusCode::INTERNAL_SERVER_ERROR, "Failed to lookup key".to_string()))
         }
     }
 }
@@ -2845,20 +2406,7 @@ async fn verify_key_by_fingerprint(
 // =============================================================================
 
 /// Error response for Play Integrity endpoints
-#[derive(Serialize)]
-struct IntegrityError {
-    error: String,
-    message: String,
-}
-
 /// Rate limit error response
-#[derive(Serialize)]
-struct RateLimitError {
-    error: String,
-    message: String,
-    retry_after_seconds: Option<u32>,
-}
-
 /// Extract client IP from request headers, only trusting proxy headers from known proxies.
 ///
 /// Security: Only trusts X-Forwarded-For/X-Real-IP when the request appears to come
@@ -2880,20 +2428,13 @@ fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
 async fn integrity_nonce(
     headers: HeaderMap,
     axum::extract::Query(params): axum::extract::Query<IntegrityNonceParams>,
-) -> Result<Json<crate::play_integrity::IntegrityNonceResponse>, (StatusCode, Json<RateLimitError>)> {
+) -> Result<Json<crate::play_integrity::IntegrityNonceResponse>, crate::api::error::ApiError> {
     // Check rate limit
     let client_ip = extract_client_ip(&headers);
     let rate_limit_result = check_nonce_rate_limit(client_ip);
 
     if !rate_limit_result.is_allowed() {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(RateLimitError {
-                error: "rate_limit_exceeded".to_string(),
-                message: rate_limit_result.error_message().unwrap_or_default(),
-                retry_after_seconds: rate_limit_result.retry_after(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::TOO_MANY_REQUESTS, rate_limit_result.error_message().unwrap_or_default()));
     }
 
     let config = PlayIntegrityConfig::default();
@@ -2914,43 +2455,25 @@ struct IntegrityNonceParams {
 async fn integrity_verify(
     headers: HeaderMap,
     Json(req): Json<IntegrityVerifyRequest>,
-) -> Result<Json<crate::play_integrity::IntegrityVerifyResponse>, (StatusCode, Json<IntegrityError>)>
+) -> Result<Json<crate::play_integrity::IntegrityVerifyResponse>, crate::api::error::ApiError>
 {
     // Check rate limit (stricter for verify - calls external API)
     let client_ip = extract_client_ip(&headers);
     let rate_limit_result = check_verify_rate_limit(client_ip);
 
     if !rate_limit_result.is_allowed() {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(IntegrityError {
-                error: "rate_limit_exceeded".to_string(),
-                message: rate_limit_result.error_message().unwrap_or_default(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::TOO_MANY_REQUESTS, rate_limit_result.error_message().unwrap_or_default()));
     }
 
     // Input validation: limit token size (Play Integrity tokens are ~2KB)
     if req.integrity_token.len() > 10_000 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(IntegrityError {
-                error: "payload_too_large".to_string(),
-                message: "integrity_token exceeds maximum size (10KB)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "integrity_token exceeds maximum size (10KB)".to_string()));
     }
 
     let config = PlayIntegrityConfig::default();
 
     if config.service_account_json.is_none() {
-        return Err((
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(IntegrityError {
-                error: "not_configured".to_string(),
-                message: "Play Integrity API not configured (PLAY_INTEGRITY_SERVICE_ACCOUNT missing)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::SERVICE_UNAVAILABLE, "Play Integrity API not configured (PLAY_INTEGRITY_SERVICE_ACCOUNT missing)".to_string()));
     }
 
     let service = PlayIntegrityService::new(config);
@@ -2973,30 +2496,18 @@ async fn integrity_verify(
 async fn integrity_auth(
     headers: HeaderMap,
     Json(req): Json<IntegrityAuthRequest>,
-) -> Result<Json<IntegrityAuthResponse>, (StatusCode, Json<IntegrityError>)> {
+) -> Result<Json<IntegrityAuthResponse>, crate::api::error::ApiError> {
     // Check rate limit (same as verify - calls external API)
     let client_ip = extract_client_ip(&headers);
     let rate_limit_result = check_verify_rate_limit(client_ip);
 
     if !rate_limit_result.is_allowed() {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(IntegrityError {
-                error: "rate_limit_exceeded".to_string(),
-                message: rate_limit_result.error_message().unwrap_or_default(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::TOO_MANY_REQUESTS, rate_limit_result.error_message().unwrap_or_default()));
     }
 
     // Input validation: limit token size (Play Integrity tokens are ~2KB)
     if req.integrity_token.len() > 10_000 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(IntegrityError {
-                error: "payload_too_large".to_string(),
-                message: "integrity_token exceeds maximum size (10KB)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "integrity_token exceeds maximum size (10KB)".to_string()));
     }
 
     let config = PlayIntegrityConfig::default();
@@ -3056,12 +2567,6 @@ async fn integrity_auth(
 // =============================================================================
 
 /// Error response for App Attest endpoints
-#[derive(Serialize)]
-struct AppAttestError {
-    error: String,
-    message: String,
-}
-
 /// Public endpoint: GET /v1/integrity/ios/nonce
 ///
 /// Generate a cryptographically secure nonce for App Attest attestation.
@@ -3070,20 +2575,13 @@ struct AppAttestError {
 async fn ios_attest_nonce(
     headers: HeaderMap,
     axum::extract::Query(params): axum::extract::Query<IntegrityNonceParams>,
-) -> Result<Json<crate::app_attest::AppAttestNonceResponse>, (StatusCode, Json<RateLimitError>)> {
+) -> Result<Json<crate::app_attest::AppAttestNonceResponse>, crate::api::error::ApiError> {
     // Check rate limit
     let client_ip = extract_client_ip(&headers);
     let rate_limit_result = check_nonce_rate_limit(client_ip);
 
     if !rate_limit_result.is_allowed() {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(RateLimitError {
-                error: "rate_limit_exceeded".to_string(),
-                message: rate_limit_result.error_message().unwrap_or_default(),
-                retry_after_seconds: rate_limit_result.retry_after(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::TOO_MANY_REQUESTS, rate_limit_result.error_message().unwrap_or_default()));
     }
 
     let config = AppAttestConfig::default();
@@ -3101,65 +2599,35 @@ async fn ios_attest_verify(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<AppAttestVerifyRequest>,
-) -> Result<Json<crate::app_attest::AppAttestVerifyResponse>, (StatusCode, Json<AppAttestError>)> {
+) -> Result<Json<crate::app_attest::AppAttestVerifyResponse>, crate::api::error::ApiError> {
     // Check rate limit (same limits as Play Integrity verify)
     let client_ip = extract_client_ip(&headers);
     let rate_limit_result = check_verify_rate_limit(client_ip);
 
     if !rate_limit_result.is_allowed() {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(AppAttestError {
-                error: "rate_limit_exceeded".to_string(),
-                message: rate_limit_result.error_message().unwrap_or_default(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::TOO_MANY_REQUESTS, rate_limit_result.error_message().unwrap_or_default()));
     }
 
     // Input validation: limit attestation size (attestations are ~2-5KB)
     if req.attestation.len() > 50_000 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(AppAttestError {
-                error: "payload_too_large".to_string(),
-                message: "attestation exceeds maximum size (50KB)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "attestation exceeds maximum size (50KB)".to_string()));
     }
 
     if req.key_id.len() > 1000 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(AppAttestError {
-                error: "payload_too_large".to_string(),
-                message: "key_id exceeds maximum size".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "key_id exceeds maximum size".to_string()));
     }
 
     let config = AppAttestConfig::default();
 
     // Check if App Attest is configured
     if config.app_id.starts_with("TEAMID") {
-        return Err((
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(AppAttestError {
-                error: "not_configured".to_string(),
-                message: "iOS App Attest not configured (IOS_APP_ID, IOS_TEAM_ID missing)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::SERVICE_UNAVAILABLE, "iOS App Attest not configured (IOS_APP_ID, IOS_TEAM_ID missing)".to_string()));
     }
 
     // Check for attestation deduplication - reject if already attested
     match is_already_attested(state.db.pool(), &req.key_id).await {
         Ok(true) => {
-            return Err((
-                StatusCode::CONFLICT,
-                Json(AppAttestError {
-                    error: "already_attested".to_string(),
-                    message: "This key_id has already been attested. Use /assert for subsequent requests.".to_string(),
-                }),
-            ));
+            return Err(crate::api::error::ApiError::from_status(StatusCode::CONFLICT, "This key_id has already been attested. Use /assert for subsequent requests.".to_string()));
         }
         Err(e) => {
             warn!("Database error checking attestation: {}", e);
@@ -3202,53 +2670,29 @@ async fn ios_attest_verify(
 async fn ios_attest_assert(
     headers: HeaderMap,
     Json(req): Json<AppAttestAssertRequest>,
-) -> Result<Json<crate::app_attest::AppAttestAssertResponse>, (StatusCode, Json<AppAttestError>)> {
+) -> Result<Json<crate::app_attest::AppAttestAssertResponse>, crate::api::error::ApiError> {
     // Check rate limit
     let client_ip = extract_client_ip(&headers);
     let rate_limit_result = check_verify_rate_limit(client_ip);
 
     if !rate_limit_result.is_allowed() {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(AppAttestError {
-                error: "rate_limit_exceeded".to_string(),
-                message: rate_limit_result.error_message().unwrap_or_default(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::TOO_MANY_REQUESTS, rate_limit_result.error_message().unwrap_or_default()));
     }
 
     // Input validation
     if req.assertion.len() > 50_000 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(AppAttestError {
-                error: "payload_too_large".to_string(),
-                message: "assertion exceeds maximum size (50KB)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "assertion exceeds maximum size (50KB)".to_string()));
     }
 
     if req.client_data.len() > 10_000 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(AppAttestError {
-                error: "payload_too_large".to_string(),
-                message: "client_data exceeds maximum size (10KB)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, "client_data exceeds maximum size (10KB)".to_string()));
     }
 
     let config = AppAttestConfig::default();
 
     // Check if App Attest is configured
     if config.app_id.starts_with("TEAMID") {
-        return Err((
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(AppAttestError {
-                error: "not_configured".to_string(),
-                message: "iOS App Attest not configured (IOS_APP_ID, IOS_TEAM_ID missing)".to_string(),
-            }),
-        ));
+        return Err(crate::api::error::ApiError::from_status(StatusCode::SERVICE_UNAVAILABLE, "iOS App Attest not configured (IOS_APP_ID, IOS_TEAM_ID missing)".to_string()));
     }
 
     // Compute client_data hash for cache key

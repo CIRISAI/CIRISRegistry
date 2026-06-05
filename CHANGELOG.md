@@ -38,6 +38,23 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.2.1] — 2026-06-05
+
+**Release-train R2b — §10.0.1 error-body conversion (second half of #35; closes it).** Converts all ad-hoc HTTP error shapes in `api/http.rs` to the unified `ApiError` (§10.0.1 envelope) introduced additively in v2.2.0. Isolated from v2.2.0 so this high-surface handler refactor got its own validation gate.
+
+- **80 construction sites + 28 handler return types** converted from 12 ad-hoc error structs (`StewardKeyError`, `TransparencyError`, `BinaryManifestNotFound`, `RegisterBinaryManifestError`, `FunctionManifestError`, `BuildNotFound`, `VerifiedBuildManifestError`, `RegisterBuildHttpError`, `KeyVerifyError`, `IntegrityError`, `RateLimitError`, `AppAttestError`) → `ApiError::from_status` / typed constructors. The 12 now-unused structs are dropped. Every error response now serializes to `{error: {code, http_status, message, request_id, details}}`.
+- **Spec-precision codes** beyond the status-default: `unknown_witness` (was 403→now 404 `UNKNOWN_WITNESS`); Ed25519/ML-DSA-65 signature-verify failures (was 400→now 422 `SIGNATURE_VERIFICATION_FAILED` + `details.algorithm`); hex-format failures (build-hash / fingerprint) → `CANONICAL_BYTES_VIOLATION` per §0.6.
+- **Behavior change (intended, per spec)**: signature-verification errors now return **422** (was 400); unknown-witness cosign now returns **404** (was 403). Consumers branching on status for these paths should update; the `error.code` field is the stable discriminator going forward.
+
+Build clean; clippy clean; 93/93 lib tests pass (incl. 4 `api::error` unit tests). #35 fully closed.
+
+**Rollback metadata:**
+- **Digest**: (operator-resolvable via `crane digest …:v2.2.1`)
+- **Migrations**: additive-only (no schema change)
+- **Config**: none — but note the 403→404 / 400→422 status changes on the witness-cosign + signature-verify error paths (use `error.code`, not status, as the stable discriminator)
+
+---
+
 ## [2.2.0] — 2026-06-05
 
 **Release-train R2 — §10.0 request-context layer (first half of #35).** Adds the CEG 0.2 §10.0 common-response surface as an additive, handler-untouched layer; the §10.0.1 error-body conversion (the 60-site refactor) follows as v2.2.1 (R2b) so the high-surface change gets its own validation gate.
@@ -692,7 +709,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.2.1
 [2.2.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.2.0
 [2.1.4]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.4
 [2.1.3]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.3
