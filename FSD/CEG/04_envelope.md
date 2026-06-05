@@ -48,10 +48,64 @@ The medical record / photo / interview / training-datum / group-chat case all sh
 
 `subject_key_ids[i]` MAY be either:
 
-1. **A `federation_keys.key_id`** — the subject is a federation-enrolled identity that can sign on its own behalf. Direct revocation: subject signs a `withdraws` against this Contribution; substrate admits via rule (2) of [§3.2 broadened `withdraws` admission](03_primitives.md).
-2. **A canonical-hash identifier** — the subject is an external party with no federation_keys row (Discord user-id, channel-id, content-sha256-bound entity, etc.). Format: a canonical string identifier, hashed per [§0.6](00_conformance.md) hex canonicalization. The substrate cannot verify a signature from this entity directly; **revocation rides a `delegates_to` proxy chain** per rule (3) of [§3.2 broadened admission](03_primitives.md).
+1. **A `federation_keys.key_id`** — the subject is a federation-enrolled identity that can sign on its own behalf. Direct revocation: subject signs a `withdraws` against this Contribution; substrate admits via rule (2) of [§3.2 broadened `withdraws` admission](03_primitives.md). Wire form: the bare `key_id` (no tag).
+2. **A tagged canonical-hash identifier** — the subject is an external party with no federation_keys row (Discord user-id, channel-id, content-sha256-bound entity, etc.). The substrate cannot verify a signature from this entity directly; **revocation rides a `delegates_to` proxy chain** per rule (3) of [§3.2 broadened admission](03_primitives.md). Wire form: a tagged string per §4.2.2.1 below.
 
-Resolves [CIRISAgent#840 OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840) — "self-attestation about un-enrolled parties — canonical-hash or pseudonymous federation_keys?" — with the answer "both, distinguished by whether the issuer can sign on its own behalf."
+Resolves [CIRISAgent#840 OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840) — "self-attestation about un-enrolled parties — canonical-hash or pseudonymous federation_keys?" — with the answer "both, distinguished by an explicit tag on the canonical-hash variant."
+
+#### §4.2.2.1 Canonical-hash wire form + preimage convention (CEG 0.10 normative pin; per CIRISRegistry#53)
+
+[CIRISRegistry#53](https://github.com/CIRISAI/CIRISRegistry/issues/53) surfaced that a CEG-Conforming implementation cannot interoperate without two things the pre-0.10 spec left unpinned: (a) how a canonical-hash entry is distinguished from a `federation_keys.key_id` entry on the wire, and (b) what string is hashed (the preimage). Both are now normative.
+
+**Wire form — tag REQUIRED (CONFIRM-2 resolution)**. A canonical-hash entry MUST carry the tag `canonical:{hashalg}:{hex}`:
+
+- `{hashalg}` — the hash algorithm; `sha256` is the v1 algorithm. Algorithm-agility: future hashes (e.g. `sha3-256`) extend this position without ambiguity
+- `{hex}` — the digest in [§0.6](00_conformance.md) canonical hex (lowercase, unpadded, byte-length-exact: 64 chars for sha256)
+- Example: `canonical:sha256:ff7c5632dae6ef3ae7f6283bd35268bc7910332414aa8a1c35a1645ca0295f61`
+
+**Why the tag is mandatory and bare-hex is rejected**: a `federation_keys.key_id` is, in the reference Registry, `hex(sha256(ed25519_pubkey))` — a **lowercase 64-char hex string** ([`crypto::HybridCrypto::fingerprint`](../../rust-registry/ciris-registry-core/src/crypto/mod.rs)). A bare canonical-hash (also lowercase 64-char hex) would be **format-indistinguishable** from a key_id. The format-disambiguation heuristic proposed in #53 CONFIRM-2 ("base64 key_id vs hex canonical-hash") FAILS because Registry key_ids are themselves hex fingerprints, not base64 pubkeys. The tag is therefore load-bearing, not cosmetic. The §0.6 hex rule governs the `{hex}` segment only; the `canonical:{hashalg}:` prefix is a tagged-union discriminator outside §0.6's scope and is exempt from the "no separators" rule. NodeCore's invented `canonical:sha256:{hex}` form (per [NodeCore#29](https://github.com/CIRISAI/CIRISNodeCore/issues/29)) is hereby blessed verbatim — drop nothing.
+
+**Preimage convention — `{platform}:{entity_kind}:{id}` (PIN-1 resolution, load-bearing)**. The string hashed to produce `{hex}` MUST be:
+
+```
+preimage = "{platform}:{entity_kind}:{id}"
+hex      = sha256_hex_lowercase(utf8_bytes(preimage))
+```
+
+Parsing is **split-on-first-two-colons**: the substring before the first `:` is `{platform}`; the substring between the first and second `:` is `{entity_kind}`; **everything after the second `:` is `{id}` verbatim, and MAY itself contain colons** (so Matrix IDs like `@alice:example.org` survive). Rules:
+
+- `{platform}` — lowercased; open vocabulary per [§11.2.1](11_governance.md). Canonical seeds: `discord`, `slack`, `twitter`, `matrix`, `email`, `phone`, `github`, `xmpp`, `irc`
+- `{entity_kind}` — lowercased; open vocabulary. Canonical seeds: `user`, `channel`, `guild`, `room`, `group`, `address`
+- `{id}` — the platform's **stable, immutable** identifier, **verbatim** (case-preserved — some IDs are case-sensitive). MUST be the immutable account/object identifier (Discord/Twitter numeric snowflake; Matrix MXID; UUID), **NOT** a mutable handle/username/display-name. Using a mutable handle breaks subject-identity stability the moment the user renames.
+
+The split-on-first-two-colons rule means a producer constructs the preimage by joining exactly three parts with `:`; only the first two colons are structural. This is what makes the rule-(3) `delegates_to` proxy chain (`canonical_hash ∈ T.subject_key_ids`) match across producers: every CEG-Conforming producer that names the same `(platform, entity_kind, immutable_id)` triple computes the same `{hex}`, hence the same tagged wire string.
+
+**Conformance vectors** (testable cross-implementation; the [CIRISConformance#9](https://github.com/CIRISAI/CIRISConformance/issues/9) envelope round-trip set SHOULD include these):
+
+| Preimage | sha256 hex | Wire form |
+|---|---|---|
+| `discord:user:123456789012345678` | `ff7c5632dae6ef3ae7f6283bd35268bc7910332414aa8a1c35a1645ca0295f61` | `canonical:sha256:ff7c5632…0295f61` |
+| `discord:channel:987654321098765432` | `af23411c3c6faa55a788660ea29719669b9c4e4ea4b6ab9568247d9f646f05dd` | `canonical:sha256:af23411c…646f05dd` |
+| `matrix:user:@alice:example.org` (id contains colons) | `16d4d0bf478835a9af68cdaac730a29b36f82bf0dfe2073237ee4980f6b975d9` | `canonical:sha256:16d4d0bf…f6b975d9` |
+| `twitter:user:1455079377986420736` (numeric id, NOT @handle) | `10243ba010bf159a45197d368f91c025ef6ac1eb7f42ca32e55b414d90c861c2` | `canonical:sha256:10243ba0…90c861c2` |
+| `email:address:alice@example.org` | `04481a02fccfc8d99a47bde4f0563dd360d425b0734e8fcd8d5dd7198d0a263f` | `canonical:sha256:04481a02…98d0a263f` |
+
+#### §4.2.2.2 Rule-(3) proxy vs `canonical_binding` — distinct mechanisms (CONFIRM-3 resolution)
+
+These are **two distinct mechanisms**, not one:
+
+- **Rule-(3) `delegates_to` proxy** ([§3.2.3](03_primitives.md) admission rule 3) — *ongoing* revocation authority for an un-enrolled subject. A federation-enrolled key (typically the agent holding data on behalf of the external party) carries `delegates_to(canonical_hash → agent_key, scope: [consent_revocation])`; the agent proxies revocation. The subject never enrolls; the agent acts for them indefinitely.
+- **`canonical_binding`** ([CIRISAgent#842 Gap 3](https://github.com/CIRISAI/CIRISAgent/issues/842); NodeCore#29 Ask 4) — *retroactive identity claim*. A now-enrolled federation key asserts "I AM the entity behind `canonical:sha256:{hex}`", binding past canonical-hash subject entries to its real identity. After an admitted `canonical_binding`, the formerly-un-enrolled subject can sign `withdraws` **directly** under rule (2) — the binding promotes the canonical-hash to a real key_id for admission purposes.
+
+`canonical_binding` is **NOT a new admission rule** (no "rule 5"). It composes: the binding is itself a `delegates_to`-shaped attestation (`delegates_to(canonical_hash → newly_enrolled_key, scope: [identity_binding])`) admitted because the enrolling key proves control of the preimage out-of-band (substrate-side proof-of-control is the Persist admission concern, tracked at [CIRISPersist#161](https://github.com/CIRISAI/CIRISPersist/issues/161)). Once bound, rule (2) [direct subject revocation] becomes available to the bound key, and rule (3) [proxy] is no longer needed for that subject. NodeCore's conflation of the two in its shipped code comment (per #53) should be corrected to this framing.
+
+#### §4.2.2.3 `subject_kind` is a payload-level discriminator (CONFIRM-4 resolution)
+
+`subject_kind` (e.g. `consent_record`, `key_grant`, `takedown_notice`, `community`, `family`, `identity_occurrence`, `location_proof`) is a **payload-level** field — it lives inside the Contribution payload, parallel to how `external_content` carries `sub_kind` in payload. It is NOT an envelope-level field. The envelope-level fields are exactly those in the [§4](#4-the-envelope) table (`cohort_scope`, `subject_key_ids`, `community_id`, `family_id`, `delivery_mode`, etc.); `subject_kind` is the payload discriminator that selects which [§5.6.8.x](05_namespace.md) payload schema applies. The §5.6.8.7 `consent_record` example and any conformant producer payload agree byte-for-byte: `"subject_kind": "consent_record"` is a payload member.
+
+#### §4.2.2.4 Bilateral ratification is consumer-policy (CONFIRM-5 resolution)
+
+Per [§5.6.8.7](05_namespace.md) step 4: a bilateral partnership is "ratified iff both halves present under the same `bilateral_pair_id` with `stance: granted`" — and this predicate is **consumer policy**, NOT registry-normative. CIRISAgent's CEM `PartnershipRequestHandler` is the canonical consumer that enforces it. Ingest-layer builders (NodeCore's `build_bilateral_pair_id` + request/accept builders) correctly produce the two halves WITHOUT enforcing ratification — that is the right boundary. The substrate admits each half independently; composition of the pair into a ratified partnership is a downstream read-time computation, never an admission gate.
 
 ### §4.2.3 Self-as-subject ceremony
 
