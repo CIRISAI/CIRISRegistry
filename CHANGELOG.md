@@ -38,6 +38,21 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.2.0] — 2026-06-05
+
+**Release-train R2 — §10.0 request-context layer (first half of #35).** Adds the CEG 0.2 §10.0 common-response surface as an additive, handler-untouched layer; the §10.0.1 error-body conversion (the 60-site refactor) follows as v2.2.1 (R2b) so the high-surface change gets its own validation gate.
+
+- **New `api::error` module** — `ApiError` + the 13-value `ErrorCode` enum (`MALFORMED_REQUEST` … `WITNESS_DIRECTORY_UNAVAILABLE`) serializing to the §10.0.1 envelope `{error: {code, http_status, message, request_id, details}}`, with an `IntoResponse` impl + an `ApiError::from_status` adapter so the v2.2.1 site conversions are near-mechanical. Typed constructors (`malformed` / `not_found` / `unauthenticated` / …). 4 unit tests pinning code strings + status mapping against the spec table.
+- **`request_context_mw`** — per-request UUID exposed via a task-local (so error bodies carry `request_id` without threading it through handlers) + sets `X-Request-Id`, `CEG-Version: 0.10`, and `X-CEG-Server-Time` (RFC 3339 millis per §0.5) on **every** response (success or error). Wired as the outermost layer over all routes.
+- No handler error bodies changed yet (still legacy shapes until R2b); this release is purely additive — every response now carries the §10.0 headers + the conformant error type is in place.
+
+**Rollback metadata:**
+- **Digest**: (operator-resolvable via `crane digest …:v2.2.0`)
+- **Migrations**: additive-only (no schema change)
+- **Config**: none
+
+---
+
 ## [2.1.4] — 2026-06-05
 
 **Release-train R1 — pipeline canary (docs-only; zero binary-behavior change).** First of a staged release train (milestones v2.1.4 → v2.4.0) where each release is prod-validated before the next. v2.1.4 ships no binary change — its purpose is to validate the full commit → CI smoke-gate → `:latest` → watchtower → `/health` deploy pipeline is green end-to-end on a no-risk change before binary releases (#35/#34/#46) follow.
@@ -677,7 +692,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.4...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.2.0
 [2.1.4]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.4
 [2.1.3]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.3
 [2.1.2]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.2

@@ -3394,7 +3394,13 @@ pub async fn serve(
         .merge(public_rate_limited)
         .with_state(state)
         // Apply request body size limit (1MB) to all routes
-        .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_SIZE));
+        .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_SIZE))
+        // §10.0 request context: per-request id (task-local + X-Request-Id),
+        // CEG-Version + X-CEG-Server-Time headers on every response. Outermost
+        // so it wraps every route incl. the merged public_rate_limited group.
+        .layer(axum::middleware::from_fn(
+            crate::api::error::request_context_mw,
+        ));
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
