@@ -11,6 +11,7 @@ mod emergency_status;
 mod function_manifests;
 mod escrows;
 mod keys;
+pub mod merkle_consistency;
 mod memberships;
 mod oauth_identities;
 mod organizations;

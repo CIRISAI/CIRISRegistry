@@ -48,6 +48,10 @@ pub enum ErrorCode {
     RateLimited,
     InternalError,
     WitnessDirectoryUnavailable,
+    /// CEG 0.2 §10.3.1 — a witness cosignature's consistency proof against
+    /// the prior STH it cosigned is absent or does not verify. Added per
+    /// CIRISRegistry#34 (additive to the §10.0.1 set).
+    ConsistencyProofInvalid,
 }
 
 impl ErrorCode {
@@ -67,6 +71,7 @@ impl ErrorCode {
             ErrorCode::RateLimited => "RATE_LIMITED",
             ErrorCode::InternalError => "INTERNAL_ERROR",
             ErrorCode::WitnessDirectoryUnavailable => "WITNESS_DIRECTORY_UNAVAILABLE",
+            ErrorCode::ConsistencyProofInvalid => "CONSISTENCY_PROOF_INVALID",
         }
     }
 
@@ -82,7 +87,8 @@ impl ErrorCode {
             ErrorCode::IdempotentConflict => StatusCode::CONFLICT,
             ErrorCode::SignatureVerificationFailed
             | ErrorCode::ClockSkewViolation
-            | ErrorCode::WitnessQuorumNotMet => StatusCode::UNPROCESSABLE_ENTITY,
+            | ErrorCode::WitnessQuorumNotMet
+            | ErrorCode::ConsistencyProofInvalid => StatusCode::UNPROCESSABLE_ENTITY,
             ErrorCode::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             ErrorCode::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             ErrorCode::WitnessDirectoryUnavailable => StatusCode::SERVICE_UNAVAILABLE,
@@ -176,6 +182,9 @@ impl ApiError {
     pub fn rate_limited(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::RateLimited, message)
     }
+    pub fn consistency_proof_invalid(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::ConsistencyProofInvalid, message)
+    }
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::InternalError, message)
     }
@@ -257,6 +266,14 @@ mod tests {
         assert_eq!(
             ErrorCode::SignatureVerificationFailed.as_str(),
             "SIGNATURE_VERIFICATION_FAILED"
+        );
+        assert_eq!(
+            ErrorCode::ConsistencyProofInvalid.as_str(),
+            "CONSISTENCY_PROOF_INVALID"
+        );
+        assert_eq!(
+            ErrorCode::ConsistencyProofInvalid.http_status(),
+            StatusCode::UNPROCESSABLE_ENTITY
         );
     }
 

@@ -43,6 +43,7 @@ All error responses MUST conform to:
 | 422 | `SIGNATURE_VERIFICATION_FAILED` | Ed25519 or ML-DSA-65 failed to verify; `details.algorithm` names which |
 | 422 | `CLOCK_SKEW_VIOLATION` | `signed_at` exceeds [§0.7](00_conformance.md) ±5 minute tolerance |
 | 422 | `WITNESS_QUORUM_NOT_MET` | Insufficient cosignatures to validate |
+| 422 | `CONSISTENCY_PROOF_INVALID` | A witness cosignature's [§10.3.1](#1031-consistency-proof-requirement-normative-addresses-ceg-01-distsys-review) consistency proof against the prior STH it cosigned is absent or does not verify (added CEG 0.10 per CIRISRegistry#34; `details` carries `prior_tree_size` / `new_tree_size` / `proof_len`). A missing proof when a prior STH exists, or a tree_size behind the witness's prior cosigned STH, is `MALFORMED_REQUEST` instead. |
 | 429 | `RATE_LIMITED` | `X-RateLimit-*` headers set; `Retry-After` honored |
 | 500 | `INTERNAL_ERROR` | Server-side fault; request_id usable for support |
 | 503 | `WITNESS_DIRECTORY_UNAVAILABLE` | Substrate replication lag exceeds liveness bound |
@@ -200,6 +201,8 @@ Ed25519 over `canonical`; ML-DSA-65 over `canonical || ed25519_sig` (bound paylo
 #### §10.3.1 Consistency-proof requirement (normative; addresses CEG 0.1 distsys review)
 
 A witness signing an STH MUST first verify a consistency proof from the prior STH it cosigned (or from genesis if it is the witness's first cosignature against this log). The Registry MUST reject `POST /v1/transparency/sth/cosign` requests that omit the `consistency_proof_*` fields OR whose consistency proof does not verify against the named prior STH. `witness_quorum_met` is therefore "quorum on log consistency," not "quorum on a string."
+
+**ENFORCED as of Registry v2.3.0** (CIRISRegistry#34). The cosign request carries `consistency_proof_path_b64[]` (base64 RFC 6962 §2.1.2 node hashes). The Registry anchors the check against the prior `(tree_size, root_hash)` **it recorded** for that witness — not a root the requester claims — and rejects: missing proof when a prior STH exists or a tree_size behind the witness's prior cosigned STH → `MALFORMED_REQUEST`; a proof that does not reconstruct both roots → `CONSISTENCY_PROOF_INVALID` ([§10.0.1](#1001-error-envelope)). A witness's first cosignature is exempt ("from genesis"). The RFC 6962 verifier is vendored from `ciris-verify-core::transparency` (Registry omits that crate for a libsqlite3 linker reason) and proven against independent known-answer vectors.
 
 ### `GET /v1/transparency/witnesses` (public)
 

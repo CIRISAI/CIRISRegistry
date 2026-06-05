@@ -38,6 +38,24 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.3.0] — 2026-06-05
+
+**Release-train R3 — STH consistency-proof at cosign admission (#34; closes it).** Enforces CEG 0.2 §10.3.1: a witness cosigning a Signed Tree Head MUST prove the new tree is an append-only extension of the prior STH it cosigned. Previously `POST /v1/transparency/sth/cosign` stored cosignatures without any Merkle check — `witness_quorum_met` was "quorum on a string." This is the last spec-gate keeping the CEG 0.10 accountable-streaming tier (§10.5.1) in RC; it now verifies log consistency.
+
+- **RFC 6962 §2.1.2 consistency verifier** (`db::merkle_consistency`) — vendored from the vetted `ciris-verify-core::transparency` (Registry omits that crate for a libsqlite3 linker reason; same precedent as the vendored `BuildManifest`). **TDD'd against independent known-answer vectors** (RFC 6962 roots + SUBPROOF proofs generated in Python/`hashlib`, anchored to the well-known empty-tree MTH `e3b0c4…b855` + the canonical single-leaf vector `96a296d2…`): 10 tests — accepts all authoritative proofs, rejects tampered/wrong-root/short/leftover/oversized proofs, equal-size + malformed-range edge cases.
+- **Admission gate** in `sth_cosign`: anchors the check against the prior `(tree_size, root_hash)` the **Registry itself recorded** for that witness (`db::latest_cosignature_by_witness`) — not a root the requester claims. First cosignature exempt ("from genesis"). A tree_size behind the witness's prior STH or a missing proof → `MALFORMED_REQUEST`; a proof that doesn't reconstruct both roots → new `CONSISTENCY_PROOF_INVALID` (422) with `details.{prior_tree_size,new_tree_size,proof_len}`.
+- **Request shape**: `consistency_proof_path_b64: Vec<String>` added to the cosign body (base64 32-byte RFC 6962 node hashes; `#[serde(default)]` so the wire shape stays backward-compatible — the handler enforces presence-when-required).
+- **§10.0.1 + §10.3.1 spec**: new `CONSISTENCY_PROOF_INVALID` error code (additive to the §10.0.1 set); §10.3.1 marked ENFORCED-as-of-v2.3.0.
+
+Build clean; clippy clean; 103/103 lib tests pass (10 new merkle-consistency KAT tests).
+
+**Rollback metadata:**
+- **Digest**: (operator-resolvable via `crane digest …:v2.3.0`)
+- **Migrations**: additive-only (no schema change — `latest_cosignature_by_witness` is a SELECT against existing `registry_sth_cosignatures`)
+- **Config**: none — but note: witnesses that previously cosigned successfully MUST now supply `consistency_proof_path_b64` on their next cosign (or it is rejected per §10.3.1). First-cosign and idempotent re-cosign are unaffected.
+
+---
+
 ## [2.2.1] — 2026-06-05
 
 **Release-train R2b — §10.0.1 error-body conversion (second half of #35; closes it).** Converts all ad-hoc HTTP error shapes in `api/http.rs` to the unified `ApiError` (§10.0.1 envelope) introduced additively in v2.2.0. Isolated from v2.2.0 so this high-surface handler refactor got its own validation gate.
@@ -709,7 +727,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.2.1...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.3.0
 [2.2.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.2.1
 [2.2.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.2.0
 [2.1.4]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.4

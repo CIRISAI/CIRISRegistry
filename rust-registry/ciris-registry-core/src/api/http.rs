@@ -716,6 +716,15 @@ struct CosignRequest {
     root_hash: String,
     witness_key_id: String,
     witness_signature: CosignWitnessSig,
+    /// CEG 0.2 §10.3.1 consistency proof from the prior STH this witness
+    /// cosigned (the new tree is an append-only extension of the old).
+    /// Each entry is a base64-encoded 32-byte node hash, ordered per
+    /// RFC 6962 §2.1.2. REQUIRED when the witness has a prior cosignature
+    /// on record; absent/empty is accepted only for a witness's first
+    /// cosignature ("from genesis"). Default omitted for backward-compat
+    /// on the request shape; the handler enforces presence-when-required.
+    #[serde(default)]
+    consistency_proof_path_b64: Vec<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -875,6 +884,93 @@ async fn sth_cosign(
         .unwrap_or(false);
     if !mldsa_ok {
         return Err(crate::api::error::ApiError::signature_failed("ML-DSA-65 signature did not verify against witness pubkey").with_details(serde_json::json!({"algorithm":"ml-dsa-65"})));
+    }
+
+    // 5b. CEG 0.2 §10.3.1 — consistency-proof gate. A witness cosigning an
+    //     STH MUST prove the new tree is an append-only extension of the
+    //     prior STH it cosigned. The Registry anchors the check against the
+    //     prior (tree_size, root_hash) IT recorded for this witness — not a
+    //     root the requester claims. First cosignature ("from genesis") is
+    //     exempt. This makes witness_quorum_met "quorum on log consistency,"
+    //     not "quorum on a string."
+    match db::latest_cosignature_by_witness(state.db.pool(), &req.witness_key_id).await {
+        Ok(Some((prior_size, prior_root))) => {
+            // Replay / regression: a cosign for a tree_size <= one already
+            // cosigned by this witness can't carry a forward consistency
+            // proof. (Equal size with equal root is an idempotent re-cosign,
+            // allowed; equal size with a different root, or smaller size, is
+            // rejected.)
+            if req.tree_size < prior_size {
+                return Err(crate::api::error::ApiError::malformed(format!(
+                    "tree_size={} is behind this witness's prior cosigned STH at tree_size={}; \
+                     consistency proofs are forward-only",
+                    req.tree_size, prior_size
+                )));
+            }
+            // Decode the supplied proof path (base64 → 32-byte hashes).
+            let mut path: Vec<[u8; 32]> = Vec::with_capacity(req.consistency_proof_path_b64.len());
+            for (i, h_b64) in req.consistency_proof_path_b64.iter().enumerate() {
+                let bytes = b64.decode(h_b64).map_err(|e| {
+                    crate::api::error::ApiError::malformed(format!(
+                        "consistency_proof_path_b64[{}] base64 decode: {}",
+                        i, e
+                    ))
+                })?;
+                let arr: [u8; 32] = bytes.as_slice().try_into().map_err(|_| {
+                    crate::api::error::ApiError::malformed(format!(
+                        "consistency_proof_path_b64[{}] must be 32 bytes, got {}",
+                        i,
+                        bytes.len()
+                    ))
+                })?;
+                path.push(arr);
+            }
+            let prior_root_arr: [u8; 32] = prior_root.as_slice().try_into().map_err(|_| {
+                crate::api::error::ApiError::internal("stored prior STH root is not 32 bytes")
+            })?;
+            let new_root_arr: [u8; 32] = root_hash.as_slice().try_into().map_err(|_| {
+                crate::api::error::ApiError::malformed("root_hash must be 32 bytes (SHA-256)")
+            })?;
+            use crate::db::merkle_consistency::{verify_consistency, ConsistencyOutcome};
+            match verify_consistency(
+                &prior_root_arr,
+                prior_size as u64,
+                &new_root_arr,
+                req.tree_size as u64,
+                &path,
+            ) {
+                ConsistencyOutcome::Valid => { /* admit */ }
+                ConsistencyOutcome::MalformedRange => {
+                    return Err(crate::api::error::ApiError::malformed(format!(
+                        "consistency-proof range invalid: prior tree_size={} → new tree_size={}",
+                        prior_size, req.tree_size
+                    )));
+                }
+                ConsistencyOutcome::Invalid => {
+                    return Err(crate::api::error::ApiError::consistency_proof_invalid(format!(
+                        "consistency proof does not verify against this witness's prior STH \
+                         (tree_size={} → {}); per CEG §10.3.1 the cosignature is rejected",
+                        prior_size, req.tree_size
+                    ))
+                    .with_details(serde_json::json!({
+                        "prior_tree_size": prior_size,
+                        "new_tree_size": req.tree_size,
+                        "proof_len": path.len(),
+                    })));
+                }
+            }
+        }
+        Ok(None) => {
+            // First cosignature for this witness — genesis case, §10.3.1 exempt.
+            // A proof supplied here is simply ignored (no prior STH to anchor).
+        }
+        Err(e) => {
+            warn!("prior-cosignature lookup failed: {}", e);
+            return Err(crate::api::error::ApiError::from_status(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "prior-cosignature lookup failed".to_string(),
+            ));
+        }
     }
 
     // 6. Persist cosignature

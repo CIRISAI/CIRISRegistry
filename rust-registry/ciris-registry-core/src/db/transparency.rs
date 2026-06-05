@@ -158,3 +158,28 @@ pub async fn list_cosignatures_for_sth(
     .await?;
     Ok(rows)
 }
+
+/// The most-recent (highest `tree_size`) STH this witness has previously
+/// cosigned, as `(tree_size, root_hash)`. `None` if the witness has never
+/// cosigned (the "from genesis" case in CEG 0.2 §10.3.1). Used by the
+/// cosign admission gate to anchor the consistency-proof check against
+/// what the Registry itself recorded last time — NOT against a root the
+/// requester claims.
+pub async fn latest_cosignature_by_witness(
+    pool: &PgPool,
+    witness_key_id: &str,
+) -> Result<Option<(i64, Vec<u8>)>> {
+    let row: Option<(i64, Vec<u8>)> = sqlx::query_as(
+        r#"
+        SELECT tree_size, root_hash
+        FROM registry_sth_cosignatures
+        WHERE witness_key_id = $1
+        ORDER BY tree_size DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(witness_key_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
