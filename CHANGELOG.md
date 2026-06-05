@@ -38,6 +38,20 @@ Upcoming phases (in waterfall order):
 
 ---
 
+## [2.1.4] — 2026-06-05
+
+**Release-train R1 — pipeline canary (docs-only; zero binary-behavior change).** First of a staged release train (milestones v2.1.4 → v2.4.0) where each release is prod-validated before the next. v2.1.4 ships no binary change — its purpose is to validate the full commit → CI smoke-gate → `:latest` → watchtower → `/health` deploy pipeline is green end-to-end on a no-risk change before binary releases (#35/#34/#46) follow.
+
+- **#42** — RELEASE.md gains a **Rollback** section answering the four safety questions (last-known-good digest source; forward-only/additive migration discipline + rollback floor; per-release config/env deltas; sister-stack compat matrix at `CIRISConformance/matrices/current.yaml`). Establishes the per-release rollback-metadata discipline (Digest / Migrations / Config lines) from v2.1.4 forward.
+- Retired the stale ECS ansible playbook → `deploy/aws-archive/rollback.yml` + archive README (it referenced `amazon.aws.ecs_service_info` for an AWS deployment we don't run; was misleading during the v2.1.0 incident).
+
+**Rollback metadata:**
+- **Digest**: (filled post-CI from the published GHCR `sha256:`)
+- **Migrations**: additive-only (no schema change — docs + version bump)
+- **Config**: none
+
+---
+
 ## [2.1.3] — 2026-05-30
 
 **Substrate triple sync to Conformance-matrix canonical (post-v2.1.x cascade):**
@@ -663,7 +677,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.3...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.1.4...HEAD
+[2.1.4]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.4
 [2.1.3]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.3
 [2.1.2]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.2
 [2.1.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.1.1
