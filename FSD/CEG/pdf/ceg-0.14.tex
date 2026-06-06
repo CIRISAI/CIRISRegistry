@@ -4186,6 +4186,9 @@ nonce[12] = prefix[7] || counter_be[4] || last_flag[1]
 \textbf{Cross-epoch counter reset is nonce-safe (normative reasoning)}: GCM's catastrophic case is reuse of a \texttt{(key, nonce)} pair. On epoch roll the DEK changes, so a reset counter lives in a different keyspace — \texttt{(DEK\_e, nonce=0)} and \texttt{(DEK\_\{e+1\}, nonce=0)} are distinct pairs. The enforced invariant is therefore only within a single epoch: counter strictly monotonic, never wraps (guaranteed by the forced roll). Across epochs, reset is free.
 
 
+**Single-sender-per-\texttt{(stream\_id, epoch)} invariant (normative — nonce-collision safety; cribbed from SFrame/MLS)**: the \texttt{counter\_be[4]} space of a \texttt{(stream\_id, epoch)} is owned by \textbf{exactly one} sender — the \texttt{stream\_id}'s producer. Two distinct senders MUST NOT seal chunks under the same \texttt{(stream\_id, epoch)} DEK, or their independently-incremented counters could collide into a reused \texttt{(DEK, nonce)} pair (GCM-catastrophic). In \textbf{group video} (§10.5.8) each participant emits their \textbf{own} \texttt{live\_stream} with their \textbf{own} \texttt{stream\_id}, so the nonce prefix \texttt{HKDF(epoch\_dek; "ciris-stream-nonce/v1" ‖ stream\_id ‖ epoch)} is per-sender-unique by construction — the same hazard SFrame avoids with per-sender keys, achieved here by per-sender \texttt{stream\_id}. Substrate MUST reject a chunk-append whose \texttt{(stream\_id, seq)} collides with an existing sealed chunk (replay/forking guard, §10.5.3).
+
+
 \subsubsection*{§10.5.3 Epoch keying + cascade (normative — D2 / D3; substrate-pending \#142)}
 
 
