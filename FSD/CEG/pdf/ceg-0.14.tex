@@ -162,6 +162,82 @@ parametric $\rightarrow$ concrete, measure RNS Link RTT/throughput on the target
 interfaces.} The O($\log$N) tree (1.x) and SFU relay (1.x) are modelled with
 standard complexity, not yet spec-detailed.
 
+\subsection*{0.5 Comparison to other PQC streaming proposals}
+The modern E2E-media stack the industry is converging on is \textbf{MLS (group key,
+TreeKEM) + SFrame (per-frame AEAD) + hybrid-PQC KEM + PQC-TLS transport}; the
+crypto trio everyone lands on is \textbf{ML-KEM-768 + ML-DSA-65 + AES-256-GCM}
+(Zoom's shipped PQC E2EE; the Frontiers 2025 authenticated-PQC-session paper;
+NIST FIPS 203/204). \textbf{CEG \S10.5 is structurally the same stack} --- we
+independently arrived at the converged design, which is the strongest validation
+of the crypto choices.
+
+\begin{center}\scriptsize
+\begin{tabular}{|p{2.6cm}|p{2.4cm}|p{2.4cm}|p{2.4cm}|p{3.2cm}|}\hline
+ & \textbf{Zoom PQC E2EE} & \textbf{MLS+SFrame (IETF)} & \textbf{WebRTC DTLS-SRTP} & \textbf{CEG \S10.5} \\\hline
+KEM & ML-KEM-768 & hybrid ML-KEM (agile) & (PQ-DTLS exploratory) & \textbf{hybrid X25519+ML-KEM-768} \\\hline
+Per-frame AEAD & AES-GCM & AES-GCM / CTR+HMAC & SRTP & AES-256-GCM (STREAM nonce) \\\hline
+Group rekey & key tree & \textbf{TreeKEM O(log N)} & n/a (SFU sees plaintext) & flat O(N) 1.0 $\rightarrow$ MLS-tree 1.x \\\hline
+Transparency log & none & none & none & \textbf{per-stream STH (RFC 6962) + receipts} \\\hline
+Identity / trust & Zoom accounts & app-supplied & X.509 / fingerprints & federation keys + founder-quorum, DNS-free \\\hline
+Topology & central SFU & delivery-service & SFU/P2P & RET mesh, no central server \\\hline
+Maturity & \textbf{shipped at scale} & \textbf{standardized} & \textbf{battle-tested} & pre-1.0 \\\hline
+\end{tabular}
+\end{center}
+
+\noindent\textbf{Where CEG is unique:} it composes media with the federation's
+transparency log + identity + governance + payments under \emph{one} grammar
+(the same 1+4 set), DNS-free over RET, no central server or CA --- the per-stream
+STH (anti-equivocation: a producer can't show different chunk-K to different
+viewers), delivery receipts, and settlement linkage have no equivalent in
+Zoom/MLS/SFrame. \textbf{Where CEG is behind (honest):} MLS \emph{ships} TreeKEM
+today (our O(log N) tree is 1.x); Zoom \emph{ships} PQC E2EE at scale; WebRTC's
+transport is battle-tested where RNS realtime media is unproven (our open
+RTT question). \textbf{Crib list} (\S0.7): adopt MLS TreeKEM (RFC 9420) verbatim
+for the 1.x tree rather than reinvent; consider SFrame framing to ride
+standardization; revisit the forward-only (no-PCS) choice against MLS's PCS.
+
+\subsection*{0.6 Concrete numbers from a transport profile}
+Feeding representative transport assumptions into the model (\texttt{concretize.py};
+replace with \texttt{rns\_transport\_bench.py} measurements):
+\begin{center}\footnotesize
+\begin{tabular}{|p{4.6cm}|r|r|r|l|}\hline
+\textbf{transport (RTT)} & \textbf{realtime call} & \textbf{broadcast} & \textbf{join} & \textbf{verdict}\\\hline
+IP-backed RNS, same region (35 ms) & 115 ms & 2.4 s & 71 ms & interactive-grade\\\hline
+IP-backed RNS, cross-region (140 ms) & 220 ms & 2.5 s & 282 ms & OK ($<$400 ms)\\\hline
+LoRa SF7 (1.2 s) & 1280 ms & 3.6 s & $\sim$10 s & store-and-forward only\\\hline
+\end{tabular}
+\end{center}
+\noindent Over IP-backed RNS, PQC realtime video is interactive-grade; the crypto
+contributes sub-millisecond. (Illustrative pending real RNS measurement.)
+
+\subsection*{0.7 Per-operation benchmark + crib findings}
+Measured here (pyca/cryptography); PQC rows from published liboqs (AVX2);
+cross-check target = ciris-crypto \texttt{benches/federation\_crypto.rs}.
+\begin{center}\footnotesize
+\begin{tabular}{|p{5.2cm}|r|r|l|}\hline
+\textbf{operation} & \textbf{$\mu$s/op} & \textbf{wire B} & \textbf{source}\\\hline
+X25519 ECDH & 23.2 & 32 & measured\\\hline
+Ed25519 sign / verify & 20 / 69 & 64 & measured\\\hline
+AES-256-GCM seal/open (1 MiB) & 144 / 141 & +16/chunk & measured (58 GB/s)\\\hline
+ML-KEM-768 encaps / decaps & $\sim$30 / $\sim$25 & ct 1088 & liboqs\\\hline
+ML-DSA-65 sign / verify & $\sim$330 / $\sim$110 & sig 3309 & liboqs\\\hline
+\end{tabular}
+\end{center}
+\noindent\textbf{The headline that answers ``isn't PQC slow E2E?'':} PQC
+\emph{compute} is comparable to classical (ML-KEM encaps $\sim$30 $\mu$s $\approx$
+X25519 23 $\mu$s); the cost is \emph{size} ($\sim$30--50$\times$). And CEG puts the
+asymmetric PQC on the per-\emph{epoch} cold path while every \emph{frame} rides
+AES-256-GCM ($\sim$58 GB/s, PQC-safe). ``PQC is slow E2E'' conflates size with
+compute; the KEM-then-symmetric placement (same as TLS-bulk, MLS+SFrame) defeats
+it. \textbf{Cribbed gotchas:} (1) \emph{multi-sender nonce reuse} --- in group
+video N senders share an epoch but each emits its own \texttt{stream\_id}, so the
+STREAM nonce prefix HKDF(epoch\_dek; stream\_id, epoch) is per-sender-unique
+(SFrame solves the same hazard with per-sender keys; our per-sender stream\_id is
+equivalent --- now explicit). (2) \emph{TreeKEM unmerged-leaves / double-join} ---
+adopt RFC 9420 handling wholesale in the 1.x tree. (3) \emph{PCS} --- MLS offers
+post-compromise security via key-updates; CEG chose forward-only (Option A);
+flagged for reconsideration.
+
 \begin{figure}[h]\centering
 \includegraphics[width=0.78\textwidth]{fig_cascade.pdf}
 \caption{Per-epoch PQC key cascade vs subscribers --- flat O(N) (1.0) is the long tail; the MLS tree (1.x) is the scale lever.}\label{fig:cascade}
