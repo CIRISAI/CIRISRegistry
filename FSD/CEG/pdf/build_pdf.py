@@ -235,12 +235,20 @@ ML-KEM-768 ciphertext & 1{,}088 & FIPS 203\\\hline
 AES-256-GCM content overhead is 0.0015\% at a 1 MiB chunk. At scale the dominant
 cost is unicast content replication (e.g.\ $\sim$2 Tbps for 1M viewers at 2 Mbps),
 which is the CDN / broadcast-relay-tree problem (1.x), independent of crypto.
-\item \textbf{The PQC ``long tail'' is the per-epoch O(N) key cascade under churn.}
-Each member-removal forces an epoch rotation (\S10.5.3 forward-secrecy); the flat
-1.0 cascade re-wraps the DEK to all remaining members at 4.56 KiB each. At
-N=1M, churn=3600/hr this is $\sim$37 Gbps of \emph{key} traffic --- large in
-absolute terms, but still $<$2\% of the content fan-out. The MLS-style
-O($\log^2$N) tree (1.x) collapses it to $\sim$15 Mbps. Fig.~\ref{fig:cascade}.
+\item \textbf{The PQC ``long tail'' is the per-rekey key cascade under churn --- and
+the delivery model is decisive.} Each member-removal forces an epoch rotation
+(\S10.5.3 forward-secrecy). Three regimes (N=1M, churn=3600/hr, hybrid grant 4.56
+KiB; TreeKEM commit signed once, $\sim$1.2 KiB/node, depth$=$20): \textbf{(a) flat,
+unicast --- O(N) --- $\sim$37 Gbps} (member-specific grants cannot multicast); this is
+the 1.0 shape, still $<$2\% of content fan-out. \textbf{(b) tree, multicast --- O(log
+N) --- $\sim$0.22 Mbps} --- the 1.x lever, but \emph{cheap only if efficient multicast
+exists}. \textbf{(c) tree, unicast --- O(N log N) --- $\sim$219 Gbps --- WORSE than
+flat.} So the tree's entire advantage is multicast aggregation; over a unicast
+RET mesh, flat is competitive-to-better. Whether efficient multicast exists over
+the mesh is exactly the open transport question of \S0.4. \emph{(Earlier drafts of
+this model used $\log^2$ and quoted $\sim$15 Mbps --- an error; corrected to the
+standard MLS TreeKEM O(log N), and the delivery assumption is now explicit.)}
+Fig.~\ref{fig:cascade}.
 \item \textbf{Lag is transport-bound, not crypto-bound.} Per-chunk AES seal/open
 is $\sim$$\mu$s; the ML-KEM-768 DEK decap is $\sim$30 $\mu$s \emph{once per epoch}.
 Glass-to-glass lag is dominated by chunk/segment duration, STH cadence (T=2s for
@@ -253,7 +261,7 @@ establishment is the variable. Fig.~\ref{fig:join}.
 \subsection*{0.4 Do we have enough detail? (yes, parametrically)}
 \textbf{Sufficient and pinned:} all crypto sizes (FIPS 203/204, RFC 8032), the
 AES-GCM chunk overhead, cadence constants (K=64, T=2s, MAX\_CHUNKS/epoch=$2^{24}$,
-1 MiB chunk), and cascade complexity (flat O(N) vs tree O($\log^2$N)).
+1 MiB chunk), and cascade complexity (flat O(N), tree O(log N) with multicast, O(N log N) without).
 \textbf{Parametric (RC1-7 unratified):} K, T, MAX\_CHUNKS --- the model is a
 function of them. \textbf{The one missing empirical input:} Reticulum transport
 characteristics (Link RTT, throughput, MTU, path-setup time) per interface ---
@@ -278,7 +286,7 @@ of the crypto choices.
  & \textbf{Zoom PQC E2EE} & \textbf{MLS+SFrame (IETF)} & \textbf{WebRTC DTLS-SRTP} & \textbf{CEG \S10.5} \\\hline
 KEM & ML-KEM-768 & hybrid ML-KEM (agile) & (PQ-DTLS exploratory) & \textbf{hybrid X25519+ML-KEM-768} \\\hline
 Per-frame AEAD & AES-GCM & AES-GCM / CTR+HMAC & SRTP & AES-256-GCM (STREAM nonce) \\\hline
-Group rekey & key tree & \textbf{TreeKEM O(log N)} & n/a (SFU sees plaintext) & flat O(N) 1.0 $\rightarrow$ MLS-tree 1.x \\\hline
+Group rekey & key tree & \textbf{TreeKEM O(log N)} & n/a (SFU sees plaintext) & flat O(N) 1.0 $\rightarrow$ MLS-tree (RFC 9420) 1.x, multicast-dependent \\\hline
 Transparency log & none & none & none & \textbf{per-stream STH (RFC 6962) + receipts} \\\hline
 Identity / trust & Zoom accounts & app-supplied & X.509 / fingerprints & federation keys + founder-quorum, DNS-free \\\hline
 Topology & central SFU & delivery-service & SFU/P2P & RET mesh, no central server \\\hline
@@ -342,7 +350,7 @@ flagged for reconsideration.
 
 \begin{figure}[h]\centering
 \includegraphics[width=0.78\textwidth]{fig_cascade.pdf}
-\caption{Per-epoch PQC key cascade vs subscribers --- flat O(N) (1.0) is the long tail; the MLS tree (1.x) is the scale lever.}\label{fig:cascade}
+\caption{Per-rekey PQC key cascade vs N under three delivery models. The tree wins ONLY with efficient multicast (b); without it (c) it is worse than flat. Delivery, not complexity, is decisive.}\label{fig:cascade}
 \end{figure}
 \begin{figure}[h]\centering
 \includegraphics[width=0.70\textwidth]{fig_overhead.pdf}

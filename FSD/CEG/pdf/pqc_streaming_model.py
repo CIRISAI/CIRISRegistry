@@ -64,8 +64,16 @@ def sth_bytes():
     body = SHA256 + 8 + 8 + 64   # root_hash + tree_size + timestamp + log_id/stream_id
     return body + HYBRID_SIG
 
-KG = key_grant_v2_bytes()
+def tree_node_ct_bytes():
+    """One TreeKEM path-node update = a hybrid HPKE ciphertext to a copath subtree
+       (X25519 ephemeral + ML-KEM-768 ct + AEAD-wrapped node secret). The commit is
+       signed ONCE (not per node), unlike the flat grant which carries a full hybrid
+       sig per member."""
+    return X25519_PK + MLKEM768_CT + (DEK + AES_GCM_TAG) + 32  # ~1.2 KiB
+
+KG = key_grant_v2_bytes()            # flat per-member grant (carries its own hybrid sig)
 STH = sth_bytes()
+NODE_CT = tree_node_ct_bytes()       # TreeKEM per-node update (commit signed once)
 
 # ---------------------------------------------------------------------------
 # Bandwidth model (per stream, producer/substrate egress)
@@ -74,29 +82,48 @@ def content_overhead_frac():
     """AES-GCM tag overhead as a fraction of content bytes."""
     return AES_GCM_TAG / CHUNK_BYTES   # ~1.5e-5 at 1 MiB
 
-def key_cascade_bw_bps(N, epoch_rate_hz, mode="flat"):
-    """Per-epoch key-distribution egress, amortized to bits/sec.
-       flat (1.0): each of N remaining members gets a fresh wrap -> N*KG/epoch.
-       tree (1.x): MLS-style commit ~ log2(N) wraps fanned to N members."""
+def commit_bytes(N):
+    """TreeKEM removal commit = O(log N) node updates + ONE commit signature."""
+    depth = max(1, int(np.ceil(np.log2(N))))
+    return depth * NODE_CT + HYBRID_SIG
+
+def key_cascade_bw_bps(N, epoch_rate_hz, mode="flat_unicast"):
+    """Per-rekey (= per member-removal) key-distribution PRODUCER/SUBSTRATE EGRESS,
+       amortized to bits/sec. The delivery model is explicit and decisive
+       (per the §0 review): the tree only wins WITH efficient multicast.
+
+       flat_unicast (1.0): N member-specific grants -> O(N) egress. Cannot
+            multicast (each grant is encrypted to a distinct member).
+       tree_multicast (1.x, NEEDS multicast): one O(log N) commit sent ONCE ->
+            O(log N) egress. Cheap ONLY if the transport multicasts.
+       tree_unicast (1.x WITHOUT multicast): the O(log N) commit delivered to each
+            of N members -> O(N log N) egress -> WORSE than flat. The tree's whole
+            advantage is multicast aggregation, which over a RET mesh is the open
+            transport question (§0.4)."""
     if N <= 1:
         return 0.0
-    if mode == "flat":
-        grants = N
-    else:  # tree (O(log N) path rekey; each member downloads ~depth wraps)
-        depth = max(1, np.ceil(np.log2(N)))
-        grants = N * depth / (N / depth) if False else depth * np.log2(N)
-        # simpler, standard: total commit egress ~ 2*log2(N) node-wraps, but a
-        # naive unicast substrate still touches N; model the *per-member* cost
-        # x N for an apples-to-apples egress comparison vs flat:
-        grants = N * (np.log2(N) / N) * np.log2(N)  # ~ (log2 N)^2  << N
-        grants = (np.log2(N))**2
-    return grants * KG * 8 * epoch_rate_hz
+    if mode == "flat_unicast":
+        egress = N * KG                       # O(N), member-specific, no multicast
+    elif mode == "tree_multicast":
+        egress = commit_bytes(N)              # O(log N), ONE multicast send
+    elif mode == "tree_unicast":
+        egress = N * commit_bytes(N)          # O(N log N), commit to each member
+    else:
+        raise ValueError(mode)
+    return egress * 8 * epoch_rate_hz
+
+def per_member_download_bytes(N, mode):
+    """What ONE member downloads per rekey. flat: 1 grant; tree: the whole commit.
+       NB: flat (KG ~4.6 KiB) is SMALLER per-member than the tree commit
+       (O(log N) ~tens of KiB) — the tree only helps SENDER egress, and only with multicast."""
+    if mode == "flat_unicast": return KG
+    return commit_bytes(N)
 
 def sth_pull_bw_bps(N, epoch_rate_hz):
     """Broadcast pull: each subscriber pulls the per-epoch STH (cacheable)."""
     return N * STH * 8 * epoch_rate_hz
 
-def total_egress_mbps(bitrate_mbps, N, churn_per_hour, mode="flat"):
+def total_egress_mbps(bitrate_mbps, N, churn_per_hour, mode="flat_unicast"):
     """Total producer/substrate egress (Mbps) for a stream of N viewers."""
     epoch_rate_hz = churn_per_hour / 3600.0    # member-removal forces an epoch (§10.5.3)
     content = bitrate_mbps * N * (1 + content_overhead_frac())   # unicast worst case
@@ -129,18 +156,21 @@ def lag_realtime_directlink(frame_ms, rns_rtt_s, jitter_ms=40):
 # ===========================================================================
 plt.rcParams.update({"font.size": 10, "figure.dpi": 120})
 
-# Fig 1: key-cascade egress vs N — flat (1.0) vs tree (1.x), the O(N) tail
+# Fig 1: key-cascade egress vs N — the THREE delivery models (per §0 review)
 def fig_cascade():
     N = np.logspace(0, 6, 200)
-    churn = 60  # 60 removals/hour (1/min) — a moderately churny room
-    flat = np.array([key_cascade_bw_bps(n, churn/3600, "flat")/1e6 for n in N])
-    tree = np.array([key_cascade_bw_bps(n, churn/3600, "tree")/1e6 for n in N])
-    fig, ax = plt.subplots(figsize=(6.2, 4))
-    ax.loglog(N, flat, label="flat cascade O(N) — CEG 1.0", lw=2)
-    ax.loglog(N, tree, label="MLS tree O(log²N) — 1.x", lw=2, ls="--")
+    churn = 3600  # 1 removal/sec
+    flat   = np.array([key_cascade_bw_bps(n, churn/3600, "flat_unicast")/1e6 for n in N])
+    tmc    = np.array([key_cascade_bw_bps(n, churn/3600, "tree_multicast")/1e6 for n in N])
+    tuc    = np.array([key_cascade_bw_bps(n, churn/3600, "tree_unicast")/1e6 for n in N])
+    fig, ax = plt.subplots(figsize=(6.4, 4.2))
+    ax.loglog(N, flat, label="flat, unicast  O(N)  — CEG 1.0", lw=2)
+    ax.loglog(N, tmc,  label="tree, multicast  O(log N)  — 1.x, NEEDS multicast", lw=2, ls="--")
+    ax.loglog(N, tuc,  label="tree, unicast  O(N log N)  — WORSE than flat", lw=2, ls=":")
     ax.set_xlabel("subscribers N"); ax.set_ylabel("key-cascade egress (Mbps)")
-    ax.set_title(f"PQC epoch-key cascade — the long tail\n(churn={churn}/hr, hybrid grant={KG/1024:.1f} KiB)")
-    ax.legend(); ax.grid(True, which="both", alpha=0.3)
+    ax.set_title(f"PQC epoch-key cascade — delivery model is decisive\n"
+                 f"(churn={churn}/hr; the tree wins ONLY with efficient multicast)")
+    ax.legend(fontsize=8); ax.grid(True, which="both", alpha=0.3)
     fig.tight_layout(); fig.savefig(OUT/"fig_cascade.pdf"); plt.close(fig)
 
 # Fig 2: PQC overhead as % of total egress vs bitrate (content vs keys)
@@ -150,7 +180,7 @@ def fig_overhead():
     for N, churn in [(1_000, 60), (100_000, 600)]:
         pct = []
         for br in bitrates:
-            c, k, s = total_egress_mbps(br, N, churn, "flat")
+            c, k, s = total_egress_mbps(br, N, churn, "flat_unicast")
             pct.append(100*(k+s)/(c+k+s))
         ax.plot(bitrates, pct, marker="o", label=f"N={N:,}, churn={churn}/hr")
     ax.set_xlabel("video bitrate (Mbps)"); ax.set_ylabel("PQC key+STH overhead (% of egress)")
@@ -192,12 +222,16 @@ if __name__ == "__main__":
     print(f"per-stream STH        = {STH} B")
     print(f"AES-GCM content overhead at 1 MiB chunk = {content_overhead_frac()*100:.4f}%")
     print(f"DEK decap per epoch ~ {MLKEM_DECAP_S*1e6:.0f} us (amortized ~0 per chunk)")
-    print("\n-- worked points --")
+    print(f"flat grant={KG} B | tree node_ct={NODE_CT} B | tree commit@1M={commit_bytes(1_000_000)} B "
+          f"(depth={int(__import__('numpy').ceil(__import__('numpy').log2(1_000_000)))})")
+    print("\n-- worked points: key-cascade egress under the 3 delivery models --")
     for N, churn, br in [(1_000,60,6),(100_000,600,6),(1_000_000,3600,2)]:
-        c,k,s = total_egress_mbps(br,N,churn,"flat")
-        ct,kt,st = total_egress_mbps(br,N,churn,"tree")
-        print(f"N={N:>9,} churn={churn:>5}/hr br={br}Mbps | "
-              f"content={c:,.0f} Mbps  keys(flat)={k:,.2f}  keys(tree)={kt:,.4f}  sth={s:,.2f} Mbps")
+        c,_,s = total_egress_mbps(br,N,churn,"flat_unicast")
+        kf = key_cascade_bw_bps(N, churn/3600, "flat_unicast")/1e6
+        ktm = key_cascade_bw_bps(N, churn/3600, "tree_multicast")/1e6
+        ktu = key_cascade_bw_bps(N, churn/3600, "tree_unicast")/1e6
+        print(f"N={N:>9,} churn={churn:>5}/hr br={br}Mbps | content={c:>12,.0f} | "
+              f"flat/unicast={kf:>10,.3f} | tree/multicast={ktm:>8,.4f} | tree/unicast={ktu:>12,.1f}  (Mbps)")
     for fn in (fig_cascade, fig_overhead, fig_lag, fig_join):
         fn(); print(f"wrote {fn.__name__}")
     print("done")
