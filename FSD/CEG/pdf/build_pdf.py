@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble an exhaustively-complete CEG 0.14 PDF from the markdown spec.
+"""Assemble an exhaustively-complete CEG 0.15 PDF from the markdown spec.
 No pandoc available -> a focused markdown->LaTeX converter for this spec's
 subset (headings, pipe tables, code fences, lists, inline bold/italic/code/links,
 blockquotes), pdflatex + newunicodechar for the 42 special glyphs.
@@ -161,13 +161,13 @@ PREAMBLE = r'''\documentclass[10pt]{article}
 \setlength{\parindent}{0pt}\setlength{\parskip}{4pt}
 \renewcommand{\arraystretch}{1.15}
 ''' + nuc_lines + r'''
-\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 0.14 (Public Working Draft) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
+\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 0.15 (Public Working Draft) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
 \author{CIRIS Federation --- generated from \texttt{FSD/CEG/}}
 \date{2026-06-06}
 \begin{document}
 \maketitle
 \begin{abstract}\noindent
-This document is the complete CEG 0.14 wire-format specification (the 1+4
+This document is the complete CEG 0.15 wire-format specification (the 1+4
 minimal-and-adequate attestation grammar), assembled from the 18-section source
 plus the version-history overview. It opens with a quantitative model of
 PQC-native streaming video --- bandwidth and lag --- under CEG \S10.5, isolating
@@ -368,11 +368,12 @@ flagged for reconsideration.
 '''
 
 # ---------------------------------------------------------------- assemble
-body = [PREAMBLE, MODEL]
-for fn in FILES:
-    md = (SPEC/fn).read_text(encoding='utf-8')
-    body.append(convert(md))
-    body.append(r'\clearpage')
-body.append(r'\end{document}')
-(D/'ceg-0.14.tex').write_text('\n'.join(body), encoding='utf-8')
-print('wrote ceg-0.14.tex (%d files)' % len(FILES))
+if __name__ == "__main__":
+    body = [PREAMBLE, MODEL]
+    for fn in FILES:
+        md = (SPEC/fn).read_text(encoding='utf-8')
+        body.append(convert(md))
+        body.append(r'\clearpage')
+    body.append(r'\end{document}')
+    (D/'ceg-0.15.tex').write_text('\n'.join(body), encoding='utf-8')
+    print('wrote ceg-0.15.tex (%d files)' % len(FILES))

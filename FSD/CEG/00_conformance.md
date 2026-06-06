@@ -80,6 +80,11 @@ The following documents are normatively cited; implementations MUST conform to t
 | [RFC-9162] | [RFC 9162](https://www.rfc-editor.org/rfc/rfc9162) — Certificate Transparency v2.0 (CT-bis); MUST be used for new transparency-log integrations; older 6962 instances continue to interoperate |
 | [ISO-639-1] | [ISO 639-1:2002](https://www.iso.org/standard/22109.html) — Codes for the representation of names of languages, two-letter |
 | [BCP-47] | [BCP 47](https://www.rfc-editor.org/info/bcp14) ([RFC 5646](https://www.rfc-editor.org/rfc/rfc5646)) — Tags for identifying languages; for locale strings richer than ISO 639-1 alone |
+| [RFC-9420] | [RFC 9420](https://www.rfc-editor.org/rfc/rfc9420) — Messaging Layer Security (MLS); the streaming epoch-key rekey ([§10.5.3](10_endpoints.md)) conforms to MLS TreeKEM |
+| [SFrame] | [draft-ietf-sframe](https://datatracker.ietf.org/wg/sframe/about/) — Secure Frames; the per-frame AEAD chunk seal ([§10.5.2](10_endpoints.md)) conforms to the SFrame model |
+| [FIPS-203] | [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) — ML-KEM (Module-Lattice KEM); the post-quantum half of the hybrid KEM (ML-KEM-768) |
+| [FIPS-204] | [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final) — ML-DSA (Module-Lattice signatures); the post-quantum half of the hybrid signature (ML-DSA-65) |
+| [RFC-9180] | [RFC 9180](https://www.rfc-editor.org/rfc/rfc9180) — Hybrid Public Key Encryption (HPKE); the `key_grant` wrap shape |
 
 Informational citations (Magnifica Humanitas, anthropological literature, Ubuntu philosophical literature, etc.) appear in [§16.4](16_references.md) without normative force.
 

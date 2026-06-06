@@ -1,25 +1,28 @@
-# CEG 0.14 PDF build
+# CEG 0.15 PDF builds
 
-Exhaustively-complete CEG 0.14 PDF (the full 18-section spec + version overview)
-with a front-matter **PQC streaming bandwidth/lag model** ("the toy").
+Two editions, both generated from the markdown spec (`../*.md`):
+
+- **`ceg-0.15.pdf`** — *exhaustive / reference edition*. Full 18-section spec +
+  version overview + the front-matter PQC streaming bandwidth/lag model ("the toy")
+  with 4 figures + a TikZ stack diagram. For implementers/machines.
+- **`ceg-0.15-reader.pdf`** — *human reading edition*. The same normative spec,
+  **de-editorialized + deduplicated**: version history, per-path narrative,
+  "lockdown preserved" refrains, provenance cross-refs, the §15.6 RC1 audit
+  register, and the §16 lineage file are stripped; serif, generous spacing,
+  one-line "what CEG is" framing up front. For people.
 
 ## Reproduce
 ```bash
-python3 pqc_streaming_model.py   # -> fig_*.pdf (model figures) + printed worked points
-python3 build_pdf.py             # md (../*.md) -> ceg-0.14.tex
-pdflatex ceg-0.14.tex && pdflatex ceg-0.14.tex   # 2 passes (TOC + figure refs)
+python3 pqc_streaming_model.py        # -> fig_*.pdf (model figures)
+python3 build_pdf.py        && pdflatex ceg-0.15.tex        && pdflatex ceg-0.15.tex
+python3 build_reader_pdf.py && pdflatex ceg-0.15-reader.tex && pdflatex ceg-0.15-reader.tex
 ```
-Toolchain: `pdflatex` (TeX Live), `python3` + `numpy` + `matplotlib`. No pandoc
-(a focused markdown->LaTeX converter for this spec's subset lives in `build_pdf.py`;
-the 42 non-ASCII glyphs are mapped via `newunicodechar`).
+Toolchain: `pdflatex` (TeX Live), `python3` + `numpy` + `matplotlib`. No pandoc —
+`build_pdf.py` is a focused markdown→LaTeX converter; `build_reader_pdf.py` reuses it
+and adds the de-editorialization prefilter. 42 non-ASCII glyphs via `newunicodechar`.
 
-## Files
-- `pqc_streaming_model.py` — analytical PQC-streaming model; emits `fig_*.pdf`.
-- `build_pdf.py` — converter + assembler -> `ceg-0.14.tex`.
-- `ceg-0.14.pdf` — the deliverable (118 pp).
-
-## The model in one line
-PQC is not the streaming bottleneck (content fan-out is); the PQC "long tail" is
-the per-epoch O(N) key cascade under churn (→ O(log²N) tree in 1.x); lag is
-transport-bound (Reticulum Link RTT), not crypto-bound. The one missing empirical
-input is RNS transport RTT/throughput — measure it to go parametric → concrete.
+## Helper tools
+- `pqc_streaming_model.py` — analytical PQC-streaming model (the figures).
+- `crypto_bench.py` — per-op crypto benchmark (classical/symmetric measured; PQC from liboqs).
+- `rns_transport_bench.py` — RNS Link RTT/throughput/path-setup harness (run on a CIRISEdge node).
+- `concretize.py` — feeds a transport profile into the model → concrete lag/bandwidth.

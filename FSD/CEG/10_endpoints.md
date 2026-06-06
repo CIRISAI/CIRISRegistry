@@ -11,7 +11,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 All CEG endpoints return:
 
 - **Content-Type**: `application/json` (`Accept: application/json` honored; other types respond `406 Not Acceptable`)
-- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `0.14`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `0.15`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 - **Time-Source header**: `X-CEG-Server-Time: <rfc3339_canonical>` per [§0.5](00_conformance.md) for client clock-skew bounds
 - **Pagination** (where applicable): `?cursor=` + `?limit=` query params; response includes `next_cursor` (null if exhausted) and `total_estimate` (server's best estimate, may be approximate)
 
@@ -256,7 +256,7 @@ For each live_stream:
 
 ### §10.5.2 Chunk seal + STREAM nonce (normative — V2 lock)
 
-Per-chunk content sealing uses AES-256-GCM (NIST FIPS 197 + SP 800-38D). The 12-byte (96-bit) nonce follows the **STREAM** layout (Hoang, Reyhanitabar, Rogaway, Vizár — *Online Authenticated-Encryption and its Nonce-Reuse Misuse-Resistance*, CRYPTO 2015):
+Per-chunk content sealing **conforms to SFrame** ([draft-ietf-sframe](https://datatracker.ietf.org/wg/sframe/about/), normative): the per-frame AEAD model with a `(KID, CTR)` header, here bound as `KID = stream_id` and `CTR = counter`, AEAD = AES-256-GCM, keys derived per MLS epoch (the canonical SFrame+MLS composition, §10.5.3). The STREAM nonce below is CEG's binding profile of SFrame's per-sender nonce derivation. Per-chunk content sealing uses AES-256-GCM (NIST FIPS 197 + SP 800-38D). The 12-byte (96-bit) nonce follows the **STREAM** layout (Hoang, Reyhanitabar, Rogaway, Vizár — *Online Authenticated-Encryption and its Nonce-Reuse Misuse-Resistance*, CRYPTO 2015):
 
 ```
 nonce[12] = prefix[7] ‖ counter_be[4] ‖ last_flag[1]
@@ -293,7 +293,11 @@ The stream-epoch DEK seals content **O(1)**; the per-subscriber `key_grant` casc
 | Member addition | NO rotation + Option-A catch-up per [§11.7.1](11_governance.md) (subject to `history_on_join`) | New member gets `key_grant`s for the current epoch + (optionally) prior epochs per the `history_on_join` envelope field ([§4](04_envelope.md)) |
 | Time / bytes | Optional hygiene rotation | Operator policy; default off |
 
-**Forward secrecy = forward-only, NO PCS** (consistent with the [§11.7.1](11_governance.md) CEG 0.7 Option A discipline). MLS-style O(log N) rekey tree = **1.x, additive** (tree-position rides on the opaque `key_grant` payload; no table migration).
+**Rekey conforms to MLS TreeKEM ([RFC 9420](https://www.rfc-editor.org/rfc/rfc9420), normative).** The epoch-DEK rekey on member change is the MLS TreeKEM construction: an O(log N) path rekey, the commit signed once, with RFC 9420 blank-node / unmerged-leaf handling and parent-hash tree integrity. The hybrid KEM (X25519+ML-KEM-768) is the MLS ciphersuite's HPKE KEM.
+
+**Delivery is decisive (carried from the bandwidth model).** The TreeKEM advantage is *multicast aggregation*, not the tree itself: with efficient multicast the commit egress is **O(log N)** (one commit serves all); over unicast the commit must reach each member, **O(N log N)** — in which case the **flat per-member cascade (O(N), one grant per member) is competitive-to-better**. The substrate MUST select per deployment based on whether the transport multicasts; the choice is **wire-invisible** (tree position rides the opaque `key_grant` payload; no schema migration). Whether the RET mesh offers efficient multicast is the open transport question (the bandwidth model's one free parameter).
+
+**Forward secrecy** is forward-only by default ([§11.7.1](11_governance.md) Option A). **Post-Compromise Security (PCS)** is now AVAILABLE (inherent to TreeKEM key-updates: a compromised current member heals on the next commit) and is **OPTIONAL, operator-enabled** — a deployment MAY require periodic self-updates for PCS, or stay forward-only.
 
 **Catch-up bound (P4)**: `min(operator depth cap [LensCore knob, NOT a substrate constant], chunk-eviction horizon)`. Three distinct windows that are NOT conflated: chunk-eviction horizon ≠ [§10.1.2](#1012-holder-directory-ttl--contentmiss-feedback) `holds_bytes` 24h TTL ≠ grant durability. A catch-up request against an evicted epoch returns **`ContentMiss` — fail-honest, no silent gap** (consistent with the [`MISSION.md`](../../MISSION.md) fail-honest invariant). Operators MUST ship the P4 cap **with** the cascade, else 10⁶ grant Contributions per rekey is the unbounded worst case.
 
