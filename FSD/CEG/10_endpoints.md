@@ -11,7 +11,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 All CEG endpoints return:
 
 - **Content-Type**: `application/json` (`Accept: application/json` honored; other types respond `406 Not Acceptable`)
-- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `0.12`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `0.13`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 - **Time-Source header**: `X-CEG-Server-Time: <rfc3339_canonical>` per [§0.5](00_conformance.md) for client clock-skew bounds
 - **Pagination** (where applicable): `?cursor=` + `?limit=` query params; response includes `next_cursor` (null if exhausted) and `total_estimate` (server's best estimate, may be approximate)
 
@@ -340,6 +340,37 @@ Two sets are NEVER conflated:
 **Fan-out invariant: `fan_out(C) = entitled(C) ∩ reachable(now)`**.
 
 **Heartbeat-suppression discipline**: this is a **producer-side-refusal invariant** (same class as the [§10.1.4](#1014-structural-invisibility--holds_bytessha256-suppression-for-cohort_scope-self--family-ceg-07-addition) `cohort_scope: self|family` `holds_bytes` suppression). Missed (entitled-but-unreachable) members fall back to pull on reconnect — substrate does NOT keep retrying push, does NOT emit a "delivery_failed" attestation, does NOT log liveness state. The reconnect-then-pull catch-up rides §10.5.3 `history_on_join`.
+
+### §10.5.8 Realtime group communication — composition (CEG 0.13 addition)
+
+Per [CIRISRegistry#56](https://github.com/CIRISAI/CIRISRegistry/issues/56). The delivery axis was framed for 1:1 observer-share and 1:N broadcast multicast. Realtime **group communication** — group video, voice, desktop/screen sharing, text chat, and topic-scoped channels with sub-channels — is the **same primitive set at N↔N cardinality**. It composes entirely from `community` ([§5.6.8.10](05_namespace.md)) + `live_stream` (the §10.5 streaming surface) + `chat_message` (CEG 0.3) + member/transport resolution ([§8.1.13.1.1](08_composition.md)). **Zero new structural primitives** — this is the thirteenth path on the [§1.4](01_foundation.md) claim and the most product-complete: the whole realtime-collaboration surface is composition.
+
+**The composition map (all generic — no new wire):**
+
+| Surface | Composes from |
+|---|---|
+| **1:1 / group video call** | each participant emits a `live_stream` (their A/V) scoped to the channel `community`; each subscribes to peers. N↔N = N simultaneous bidirectional streams over a small roster |
+| **Voice channel** | identical to group video with an audio-only codec; same `live_stream` wire |
+| **Desktop / screen sharing** | a `live_stream` whose source is a screen capture (1→N within the channel); same chunk-seal + epoch-DEK wire |
+| **Text chat** | `chat_message` (CEG 0.3) at `cohort_scope: community`, `community_id: <channel>`; threads via `topical_relation: replies_to` |
+| **Channel** | a `community` (persistent) — its roster gates who can join the call / read the chat |
+| **Sub-channels** | nested `community` membership ([§8.1.13.5](08_composition.md) multi-level pattern): a parent "space" community whose members admit child channel-communities; sub-channel members are a subset of the space roster |
+| **Presence ("who's here")** | the D6 reachable set ([§10.5.6](#1056-d6-liveness-invariant--entitled-vs-reachable-normative)) — node-local, never an attestation, never logged |
+| **Invite / join / leave** | community admission ceremony ([§8.1.13.2](08_composition.md)) — invite = membership proposal; join = admitted member; leave = forward-only `withdraws` |
+
+**Transport profiles (normative — extends §10.5.5):**
+
+| Profile | Topology | Transport | RC1 (1.0) |
+|---|---|---|---|
+| Broadcast (1:N, large N) | asymmetric | pull-only `ContentFetch` (§10.5.5 E2); relay tree → 1.x | ✅ pull |
+| **Realtime small/medium group** (calls, huddles, ≤ ~50) | symmetric mesh | **direct Reticulum Links between participants** (low-latency push; no relay tree needed at small N) | ✅ direct-link mesh |
+| Realtime large group (≫50 in one A/V room) | fan-out | selective-forwarding relay (SFU role) | → 1.x (same relay-tree axis as broadcast scale) |
+
+The low-latency realtime profile (direct Reticulum Links) is **in 1.0 scope** because small/medium rosters need no relay tree — RNS Links give encrypted low-latency point-to-point natively. The wire is identical to broadcast (chunk-seal §10.5.2, per-`(stream_id, epoch)` epoch DEK §10.5.3, per-stream STH §10.5.1); only the transport profile + roster size differ. **PQC is unchanged and mandatory** — epoch DEK wrapped `wrap_algorithm: v2` (X25519+ML-KEM-768) at rest, hybrid KEX in transit.
+
+**Ephemeral vs persistent rosters**: a persistent channel is a long-lived `community`; an ad-hoc call is an **ephemeral `community`** (short `valid_until`, torn down on last-leave). Same primitive, different lifetime — no special-case "session" primitive.
+
+The breadth confirmation: a full realtime group-communication platform — group video, voice, screen sharing, chat, and channels-with-sub-channels — requires **no addition to the 1+4 structural set** beyond the §10.5 delivery axis and the `community` membership machinery already locked. Thirteenth path.
 
 ### §10.5.7 What CEG 0.10 documents
 
