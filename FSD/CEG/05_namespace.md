@@ -686,7 +686,7 @@ Communities differ from families along three axes:
 |---|---|---|
 | **Scale** | Household / intimate trust circle (typically ≤ 20 members) | City / professional / interest (10s to 100Ks of members) |
 | **At-rest encryption** | Yes — DEK cascade per [§8.1.12.4](08_composition.md); `holds_bytes:*` suppressed | No — content federates per status quo |
-| **Subkind discriminator** | None | `cohort_subkind` field (open vocab; canonical: `geographic`) |
+| **Subkind discriminator** | None | `cohort_subkind` field (open vocab; canonical: `geographic`, `infrastructure`) |
 | **Typical admission** | `founder_only` / `unanimous` for small intimate groups | `majority` / `weighted` / per-subkind protocol (e.g., geographic requires `location_proof`) |
 
 ```
@@ -709,7 +709,7 @@ community {
 }
 ```
 
-**`cohort_subkind` is the discriminator** — open vocabulary per [§11.2.1](11_governance.md) axis-vocabulary discipline. CEG 0.8 codifies one canonical kind (`geographic`); operator vocabularies extend.
+**`cohort_subkind` is the discriminator** — open vocabulary per [§11.2.1](11_governance.md) axis-vocabulary discipline. CEG 0.8 codifies `geographic`; CEG 0.11 adds `infrastructure` (see below); operator vocabularies extend.
 
 ##### Canonical `cohort_subkind: geographic`
 
@@ -805,6 +805,68 @@ CEG 0.8 + earlier specs compose cleanly for civic / democratic participation AND
 The 1+4 lockdown holds across this entire surface — ninth-path confirmation that the wire format is rich enough for democratic-participation use cases without expanding the structural set.
 
 **1+4 lockdown preserved**: `community` rides existing `scores` attestation_type with subject_kind discriminator. Membership changes ride existing `supersedes`. Zero new structural primitives.
+
+##### Canonical `cohort_subkind: infrastructure` (CEG 0.11 addition)
+
+Per [CIRISRegistry#56](https://github.com/CIRISAI/CIRISRegistry/issues/56). The second codified community subkind: a **governed trust-root collective of canonical/bootstrap service installs** — the shape the CIRIS canonical services (Registry / Lens / Node) adopt instead of a `family` (rationale: `CIRISRegistry/MISSION.md` §2.1.1 — public content model, decentralization ramp, legitimacy). Where `geographic` answers "who is physically here," `infrastructure` answers "who is a recognized operator of this public service."
+
+It differs from `geographic` in two load-bearing ways:
+
+1. **No location gate.** Admission requires NO `location_proof` and NO `geographic_constraint`. The candidate is a *service install*, not a located person.
+2. **Admission quorum is over FOUNDERS, not all members** — the anti-Sybil guardrail for a trust root. In `geographic`, admission is evaluated per `consensus_protocol` over the *current member set*; that is correct for a city (members govern themselves) and **wrong for a trust root** (flood the membership → dilute the quorum → admit rogue "canonical" operators). `infrastructure` therefore pins admission to the founding core.
+
+The `cohort_subkind_payload` for `infrastructure`:
+
+```
+infrastructure_constraint {
+    service_class:           string         // open vocab; e.g. "registry" | "lens" | "node"
+                                            //   | umbrella "canonical"
+    admission_quorum_basis:  "founders"     // REQUIRED literal "founders" — the set of members
+                                            //   with role == founder. Admission/removal of any
+                                            //   member is evaluated by consensus_protocol over
+                                            //   THIS set, never over all members. (Contrast:
+                                            //   geographic evaluates over the current member set.)
+}
+```
+
+**Conformance requirements for an `infrastructure` community (trust-root grade):**
+
+- `consensus_protocol` MUST be a `quorum:M/N` kind ([§8.1.13.2](08_composition.md)); `founder_only` / `unanimous` / bare `majority` are NON-conformant for `infrastructure` (a single founder must not be able to admit unilaterally; a growable core must not require all-N).
+- `consensus_protocol_entrenched` MUST be `true` — the admission door cannot be lowered after founding. A `supersedes` that would weaken `consensus_protocol` or change `admission_quorum_basis` away from `founders` is a `hard_case:community_consensus_protocol_violation` ([§7.8](07_reserved.md)) and MUST be rejected by the substrate.
+- `M/N` is the absolute-`M` reading per [§8.1.12.3.1](08_composition.md), evaluated over the **founder** subset (`role == founder`), independent of how many non-founder members exist.
+- Content federates as `holds_bytes:sha256:*` per the community default; NO at-rest DEK cascade; [§10.1.4](10_endpoints.md) structural-invisibility does NOT apply (canonical-service trust data is public by design).
+
+**Membership change ceremony**: same `supersedes` shape as `geographic`, but the admission predicate is `consensus_protocol` over the founder subset — there is no `location_proof` containment check. Adding a fourth+ operator (e.g., a new independent Node operator) is a founder-quorum event; the new member joins with `role: member` (non-founder) and does NOT thereby gain admission authority. Promoting a member to `role: founder` (widening the admission quorum basis) is itself a founder-quorum `supersedes` — the only way the door widens is by the existing door's consent.
+
+**Worked example — the `ciris-canonical` trust root**:
+
+```
+community {
+    community_key_id:                  "ciris-canonical",
+    community_name:                    "CIRIS Canonical Services",
+    cohort_subkind:                    "infrastructure",
+    cohort_subkind_payload: {
+        infrastructure_constraint: {
+            service_class:             "canonical",       // umbrella: registry + lens + node
+            admission_quorum_basis:    "founders"
+        }
+    },
+    members: [
+        {key_id: registry_steward_us,   role: founder},
+        {key_id: registry_steward_eu,   role: founder},
+        {key_id: registry_steward_apac, role: founder},
+        // grows over time — Lens/Node installs + independent operators admitted
+        // by 2-of-3 founder quorum, joining with role: member:
+        // {key_id: lens_install_us,    role: member}, ...
+    ],
+    consensus_protocol:                "quorum:2/3",       // over the 3 founders
+    consensus_protocol_entrenched:     true
+}
+```
+
+Consumers pin `community_key_id: ciris-canonical` and resolve the live member set via `resolve_community` ([§8.1.13.1](08_composition.md)); they do NOT hard-pin per-install fingerprints. The Reticulum addressing dual: `community_key_id` is a CEG-directory binding (not a Reticulum destination) — resolve → path-request ⌈2/3⌉ founders → verify the quorum attestation; reachability is never an attestation ([§10.5.6](10_endpoints.md) / [§7.7](07_reserved.md)).
+
+**Why this is still 1+4**: `infrastructure` adds one value to the open `cohort_subkind` vocabulary and one optional `infrastructure_constraint` payload shape. It rides existing `scores` + subject_kind discriminator; admission rides existing `consensus_protocol` + `supersedes`; the founder-subset evaluation basis is a *consumer/substrate evaluation rule over existing fields* (`role == founder`), not a new structural primitive. Zero new structural primitives — eleventh-path confirmation.
 
 #### §5.6.8.11 `location_proof` subject_kind (CEG 0.8 addition)
 
