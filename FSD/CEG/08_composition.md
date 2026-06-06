@@ -458,6 +458,38 @@ resolve_community(C, now):
 
 Same shape as `resolve_family` ([§8.1.12.2](#81122-family-membership-resolution)). Each `member.key_id` is an identity (which may itself have a multi-occurrence set via CEG 0.7 `identity_occurrence`).
 
+##### §8.1.13.1.1 Deterministic resolution + member→address resolution (CEG 0.12, NORMATIVE)
+
+In a CEG/RET stack member resolution replaces DNS+IP: it is a chain of *signed* bindings, and every implementation MUST resolve **identically** (a 1.0 interop requirement). Two normative pins:
+
+**(a) Determinism of `resolve_community`.** Where the §8.1.13.1 computation has choices, they are fixed:
+- **`now` semantics** — the resolving Consumer's own clock; membership is evaluated as of `now` (a member is included iff joined ≤ `now` and not removed ≤ `now`). No global clock assumed.
+- **"latest non-superseded"** — the `community` Contribution with the highest `signed_at`; on equal `signed_at`, the higher `canonical_bytes_hash` ([§0.9](00_conformance.md)) wins (total order, no ambiguity). The same comparator the [CIRISVerify#49](https://github.com/CIRISAI/CIRISVerify/issues/49) R1/Q1 merge uses (quorum_weight DESC → signed_timestamp DESC → canonical_bytes_hash).
+- **member ordering** — the returned set is canonically ordered by `key_id` (lowercase-hex byte order) for any downstream hashing/iteration.
+- **founder-subset eval** — for `cohort_subkind: infrastructure` ([§5.6.8.10](05_namespace.md)) admission is `evaluate_consensus_protocol` over `{m : m.role == founder}`, NOT all members.
+
+**(b) Member → reachable address (the DNS-free resolution).** Resolving a member identity to a Reticulum destination:
+
+```
+resolve_member_transport(C, now):
+    members = resolve_community(C, now)            // (a) above; founder-quorum verified
+    out = []
+    for M in members (canonical key_id order):
+        occ = latest non-superseded identity_occurrence of M
+                 with transport_destination present, valid at now,
+                 hybrid-sig verified against M (or an occurrence of M)   // §5.6.8.8.1
+        if occ is null: continue                   // no authenticated binding → skip (fail-secure)
+        td = occ.transport_destination
+        REQUIRE td.destination_hash == RNS_hash(td.reticulum_x25519_pubkey
+                 ‖ td.reticulum_ed25519_pubkey ‖ td.app_name ‖ td.aspects)
+        out.push((M, td.destination_hash))
+    return out                                     // → Reticulum announce/path-request per dest
+```
+
+The three resolutions and their trust roots: **WHO** = `resolve_community` (signed Contribution + founder-quorum) · **BINDING** = `transport_destination` (federation-key-signed `identity_occurrence`, §5.6.8.8.1) · **WHERE** = Reticulum announce/path-request (mesh, no CEG). Reachability is never trust ([§10.5.6](10_endpoints.md)): a path that answers is not an authorization; only the signed binding + quorum are.
+
+**Cold-start (bootstrap).** A node that knows only `community_key_id` needs two out-of-band pins: (1) the `community_key_id` itself (trust anchor) and (2) ≥1 **seed `destination_hash`** (reachability). It reaches any one seed, pulls the signed `community` Contribution, runs `resolve_member_transport`, verifies founder-quorum against the pinned `community_key_id`, then floats on the live set thereafter. A malicious seed cannot forge membership (quorum signature check) — it can only deny service (try another seed). **Bootstrap reachability ≠ bootstrap trust.** `ciris-canonical` ([§5.6.8.10](05_namespace.md)) is the root community whose seeds clients pin.
+
 #### §8.1.13.2 Community admission per `consensus_protocol` + `cohort_subkind`
 
 A proposed membership change rides a `supersedes` Contribution on the community's latest admitted `community` Contribution. Substrate evaluates the CURRENT community's `consensus_protocol` (same six canonical kinds as family) AND any subkind-specific admission requirements:

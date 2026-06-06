@@ -479,9 +479,20 @@ identity_occurrence {
     device_class:           DeviceClass         // closed-set enum per below
     hardware_attestation:   Option<base64>      // TPM / Secure Enclave / StrongBox / SGX
                                                  //   etc. attestation blob; null for software-only
+    transport_destination:  Option<TransportDestination>  // CEG 0.12 — Reticulum binding (below)
     asserted_at:            rfc3339_canonical   // per §0.5
     valid_until:            Option<rfc3339>     // null = indefinite
 }
+
+TransportDestination (CEG 0.12 addition — the authenticated identity↔address binding):
+| field                     | type      | meaning                                               |
+|---------------------------|-----------|-------------------------------------------------------|
+| reticulum_x25519_pubkey   | [u8; 32]  | transport identity's encryption key                   |
+| reticulum_ed25519_pubkey  | [u8; 32]  | transport identity's signing key                      |
+| destination_hash          | [u8; 16]  | RNS destination hash (truncated SHA-256); MUST derive |
+|                           |           |   from the two pubkeys + app_name + aspects per RNS   |
+| app_name                  | string    | RNS destination app (e.g. "ciris.federation")         |
+| aspects                   | [string]  | RNS aspects (ordered; part of the hash preimage)      |
 
 DeviceClass (closed-set):
 | value      | scope                                                            |
@@ -506,6 +517,18 @@ DeviceClass (closed-set):
 **Composition with CIRISAgent CEG-native agent** ([CIRISAgent#840](https://github.com/CIRISAI/CIRISAgent/issues/840)): an agent emitting self-attestations with `attesting_key_id == agent_self_key` AND `attesting_key_id` admitted as an `identity_occurrence` of the user's `identity_key_id` is structurally speaking AS that identity. The agent's local-tier self-attestations remain its own; federation-tier emissions reach the user's other occurrences via the at-rest encryption flow when `cohort_scope: self`.
 
 **1+4 lockdown preserved**: `identity_occurrence` rides existing `scores` attestation_type with subject_kind discriminator. No new structural primitive.
+
+##### §5.6.8.8.1 `transport_destination` — the authenticated identity↔address binding (CEG 0.12 addition)
+
+Per [CIRISRegistry#56](https://github.com/CIRISAI/CIRISRegistry/issues/56) + [CIRISEdge#15](https://github.com/CIRISAI/CIRISEdge/issues/15) (AV-42). In a **CEG/RET stack there is no DNS** — a node resolves a community member to a *reachable address* with no trusted nameserver. The `transport_destination` field is the wire-format primitive that makes that resolution **authenticated** instead of trust-on-first-use.
+
+**The layer split it closes (AV-17 / AV-42).** A node's Reticulum destination is a *dedicated dual-key transport identity* `hash(x25519 ‖ ed25519)` — deliberately **separate** from the federation signing key (the federation seed never enters the Reticulum/Leviculum transport layer, AV-17). So "destination D belongs to federation key K" is a claim that must be *proven*, not assumed: a bare Reticulum announce only proves the announcer controls *that transport identity*, not that it legitimately belongs to K (AV-42 — any peer can announce `key_id=registry-steward-us` paired with an adversary destination → senders route to the adversary).
+
+**The binding = a federation-key-signed `identity_occurrence` carrying `transport_destination`.** Because the occurrence is admitted only when `attesting_key_id == identity_key_id` (or a current occurrence of it) and is hybrid-signed (Ed25519 + ML-DSA-65), the binding `destination_hash ← identity` is cryptographically authenticated. A spoofer cannot forge an `identity_occurrence` signed by the real key. This promotes [CIRISEdge#15](https://github.com/CIRISAI/CIRISEdge/issues/15) Option B (signed-announce attestation) from an Edge-internal app-data format into a **first-class, federation-wide, auditable CEG shape** — the announce app-data MAY carry it for self-authenticating discovery, and the directory holds it as the durable source of truth.
+
+**Conformance**: a Consumer resolving a member's address MUST verify (1) the `identity_occurrence` signature against the member's federation key, (2) that `destination_hash` derives from `reticulum_x25519_pubkey ‖ reticulum_ed25519_pubkey ‖ app_name ‖ aspects` per the RNS rule (no free-floating hash), and (3) the occurrence is non-superseded + within `valid_until` at resolution time. An unauthenticated announce (no matching signed `transport_destination`) is **advisory-only** — usable as a routing hint, never as an authorization. Rotating the Reticulum destination (new transport identity) is a new `identity_occurrence` `supersedes`-ing the prior — location changes without touching federation identity or community membership.
+
+**1+4 lockdown preserved**: `transport_destination` is one optional field on the existing `identity_occurrence` subject_kind. No new structural primitive, no new subject_kind. Twelfth path ([§1.4](01_foundation.md)) — the wire format expresses **its own addressing layer** (DNS-free, self-certifying member resolution) by composition.
 
 #### §5.6.8.9 `family` subject_kind (CEG 0.7 addition)
 
