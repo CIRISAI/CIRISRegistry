@@ -8,6 +8,8 @@
 
 The federation is a network of peers emitting structured claims about each other and about reality. A claim travels as a **Contribution** (the universal envelope) carrying a typed **Attestation** (the actual content of the claim).
 
+**What CEG is, stripped of framing.** Independent of the CIRIS application, the AI vocabulary, or the [§1.2](#12-the-ubuntu-commitment--relational-anthropology-substrate-informative) anthropology, CEG is a **signed, compositional graph language for expressing claims, relationships, authority, membership, consent, governance, addressing, and settlement across a decentralized network** — a general-purpose *attestation calculus*. Structurally it is closer to a composition of Certificate Transparency + MLS + ActivityPub + DID/VC + reputation systems + governance protocols than to a conventional AI architecture. The AI/agent use cases are the *first consumer* of that calculus, not its definition. Read this way, the rest of the spec is: one workhorse claim primitive, four graph-composers, and a namespace.
+
 Every Attestation answers four questions in machine-readable form:
 
 1. **WHO emits** — issuer key_id, signature, witness_relation, optional accord/steward sign-off
@@ -17,7 +19,9 @@ Every Attestation answers four questions in machine-readable form:
 
 Consumers walk attestation graphs and compose verdicts. The substrate stores; the wire transports; CEG describes the shape of the claim. None of the three prescribes outcomes; consumer policy does.
 
-## §1.2 The Ubuntu commitment — relational-anthropology substrate
+## §1.2 The Ubuntu commitment — relational-anthropology substrate *(informative)*
+
+> *This section is **informative** ([§0.1.1](00_conformance.md)): it motivates the normative choices but adds no conformance obligation. An implementer may reject this anthropology and still be fully conforming.*
 
 Per `CIRISAgent/ContemplativeTraditions/Ubuntu.lean::F_ubuntu_primary_tradition_commitment` and [`../MISSION.md`](../../MISSION.md) §1.5:
 
@@ -88,6 +92,8 @@ This claim has been examined by fourteen independent paths; future paths may ext
 14. **CEG 0.14 commerce-relationship auditability** (per [CIRISRegistry#59](https://github.com/CIRISAI/CIRISRegistry/issues/59)) — value transfer rides external rails (USDC-on-Base via x402 under Identity=Wallet), but the *linkage* of a federation action to its settlement composes from existing primitives: the `settlement` subject_kind ([§5.6.8.12](05_namespace.md)) rides `scores` + subject_kind discriminator, cites the chain tx / x402 receipt via the existing `evidence_refs[]` external-reference pattern, binds via `topical_relation` / `subject_key_ids`, and scopes disclosure via existing `cohort_scope` (private-by-default, public opt-in). Zero new structural primitives. The fourteenth path extends the tested surface to commerce-relationship auditability: across the internet-traffic forms surveyed in the completeness audit (CIRISRegistry#59), each composed over the 1+4 set, with value-transfer itself correctly **out** of the wire (a bridged external rail) and only the trust-fact "this was settled" recorded as composition. This is *coverage of the surveyed forms*, not a proof that no form exists outside them. Fourteenth path.
 
 **Future extensions are dimension prefixes or envelope fields, not new structural primitives.** Proposals to expand the 1+4 set face a high evidentiary bar and route through the [§11.2](11_governance.md) amendment process. A successful refutation requires either: (a) demonstrating an operational claim that cannot be expressed via the existing 1+4 set plus envelope composition, OR (b) demonstrating a structural-primitive consolidation that reduces below 1+4 without loss.
+
+**The standing falsification target (named, so the claim is a real bet).** The strongest current candidate for "a genuinely important domain not naturally expressible in 1+4" is **atomic fair exchange / bilateral simultaneity** — atomic content-for-payment, atomic swaps, simultaneous mutual commitment. CEG attestations are *unilateral, monotonic* graph claims; fair exchange is classically impossible without a trusted third party or a totally-ordered ledger ([Even–Goldreich–Lempel](https://en.wikipedia.org/wiki/Optimistic_fair_exchange)). CEG does **not** express it in-grammar — it **bridges** atomicity to an external settlement rail ([§5.6.8.12](05_namespace.md) `settlement` over a chain) and records only the after-the-fact trust claim. That is the honest boundary: the first domain where 1+4 reaches for something outside itself. The claim "1+4 is adequate for the federation's claims" survives *because* fair exchange is treated as out-of-grammar (a bridge, not a primitive); it would be **refuted** by either (i) a natural in-grammar expression of fair exchange, or (ii) a federation-critical domain that resists even bridging. Adversarial reviewers: this is the test to push on.
 
 ## §1.5 The Recursive Golden Rule (structural, not exhortatory)
 

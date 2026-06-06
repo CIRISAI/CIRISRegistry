@@ -22,6 +22,15 @@ Both readerships should read [§1](01_foundation.md) first.
 
 The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**, **SHOULD NOT**, **RECOMMENDED**, **NOT RECOMMENDED**, **MAY**, and **OPTIONAL** in this document are to be interpreted as described in [BCP 14](https://www.rfc-editor.org/info/bcp14) ([RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) + [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174)) when, and only when, they appear in all capitals, as shown here.
 
+### §0.1.1 Normative vs informative content (what interop requires)
+
+A reader may **agree with the protocol and disagree with its philosophy** and still build a fully conforming implementation. The two are deliberately separable:
+
+- **Normative (binding for interoperability):** the wire format and its conformance surface — the [§3](03_primitives.md) structural primitives; the [§4](04_envelope.md) envelope fields; the [§5](05_namespace.md) namespace + `subject_kind`s; the [§0.5–0.9](00_conformance.md) canonicalization rules; the [§6](06_relations.md) relation precedence; the [§7](07_reserved.md) reserved-prefix rules; the [§8](08_composition.md) composition policies; the [§10](10_endpoints.md) endpoint shapes; and every RFC-2119-keyworded statement. This is exactly the surface enumerated in [§1.4](01_foundation.md) ("report the surface beside the invariant"). **Conformance is judged against this and nothing else.**
+- **Informative (explanatory framing; NOT binding):** the motivating philosophy and rationale — notably [§1.2](01_foundation.md) (the Ubuntu / relational-anthropology substrate), the cross-tradition readings, and prose written as motivation rather than requirement. These explain *why* the normative choices were made; they add **no** conformance obligations. An implementer who rejects the anthropology but emits/consumes wire-correct Contributions is conforming.
+
+Where framing produced a concrete wire consequence, that consequence is restated as a normative rule in its own section (e.g., structural invisibility is motivated informatively but enforced normatively at [§10.1.4](10_endpoints.md), bounded by [§1.5](01_foundation.md)). When in doubt, the RFC-2119 keywords and the [§1.4](01_foundation.md) surface govern; informative prose never overrides them.
+
 ---
 
 ## §0.2 Conformance levels
