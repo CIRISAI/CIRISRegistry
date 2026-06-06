@@ -113,13 +113,13 @@ Geographic primitives in CEG use [H3 hierarchical hexagonal indexing](https://h3
 **Canonical form for `cell_id`**:
 
 - 15-character lowercase hex string (no `0x` prefix; per [§0.6](#06-hexadecimal-canonicalization))
-- The high 4 bits encode the resolution (0-15); the next 60 bits encode the cell address
-- Leading zeros preserved (a resolution-0 cell at base position 0 is `8001fffffffffff`, not `1fffffffffff`)
+- The cell encodes its own resolution in the standard H3 index bit layout; a conformant decoder extracts the resolution **via the H3 library** (the resolution field lives in bits 52–55), **NOT** by reading the high 4 bits — the high nibble is the H3 **mode marker** (cell-mode = `1`), not the resolution
+- Leading zeros preserved (a resolution-0 cell at base position 0 is `8001fffffffffff`, not `1fffffffffff` — the high nibble `8` is the mode marker, correctly consistent with res-0)
 
 **Canonical form for `cell_resolution`**:
 
 - Integer in `[0, 15]`
-- MUST equal the resolution extracted from the high 4 bits of `cell_id` (substrate verifies the redundancy on admission; mismatched pairs MUST be rejected as malformed)
+- MUST equal the resolution **decoded from the H3 index** of `cell_id` (substrate verifies the redundancy on admission via the H3 library; mismatched pairs MUST be rejected as malformed)
 
 ### §0.8.1 Rough-only enforcement for `location_proof` (normative)
 
@@ -139,7 +139,7 @@ Used by community admission gates per [§8.1.13](08_composition.md) Policy M: a 
 ### §0.8.3 What CEG 0.8 documents
 
 - The lowercase-hex canonical form for `cell_id`
-- The resolution-redundancy check (high 4 bits of `cell_id` MUST match `cell_resolution`)
+- The resolution-redundancy check (the resolution **decoded from the H3 index** of `cell_id` MUST match `cell_resolution`)
 - The rough-only enforcement (`location_proof.cell_resolution ≤ 7`)
 - The containment semantics for community admission
 

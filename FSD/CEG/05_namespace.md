@@ -932,6 +932,40 @@ location_proof {
 
 **1+4 lockdown preserved**: `location_proof` rides existing `scores` attestation_type with subject_kind discriminator. Withdrawal rides existing `withdraws`. Consent revocation composes via CEG 0.6 primitives. Zero new structural primitives.
 
+#### §5.6.8.12 `settlement` — CEG↔value-transfer linkage (CEG 0.14 addition)
+
+Per [CIRISRegistry#59](https://github.com/CIRISAI/CIRISRegistry/issues/59) (decision + SOTA) + [CIRISAgent#859](https://github.com/CIRISAI/CIRISAgent/issues/859) (impl). Value transfer itself is **not** a CEG primitive — it rides external rails (USDC on Base via x402, keyed to the federation signing key under the **Identity = Wallet** principle). The `settlement` primitive is the **optional, privacy-scoped attestation that *links* a federation action to its off-stack settlement** — so a paid relationship (paid stream / tip / subscription / paid `event_listing` / compute-job) can be federation-auditable *or* privately recorded, producer's choice. **CEG records that a settlement happened and binds it to what it paid for; the chain settles the value.** Clean separation of concerns.
+
+**Why this is in CEG's lane (and why it's optional):** the linkage is a *trust fact* ("is this a real / authorized / paid relationship?"), exactly what consumer policy composes over. The 2026 agent-commerce + on-chain-privacy markets converged on the same mechanism — *a verifiable receipt exists, with selectively-disclosed contents* (x402 optional receipt header; append-only verifiable metering logs; "privacy + compliance via selective disclosure"). CEG already has every needed primitive, so this is composition, not invention.
+
+**Two admitted shapes (parallel to `consent_record` [§5.6.8.7](#5687-consent_record-subject_kind-ceg-06-addition)):**
+- **Primitive:** a bare `scores` on a `settlement:*` dimension against the paid Contribution (the common case).
+- **Ceremony:** the `settlement` subject_kind envelope when an explicit receipt record is wanted.
+
+```
+settlement {
+    settled_action_ref:   contribution_id    // the federation action this paid for
+                                              //   (or via subject_key_ids / topical_relation:settles)
+    rail:                 string             // open vocab; e.g. "base:usdc", "stellar:usdc", "x402"
+    settlement_ref:       string             // chain tx hash / x402 receipt id — cited the way
+                                              //   evidence_refs[] cite a SHA blob (§10.1): a settlement
+                                              //   is just another evidence reference
+    amount_commitment:    Option<string>     // cleartext "12.50" (public case) OR a hash/range
+                                              //   commitment (private/selective-disclosure case)
+    settled_at:           rfc3339_canonical
+    // visibility via the envelope cohort_scope: default `self` (payer+payee only);
+    // `public` opt-in for transparency (e.g. creator revenue, DAO treasury flows)
+}
+```
+
+**Self-authenticating (Identity = Wallet):** the same federation key that signs this attestation controls the Base wallet that emitted `settlement_ref`, so "I settled `tx` for action X" is self-proving — no oracle needed. The payee MAY counter-attest (`scores` on `settlement:received:*`) for a bilateral receipt.
+
+**Privacy is the default, auditability is opt-in.** Visibility rides the existing gradient: `cohort_scope: self` (the parties only; the §10.1.4 structural-invisibility discipline applies — no `holds_bytes` leak) by default; `cohort_scope: public` opt-in; amounts MAY be committed rather than cleartext; viewing-key / ZK selective disclosure composes later without a wire change. This matches "configurable-privacy-by-default" — the federation log is **not** a public payment trail unless the producer chooses it.
+
+**Lifecycle**: `withdraws` against a `settlement` is forward-only (it does not un-happen the on-chain settlement — leaving doesn't un-pay, parallel to `location_proof`); a *disputed* or *refunded* settlement is a new `settlement` / `scores` referencing the original via `supersedes` or `topical_relation`. CEG never reverses value — it only records the subsequent state.
+
+**1+4 lockdown preserved**: `settlement` rides existing `scores` attestation_type with subject_kind discriminator; `settlement_ref` rides the existing `evidence_refs[]` external-reference pattern; binding rides existing `topical_relation` / `subject_key_ids`; visibility rides existing `cohort_scope`. **Zero new structural primitives.** Fourteenth path ([§1.4](01_foundation.md)) — the wire format expresses **commerce-relationship auditability** (the receipt, not the rail) as composition, closing the last form of internet traffic from the completeness audit (CIRISRegistry#59).
+
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 
 **Owner**: [`RATCHET/FSD.md`](https://github.com/CIRISAI/RATCHET/blob/main/FSD.md).
