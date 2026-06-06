@@ -137,6 +137,38 @@ Each steward is published as a `federation_keys` row in persist with `identity_t
 
 No protocol bump at any step. The mechanism is configuration over substrate, not new wire surface.
 
+### 2.1.1 The canonical services are a *governed global `community`*, not a `family` (LOCKED)
+
+**Decision (2026-06-05).** The CIRIS canonical/bootstrap services — Registry, Lens, Node — are modeled as a single **governed global `community`** (CEG [§5.6.8.10](FSD/CEG/05_namespace.md) / [§8.1.13](FSD/CEG/08_composition.md)), NOT as a `family` and NOT as a single identity with occurrences. The three regional stewards of §2.1 are the community's **founding core**; the steward keys, custody, and rotation arc above are unchanged — what changes is the *trust shape consumers anchor on*.
+
+```
+community {
+  community_key_id: "ciris-canonical"            // the one anchor consumers pin
+  founding_core:    [registry-steward-us, -eu, -apac]
+  consensus_protocol:           "quorum:2/3"      // admission door — no SPOF
+  consensus_protocol_entrenched: true             // the door cannot be lowered
+  members (grow over time):  Registry installs, Lens installs, Node installs,
+                             and future independent operators admitted by core quorum
+}
+```
+
+**Why `community`, not `family` (the delta).** Both primitives share the *same* `consensus_protocol` machinery, so governance strength is identical (quorum:2/3 either way). The fork is content-model + trajectory:
+
+1. **Content fit.** Canonical services serve *public* trust data — revocation lists, STHs, steward keys, build attestations — which federate as `holds_bytes:sha256:*`. `family`'s defining feature is the *private* at-rest `key_grant` DEK cascade + forward-secrecy ceremony ([§8.1.12.4–5](FSD/CEG/08_composition.md)) — machinery that would never fire for public infrastructure. `community` ([§8.1.13.2–5](FSD/CEG/08_composition.md): public `holds_bytes:*`, no DEK cascade, consumer-policy cohort filter on removal) is an exact match.
+2. **Decentralization ramp.** `family` is a decentralization *floor* (bounded cell; adding a member is a per-event governance act). `community` is the *ramp* — `resolve_community(C, now)` scales 3 → N operators under one stable anchor, which is the literal goal of §2.1 ("the federation cannot decentralize while Registry's authority is held by one key").
+3. **Legitimacy.** A community is a public commons anyone can audit (`resolve_community` is public) and eventually join; a family reads as a closed founders' cell. Canonical infrastructure must be trustable *as neutral public good*.
+
+**The guardrail (non-negotiable).** `community`'s *default* admission (the CEG 0.8 geographic case) is permissive. A trust root MUST NOT use open admission — that invites Sybil-the-membership → dilute-quorum → rogue "canonical" attestations. Therefore the canonical-services community is **governed**: `consensus_protocol: quorum:2/3` over the vetted founding core, `consensus_protocol_entrenched: true`, and admission of any new operator rides a `supersedes` Contribution gated by founding-core quorum ([§8.1.13.2](FSD/CEG/08_composition.md) dispatch). Governance as strong as a `family`; content model correct for public infra.
+
+**Layering (HUMANITY_ACCORD stays a `family`).** §2.2's HUMANITY_ACCORD remains an entrenched `family` — it is the *governance/halt* root, its content is privately governed then published, and `family` is correct there. The canonical services are a `community` *under/alongside* that family. Two layers, two primitives, both correct; the accord's halt-authority (§2.2) sits above the community exactly as it sits above the bare stewards today. *(Optional, separate:* a private `family` among the same operators MAY carry genuinely-private inter-operator coordination — escrow shards, incident pre-disclosure — distinct from the public trust role.)
+
+**Reticulum addressing.** The `community_key_id` anchor is a CEG-directory binding, **not** a Reticulum destination (Reticulum destinations are per-keypair). Consumers resolve `ciris-canonical` → the member set via `resolve_community` → Reticulum path-request to ⌈2/3⌉ members → verify the quorum attestation. This is the addressing dual of the [#46](https://github.com/CIRISAI/CIRISRegistry/issues/46) read-quorum. A shared transport-only Reticulum identity MAY front the community for native multi-homed *reachability*, but per CEG [§10.5.6 / §7.7](FSD/CEG/10_endpoints.md) reachability is never an attestation — it carries no authority.
+
+**Migration touchpoints (no protocol bump — substrate config + one subject_kind already shipped in CEG 0.8):**
+- **Registry**: emit the `community` Contribution for `ciris-canonical` (founding core = the three stewards) via the same path NodeCore `ingest_community` / `resolve_community` uses; publish `community_key_id` as the consumer pin anchor in `docs/TRUST_CONTRACT.md` + `GET /v1/steward-key`. Stewards of §2.1 remain the founding-core keys.
+- **CIRISLens / CIRISNode**: their installs join the same `ciris-canonical` community as members (founding-core-quorum admission); mirror this decision in their MISSIONs.
+- **Substrate**: `communities` table already exists (Persist v4.0 DAS); no schema change.
+
 ### 2.2 HUMANITY_ACCORD — the parallel hierarchy above the stewards
 
 Per [`CIRISRegistry#16`](https://github.com/CIRISAI/CIRISRegistry/issues/16) and [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5.
