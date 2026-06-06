@@ -372,6 +372,14 @@ The low-latency realtime profile (direct Reticulum Links) is **in 1.0 scope** be
 
 The breadth confirmation: a full realtime group-communication platform — group video, voice, screen sharing, chat, and channels-with-sub-channels — requires **no addition to the 1+4 structural set** beyond the §10.5 delivery axis and the `community` membership machinery already locked. Thirteenth path.
 
+#### §10.5.8.1 Realtime non-A/V data streams (normative scope boundary)
+
+The realtime profile is **not media-only.** Any high-frequency mutable shared state — multiplayer game ticks, collaborative-editing operations (CRDT/OT), live cursors/whiteboard strokes, remote-control input, high-rate telemetry — rides the **same** §10.5.8 realtime transport (direct Reticulum Links / SFU at scale) with an application-defined payload codec in place of an A/V codec. The wire is identical: per-`(stream_id, epoch)` epoch DEK (§10.5.3, `wrap_algorithm: v2` PQC), STREAM-nonce chunk seal (§10.5.2), per-stream STH (§10.5.1). A data-stream chunk is just a chunk.
+
+**Scope boundary (the explicit call):**
+- **IN scope (transport):** ordered, sealed, authenticated, PQC-encrypted realtime delivery of arbitrary data-stream payloads — covered by §10.5.8, no addition.
+- **OUT of scope (merge semantic):** the conflict-free / convergent-merge logic for shared mutable state (CRDT, Operational Transform, last-writer-wins, etc.) is **application-layer**, not a CEG primitive — consistent with the [§1.1](01_foundation.md) discipline ("the substrate stores; the wire transports; CEG describes the shape of the claim; consumer policy composes verdicts"). CEG carries the ops; the application converges them. A future codified merge primitive would route through the [§11.2](11_governance.md) amendment process if real demand pulls it (the downstream-demand-pulls-additions discipline), but it is explicitly NOT required for 1.0 — realtime collaborative apps are buildable on the transport today.
+
 ### §10.5.7 What CEG 0.10 documents
 
 - The delivery axis as the third orthogonal envelope concern (visibility + revocability + delivery)
