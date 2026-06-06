@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 CEG 0.14 — PQC streaming video bandwidth / lag model ("the toy").
 
 Analytical, parametric model of CEG §10.5 streaming under the mandatory PQC
