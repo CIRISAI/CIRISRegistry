@@ -1,0 +1,10 @@
+# CIRISRegistry — code owners (review routing for the trust backbone).
+# The CEG spec + MISSION are the crown jewels of the federation's trust model;
+# changes route to the maintainer for review. (Enforced when branch protection
+# has "require review from Code Owners" enabled.)
+
+/FSD/CEG/        @emooreatx
+/MISSION.md      @emooreatx
+/CLAUDE.md       @emooreatx
+/.github/        @emooreatx
+/migrations/     @emooreatx
