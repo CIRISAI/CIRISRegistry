@@ -102,7 +102,7 @@ On admission of a Contribution C with cohort_scope ∈ {self, family}:
 
 ### §10.1.3 Consent revocations are NOT local-tier-eligible (CEG 0.6 addition)
 
-Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) Gap 2 + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842). The [CIRISAgent#840](https://github.com/CIRISAI/CIRISAgent/issues/840) CEG-native agent design proposes **local-tier signature deferral** — self-attestations skip the hybrid Ed25519 + ML-DSA-65 signature path locally and only sign at federation-tier promotion. This is sound for producer-only-authority self-attestations (status quo; empty `subject_key_ids`).
+Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) Gap 2 + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842). The [CIRISAgent#840](https://github.com/CIRISAI/CIRISAgent/issues/840) CEG-native agent design proposes **local-tier signature deferral** — self-attestations skip the hybrid Ed25519 + ML-DSA-65 signature path locally and only sign at federation-tier promotion. This is sound for **producer-only-authority self-attestations**. **The discriminator is *who holds revocation authority*, NOT whether `subject_key_ids` is empty** (clarified per CIRISPersist#172 / CIRISAgent review): a producer-authority self-attestation MAY name a subject in `subject_key_ids` per [§4.2.6](04_envelope.md) — e.g. `observed:user:{hash}:*`, `epistemic:about:{key}:*`, a self-`consent:partnered:{user}`, or the [§4.2.3](04_envelope.md) self-`identity:current` with `subject_key_ids=[self]` — and remains local-tier-eligible, because the producer holds the authority and no *other* subject can revoke it. The single carve-out is below: a Contribution where a **subject other than the producer holds revocation authority** over it.
 
 **Consent revocations from subjects MUST NOT use the local-tier deferral path.** When a Contribution carries non-empty `subject_key_ids`, any subsequent `consent:state:revoked` emission OR `withdraws` admitted under [§3.2.3 rule 2 or 3](03_primitives.md) from a subject in that set MUST promote to federation-tier within a bounded window. Default window: **24 hours** (operator-tunable per local policy).
 
@@ -111,6 +111,50 @@ Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) Gap 2
 **Substrate emission**: substrate MUST emit `hard_case:consent_revocation_promotion_overdue` when a subject-side revocation has been local-tier for longer than the operator-configured window without federation-tier promotion. LensCore composes `detection:consent:promotion_delay_pattern` on top (operator monitoring; not a slashing trigger on its own).
 
 **Composition with [CIRISAgent#840](https://github.com/CIRISAI/CIRISAgent/issues/840) self-attestation pattern**: the CEG-native agent's `consent:partnered:{user_key}` self-attestation (producer-side stance) MAY ride local-tier; the user's `consent:state:revoked` against the agent's stance Contribution (subject-side) MUST NOT. This preserves the cardinality wins from #840 while closing the leak window.
+
+### §10.1.5 The attestation tier model — local-tier write, query, promotion (normative)
+
+Pins the **shared attestation surface** the four CEG-RC1 implementations (CIRISAgent, CIRISNodeCore, CIRISLensCore, CIRISRegistry) write/query/promote through, so it is analyzable + modelable as one contract (per [CIRISPersist#172](https://github.com/CIRISAI/CIRISPersist/issues/172) FSD review). The substrate exposes the *methods*; CEG pins the *wire/conformance semantics* every implementation MUST agree on. **No 1+4 change** — a "tier" is recorded state on an attestation, not a new primitive.
+
+#### §10.1.5.1 The two tiers
+
+| Tier | Signature | Federation-visible | Read-visibility | Written by |
+|---|---|---|---|---|
+| `local` | MAY be absent (deferred per §10.1.3) | **No** | **only the producing occurrence** (self-read); every other caller — even an authorized family/community peer — sees nothing | local-tier write |
+| `federation` | hybrid Ed25519 + ML-DSA-65 **present** | Yes | per [§4](04_envelope.md) `cohort_scope` + the §10.1.4 invisibility rule | direct signed write OR `local → federation` promotion |
+
+**Invariant (substrate MUST enforce):** `tier = federation ⟹ hybrid signature present`. Nothing crosses to federation-visible unsigned. A `local` row is **labelled** local and MUST NOT be served as federation-authoritative ([fail-honest](../../MISSION.md)). The read-gate is **orthogonal** to `cohort_scope`: it is an additional filter (`local ⟹ caller is the producing occurrence`), composing with the §10.1.4 target-membership predicate. Threat entries: AV-59 (local row leaked to a non-self caller), AV-60 (unsigned local served as authoritative), AV-61 (the two gates de-synced).
+
+#### §10.1.5.2 Local-tier eligibility — the discriminator is *revocation authority*, not subject-set emptiness
+
+A write is local-tier-eligible iff **the producer holds sole revocation authority** over it. This is **NOT** the same as "empty `subject_key_ids`" (the over-narrow CEG 0.6 qualifier, corrected at [§10.1.3](#1013-consent-revocations-are-not-local-tier-eligible-ceg-06-addition)): a producer-authority self-attestation MAY name a subject per [§4.2.6](04_envelope.md) and remain local-eligible — `observed:user:{hash}:*`, `epistemic:about:{key}:*`, a self-`consent:partnered:{user}`, the [§4.2.3](04_envelope.md) self-`identity:current` with `subject_key_ids=[self]`.
+
+**The single carve-out (MUST go signed / promote, never local):** a Contribution where a **subject other than the producer holds revocation authority** — concretely a `withdraws` admitted under [§3.2.3 rule 2/3](03_primitives.md) or a `consent:state:revoked` whose `attesting_key_id` is a member of the *target's* `subject_key_ids`. These ride the §10.1.3 24-hour promotion obligation. `witness_relation` MUST be `self` for any local-tier write.
+
+#### §10.1.5.3 Promotion — `local → federation` (the deferred-signature moment)
+
+Promotion computes the hybrid signature and flips the row federation-visible. It is **idempotent** (promoting a `federation` row returns it unchanged), and at the promotion instant the tiered-scope promotion ([§8.1.8.1](08_composition.md)) and `holds_bytes` emission ([§10.1.2](#1012-holder-directory-ttl--contentmiss-feedback)) fire exactly as for any federation write — **promotion *is* the federation-emit moment**.
+
+**Canonical bytes — `JCS(envelope)` per [§0.9](00_conformance.md) / RFC 8785 (normative; resolves CIRISPersist#172 OQ-4):**
+- The signature MUST cover `JCS(contribution_envelope)` — the **identical** canonical bytes any natively-federation attestation signs. A promoted row is therefore **byte-indistinguishable on the wire from one born federation-tier**; there is no "was-promoted" marker in the signed bytes.
+- **Substrate columns are NOT in the canonical bytes.** `tier`, `promoted_at`, and any other storage bookkeeping are substrate state, never part of `JCS(envelope)`. Only the [§4](04_envelope.md) envelope member set is canonicalized.
+- **§0.9 omit-vs-materialize is load-bearing here.** Promotion MUST canonicalize the **exact member set the producer committed at local-write time** — a field *omitted* at local write MUST NOT be materialized at promote, and vice-versa, or the recomputed bytes diverge from what a peer verifies and the hybrid sig fails. The substrate serializes the stored row → the committed envelope → JCS → sign; it MUST NOT re-default.
+- Registry owns the exact envelope member set ([§4](04_envelope.md) + the [§0.9.3](00_conformance.md) catalog); Verify recomputes the identical JCS bytes ([CIRISVerify#59](https://github.com/CIRISAI/CIRISVerify/issues/59)). Do NOT use Verify's internal length-prefixed `signing_bytes` framing — that is for verify-to-verify primitives that never cross the four-impl boundary as JSON; a promoted attestation is the opposite.
+
+#### §10.1.5.4 Query — open-prefix dimensions, bounded operators (normative; resolves CIRISPersist#172 OQ-2)
+
+The uniform read filters on `(dimensions[], valid_at, confidence_floor, subject_key_id?, scope)`.
+- **`dimensions[]` is an OPEN-vocabulary set of prefix strings, matched by hierarchical prefix — NOT a closed enum.** Per [§11.2.1](11_governance.md) axis-vocabulary discipline, dimension prefixes are open vocab (the 0.6→0.15 cadence shipped new families — `consent:*`, `detection:community:*`, `settlement:*` — continuously). A closed enum would force a substrate redeploy per CEG namespace addition and break forward-compat. A query for `detection:*` matches `detection:correlated_action:bribery` etc.; an exact string matches exactly.
+- **The bounded surface is the *operator set*, not the *vocabulary*.** The apophatic discipline (a fixed, named surface — not an OLAP/graph engine) is preserved by the **closed set of five predicates** above + no caller-composed SQL/projections — NOT by closing the dimension vocabulary. *Open data, closed operators.*
+- `valid_at` filters `asserted_at ≤ valid_at < COALESCE(expires_at, ∞)`; `confidence_floor` filters `weight ≥ floor`; `scope` applies BOTH the §10.1.4 target-membership gate AND the §10.1.5.1 tier gate. Write-side reserved-prefix emitter gates ([§7.0.1](07_reserved.md)) are unaffected — read is gated by scope, not by dimension authority.
+
+#### §10.1.5.5 For holistic analysis + modeling (informative)
+
+The tier model is the *same KEM-then-symmetric placement* the streaming model uses ([§10.5](#105-streaming-transport-per-stream-logs--delivery-receipts-ceg-010-addition)), applied to attestations: the **expensive op (hybrid sign) is on the cold path** (promotion, at federation-emit), while the **hot path (local self-attestation write) is O(1) and unsigned**. Cost shape for a node:
+- **local write**: O(1), no asymmetric crypto — the agent's steady-state memory/config/consent/identity churn.
+- **promotion**: one hybrid Ed25519+ML-DSA-65 sign (~the §10.5-model per-op cost; ML-DSA-65 sign ~330 µs) + JCS canonicalization — only at the federation-emit moment, never per local write.
+- **query**: the [§4](04_envelope.md)/DAS scope-filtered read; cost is the predicate + index, independent of tier.
+- **observability for modeling**: `local` row count, promotion rate, and `hard_case:consent_revocation_promotion_overdue` count are the three measurable signals; the §10.1.3 24-hour window is the one tunable. A model of a federation's attestation load is therefore *(local-write rate, promotion rate, query rate)* with promotion carrying the only asymmetric-crypto cost — the dual of the streaming model's epoch-rekey tail.
 
 ## §10.2 Multi-steward + accord-holder discovery
 
