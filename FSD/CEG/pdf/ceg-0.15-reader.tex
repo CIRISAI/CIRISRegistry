@@ -1581,10 +1581,14 @@ Where:
 
 
 {\footnotesize
-\begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
-\textbf{\texttt{wrap\_algorithm}} & \textbf{Algorithm} \\ \hline\endhead
-\texttt{X25519AesGcmHkdfSha256} & HPKE RFC 9180 base-mode shape; X25519 KEM + HKDF-SHA-256 KDF + AES-256-GCM AEAD. \textbf{v1 default.} \\ \hline
+\begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
+\textbf{\texttt{wrap\_algorithm} (variant)} & \textbf{wire string (normative)} & \textbf{Algorithm} \\ \hline\endhead
+\texttt{X25519AesGcmHkdfSha256} & \texttt{hpke\_rfc9180\_base\_x25519\_aes\_gcm} & HPKE RFC 9180 base-mode shape; X25519 KEM + HKDF-SHA-256 KDF + AES-256-GCM AEAD. \textbf{v1} (CEG 0.3, \#38). \\ \hline
+\texttt{X25519MlKem768Aes256GcmHkdfSha256} & \texttt{x25519\_mlkem768\_aes256\_gcm\_hkdf\_sha256} & Hybrid X25519 + \textbf{ML-KEM-768} (FIPS 203) KEM + HKDF-SHA-256 + AES-256-GCM. \textbf{v2 — MANDATORY for streaming epoch-DEK grants} (§10.5.3); CEG 0.15, \#64. Matches \texttt{ciris-crypto} \texttt{KEY\_GRANT\_ALGORITHM\_V2} (CIRISVerify v4.10.0), snake-cased to this vocab convention. \\ \hline
 \end{longtable}}
+
+
+**The \texttt{wrap\_algorithm} \textit{wire string} (serialized value) is normative for cross-impl decode** — a producer, the substrate, and every consumer MUST serialize/deserialize the exact string above; a mismatch silently fails grant decode (same hazard class as the §10.5.2 STREAM-nonce \texttt{epoch} encoding pinned in \#63).
 
 
 {\footnotesize
@@ -3966,7 +3970,7 @@ nonce[12] = prefix[7] || counter_be[4] || last_flag[1]
 The stream-epoch DEK seals content \textbf{O(1)}; the per-subscriber \texttt{key\_grant} cascade distributes the 32-byte epoch key \textbf{O(N)/epoch} (sender-key / Megolm shape) = §8.1.12.4 Policy-L cascade applied to a community roster against a \textit{rotating} key.
 
 
-**PQC at rest — \texttt{wrap\_algorithm: v2} MANDATORY (normative).** The epoch-DEK \texttt{key\_grant} cascade MUST wrap the DEK with **\texttt{wrap\_algorithm: v2 = x25519+ml-kem-768} (hybrid; FIPS 203)** — never \texttt{v1} (X25519-only). The DEK protects content that may persist indefinitely; a classical-only KEM is a harvest-now-decrypt-later exposure even though the content AEAD (AES-256-GCM, §10.5.2) and the wrap \textit{signature} (Ed25519 + ML-DSA-65) are already PQC-safe. The hybrid KEM primitive is shipped in \texttt{ciris-crypto} (\texttt{hybrid\_kex} / \texttt{ml\_kem}, CIRISVerify\#47); the versioned \texttt{KEY\_GRANT\_V1\_INFO} HKDF-context rotates cleanly to the v2 context. A Consumer MUST reject a streaming epoch grant carrying \texttt{wrap\_algorithm: v1}. \textbf{Full PQC envelope for streaming}: content = AES-256-GCM (symmetric, PQC-safe) · DEK wrap = X25519+ML-KEM-768 · authenticity = Ed25519+ML-DSA-65 · hashes = SHA-256 (PQC-safe) · in-transit = §10.5.5 E1 two-layer hybrid (below).
+**PQC at rest — \texttt{wrap\_algorithm: v2} MANDATORY (normative).** The epoch-DEK \texttt{key\_grant} cascade MUST wrap the DEK with **\texttt{wrap\_algorithm: v2 = x25519+ml-kem-768} (hybrid; FIPS 203)** — never \texttt{v1} (X25519-only). The DEK protects content that may persist indefinitely; a classical-only KEM is a harvest-now-decrypt-later exposure even though the content AEAD (AES-256-GCM, §10.5.2) and the wrap \textit{signature} (Ed25519 + ML-DSA-65) are already PQC-safe. The hybrid KEM primitive is shipped in \texttt{ciris-crypto} (\texttt{hybrid\_kex} / \texttt{ml\_kem}, CIRISVerify\#47); the versioned \texttt{KEY\_GRANT\_V1\_INFO} HKDF-context rotates cleanly to the v2 context. A Consumer MUST reject a streaming epoch grant carrying \texttt{wrap\_algorithm: v1}. **The v2 \texttt{wrap\_algorithm} payload wire string is pinned (normative, per \#64): \texttt{x25519\_mlkem768\_aes256\_gcm\_hkdf\_sha256}** (the §5.6.8.4 vocab variant \texttt{X25519MlKem768Aes256GcmHkdfSha256}; matches \texttt{ciris-crypto} \texttt{KEY\_GRANT\_ALGORITHM\_V2}). Producer, substrate, and every consumer MUST serialize/deserialize this exact string — a mismatch silently fails grant decode. \textbf{Full PQC envelope for streaming}: content = AES-256-GCM (symmetric, PQC-safe) · DEK wrap = X25519+ML-KEM-768 · authenticity = Ed25519+ML-DSA-65 · hashes = SHA-256 (PQC-safe) · in-transit = §10.5.5 E1 two-layer hybrid (below).
 
 
 **Epoch index is monotonic, per-\texttt{stream\_id}, greenfield\textbf{ — a }separate addressing axis** from \texttt{key\_grant.rotation\_chain}:

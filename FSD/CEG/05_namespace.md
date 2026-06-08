@@ -359,9 +359,12 @@ key_grant {
 
 Where:
 
-| `wrap_algorithm` | Algorithm |
-|---|---|
-| `X25519AesGcmHkdfSha256` | HPKE RFC 9180 base-mode shape; X25519 KEM + HKDF-SHA-256 KDF + AES-256-GCM AEAD. **v1 default.** |
+| `wrap_algorithm` (variant) | wire string (normative) | Algorithm |
+|---|---|---|
+| `X25519AesGcmHkdfSha256` | `hpke_rfc9180_base_x25519_aes_gcm` | HPKE RFC 9180 base-mode shape; X25519 KEM + HKDF-SHA-256 KDF + AES-256-GCM AEAD. **v1** (CEG 0.3, [#38](https://github.com/CIRISAI/CIRISRegistry/issues/38)). |
+| `X25519MlKem768Aes256GcmHkdfSha256` | `x25519_mlkem768_aes256_gcm_hkdf_sha256` | Hybrid X25519 + **ML-KEM-768** (FIPS 203) KEM + HKDF-SHA-256 + AES-256-GCM. **v2 — MANDATORY for streaming epoch-DEK grants** ([§10.5.3](10_endpoints.md)); CEG 0.15, [#64](https://github.com/CIRISAI/CIRISRegistry/issues/64). Matches `ciris-crypto` `KEY_GRANT_ALGORITHM_V2` (CIRISVerify v4.10.0), snake-cased to this vocab convention. |
+
+**The `wrap_algorithm` *wire string* (serialized value) is normative for cross-impl decode** — a producer, the substrate, and every consumer MUST serialize/deserialize the exact string above; a mismatch silently fails grant decode (same hazard class as the [§10.5.2](10_endpoints.md) STREAM-nonce `epoch` encoding pinned in [#63](https://github.com/CIRISAI/CIRISRegistry/issues/63)).
 
 | `scope` | Use |
 |---|---|
