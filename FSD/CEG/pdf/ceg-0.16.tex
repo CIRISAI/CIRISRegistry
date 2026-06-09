@@ -61,13 +61,13 @@
 \newunicodechar{≫}{$\gg$}
 \newunicodechar{≈}{$\approx$}
 \newunicodechar{🔴}{[\textbullet]}
-\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 0.15 (Public Working Draft) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
+\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 0.16 (Public Working Draft) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
 \author{CIRIS Federation --- generated from \texttt{FSD/CEG/}}
 \date{2026-06-06}
 \begin{document}
 \maketitle
 \begin{abstract}\noindent
-This document is the complete CEG 0.15 wire-format specification (the 1+4
+This document is the complete CEG 0.16 wire-format specification (the 1+4
 minimal-and-adequate attestation grammar), assembled from the 18-section source
 plus the version-history overview. It opens with a quantitative model of
 PQC-native streaming video --- bandwidth and lag --- under CEG \S10.5, isolating
@@ -267,12 +267,24 @@ flagged for reconsideration.
 \section*{CEG — The CIRIS Epistemic Grammar}
 
 
-\textbf{Version}: 0.15 (Public Working Draft)
+\textbf{Version}: 0.16 (Public Working Draft)
 
-\textbf{Status}: Public Working Draft (2026-06-06). NOT a stable release. Wire-format primitives and namespace shape are settled in this draft except where 0.x → 0.(x+1) wire-breaks are noted; canonical-encoding details, response schemas, and registry process are scaffolded but not finalized. Implementers SHOULD pin against the 0.x series and expect breaking changes until 1.0 publication.
+\textbf{Status}: Public Working Draft (2026-06-09). NOT a stable release. Wire-format primitives and namespace shape are settled in this draft except where 0.x → 0.(x+1) wire-breaks are noted; canonical-encoding details, response schemas, and registry process are scaffolded but not finalized. Implementers SHOULD pin against the 0.x series and expect breaking changes until 1.0 publication.
 
 
-\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-0.15-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-0.16-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+
+
+\textbf{0.16 is additive vs 0.15} — the agent-identity hardening + cross-impl byte-determinism wave (no wire-format change; all composition + canonicalization pins over the locked 1+4 set):
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item \textbf{§10.1.5 attestation tier model} — \texttt{local} (deferred-signature, producer-only-authority) vs \texttt{federation} (hybrid-signed, visible) tiers + \texttt{promote} (local→federation) + the open-prefix \texttt{query}; the shared agent-facing attestation surface (CIRISPersist\#172). + §10.1.3 eligibility corrected to "revocation authority, not empty \texttt{subject\_key\_ids}".
+\item \textbf{§8.1.12.7 "Self at login"} — one hybrid hardware-rooted user identity with app + agent occurrences sharing one Policy-L Self DEK, partnered + delegated to act on the user's behalf (CIRISRegistry\#65); + §8.1.12.7.1 signing member sets + \texttt{delegated\_scope} canonical kinds.
+\item \textbf{§0.9.2.1 canonical-bytes determinism rules} — array element ordering (set vs sequence), byte-field→lowercase-hex (§0.6), timestamp→§0.5; the three things JCS doesn't pin (CIRISVerify\#63).
+\item \textbf{PQC at rest extended to self/family} — §8.1.12.4 \texttt{wrap\_algorithm: v2} (X25519+ML-KEM-768) MANDATORY for the at-rest DEK cascade (was v1); §10.1.4 split into unconditional structural-invisibility + defense-in-depth at-rest encryption (CIRISPersist\#152).
+\item \textbf{Standard-pins}: §10.5.2 STREAM-nonce \texttt{epoch} = 8-byte BE (\#63); §10.5.3/§5.6.8.4 \texttt{wrap\_algorithm: v2} wire string \texttt{x25519\_mlkem768\_aes256\_gcm\_hkdf\_sha256} (\#64).
+\item \textbf{Hygiene}: §1.5→§1.6 (overloaded with the Recursive Golden Rule) + §15.6 duplicate-heading fixes.
+\end{itemize}
 
 
 \textbf{0.15 folds the streaming standards in fully} (per CIRISRegistry\#61): the §10.5 streaming surface now \textbf{conforms to} the published standards rather than gesturing at them — the per-frame seal conforms to \textbf{SFrame} (draft-ietf-sframe); the epoch-key rekey conforms to \textbf{MLS TreeKEM} (RFC 9420) with Post-Compromise Security now available (optional, operator-enabled); the delivery-model analysis (flat-unicast O(N) vs tree-multicast O(log N) vs tree-unicast O(N log N)) is carried normatively; and RFC 9420 / SFrame / FIPS 203 / FIPS 204 / RFC 9180 are added to the §0.4 normative references. \textbf{No wire-format change} — the streaming primitives are unchanged, now standards-anchored. Also: §0.1.1 normative-vs-informative demarcation, §1.6 adversary model + privacy non-goals, and the §1.4 honesty pass (inductive-not-closure + the named falsification target) shipped in the 0.14→0.15 hardening.
@@ -4072,7 +4084,7 @@ All CEG endpoints return:
 
 \begin{itemize}\setlength\itemsep{0pt}
 \item \textbf{Content-Type}: \texttt{application/json} (\texttt{Accept: application/json} honored; other types respond \texttt{406 Not Acceptable})
-\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{0.15}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{0.16}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 \item \textbf{Time-Source header}: \texttt{X-CEG-Server-Time: <rfc3339\_canonical>} per §0.5 for client clock-skew bounds
 \item \textbf{Pagination} (where applicable): \texttt{?cursor=} + \texttt{?limit=} query params; response includes \texttt{next\_cursor} (null if exhausted) and \texttt{total\_estimate} (server's best estimate, may be approximate)
 \end{itemize}

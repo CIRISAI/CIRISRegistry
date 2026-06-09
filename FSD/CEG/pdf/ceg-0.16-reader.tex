@@ -64,7 +64,7 @@
 \newunicodechar{≈}{$\approx$}
 \newunicodechar{🔴}{[\textbullet]}
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}CEG\\[6pt]\LARGE The CIRIS Epistemic Grammar\\[14pt]
-\normalsize\mdseries Version 0.15 --- Reader Edition\\[2pt]
+\normalsize\mdseries Version 0.16 --- Reader Edition\\[2pt]
 \itshape a signed, compositional graph language for claims, relationships, authority,\\
 membership, consent, governance, addressing, and settlement across a decentralized network}
 \author{}\date{2026-06-06}
@@ -81,12 +81,12 @@ judged against the normative wire surface only (\S0.1.1).\end{quote}
 \section*{CEG — The CIRIS Epistemic Grammar}
 
 
-\textbf{Version}: 0.15 (Public Working Draft)
+\textbf{Version}: 0.16 (Public Working Draft)
 
-\textbf{Status}: Public Working Draft (2026-06-06). NOT a stable release. Wire-format primitives and namespace shape are settled in this draft except where 0.x → 0.(x+1) wire-breaks are noted; canonical-encoding details, response schemas, and registry process are scaffolded but not finalized. Implementers SHOULD pin against the 0.x series and expect breaking changes until 1.0 publication.
+\textbf{Status}: Public Working Draft (2026-06-09). NOT a stable release. Wire-format primitives and namespace shape are settled in this draft except where 0.x → 0.(x+1) wire-breaks are noted; canonical-encoding details, response schemas, and registry process are scaffolded but not finalized. Implementers SHOULD pin against the 0.x series and expect breaking changes until 1.0 publication.
 
 
-\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-0.15-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-0.16-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
 
 
 \subsection*{How to read this spec without Cartesian default}
@@ -3747,7 +3747,7 @@ All CEG endpoints return:
 
 \begin{itemize}\setlength\itemsep{0pt}
 \item \textbf{Content-Type}: \texttt{application/json} (\texttt{Accept: application/json} honored; other types respond \texttt{406 Not Acceptable})
-\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{0.15}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{0.16}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 \item \textbf{Time-Source header}: \texttt{X-CEG-Server-Time: <rfc3339\_canonical>} per §0.5 for client clock-skew bounds
 \item \textbf{Pagination} (where applicable): \texttt{?cursor=} + \texttt{?limit=} query params; response includes \texttt{next\_cursor} (null if exhausted) and \texttt{total\_estimate} (server's best estimate, may be approximate)
 \end{itemize}

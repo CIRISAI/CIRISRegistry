@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 r"""
-Human-first reader edition of the CEG spec -> ceg-0.15-reader.pdf.
+Human-first reader edition of the CEG spec -> ceg-0.16-reader.pdf.
 
 Reuses the markdown->LaTeX converter from build_pdf.py, but applies a
 DE-EDITORIALIZATION prefilter (strip version history, per-path narrative,
@@ -17,7 +17,7 @@ import build_pdf as B   # convert(), inline(), esc(), code_ascii(), NUC
 
 D = Path(__file__).parent
 SPEC = D.parent
-VERSION = "0.15"
+VERSION = "0.16"
 
 # ---- which files, in reading order. Drop §16 (references+lineage: mostly history). ----
 FILES = ["README.md"] + sorted(f.name for f in SPEC.glob("[0-9][0-9]_*.md") if not f.name.startswith("16_"))
@@ -118,5 +118,5 @@ if __name__ == "__main__":
         body.append(B.convert(prefilter(md, fn)))
         body.append(r"\clearpage")
     body.append(r"\end{document}")
-    (D/"ceg-0.15-reader.tex").write_text("\n".join(body), encoding="utf-8")
-    print(f"wrote ceg-0.15-reader.tex ({len(FILES)} files, §16 + RC1 register + changelog wall stripped)")
+    (D/"ceg-0.16-reader.tex").write_text("\n".join(body), encoding="utf-8")
+    print(f"wrote ceg-0.16-reader.tex ({len(FILES)} files, §16 + RC1 register + changelog wall stripped)")
