@@ -399,7 +399,7 @@ on_member_added(scope_target, new_member_key):
         C.cohort_scope == "family" AND C.family_id == scope_target
     AND C is still substrate-admitted (not withdrawn / not expired):
         emit key_grant {
-            wrap_algorithm:     X25519AesGcmHkdfSha256,  // CEG 0.3 §5.6.8.4 default
+            wrap_algorithm:     X25519MlKem768Aes256GcmHkdfSha256,  // v2 — see PQC note
             recipient_key_id:   new_member_key,
             content_sha256:     C.evidence_refs[0].sha256,
             scope:              GroupMember,
@@ -407,6 +407,8 @@ on_member_added(scope_target, new_member_key):
             ...
         }
 ```
+
+**PQC at rest — `wrap_algorithm: v2` MANDATORY (normative).** The self/family at-rest DEK MUST be wrapped with **`wrap_algorithm: v2` = `x25519_mlkem768_aes256_gcm_hkdf_sha256`** (hybrid X25519+ML-KEM-768; the [§5.6.8.4](05_namespace.md) variant `X25519MlKem768Aes256GcmHkdfSha256`), **never v1** (X25519-only). Self/family content is the user's most private and longest-lived data (memory, photos, identity, the [§8.1.12.7](#81127-the-self-at-login--app--agent-co-self--partnered-delegation-ceg-015-normative-composition) Self DEK) — a classical-only KEM is a harvest-now-decrypt-later exposure, the identical mandate as the streaming epoch DEK ([§10.5.3](10_endpoints.md)). The AES-256-GCM content seal is symmetric (PQC-safe); the wrap signature is hybrid Ed25519+ML-DSA-65. A Consumer MUST reject a self/family at-rest grant carrying `wrap_algorithm: v1`.
 
 The cascade is the wire-format primitive for the "I got a new phone and want my Twitter history" + "I added Carol to the household for a week" flows. Operator policy MAY bound the cascade depth (e.g., last 90 days of self-content; opt-in for the full historical wrap).
 

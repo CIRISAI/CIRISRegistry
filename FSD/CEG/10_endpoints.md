@@ -82,15 +82,20 @@ CEG 0.7 codifies this as a normative substrate discipline. When a Contribution c
 
 ```
 On admission of a Contribution C with cohort_scope ∈ {self, family}:
+    # (1) STRUCTURAL INVISIBILITY — UNCONDITIONAL (the cewp privacy promise):
     substrate MUST NOT emit holds_bytes:sha256:* for C's evidence_refs bytes
-    substrate MUST wrap C's DEK via key_grant (§5.6.8.4) to:
-        - if cohort_scope == self:   all current identity_occurrences of C.attesting_key_id
-        - if cohort_scope == family: all current members of family per C.family_id
     substrate MUST NOT propagate C beyond the self-collective / family scope
-    via any other directory or discovery surface
+        via any other directory or discovery surface
+    # (2) AT-REST ENCRYPTION — the §8.1.12.4 cascade (defense-in-depth):
+    WHEN self/family at-rest encryption is enabled for the deployment:
+        substrate MUST wrap C's DEK via key_grant (§5.6.8.4, wrap_algorithm v2 — §8.1.12.4) to:
+            - if cohort_scope == self:   all current identity_occurrences of C.attesting_key_id
+            - if cohort_scope == family: all current members of family per C.family_id
 ```
 
-**Composition with at-rest encryption flow** (CIRISPersist#152): when content is admitted at `cohort_scope: self`, persist wraps the DEK under each currently-admitted `identity_occurrence`'s `occurrence_key_id`. When content is admitted at `cohort_scope: family`, persist wraps under each `member.key_id` in the named family's current roster. New occurrence / new family-member admission triggers retroactive `key_grant` emission for all extant `cohort_scope: self|family` content (the "I bought a new phone and want my Twitter history" / "I added Carol to the household" flows from §5.6.8.9 worked example).
+**Two layers, not one (normative split — clarified per CIRISPersist#152 review).** (1) **Structural invisibility** — suppressing `holds_bytes:sha256:*` + non-propagation beyond scope — is the **unconditional** privacy promise (the cewp "the wire format can't carry them" claim); it holds even when the at-rest bytes are plaintext, because no discovery attestation federates. (2) **At-rest encryption** — the §8.1.12.4 DEK cascade — is **defense-in-depth** (against local-disk forensics / host operator / cloud-substrate operator, the CIRISPersist#152 threat table); it is operator-policy and MAY default off as a v1 migration posture, **but when enabled MUST use `wrap_algorithm: v2` (hybrid PQC, §8.1.12.4)** — never v1. The 1.0 / CEG-RET-native target is at-rest-on for self/family (the "everything PQC at rest" standard).
+
+**Composition with at-rest encryption flow** (CIRISPersist#152): when self/family at-rest encryption is enabled, persist wraps the DEK (`wrap_algorithm: v2`) under each currently-admitted `identity_occurrence`'s `occurrence_key_id` (self) or each `member.key_id` in the named family's roster (family). New occurrence / new family-member admission triggers retroactive `key_grant` emission for all extant `cohort_scope: self|family` content (the "I bought a new phone and want my Twitter history" / "I added Carol to the household" flows from §5.6.8.9 worked example).
 
 **Locality dividend** (cewp claim): the structural invisibility mechanism is *why* ~65% of activity stays local in the cewp scaling model — `cohort_scope: self|family` content is the bulk of daily activity (family photos, personal notes, in-household device chatter), and that bulk never federates. Operators do not configure this; the wire format enforces it.
 
