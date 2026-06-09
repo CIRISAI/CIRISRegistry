@@ -468,6 +468,53 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 
 **Worked login flow.** (1) unlock the hardware-rooted user key (WebAuthn presence) → (2) admit the agent occurrence (single-vouch) → Policy-L Self DEK now wraps to both → (3) optionally add the `wise_authority` role to the user's `identity_type` set → (4) bind each occurrence's `transport_destination` → (5) `consent:partnership_grant`/`accept` under a `bilateral_pair_id` → (6) `delegates_to(user → agent occurrence, scope: [act_on_behalf, message_io, network_presence, sub_delegation])`, **promoted to federation-tier**. The app now reads the user's Self locally AND acts as the user on the network; the user can revoke either layer independently.
 
+##### §8.1.12.7.1 Signing member sets (normative — the JCS contract Verify hybrid-signs; resolves CIRISVerify#63)
+
+Each of the three Self-at-login Contributions is hybrid-signed over `JCS(envelope)` ([§0.9](00_conformance.md) / RFC 8785), and at login promoted to federation-tier (the [§10.1.5.3](10_endpoints.md) promotion canonicalizes the **exact committed member set** — omit-vs-materialize ([§0.9.2](00_conformance.md)) is load-bearing; the signer MUST NOT re-default). The member sets the producer commits (and which `JCS` therefore covers) are pinned below. Optional [§4](04_envelope.md) envelope fields not listed ride the §0.9.2 omit rule (absent unless the producer sets them).
+
+**(a) `consent:partnership_grant` (user side) / `consent:partnership_accept` (agent side)** — bare `scores` ([§5.6.8.6](05_namespace.md)) bound by `bilateral_pair_id`:
+```
+{ attestation_type: "scores",
+  attesting_key_id: <user identity_key_id (grant) | agent occurrence_key_id (accept)>,
+  dimension:        "consent:partnership_grant" | "consent:partnership_accept",
+  score:            <positive>,
+  subject_key_ids:  [<the partner key: agent occurrence (grant) | user identity (accept)>],
+  bilateral_pair_id:<shared pair id>,                       // §8.1.11.4 binding mechanism
+  signed_at:        <rfc3339_canonical> }
+```
+
+**(b) `delegates_to` (user → agent occurrence)** — the act-on-behalf grant ([§3.2](03_primitives.md) envelope shape):
+```
+{ attestation_type:     "delegates_to",
+  attesting_key_id:     <user identity_key_id>,
+  attested_key_id:      <agent occurrence_key_id>,          // the delegate
+  delegated_scope:      ["act_on_behalf", ...],             // §8.1.12.7 canonical kinds
+  delegation_purpose:   "act_as_user",
+  delegation_valid_from:<rfc3339_canonical>,
+  delegation_valid_until:<rfc3339_canonical>,
+  signed_at:            <rfc3339_canonical> }
+```
+
+**(c) `transport_destination` binding** — an `identity_occurrence` ([§5.6.8.8](05_namespace.md) / [§5.6.8.8.1](05_namespace.md)) carrying the binding; signed by `identity_key_id` (or a current occurrence), AV-17:
+```
+{ attestation_type: "scores",
+  subject_kind:     "identity_occurrence",                  // payload discriminator §4.2.2.3
+  attesting_key_id: <user identity_key_id | a current occurrence>,
+  identity_key_id:  <user identity_key_id>,
+  occurrence_key_id:<the occurrence being bound>,
+  device_class:     "phone" | "laptop" | "agent" | ...,
+  transport_destination: {
+    reticulum_x25519_pubkey:  <[u8;32]>,
+    reticulum_ed25519_pubkey: <[u8;32]>,
+    destination_hash:         <[u8;16]>,                    // MUST derive per §5.6.8.8.1
+    app_name:                 <string>,
+    aspects:                  [<string>, ...] },            // ordered
+  asserted_at:      <rfc3339_canonical>,
+  signed_at:        <rfc3339_canonical> }
+```
+
+Registry owns these member sets (this section); Verify computes `JCS(...)` + the hybrid Ed25519+ML-DSA-65 signature over each via `jcs::canonicalize` ([CIRISVerify#59](https://github.com/CIRISAI/CIRISVerify/issues/59)); the promotion signature ([§10.1.5.3](10_endpoints.md) OQ-4) is the identical JCS bytes — confirmed.
+
 ### §8.1.13 Policy M — Community membership composition (CEG 0.8 addition)
 
 Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48) + [§5.6.8.10](05_namespace.md) `community` + [§5.6.8.11](05_namespace.md) `location_proof`. Composition pattern for resolving the **current membership set** of a community, gating cohort-filtered visibility for `cohort_scope: community` content.
