@@ -76,7 +76,7 @@ CEG 0.7 codifies this as a normative substrate discipline. When a Contribution c
 - A non-member peer cannot even *discover* the bytes exist via the substrate — the only attestations referencing them are scoped to the self-collective / family and never federate beyond it.
 - This is the wire-format-level closure of the cewp **structural invisibility** claim: privacy emerges from format constraints, not from operator policy or legal undertaking.
 
-> **Scope (normative — see [§1.5](01_foundation.md)):** structural invisibility buys **content-holding confidentiality only**. It does NOT hide that the relationship exists (`family_id`, admission `hard_case:*` events), who-talks-to-whom (resolution + RET announce/path-request expose endpoints), or traffic-analysis channels (STH cadence, key-cascade timing, chunk size/rate). It is not unobservability or metadata privacy — those require the opt-in Anonymous Tier. Do not represent CEG as providing the stronger properties.
+> **Scope (normative — see [§1.6](01_foundation.md)):** structural invisibility buys **content-holding confidentiality only**. It does NOT hide that the relationship exists (`family_id`, admission `hard_case:*` events), who-talks-to-whom (resolution + RET announce/path-request expose endpoints), or traffic-analysis channels (STH cadence, key-cascade timing, chunk size/rate). It is not unobservability or metadata privacy — those require the opt-in Anonymous Tier. Do not represent CEG as providing the stronger properties.
 
 **Substrate enforcement**:
 

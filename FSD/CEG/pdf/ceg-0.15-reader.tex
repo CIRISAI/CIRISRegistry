@@ -206,7 +206,7 @@ A reader may \textbf{agree with the protocol and disagree with its philosophy} a
 \end{itemize}
 
 
-Where framing produced a concrete wire consequence, that consequence is restated as a normative rule in its own section (e.g., structural invisibility is motivated informatively but enforced normatively at §10.1.4, bounded by §1.5). When in doubt, the RFC-2119 keywords and the §1.4 surface govern; informative prose never overrides them.
+Where framing produced a concrete wire consequence, that consequence is restated as a normative rule in its own section (e.g., structural invisibility is motivated informatively but enforced normatively at §10.1.4, bounded by §1.6). When in doubt, the RFC-2119 keywords and the §1.4 surface govern; informative prose never overrides them.
 
 
 
@@ -454,6 +454,30 @@ Both producers compute different canonical bytes (Producer B's includes the \tex
 This composes with the §4.1 forward-compatibility rule (which already mandates preserving unknown fields on read and re-emission). §0.9.2 extends the same preservation discipline to known-optional fields.
 
 
+\subsubsection*{§0.9.2.1 Array ordering + byte-field + timestamp encoding (normative — the three determinism rules JCS does NOT pin)}
+
+
+JCS (§0.9.1) canonicalizes \textbf{object member order} but is silent on three things that still let two conformant producers emit different bytes (and therefore non-verifying signatures, the §0.9 hazard). All three are pinned here once, globally, for every CEG envelope (raised in CIRISVerify\#63 review):
+
+
+\begin{enumerate}\setlength\itemsep{0pt}
+\item \textbf{Array element order.} An array field is one of two kinds, stated in its §4/§5 definition:
+\end{enumerate}
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item \textbf{Set-semantics} (order carries no meaning) — elements MUST be \textbf{lexicographically sorted by their JCS string form (UTF-16 code-unit order, ascending)} before signing. This is producer-independent: any producer building the set in any order yields identical bytes. **\texttt{subject\_key\_ids[]} and \texttt{delegates\_to.delegated\_scope[]} are set-semantics → sorted.**
+\item \textbf{Sequence-semantics} (order is meaningful) — elements retain their as-authored order. **\texttt{transport\_destination.aspects[]}\textbf{ (RNS hash preimage order), }\texttt{key\_grant.rotation\_chain}\textbf{ (supersession lineage), and }\texttt{evidence\_refs[]}** (producer-asserted order) are sequence-semantics → preserved. A field's definition MUST declare which kind it is; absent a declaration, set-semantics (sorted) is the default.
+\end{itemize}
+
+\begin{enumerate}\setlength\itemsep{0pt}
+\item \textbf{Byte-field string encoding.} JSON has no byte type, so every byte/binary field is a string whose encoding MUST be pinned. **Key references, hashes, and identifiers — \texttt{key\_id} / \texttt{attesting\_key\_id} / \texttt{attested\_key\_id} / \texttt{subject\_key\_ids[]} elements, public keys, \texttt{destination\_hash}, \texttt{root\_hash}, fingerprints — MUST be lowercase hex per §0.6** (no \texttt{0x}, no separators, byte-length-exact; never base64 in canonical bytes). Fields explicitly documented as base64 (e.g., \texttt{hardware\_attestation}, an opaque attestation blob) use base64 as their definition states — but the \textit{default} for any key/hash/id byte field is §0.6 lowercase hex.
+\item \textbf{Timestamp encoding.} Every datetime field (\texttt{signed\_at}, \texttt{asserted\_at}, \texttt{valid\_until}, \texttt{delegation\_valid\_from}/\texttt{\_until}, \texttt{valid\_at}, …) is the \textbf{§0.5 canonical string} — UTC literal \texttt{Z} (never \texttt{+00:00}), millisecond precision (exactly three fractional digits), \texttt{YYYY-MM-DDTHH:MM:SS.sssZ}. A producer emitting \texttt{+00:00} or a different sub-second precision produces different bytes and a non-verifying signature.
+\end{enumerate}
+
+
+With §0.9.1 (key order) + §0.9.2 (omit-vs-materialize) + these three, \textbf{byte-identity across conformant implementations is closed by construction}. The CIRISConformance\#9 cross-impl JCS vector set MUST cover all three (a set-vs-sequence array case, a hex-vs-base64 byte case, a timestamp case) alongside the per-Contribution vectors.
+
+
 \subsubsection*{§0.9.3 Per-field encoding table (informational)}
 
 
@@ -687,18 +711,18 @@ No principal — including CIRIS L3C as steward — is exempt from constraints t
 If a principal would be exempt from a constraint at any of these primitives, the Golden Rule is violated at that primitive and the protocol is the wrong shape there. Fix the primitive, not the rule.
 
 
-\subsection*{§1.5 Adversary model \& privacy non-goals (normative)}
+\subsection*{§1.6 Adversary model \& privacy non-goals (normative)}
 
 
 CEG makes confidentiality and integrity claims; this section bounds them. \textbf{The word "privacy" in this spec means exactly two things and no more: (1) content-holding confidentiality and (2) cohort-scoped visibility.} It does \textbf{not} mean metadata privacy, communication-graph privacy, or unobservability. Implementers and operators MUST NOT represent CEG as providing the stronger properties.
 
 
-\subsubsection*{§1.5.1 What the structural-invisibility primitive (§10.1.4) buys}
+\subsubsection*{§1.6.1 What the structural-invisibility primitive (§10.1.4) buys}
 
 Suppressing \texttt{holds\_bytes:sha256:*} for \texttt{cohort\_scope: self | family} content gives \textbf{content-holding confidentiality}: a non-member cannot \textit{discover that the bytes exist via the substrate} and cannot \textit{fetch} them (no holder is advertised; the bytes are delivered only to admitted members via the at-rest key cascade). End-to-end content confidentiality is additionally provided by the per-epoch DEK (hybrid X25519+ML-KEM-768) and AES-256-GCM. That is the whole of what omission buys.
 
 
-\subsubsection*{§1.5.2 Non-goals — what omission does NOT buy}
+\subsubsection*{§1.6.2 Non-goals — what omission does NOT buy}
 
 The following are \textbf{explicitly out of scope} at the base CEG/RET layer; treating them as provided is an error:
 
@@ -712,7 +736,7 @@ The following are \textbf{explicitly out of scope} at the base CEG/RET layer; tr
 \end{itemize}
 
 
-\subsubsection*{§1.5.3 Adversary classes (and where each is / is not addressed)}
+\subsubsection*{§1.6.3 Adversary classes (and where each is / is not addressed)}
 
 {\footnotesize
 \begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
@@ -3189,7 +3213,7 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 \subparagraph{§8.1.12.7.1 Signing member sets (normative — the JCS contract Verify hybrid-signs; resolves CIRISVerify\#63)}\mbox{}\\
 
 
-Each of the three Self-at-login Contributions is hybrid-signed over \texttt{JCS(envelope)} (§0.9 / RFC 8785), and at login promoted to federation-tier (the §10.1.5.3 promotion canonicalizes the \textbf{exact committed member set} — omit-vs-materialize (§0.9.2) is load-bearing; the signer MUST NOT re-default). The member sets the producer commits (and which \texttt{JCS} therefore covers) are pinned below. Optional §4 envelope fields not listed ride the §0.9.2 omit rule (absent unless the producer sets them).
+Each of the three Self-at-login Contributions is hybrid-signed over \texttt{JCS(envelope)} (§0.9 / RFC 8785), and at login promoted to federation-tier (the §10.1.5.3 promotion canonicalizes the \textbf{exact committed member set} — omit-vs-materialize (§0.9.2) is load-bearing; the signer MUST NOT re-default). \textbf{The §0.9.2.1 determinism rules apply} (raised in CIRISVerify\#63 review): \texttt{subject\_key\_ids[]} and \texttt{delegated\_scope[]} are \textbf{lexicographically sorted} (set-semantics); \texttt{aspects[]} retains RNS order (sequence-semantics); all key/hash/pubkey byte fields (\texttt{*\_key\_id}, \texttt{subject\_key\_ids[]}, the two reticulum pubkeys, \texttt{destination\_hash}) are \textbf{lowercase hex per §0.6}; all timestamps are \textbf{§0.5-canonical}. The member sets the producer commits (and which \texttt{JCS} therefore covers) are pinned below. Optional §4 envelope fields not listed ride the §0.9.2 omit rule (absent unless the producer sets them).
 
 
 **(a) \texttt{consent:partnership\_grant} (user side) / \texttt{consent:partnership\_accept} (agent side)** — bare \texttt{scores} (§5.6.8.6) bound by \texttt{bilateral\_pair\_id}:
@@ -3807,7 +3831,7 @@ CEG 0.7 codifies this as a normative substrate discipline. When a Contribution c
 \end{itemize}
 
 
-\begin{quote}\itshape \textbf{Scope (normative — see §1.5):} structural invisibility buys \textbf{content-holding confidentiality only}. It does NOT hide that the relationship exists (\texttt{family\_id}, admission \texttt{hard\_case:*} events), who-talks-to-whom (resolution + RET announce/path-request expose endpoints), or traffic-analysis channels (STH cadence, key-cascade timing, chunk size/rate). It is not unobservability or metadata privacy — those require the opt-in Anonymous Tier. Do not represent CEG as providing the stronger properties.\end{quote}
+\begin{quote}\itshape \textbf{Scope (normative — see §1.6):} structural invisibility buys \textbf{content-holding confidentiality only}. It does NOT hide that the relationship exists (\texttt{family\_id}, admission \texttt{hard\_case:*} events), who-talks-to-whom (resolution + RET announce/path-request expose endpoints), or traffic-analysis channels (STH cadence, key-cascade timing, chunk size/rate). It is not unobservability or metadata privacy — those require the opt-in Anonymous Tier. Do not represent CEG as providing the stronger properties.\end{quote}
 
 
 \textbf{Substrate enforcement}:

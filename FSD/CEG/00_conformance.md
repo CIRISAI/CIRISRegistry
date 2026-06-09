@@ -29,7 +29,7 @@ A reader may **agree with the protocol and disagree with its philosophy** and st
 - **Normative (binding for interoperability):** the wire format and its conformance surface — the [§3](03_primitives.md) structural primitives; the [§4](04_envelope.md) envelope fields; the [§5](05_namespace.md) namespace + `subject_kind`s; the [§0.5–0.9](00_conformance.md) canonicalization rules; the [§6](06_relations.md) relation precedence; the [§7](07_reserved.md) reserved-prefix rules; the [§8](08_composition.md) composition policies; the [§10](10_endpoints.md) endpoint shapes; and every RFC-2119-keyworded statement. This is exactly the surface enumerated in [§1.4](01_foundation.md) ("report the surface beside the invariant"). **Conformance is judged against this and nothing else.**
 - **Informative (explanatory framing; NOT binding):** the motivating philosophy and rationale — notably [§1.2](01_foundation.md) (the Ubuntu / relational-anthropology substrate), the cross-tradition readings, and prose written as motivation rather than requirement. These explain *why* the normative choices were made; they add **no** conformance obligations. An implementer who rejects the anthropology but emits/consumes wire-correct Contributions is conforming.
 
-Where framing produced a concrete wire consequence, that consequence is restated as a normative rule in its own section (e.g., structural invisibility is motivated informatively but enforced normatively at [§10.1.4](10_endpoints.md), bounded by [§1.5](01_foundation.md)). When in doubt, the RFC-2119 keywords and the [§1.4](01_foundation.md) surface govern; informative prose never overrides them.
+Where framing produced a concrete wire consequence, that consequence is restated as a normative rule in its own section (e.g., structural invisibility is motivated informatively but enforced normatively at [§10.1.4](10_endpoints.md), bounded by [§1.6](01_foundation.md)). When in doubt, the RFC-2119 keywords and the [§1.4](01_foundation.md) surface govern; informative prose never overrides them.
 
 ---
 
@@ -205,6 +205,18 @@ Both producers compute different canonical bytes (Producer B's includes the `"ep
 - Reordering object members on re-emission is REQUIRED (JCS lexicographic order; if a producer somehow emits non-canonical order, the relay re-canonicalizes — but member presence/absence stays fixed)
 
 This composes with the [§4.1](04_envelope.md) forward-compatibility rule (which already mandates preserving unknown fields on read and re-emission). §0.9.2 extends the same preservation discipline to known-optional fields.
+
+### §0.9.2.1 Array ordering + byte-field + timestamp encoding (normative — the three determinism rules JCS does NOT pin)
+
+JCS ([§0.9.1](#091-canonical-encoding-format-normative)) canonicalizes **object member order** but is silent on three things that still let two conformant producers emit different bytes (and therefore non-verifying signatures, the §0.9 hazard). All three are pinned here once, globally, for every CEG envelope (raised in CIRISVerify#63 review):
+
+1. **Array element order.** An array field is one of two kinds, stated in its [§4](04_envelope.md)/[§5](05_namespace.md) definition:
+   - **Set-semantics** (order carries no meaning) — elements MUST be **lexicographically sorted by their JCS string form (UTF-16 code-unit order, ascending)** before signing. This is producer-independent: any producer building the set in any order yields identical bytes. **`subject_key_ids[]` and `delegates_to.delegated_scope[]` are set-semantics → sorted.**
+   - **Sequence-semantics** (order is meaningful) — elements retain their as-authored order. **`transport_destination.aspects[]`** (RNS hash preimage order), **`key_grant.rotation_chain`** (supersession lineage), and **`evidence_refs[]`** (producer-asserted order) are sequence-semantics → preserved. A field's definition MUST declare which kind it is; absent a declaration, set-semantics (sorted) is the default.
+2. **Byte-field string encoding.** JSON has no byte type, so every byte/binary field is a string whose encoding MUST be pinned. **Key references, hashes, and identifiers — `key_id` / `attesting_key_id` / `attested_key_id` / `subject_key_ids[]` elements, public keys, `destination_hash`, `root_hash`, fingerprints — MUST be lowercase hex per [§0.6](#06-hexadecimal-canonicalization)** (no `0x`, no separators, byte-length-exact; never base64 in canonical bytes). Fields explicitly documented as base64 (e.g., `hardware_attestation`, an opaque attestation blob) use base64 as their definition states — but the *default* for any key/hash/id byte field is §0.6 lowercase hex.
+3. **Timestamp encoding.** Every datetime field (`signed_at`, `asserted_at`, `valid_until`, `delegation_valid_from`/`_until`, `valid_at`, …) is the **[§0.5](#05-date-time-canonicalization) canonical string** — UTC literal `Z` (never `+00:00`), millisecond precision (exactly three fractional digits), `YYYY-MM-DDTHH:MM:SS.sssZ`. A producer emitting `+00:00` or a different sub-second precision produces different bytes and a non-verifying signature.
+
+With §0.9.1 (key order) + §0.9.2 (omit-vs-materialize) + these three, **byte-identity across conformant implementations is closed by construction**. The [CIRISConformance#9](https://github.com/CIRISAI/CIRISConformance/issues/9) cross-impl JCS vector set MUST cover all three (a set-vs-sequence array case, a hex-vs-base64 byte case, a timestamp case) alongside the per-Contribution vectors.
 
 ### §0.9.3 Per-field encoding table (informational)
 

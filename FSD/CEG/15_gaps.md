@@ -92,7 +92,7 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 
 The §15.6 decision register below is preserved as RC1 audit history.
 
-## §15.6 (legacy decision register — preserved as RC1 audit history)
+**Legacy decision register (preserved as RC1 audit history):**
 
 Decision register for the RC1 delivery-axis fork. CEG today has a **visibility** axis (`cohort_scope`) and a **revocability** axis (`subject_key_ids`, [§4.2](04_envelope.md)) but **no delivery axis** — who actively *receives* + how the substrate fans out. Observer-share (1:1, [CIRISLensCore#857](https://github.com/CIRISAI/CIRISLensCore/issues/857)) and media/streaming multicast (1:N, absorbs the parked [#44](https://github.com/CIRISAI/CIRISRegistry/issues/44) CEG 0.5 `live_stream`) are the **same primitive at different cardinality**. Cross-team design thread (P1–P4 Persist / V1–V3 Verify / E1–E4 Edge) consolidated here because it is the CEG authority; Edge mirrors its half to its own `FSD/OPEN_QUESTIONS.md`.
 

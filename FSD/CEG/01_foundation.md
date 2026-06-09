@@ -107,14 +107,14 @@ No principal — including CIRIS L3C as steward — is exempt from constraints t
 
 If a principal would be exempt from a constraint at any of these primitives, the Golden Rule is violated at that primitive and the protocol is the wrong shape there. Fix the primitive, not the rule.
 
-## §1.5 Adversary model & privacy non-goals (normative)
+## §1.6 Adversary model & privacy non-goals (normative)
 
 CEG makes confidentiality and integrity claims; this section bounds them. **The word "privacy" in this spec means exactly two things and no more: (1) content-holding confidentiality and (2) cohort-scoped visibility.** It does **not** mean metadata privacy, communication-graph privacy, or unobservability. Implementers and operators MUST NOT represent CEG as providing the stronger properties.
 
-### §1.5.1 What the structural-invisibility primitive ([§10.1.4](10_endpoints.md)) buys
+### §1.6.1 What the structural-invisibility primitive ([§10.1.4](10_endpoints.md)) buys
 Suppressing `holds_bytes:sha256:*` for `cohort_scope: self | family` content gives **content-holding confidentiality**: a non-member cannot *discover that the bytes exist via the substrate* and cannot *fetch* them (no holder is advertised; the bytes are delivered only to admitted members via the at-rest key cascade). End-to-end content confidentiality is additionally provided by the per-epoch DEK (hybrid X25519+ML-KEM-768) and AES-256-GCM. That is the whole of what omission buys.
 
-### §1.5.2 Non-goals — what omission does NOT buy
+### §1.6.2 Non-goals — what omission does NOT buy
 The following are **explicitly out of scope** at the base CEG/RET layer; treating them as provided is an error:
 
 - **Relationship-existence privacy.** The *existence* of a self-collective / family / community and its membership-change events are observable: `family_id` / `community_id` ride the envelope, and admission / removal / consensus-protocol changes emit `hard_case:*` reserved-prefix events ([§7.7–7.8](07_reserved.md)) into the log. An observer learns that a group exists, roughly how big it is, and when its membership churns.
@@ -123,7 +123,7 @@ The following are **explicitly out of scope** at the base CEG/RET layer; treatin
 - **Unobservability / anonymity.** Base CEG/RET provides neither sender/receiver anonymity nor cover traffic. Self-certifying cryptographic identities are *pseudonymous*, and the transport reveals path endpoints. Anonymity is a **separate, opt-in** mechanism (the CIRISNodeCore Anonymous Tier — Sphinx onion routing), NOT a property of base CEG.
 - **Post-compromise security (PCS) for streams.** The CEG 0.7 [§11.7.1](11_governance.md) Option-A choice is forward-only: a member removed at epoch *e* cannot read epoch *e+1*, but a *compromised current member's* key is not self-healed by a key-update the way MLS PCS provides (revisit tracked for CEG 0.15).
 
-### §1.5.3 Adversary classes (and where each is / is not addressed)
+### §1.6.3 Adversary classes (and where each is / is not addressed)
 | Adversary | Addressed | NOT addressed |
 |---|---|---|
 | Passive network observer | content confidentiality (AEAD + DEK); equivocation (STH) | comm-graph, traffic analysis, group size/churn inference |
