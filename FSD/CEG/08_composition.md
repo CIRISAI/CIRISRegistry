@@ -435,6 +435,39 @@ This is consistent with [§11.4](11_governance.md) "takedown isn't a coup" + [§
 
 The orthogonality holds: **`cohort_scope` is producer-side visibility scoping**; **`identity_occurrence` + `family` are substrate-side membership primitives that gate at-rest DEK wrapping**; **`subject_key_ids` is subject-side revocation authority**. Three independent envelope-level concerns that compose without overlap.
 
+#### §8.1.12.7 The "Self at login" — app + agent co-self + partnered delegation (CEG 0.15, normative composition)
+
+Per [CIRISRegistry#65](https://github.com/CIRISAI/CIRISRegistry/issues/65). The canonical user-identity composition: a person's **app** (the KMP client key) and their **agent** (CIRISAgent's local key) are two occurrences of one user identity that share one **Self DEK**, and at login the agent is **partnered + delegated** to act as the user on the network. **No new structural primitive** — this composes `identity_occurrence` + Policy L + `consent:partnered` + `delegates_to` + `identity_type`-set + `transport_destination`. The four implementations MUST follow this shape so a "Self" is identical everywhere.
+
+**The Self (membership).** One **user `identity_key`**: hybrid Ed25519+ML-DSA-65 ([§10.3](10_endpoints.md)), hardware-rooted ([§9.4](09_humanity_accord.md); WebAuthn/passkey is the *presence/unlock factor*, not the key), with `identity_type ⊇ {user}` — and `⊇ {user, wise_authority}` when the user is also a WA ([§7.0.1](07_reserved.md) set-membership; one key, two roles). Its occurrences ([§5.6.8.8](05_namespace.md)): the **app** (`device_class: phone|laptop`) and the **agent** (`device_class: agent`), co-admitted at login by single-vouch (the user key admits the agent occurrence). Both receive the **Self DEK** via the [§8.1.12.4](#81124-key-grant-cascade-the-at-rest-encryption-flow) Policy-L cascade — every `cohort_scope: self` Contribution's DEK wraps to both, so **the app and the agent decrypt the same Self content** (memory / config / consent / identity). That shared cascade *is* the "single Self key."
+
+**Two layers — and they are independently revocable (the load-bearing distinction):**
+
+| Layer | Mechanism | Buys | Revoked by |
+|---|---|---|---|
+| **Co-self** (visibility) | occurrence + Policy-L Self DEK | the agent can *read/manage the user's Self* (decrypts self-content) | `withdraws` the occurrence → Option-A re-key ([§8.1.12.5](#81125-forward-secrecy-on-member-removal-option-a-recommended-for-v1)) |
+| **Agency** (act-on-behalf) | `consent:partnered` + scoped `delegates_to` | the app may *act AS the user on the network* (send/receive, presence, sub-delegate) | `withdraws` the delegation → agency ends, **co-self unaffected** |
+
+So a user MAY grant a device co-self (it manages their data locally) while revoking its network agency — or vice-versa — without disturbing the other.
+
+**Agency at login (the partnering + delegation).**
+1. **Partnering** — the user emits `consent:partnership_grant` and the agent occurrence emits `consent:partnership_accept` under one `bilateral_pair_id` ([§8.1.11.4](#81114-bilateral-partnered-pair) PARTNERED); the bilateral pair is the persistent, auditable relationship.
+2. **Delegation** — the user identity emits `delegates_to` against the **agent occurrence key**, with `delegated_scope` drawn from the canonical act-on-behalf kinds below, `delegation_purpose: "act_as_user"`, bounded `delegation_valid_until`. Sub-delegation works because `delegates_to` chains (depth-capped at 5 per [§13.3](13_anti_patterns.md)).
+3. **This grant is FEDERATION-tier ([§10.1.5](10_endpoints.md)), not local** — *other peers must verify the agent's authority before honoring its messages/presence*, so the partnering+delegation is signed + promoted at login. **Promotion is the "app shows up on the network" moment.** (The agent's own self-content stays local-tier; only the act-on-behalf authorization federates.)
+
+**Canonical `delegated_scope` kinds for act-on-behalf** (recommended; open-vocab per [§11.2.1](11_governance.md), named for ecosystem coordination):
+
+| scope | grants the agent |
+|---|---|
+| `act_on_behalf` | umbrella: emit Contributions AS the user (`attesting_key_id = agent occurrence`, speaking as the user identity per [§5.6.8.8](05_namespace.md)) |
+| `message_io` | send + receive directed messages on the user's behalf |
+| `network_presence` | announce/resolve the user's `transport_destination` ([§5.6.8.8.1](05_namespace.md)) — be reachable AS the user |
+| `sub_delegation` | issue further `delegates_to` within the granted scope (depth-capped) |
+
+**Transport (network presence) — AV-17.** Each occurrence binds a `transport_destination` ([§5.6.8.8.1](05_namespace.md)); the app is reachable on RET *as the user occurrence*. The Reticulum destination is a **separate dual-key transport identity** that the user's signing key *authorizes by signing the binding* — the federation signing seed MUST NOT enter the transport layer (AV-17 / [CIRISEdge#15](https://github.com/CIRISAI/CIRISEdge/issues/15)). "User key used as a transport key" means *roots/authorizes* the transport identity, not a shared keypair.
+
+**Worked login flow.** (1) unlock the hardware-rooted user key (WebAuthn presence) → (2) admit the agent occurrence (single-vouch) → Policy-L Self DEK now wraps to both → (3) optionally add the `wise_authority` role to the user's `identity_type` set → (4) bind each occurrence's `transport_destination` → (5) `consent:partnership_grant`/`accept` under a `bilateral_pair_id` → (6) `delegates_to(user → agent occurrence, scope: [act_on_behalf, message_io, network_presence, sub_delegation])`, **promoted to federation-tier**. The app now reads the user's Self locally AND acts as the user on the network; the user can revoke either layer independently.
+
 ### §8.1.13 Policy M — Community membership composition (CEG 0.8 addition)
 
 Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48) + [§5.6.8.10](05_namespace.md) `community` + [§5.6.8.11](05_namespace.md) `location_proof`. Composition pattern for resolving the **current membership set** of a community, gating cohort-filtered visibility for `cohort_scope: community` content.

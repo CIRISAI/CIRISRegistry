@@ -3462,6 +3462,55 @@ This is consistent with §11.4 "takedown isn't a coup" + §3.2 \texttt{withdraws
 The orthogonality holds: **\texttt{cohort\_scope} is producer-side visibility scoping\textbf{; }\texttt{identity\_occurrence} + \texttt{family} are substrate-side membership primitives that gate at-rest DEK wrapping\textbf{; }\texttt{subject\_key\_ids} is subject-side revocation authority**. Three independent envelope-level concerns that compose without overlap.
 
 
+\paragraph{§8.1.12.7 The "Self at login" — app + agent co-self + partnered delegation (CEG 0.15, normative composition)}\mbox{}\\
+
+
+Per CIRISRegistry\#65. The canonical user-identity composition: a person's \textbf{app} (the KMP client key) and their \textbf{agent} (CIRISAgent's local key) are two occurrences of one user identity that share one \textbf{Self DEK}, and at login the agent is \textbf{partnered + delegated} to act as the user on the network. \textbf{No new structural primitive} — this composes \texttt{identity\_occurrence} + Policy L + \texttt{consent:partnered} + \texttt{delegates\_to} + \texttt{identity\_type}-set + \texttt{transport\_destination}. The four implementations MUST follow this shape so a "Self" is identical everywhere.
+
+
+
+\textbf{Two layers — and they are independently revocable (the load-bearing distinction):}
+
+
+{\scriptsize
+\begin{longtable}{|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|}\hline
+\textbf{Layer} & \textbf{Mechanism} & \textbf{Buys} & \textbf{Revoked by} \\ \hline\endhead
+\textbf{Co-self} (visibility) & occurrence + Policy-L Self DEK & the agent can \textit{read/manage the user's Self} (decrypts self-content) & \texttt{withdraws} the occurrence → Option-A re-key (§8.1.12.5) \\ \hline
+\textbf{Agency} (act-on-behalf) & \texttt{consent:partnered} + scoped \texttt{delegates\_to} & the app may \textit{act AS the user on the network} (send/receive, presence, sub-delegate) & \texttt{withdraws} the delegation → agency ends, \textbf{co-self unaffected} \\ \hline
+\end{longtable}}
+
+
+So a user MAY grant a device co-self (it manages their data locally) while revoking its network agency — or vice-versa — without disturbing the other.
+
+
+\textbf{Agency at login (the partnering + delegation).}
+
+\begin{enumerate}\setlength\itemsep{0pt}
+\item \textbf{Partnering} — the user emits \texttt{consent:partnership\_grant} and the agent occurrence emits \texttt{consent:partnership\_accept} under one \texttt{bilateral\_pair\_id} (§8.1.11.4 PARTNERED); the bilateral pair is the persistent, auditable relationship.
+\item \textbf{Delegation} — the user identity emits \texttt{delegates\_to} against the \textbf{agent occurrence key}, with \texttt{delegated\_scope} drawn from the canonical act-on-behalf kinds below, \texttt{delegation\_purpose: "act\_as\_user"}, bounded \texttt{delegation\_valid\_until}. Sub-delegation works because \texttt{delegates\_to} chains (depth-capped at 5 per §13.3).
+\item \textbf{This grant is FEDERATION-tier (§10.1.5), not local} — \textit{other peers must verify the agent's authority before honoring its messages/presence}, so the partnering+delegation is signed + promoted at login. \textbf{Promotion is the "app shows up on the network" moment.} (The agent's own self-content stays local-tier; only the act-on-behalf authorization federates.)
+\end{enumerate}
+
+
+**Canonical \texttt{delegated\_scope} kinds for act-on-behalf** (recommended; open-vocab per §11.2.1, named for ecosystem coordination):
+
+
+{\footnotesize
+\begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
+\textbf{scope} & \textbf{grants the agent} \\ \hline\endhead
+\texttt{act\_on\_behalf} & umbrella: emit Contributions AS the user (\texttt{attesting\_key\_id = agent occurrence}, speaking as the user identity per §5.6.8.8) \\ \hline
+\texttt{message\_io} & send + receive directed messages on the user's behalf \\ \hline
+\texttt{network\_presence} & announce/resolve the user's \texttt{transport\_destination} (§5.6.8.8.1) — be reachable AS the user \\ \hline
+\texttt{sub\_delegation} & issue further \texttt{delegates\_to} within the granted scope (depth-capped) \\ \hline
+\end{longtable}}
+
+
+\textbf{Transport (network presence) — AV-17.} Each occurrence binds a \texttt{transport\_destination} (§5.6.8.8.1); the app is reachable on RET \textit{as the user occurrence}. The Reticulum destination is a \textbf{separate dual-key transport identity} that the user's signing key \textit{authorizes by signing the binding} — the federation signing seed MUST NOT enter the transport layer (AV-17 / CIRISEdge\#15). "User key used as a transport key" means \textit{roots/authorizes} the transport identity, not a shared keypair.
+
+
+\textbf{Worked login flow.} (1) unlock the hardware-rooted user key (WebAuthn presence) → (2) admit the agent occurrence (single-vouch) → Policy-L Self DEK now wraps to both → (3) optionally add the \texttt{wise\_authority} role to the user's \texttt{identity\_type} set → (4) bind each occurrence's \texttt{transport\_destination} → (5) \texttt{consent:partnership\_grant}/\texttt{accept} under a \texttt{bilateral\_pair\_id} → (6) \texttt{delegates\_to(user → agent occurrence, scope: [act\_on\_behalf, message\_io, network\_presence, sub\_delegation])}, \textbf{promoted to federation-tier}. The app now reads the user's Self locally AND acts as the user on the network; the user can revoke either layer independently.
+
+
 \subsubsection*{§8.1.13 Policy M — Community membership composition (CEG 0.8 addition)}
 
 
