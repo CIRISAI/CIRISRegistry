@@ -64,7 +64,7 @@
 \newunicodechar{≈}{$\approx$}
 \newunicodechar{🔴}{[\textbullet]}
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}CEG\\[6pt]\LARGE The CIRIS Epistemic Grammar\\[14pt]
-\normalsize\mdseries Version 0.16 --- Reader Edition\\[2pt]
+\normalsize\mdseries Version 0.17 --- Reader Edition\\[2pt]
 \itshape a signed, compositional graph language for claims, relationships, authority,\\
 membership, consent, governance, addressing, and settlement across a decentralized network}
 \author{}\date{2026-06-06}
@@ -81,12 +81,15 @@ judged against the normative wire surface only (\S0.1.1).\end{quote}
 \section*{CEG — The CIRIS Epistemic Grammar}
 
 
-\textbf{Version}: 0.16 (Public Working Draft)
+\textbf{Version}: 0.17 (Public Working Draft)
 
 \textbf{Status}: Public Working Draft (2026-06-09). NOT a stable release. Wire-format primitives and namespace shape are settled in this draft except where 0.x → 0.(x+1) wire-breaks are noted; canonical-encoding details, response schemas, and registry process are scaffolded but not finalized. Implementers SHOULD pin against the 0.x series and expect breaking changes until 1.0 publication.
 
 
-\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-0.16-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-0.17-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+
+
+\textbf{0.17 — the three crypto tiers} (per CIRISRegistry\#67; the line is \textit{"does it have a bounded membership roster?"}): the ≤0.16 binary cut (self/family encrypt; everything else plaintext) is replaced by \textbf{self/family} (encrypted + structurally invisible) → \textbf{Community} (\texttt{community} / \texttt{affiliations}: encrypted under a \textbf{per-community DEK} + \texttt{holds\_bytes:*} with cleartext provenance — byte-confidential to members, discoverable by provenance) → \textbf{Commons} (\texttt{species} / \texttt{biosphere} / \texttt{federation}: plaintext, anyone inspects). The community DEK \textit{is} the §10.5.3 epoch-DEK cascade (one shared DEK, O(1)/emission, v2/PQC mandatory) — \textit{"a community is a stream its members subscribe to, cryptographically"} — refuting the 0.8 "infeasible" premise. \textbf{Mandatory, not opt-in} (the tier name is the guarantee; a persecuted community is protected by \textit{being} one). Adds the \textbf{holder-inspectability principle} (§8.1.13.3: nothing above local tier is a forced unattributable opaque blob) + two rulings: \texttt{cohort\_subkind: infrastructure} communities (\texttt{ciris-canonical}/governance) are the \textbf{plaintext Commons exception} (the trust root must be inspectable), and node→canonical conformance traces are \texttt{cohort\_scope: federation} (world-readable). Overturns §8.1.13.4 (community now has the removed-member problem → Option-A re-key). \textbf{No 1+4 change} — the community DEK is the existing epoch cascade applied to \texttt{cohort\_scope: community}.
 
 
 \subsection*{How to read this spec without Cartesian default}
@@ -913,7 +916,7 @@ Every \texttt{scores} Attestation carries this envelope. Field semantics consoli
 \texttt{occurrence\_count} & no & Total occurrences in the deployment fleet emitting the attestation; integer ≥ 1. Default \texttt{null} → \texttt{1} (single-occurrence). Same self-assertion caveat as \texttt{occurrence\_id}. \\ \hline
 \texttt{occurrence\_role} & no & \texttt{primary} \textbackslash{} \\ \hline
 \texttt{stake} & no & Per §2 Stake axis; default \texttt{reputational}. Composes with the attester's actual stake-backed-by attestations from §5.9. \\ \hline
-\texttt{community\_id} & no (REQUIRED iff \texttt{cohort\_scope == community}) & \textbf{CEG 0.8 addition.} The \texttt{community\_key\_id} of the community this Contribution is scoped to, per §5.6.8.10 \texttt{community} subject\_kind. One identity MAY belong to multiple communities; the field disambiguates which community's roster gates visibility. Required iff \texttt{cohort\_scope == community} (substrate rejects community-scoped Contributions missing the field). Parallel to \texttt{family\_id} (CEG 0.7) but with different semantics: community content DOES emit \texttt{holds\_bytes:sha256:*} (federates within the cohort per §5.6.7); §10.1.4 structural-invisibility applies to self/family only. \\ \hline
+\texttt{community\_id} & no (REQUIRED iff \texttt{cohort\_scope == community}) & \textbf{CEG 0.8 addition.} The \texttt{community\_key\_id} of the community this Contribution is scoped to, per §5.6.8.10 \texttt{community} subject\_kind. One identity MAY belong to multiple communities; the field disambiguates which community's roster gates visibility. Required iff \texttt{cohort\_scope == community} (substrate rejects community-scoped Contributions missing the field). Parallel to \texttt{family\_id} (CEG 0.7) but with different semantics: community content emits \texttt{holds\_bytes:sha256:*} pointing to \textbf{ciphertext + cleartext provenance} — encrypted at rest under the per-community DEK (CEG 0.17, §8.1.13.3; \texttt{cohort\_subkind: infrastructure} communities are the plaintext Commons exception). Byte-level structural-invisibility (no \texttt{holds\_bytes} at all, §10.1.4) remains self/family only. \\ \hline
 \texttt{family\_id} & no (REQUIRED iff \texttt{cohort\_scope == family}) & \textbf{CEG 0.7 addition.} The \texttt{family\_key\_id} of the family this Contribution is scoped to, per §5.6.8.9 \texttt{family} subject\_kind. One identity MAY belong to multiple families (§8.1.12 Policy L); the field disambiguates which family's DEK applies and which membership roster gates visibility. Required iff \texttt{cohort\_scope == family} (substrate rejects family-scoped Contributions missing the field). Composes with §10.1.4 structural-invisibility — `cohort\_scope: self \textbackslash{} \\ \hline
 \texttt{subject\_key\_ids} & no & \textbf{CEG 0.6 addition.} List of consent-holder \texttt{key\_id}s for this Contribution. Each entry MAY be a \texttt{federation\_keys.key\_id} OR a canonical-hash identifier (per §4.2 below). Each listed key has substrate-recognized authority to (a) issue \texttt{withdraws} against this Contribution (per §3.2 broadened admission rule) and (b) emit \texttt{consent:*} dimensions about this Contribution. Default \texttt{null}/empty = no subject authority (status quo; producer-only authority). Orthogonal to \texttt{cohort\_scope} AND \texttt{delivery\_mode} — see §4.2.4. \\ \hline
 \texttt{delivery\_mode} & no & \textbf{CEG 0.10 addition.} `pull \textbackslash{} \\ \hline
@@ -2108,8 +2111,6 @@ For Alice to join Austin, she emits a \texttt{location\_proof} with a \texttt{ce
 All three reserved under §7.8.
 
 
-\textbf{No at-rest cascade}: community content emits \texttt{holds\_bytes:sha256:*} per status quo. Visibility scoping happens via consumer policy reading the community's roster + the Contribution's \texttt{community\_id} envelope field; there is no substrate-level DEK wrap. Reasons: communities can be LARGE (10K+ members); per-member DEK wrap on every emission would be operationally infeasible; the privacy property for communities is \textbf{cohort-filtered visibility}, not \textbf{byte-level invisibility} (that's for self/family).
-
 
 \textbf{Worked example — civic-engagement + emergency-messaging composition pattern}:
 
@@ -3272,7 +3273,7 @@ Registry owns these member sets (this section); Verify computes \texttt{JCS(...)
 Per CIRISRegistry\#48 + §5.6.8.10 \texttt{community} + §5.6.8.11 \texttt{location\_proof}. Composition pattern for resolving the \textbf{current membership set} of a community, gating cohort-filtered visibility for \texttt{cohort\_scope: community} content.
 
 
-Sibling to §8.1.12 Policy L (self/family) but with different defaults — community content federates (emits \texttt{holds\_bytes:sha256:*} per status quo); there is NO at-rest DEK cascade.
+Sibling to §8.1.12 Policy L (self/family) but with different defaults — community content is encrypted under a per-community DEK + emits \texttt{holds\_bytes:sha256:*} with cleartext provenance (CEG 0.17 — see §8.1.13.3); the privacy property is byte-confidential-to-members, not cohort-filtered-visibility.
 
 
 \paragraph{§8.1.13.1 Community membership resolution}\mbox{}\\
@@ -3388,42 +3389,32 @@ evaluate_subkind_admission(subkind, current, proposed):
 Operator vocabularies extending \texttt{cohort\_subkind} provide their own \texttt{evaluate\_subkind\_admission} predicates per the \texttt{custom:\{id\}} consensus\_protocol hook pattern from CEG 0.7 §8.1.12.3.
 
 
-\paragraph{§8.1.13.3 No at-rest DEK cascade (the load-bearing difference vs Policy L)}\mbox{}\\
+\paragraph{§8.1.13.3 The three crypto tiers + the Community DEK cascade (CEG 0.17, normative — supersedes the 0.8 "no cascade" reasoning)}\mbox{}\\
 
 
-CEG 0.7 §8.1.12.4 Policy L cascade does NOT apply to community. Reasons:
+CEG ≤ 0.16 drew a binary cut (self/family encrypt; everything else plaintext), which collapsed a bounded \textbf{Community} and the unbounded \textbf{Commons} into one bucket and left \textbf{no cryptographic home for a persecuted community}. The 0.8 "no at-rest cascade" reasoning ("per-member DEK wrap on every emission would be infeasible") was a \textbf{wrong premise} — corrected here. CEG 0.17 draws the line at \textbf{"does it have a bounded membership roster?"} — yes → encrypt, no → plaintext:
 
 
-\begin{itemize}\setlength\itemsep{0pt}
-\item Communities can be LARGE (10K+ members)
-\item Per-member DEK wrap on every emission would be operationally infeasible
-\item The privacy property for communities is \textbf{cohort-filtered visibility} (consumer policy reads roster + envelope \texttt{community\_id}), NOT \textbf{byte-level invisibility} (that's for self/family)
-\item Content emitted at \texttt{cohort\_scope: community} emits \texttt{holds\_bytes:sha256:*} per status quo; non-community peers see the directory entries but consumer policy filters them out
-\end{itemize}
+{\scriptsize
+\begin{longtable}{|p{3.2cm}|p{3.2cm}|p{3.2cm}|p{3.2cm}|p{3.2cm}|}\hline
+\textbf{Tier} & \textbf{\texttt{cohort\_scope}} & \textbf{At-rest} & \textbf{Wire discovery} & \textbf{Reader} \\ \hline\endhead
+\textbf{self / family} & \texttt{self}, \texttt{family} & encrypted, per-write DEK & \textbf{none} (§10.1.4 structural invisibility) & occurrences / family members \\ \hline
+\textbf{Community} & \texttt{community}, \texttt{affiliations} & \textbf{encrypted under the community DEK} & \texttt{holds\_bytes:*} \textbf{+ cleartext provenance} & community members (DEK cascade) \\ \hline
+\textbf{Commons} & \texttt{species}, \texttt{biosphere}, \texttt{federation} & \textbf{plaintext} & \texttt{holds\_bytes:*} & anyone \\ \hline
+\end{longtable}}
 
 
-Consumer policy reading a \texttt{cohort\_scope: community} Contribution composes:
+
+\textbf{Holder-inspectability principle (normative rationale).} Any data a host holds above local tier MUST support an informed keep/evict decision: either the holder \textbf{inspects the bytes} (Commons — plaintext, maximally inspectable, hence the \textit{preferred} social-distribution mechanism) \textbf{or} it \textbf{inspects the provenance} (Community — the cleartext \texttt{attesting\_key\_id} + \texttt{community\_id} + reason on an otherwise-encrypted blob) and chooses to hold opaque ciphertext for a community it trusts. \textbf{Nothing above local tier is ever a forced, unattributable opaque blob.} This is \textit{why} the split is shaped this way and what the eviction rules (persist \texttt{EvictionSweeper} / \texttt{evict\_actor}) enforce.
 
 
-\begin{lstlisting}
-consumer_allows_visibility(C, viewer_key):
-    if C.cohort_scope != "community":
-        return apply_other_cohort_rules(C, viewer_key)
-
-    community = resolve_community(C.community_id, now)
-    return viewer_key in community
-\end{lstlisting}
-
-This is consumer-side; substrate emits per status quo.
+**The \texttt{infrastructure} exception (Open-Q1 ruling, normative).** A \texttt{community} with \texttt{cohort\_subkind: infrastructure} (§5.6.8.10) — \texttt{ciris-canonical} and any governance/trust root — **opts OUT of the mandatory DEK cascade and is Commons-tier (plaintext, \texttt{holds\_bytes:*}, no DEK)\textbf{. The trust root cannot be an opaque blob; its entire purpose is public auditability — transparency-seeking, not privacy-seeking. }Node→canonical traces** (conformance / \texttt{registry\_consensus} emissions to a governance community) are therefore \texttt{cohort\_scope: federation} (Commons/plaintext, world-readable) — a node enrolling in governance is thereby told its conformance traces are public (Open-Q2 ruling).
 
 
-\paragraph{§8.1.13.4 No automatic forward-secrecy decision (community has no removed-member-can-still-decrypt problem)}\mbox{}\\
+\paragraph{§8.1.13.4 Forward secrecy on community member removal (Option A — now applies)}\mbox{}\\
 
 
-CEG 0.7 §8.1.12.5 Option A doesn't apply because there's no DEK to retain. Removed community members lose visibility forward (consumer policy stops including their queries in the cohort filter) but had byte-level access during membership via the public \texttt{holds\_bytes:*} chain. No re-encryption ceremony needed; no key\_grant cascade to cancel.
-
-
-The byte-level audit-trail discipline carries the symmetric Option-A semantic implicitly: bytes the removed member received during membership remain in their local cache; they cannot continue to receive NEW community content via the cohort filter post-removal. "Once shared, always shared" forward-secrecy is preserved by default at the consumer-policy layer.
+With a community DEK, community \textbf{does} have the removed-member-can-still-decrypt concern (the 0.8 "no DEK to retain" reasoning is superseded by §8.1.13.3). The §8.1.12.5 \textbf{Option A} discipline applies identically: on member removal the substrate \textbf{rotates the community DEK} (§11.7.1); subsequent emissions are sealed under a DEK the removed member doesn't have. "Once shared, always shared" forward-only — content the removed member already received during membership stays in their cache (no PCS); they receive no NEW community content post-removal.
 
 
 \paragraph{§8.1.13.5 Geographic-community admission flow (worked example)}\mbox{}\\
@@ -3747,7 +3738,7 @@ All CEG endpoints return:
 
 \begin{itemize}\setlength\itemsep{0pt}
 \item \textbf{Content-Type}: \texttt{application/json} (\texttt{Accept: application/json} honored; other types respond \texttt{406 Not Acceptable})
-\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{0.16}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{0.17}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 \item \textbf{Time-Source header}: \texttt{X-CEG-Server-Time: <rfc3339\_canonical>} per §0.5 for client clock-skew bounds
 \item \textbf{Pagination} (where applicable): \texttt{?cursor=} + \texttt{?limit=} query params; response includes \texttt{next\_cursor} (null if exhausted) and \texttt{total\_estimate} (server's best estimate, may be approximate)
 \end{itemize}

@@ -521,7 +521,7 @@ Registry owns these member sets (this section); Verify computes `JCS(...)` + the
 
 Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48) + [§5.6.8.10](05_namespace.md) `community` + [§5.6.8.11](05_namespace.md) `location_proof`. Composition pattern for resolving the **current membership set** of a community, gating cohort-filtered visibility for `cohort_scope: community` content.
 
-Sibling to [§8.1.12 Policy L](#8112-policy-l--selffamily-membership-composition-ceg-07-addition) (self/family) but with different defaults — community content federates (emits `holds_bytes:sha256:*` per status quo); there is NO at-rest DEK cascade.
+Sibling to [§8.1.12 Policy L](#8112-policy-l--selffamily-membership-composition-ceg-07-addition) (self/family) but with different defaults — community content is encrypted under a per-community DEK + emits `holds_bytes:sha256:*` with cleartext provenance (CEG 0.17 — see §8.1.13.3); the privacy property is byte-confidential-to-members, not cohort-filtered-visibility.
 
 #### §8.1.13.1 Community membership resolution
 
@@ -620,33 +620,25 @@ evaluate_subkind_admission(subkind, current, proposed):
 
 Operator vocabularies extending `cohort_subkind` provide their own `evaluate_subkind_admission` predicates per the `custom:{id}` consensus_protocol hook pattern from CEG 0.7 [§8.1.12.3](#81123-membership-change-admission-per-consensus_protocol).
 
-#### §8.1.13.3 No at-rest DEK cascade (the load-bearing difference vs Policy L)
+#### §8.1.13.3 The three crypto tiers + the Community DEK cascade (CEG 0.17, normative — supersedes the 0.8 "no cascade" reasoning)
 
-CEG 0.7 [§8.1.12.4](#81124-key-grant-cascade-the-at-rest-encryption-flow) Policy L cascade does NOT apply to community. Reasons:
+CEG ≤ 0.16 drew a binary cut (self/family encrypt; everything else plaintext), which collapsed a bounded **Community** and the unbounded **Commons** into one bucket and left **no cryptographic home for a persecuted community**. The 0.8 "no at-rest cascade" reasoning ("per-member DEK wrap on every emission would be infeasible") was a **wrong premise** — corrected here. CEG 0.17 (per [CIRISRegistry#67](https://github.com/CIRISAI/CIRISRegistry/issues/67)) draws the line at **"does it have a bounded membership roster?"** — yes → encrypt, no → plaintext:
 
-- Communities can be LARGE (10K+ members)
-- Per-member DEK wrap on every emission would be operationally infeasible
-- The privacy property for communities is **cohort-filtered visibility** (consumer policy reads roster + envelope `community_id`), NOT **byte-level invisibility** (that's for self/family)
-- Content emitted at `cohort_scope: community` emits `holds_bytes:sha256:*` per status quo; non-community peers see the directory entries but consumer policy filters them out
+| Tier | `cohort_scope` | At-rest | Wire discovery | Reader |
+|---|---|---|---|---|
+| **self / family** | `self`, `family` | encrypted, per-write DEK | **none** ([§10.1.4](10_endpoints.md) structural invisibility) | occurrences / family members |
+| **Community** | `community`, `affiliations` | **encrypted under the community DEK** | `holds_bytes:*` **+ cleartext provenance** | community members (DEK cascade) |
+| **Commons** | `species`, `biosphere`, `federation` | **plaintext** | `holds_bytes:*` | anyone |
 
-Consumer policy reading a `cohort_scope: community` Contribution composes:
+**Community DEK cascade (MANDATORY).** Community content (`cohort_scope: community | affiliations`) is encrypted at rest under a **per-community DEK** and emits `holds_bytes:sha256:*` carrying **cleartext provenance** (`attesting_key_id`, `community_id`, reason/dimension) so non-member holders can make an informed keep/evict decision without reading content. The community DEK **is the [§10.5.3](10_endpoints.md) epoch-DEK cascade applied to `cohort_scope: community`** — *a community is a stream its members subscribe to, cryptographically*: **one** DEK shared across emissions (per-emission cost O(1), not O(members)), wrapped to each member on admission, re-wrapped on membership change (§8.1.13.4), **`wrap_algorithm: v2` (hybrid PQC) MANDATORY** (same harvest-now-decrypt-later reasoning as [§8.1.12.4](#81124-key-grant-cascade-the-at-rest-encryption-flow) / [§10.5.3](10_endpoints.md)). The infeasibility objection is refuted by already-merged code (`list_key_grants_for_stream_epoch`, persist v4.4.0). This is **mandatory, not opt-in** — the tier name *is* the guarantee; a persecuted community is protected by *being a community*, not by remembering a flag. (Deliberately stronger than the [§8.1.12.4](#81124-key-grant-cascade-the-at-rest-encryption-flow) self/family opt-in: self/family has structural invisibility so at-rest crypto is defense-in-depth; community *federates*, so the DEK is its **sole** confidentiality boundary.)
 
-```
-consumer_allows_visibility(C, viewer_key):
-    if C.cohort_scope != "community":
-        return apply_other_cohort_rules(C, viewer_key)
+**Holder-inspectability principle (normative rationale).** Any data a host holds above local tier MUST support an informed keep/evict decision: either the holder **inspects the bytes** (Commons — plaintext, maximally inspectable, hence the *preferred* social-distribution mechanism) **or** it **inspects the provenance** (Community — the cleartext `attesting_key_id` + `community_id` + reason on an otherwise-encrypted blob) and chooses to hold opaque ciphertext for a community it trusts. **Nothing above local tier is ever a forced, unattributable opaque blob.** This is *why* the split is shaped this way and what the eviction rules (persist `EvictionSweeper` / `evict_actor`) enforce.
 
-    community = resolve_community(C.community_id, now)
-    return viewer_key ∈ community
-```
+**The `infrastructure` exception (Open-Q1 ruling, normative).** A `community` with `cohort_subkind: infrastructure` ([§5.6.8.10](05_namespace.md)) — `ciris-canonical` and any governance/trust root — **opts OUT of the mandatory DEK cascade and is Commons-tier (plaintext, `holds_bytes:*`, no DEK)**. The trust root cannot be an opaque blob; its entire purpose is public auditability — transparency-seeking, not privacy-seeking. **Node→canonical traces** (conformance / `registry_consensus` emissions to a governance community) are therefore `cohort_scope: federation` (Commons/plaintext, world-readable) — a node enrolling in governance is thereby told its conformance traces are public (Open-Q2 ruling).
 
-This is consumer-side; substrate emits per status quo.
+#### §8.1.13.4 Forward secrecy on community member removal (Option A — now applies)
 
-#### §8.1.13.4 No automatic forward-secrecy decision (community has no removed-member-can-still-decrypt problem)
-
-CEG 0.7 [§8.1.12.5](#81125-forward-secrecy-on-member-removal-option-a-recommended-for-v1) Option A doesn't apply because there's no DEK to retain. Removed community members lose visibility forward (consumer policy stops including their queries in the cohort filter) but had byte-level access during membership via the public `holds_bytes:*` chain. No re-encryption ceremony needed; no key_grant cascade to cancel.
-
-The byte-level audit-trail discipline carries the symmetric Option-A semantic implicitly: bytes the removed member received during membership remain in their local cache; they cannot continue to receive NEW community content via the cohort filter post-removal. "Once shared, always shared" forward-secrecy is preserved by default at the consumer-policy layer.
+With a community DEK, community **does** have the removed-member-can-still-decrypt concern (the 0.8 "no DEK to retain" reasoning is superseded by §8.1.13.3). The [§8.1.12.5](#81125-forward-secrecy-on-member-removal-option-a-recommended-for-v1) **Option A** discipline applies identically: on member removal the substrate **rotates the community DEK** ([§11.7.1](11_governance.md)); subsequent emissions are sealed under a DEK the removed member doesn't have. "Once shared, always shared" forward-only — content the removed member already received during membership stays in their cache (no PCS); they receive no NEW community content post-removal.
 
 #### §8.1.13.5 Geographic-community admission flow (worked example)
 
