@@ -64,35 +64,37 @@ This section catalogs every prefix family, organized by owning component, with c
 
 ### §5.2.1 Canonical-bytes contracts for provenance primitives
 
-> **0.1 SCAFFOLD NOTE**: The contracts below use newline-delimited `key=value` encoding for readability. CEG 0.2+ will replace this with TupleHash128 ([FIPS-202]) using explicit domain-separation labels, fixing newline-injection and field-confusion attack surfaces identified in 0.1 cryptographic review. The 0.2 canonical-bytes redesign lands under Phase B per CIRISRegistry#30 review. Producers building against 0.1 SHOULD treat these contracts as unstable.
+> **RESOLVED at 1.0-RC1 (closes [#57](https://github.com/CIRISAI/CIRISRegistry/issues/57) blocker A).** The 0.1 newline-delimited `key=value` encoding below is **redesigned to JCS (RFC 8785) objects** per [§0.9](00_conformance.md) — the **same single canonicalization family** the rest of the federation already ships (`jcs::canonicalize`, the signed-epoch canon-version gate, [§0.9.2.1](00_conformance.md) determinism rules, [§8.1.12.7.1](08_composition.md) member sets). The 0.1-review TupleHash128 commitment is **retired**: introducing a second canonicalization family solely for these two contracts would recreate the very cross-impl divergence hazard the redesign exists to close. JSON string escaping structurally eliminates the newline-injection surface (a `\n` inside a value is escaped, never a delimiter), and the explicit `domain` member provides the domain separation TupleHash labels would have. *(For interop with external standard verifiers, a COSE Sign1 export profile is a tracked **boundary** adoption — see the standards-boundary roadmap issue — distinct from this interior signing preimage, which is frozen here as JCS.)*
 
-#### `SkillImportManifest` canonical bytes (0.1 interim)
+#### `SkillImportManifest` canonical bytes (v2 — normative)
 
 ```
-canonical_bytes = sha256(
-    "ciris.skill_import.v1\n" ||
-    "source=" || source_string || "\n" ||
-    "skill_manifest_sha256=" || sha256_hex_lowercase || "\n" ||   // per §0.6
-    "signer_identity=" || signer_key_id || "\n" ||
-    "import_timestamp=" || rfc3339_canonical || "\n" ||           // per §0.5
-    "capability_declaration=" || rfc8785_jcs_json || "\n" ||      // RFC 8785 JCS
-    "valid_until=" || optional_rfc3339_canonical_or_empty         // per §0.5
-)
+canonical_bytes = sha256( JCS( {
+    "domain":                 "ciris.skill_import.v2",       // domain separation; pinned literal
+    "source":                 source_string,
+    "skill_manifest_sha256":  sha256_hex_lowercase,          // per §0.6
+    "signer_identity":        signer_key_id,                 // per §0.6
+    "import_timestamp":       rfc3339_canonical,             // per §0.5
+    "capability_declaration": capability_declaration_object, // a JSON object, canonicalized in place
+    "valid_until":            rfc3339_canonical              // OPTIONAL — §0.9.2 omit rule: absent if unset
+} ) )
 ```
 
-Hybrid signature: Ed25519 over `canonical_bytes`; ML-DSA-65 over `canonical_bytes || ed25519_signature_bytes` (bound payload).
+Hybrid signature: Ed25519 over `canonical_bytes`; ML-DSA-65 over `canonical_bytes || ed25519_signature_bytes` (bound payload). All [§0.9.2.1](00_conformance.md) determinism rules apply (hex per §0.6, timestamps per §0.5, omit-vs-materialize per §0.9.2).
 
-#### Per-locale Merkle composition (0.1 interim)
+#### Per-locale Merkle composition (v2 — normative)
 
 ```
 leaf_hash[lang_code] = sha256(
-    0x00 ||                                  // RFC 6962 leaf-domain prefix
-    "ciris.locale_manifest.v1\n" ||
-    "target=" || target_string || "\n" ||
-    "locale=" || lang_code || "\n" ||
-    "files_root=" || files_merkle_root_hex_lowercase || "\n" ||   // per §0.6
-    "build_id=" || build_id || "\n" ||
-    "signer_identity=" || signer_key_id
+    0x00 ||                                  // RFC 6962 leaf-domain prefix (binary, outside the JSON)
+    JCS( {
+        "domain":          "ciris.locale_manifest.v2",       // domain separation; pinned literal
+        "target":          target_string,
+        "locale":          lang_code,
+        "files_root":      files_merkle_root_hex_lowercase,  // per §0.6
+        "build_id":        build_id,
+        "signer_identity": signer_key_id                     // per §0.6
+    } )
 )
 
 parent_hash(left, right) = sha256(
@@ -102,6 +104,8 @@ parent_hash(left, right) = sha256(
 ```
 
 Locale ordering: lexicographic by ISO 639-1 / BCP 47 byte representation; `"polyglot"` sorts last. RFC 6962 padding: duplicate last leaf to next power of 2.
+
+**v1 status (deprecated-historical).** The 0.1 newline `key=value` forms (`ciris.skill_import.v1` / `ciris.locale_manifest.v1`) are **deprecated**: producers MUST emit v2; consumers MAY verify v1 only for artifacts signed before 1.0-RC1, and MUST distinguish the versions by the `domain` literal (v1 preimages begin with the version-tagged label line; v2 preimages are JCS objects whose first canonical member is `"build_id"`/`"capability_declaration"` — no confusion is constructible since `{` is not a valid v1 label byte). *(The [§9.2.1](09_humanity_accord.md) accord-invocation encoding is intentionally NOT migrated: its preimage is closed-vocabulary — discriminator + nonce + enum fields, no attacker-controlled free text — so the injection surface this redesign closes is not reachable there, and genesis-critical bytes stay stable.)*
 
 ## §5.3 CIRISPersist — substrate health
 
@@ -371,6 +375,8 @@ Where:
 
 **The `wrap_algorithm` *wire string* (serialized value) is normative for cross-impl decode** — a producer, the substrate, and every consumer MUST serialize/deserialize the exact string above; a mismatch silently fails grant decode (same hazard class as the [§10.5.2](10_endpoints.md) STREAM-nonce `epoch` encoding pinned in [#63](https://github.com/CIRISAI/CIRISRegistry/issues/63)).
 
+**Crypto-agility headroom (informative — 1.0-RC1).** The vocab is deliberately version-roomy: a future `v3` (anticipated: **ML-KEM-1024**, given national directives treating ML-KEM-768 as interim with retirement horizons near 2030) is a pure **additive** row — new variant, new wire string, no change to existing grants or to the closed-set decode discipline. Consumers MUST reject an unknown `wrap_algorithm` string (fail-secure), which is exactly what makes the addition safe: old consumers refuse v3 grants rather than mis-decoding them.
+
 | `scope` | Use |
 |---|---|
 | `SingleContent` | Grant decrypts exactly one `content_sha256` |
@@ -499,7 +505,7 @@ EncryptionPubkeys (CEG 0.18 addition — the recipient content-encryption KEM bi
 |----------------------|-----------|----------------------------------------------------------------|
 | x25519_base64        | [u8; 32]  | classical KEM half — a FRESH content-KEM key (NOT the signing  |
 |                      |           |   key, NOT the transport x25519 below — see key-separation)    |
-| ml_kem_768_base64    | [u8; ~1184] | PQC KEM half (FIPS 203, ML-KEM-768)                          |
+| ml_kem_768_base64    | [u8; 1184] | PQC KEM half (FIPS 203, ML-KEM-768; exactly 1184 raw bytes — `ML_KEM_768_PUBKEY_LEN` — pre-base64) |
 
 TransportDestination (CEG 0.12 addition — the authenticated identity↔address binding):
 | field                     | type      | meaning                                               |
@@ -557,7 +563,9 @@ Per [CIRISPersist#192](https://github.com/CIRISAI/CIRISPersist/issues/192) + [CI
 3. **Rotatable via `supersedes`** — a new `identity_occurrence` superseding the prior rotates the KEM keys **without touching the stable signing `key_id`** that anchors every attestation/grant. A compromised ML-KEM key rotates for forward secrecy; the signing identity is untouched. (Bundling these onto the signing key registration would couple two independent rotation lifecycles — the reason this is NOT a field on the key record.)
 4. **Already cross-region replicated** — `identity_occurrence` is `EnvelopeKind::IdentityOccurrence` in the locked replication wire ([CIRISEdge#65](https://github.com/CIRISAI/CIRISEdge/issues/65)), so the encryption pubkeys propagate inside the occurrence envelope that already replicates — **no new replication kind, no Edge wire change.** A cross-region recipient's keys resolve wherever its occurrence has propagated. (Encryption *pubkeys* are public → cleartext directory replication is correct, exactly as for signing keys.)
 
-**Key separation (normative — never reuse).** The `x25519` here is a **fresh content-KEM key**, distinct from BOTH (a) the occurrence's signing keys AND (b) the Reticulum transport x25519 in [§5.6.8.8.1](#5688-1-transport_destination--the-authenticated-identityaddress-binding-ceg-012-addition) `destination_hash = hash(x25519 ‖ ed25519)` (that is the *RET-link* transport key, classical-only, AV-17 — the federation seed never enters the transport layer, and the transport key never wraps content DEKs). Three key *purposes* — signing, RET-transport, content-KEM — are three distinct keypairs. Deriving the content-KEM x25519 from either of the others is a conformance violation (cross-protocol key reuse).
+**Key separation (normative — never reuse, and admission-enforced).** The `x25519` here is a **fresh content-KEM key**, distinct from BOTH (a) the occurrence's signing keys AND (b) the Reticulum transport x25519 in [§5.6.8.8.1](#5688-1-transport_destination--the-authenticated-identityaddress-binding-ceg-012-addition) `destination_hash = hash(x25519 ‖ ed25519)` (that is the *RET-link* transport key, classical-only, AV-17 — the federation seed never enters the transport layer, and the transport key never wraps content DEKs). Three key *purposes* — signing, RET-transport, content-KEM — are three distinct keypairs. Deriving the content-KEM x25519 from either of the others is a conformance violation (cross-protocol key reuse). **Admission check (1.0-RC1, [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C4):** when an `identity_occurrence` carries BOTH `encryption_pubkeys` AND `transport_destination`, the substrate MUST **reject at admission** if `encryption_pubkeys.x25519_base64` decodes to the same 32 bytes as `transport_destination.reticulum_x25519_pubkey` — the one reuse case that is wire-checkable for free. (Reuse of the *signing* key as KEM key is not byte-comparable on the wire — different algorithms — and remains a producer-side conformance obligation.)
+
+**Forward-secrecy scope — honesty note (normative — 1.0-RC1, [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C2).** KEM-key rotation via `supersedes` bounds **future** exposure only: grants wrapped *after* rotation use the new key. It does **nothing** for history — every `key_grant` previously wrapped to the compromised key persists at rest, and the at-rest threat model ([§10.1.4](10_endpoints.md) disk-forensics / host-operator adversary) is *precisely* an adversary holding those old grant bytes; with the old private key they decrypt every DEK ever wrapped to it, and `rotation_chain` supersession does not revoke bytes the adversary already holds. **Recovering historical content after a KEM-key compromise requires DEK rotation + content re-encryption under the new DEK — which CEG does NOT currently mandate.** This is a named gap (the [§1.6](01_foundation.md) honesty discipline): operators with a compromised-key event MUST treat all content whose DEKs were wrapped to that key as exposed, and MAY re-encrypt; the spec provides the mechanism (new DEK + new grants + `supersedes`) but no automatic trigger. Do not represent KEM rotation as recovering the confidentiality of previously-wrapped content.
 
 **These feed `wrap_algorithm: v2` directly.** `{x25519, ml_kem_768}` are precisely the recipient inputs to `x25519_mlkem768_aes256_gcm_hkdf_sha256` ([§5.6.8.4](#5684-governance-subject_kinds-ceg-03-addition-per-cirisregistry37--38)). A consumer/substrate resolving a recipient's wrap target reads the **current (non-superseded, within-`valid_until`) `identity_occurrence` for that `key_id` → its `encryption_pubkeys`** (the `resolve_encryption_keys(key_id)` contract — [CIRISPersist#192](https://github.com/CIRISAI/CIRISPersist/issues/192)).
 

@@ -16,7 +16,7 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 | v1.4 T-3 #1 testimonial_witness:{kind} | **CLOSED** via [§5.6.3](05_namespace.md) new prefix; opened to open vocabulary in CEG 0.1. |
 | v1.4 T-3 #2 labor:individual_loss | **CLOSED by documentation**. Existing `non_maleficence:*` with `target_key_id = affected_individual` + `witness_relation: external` carries the per-individual claim. |
 | v1.4 T-3 #5 Constitutional-constraint grounding | **CLOSED in [§1.2](01_foundation.md) prose**. Wire stays tradition-multiplicity-neutral per [§1.3.1](01_foundation.md). |
-| 0.1-CRIT canonical-bytes newline-injection | **SCAFFOLDED** in [§5.2.1](05_namespace.md) with 0.2 redesign committed (TupleHash128 + domain-separation labels) |
+| 0.1-CRIT canonical-bytes newline-injection | **CLOSED at 1.0-RC1** in [§5.2.1](05_namespace.md): contracts redesigned to JCS (RFC 8785) objects with a pinned `domain` member (TupleHash128 retired — one canonicalization family; JSON escaping structurally removes the newline surface) |
 | 0.1-CRIT supersedes/withdraws/recants ordering | **CLOSED** in [§6.1](06_relations.md) precedence rule + idempotency dedup |
 | 0.1-CRIT cell_pool < min_pool cliff | **CLOSED** in [§8.1.5.1](08_composition.md) sub-quorum fallback paths |
 | 0.1-CRIT no RFC 2119 anchor | **CLOSED** in [§0.1](00_conformance.md) |
@@ -62,7 +62,7 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 
 | Item | Why deferred |
 |---|---|
-| Canonical-bytes redesign (TupleHash128 + domain-separation labels) | Phase B 0.2 commitment per CEG 0.1 review |
+| ~~Canonical-bytes redesign~~ | **RESOLVED at 1.0-RC1**: [§5.2.1](05_namespace.md) v2 = JCS objects + `domain` member (TupleHash128 retired; #57 blocker A closed) |
 | Per-platform hardware-attestation chain verification (TPM quote, Apple attestation, FIDO attestation) | Phase D 1.x roadmap per R5 |
 | Multi-party witness directory admission (2-of-3 steward sign-off) | Phase C 0.2 commitment per [§10.3](10_endpoints.md) |
 | Machine-readable namespace manifest (`FSD/CEG/dimensions.json`) | Phase E 0.2 commitment per [§12.4](12_translation.md) |

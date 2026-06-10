@@ -64,15 +64,15 @@
 \newunicodechar{≈}{$\approx$}
 \newunicodechar{🔴}{[\textbullet]}
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}CEG\\[6pt]\LARGE The CIRIS Epistemic Grammar\\[14pt]
-\normalsize\mdseries Version 0.18 --- Reader Edition\\[2pt]
+\normalsize\mdseries Version 1.0-RC1 --- Reader Edition\\[2pt]
 \itshape a signed, compositional graph language for claims, relationships, authority,\\
 membership, consent, governance, addressing, and settlement across a decentralized network}
-\author{}\date{2026-06-06}
+\author{}\date{2026-06-10}
 \begin{document}
 \maketitle\thispagestyle{empty}
 \begin{quote}\itshape This is the human-reading edition: version history, per-path narrative, and
 provenance cross-references are omitted for readability. The canonical working draft
-(with full lineage) is the markdown source and \texttt{ceg-0.14.pdf}. Conformance is
+(with full lineage) is the markdown source and \texttt{ceg-1.0-rc1.pdf}. Conformance is
 judged against the normative wire surface only (\S0.1.1).\end{quote}
 \clearpage
 \tableofcontents
@@ -81,12 +81,15 @@ judged against the normative wire surface only (\S0.1.1).\end{quote}
 \section*{CEG — The CIRIS Epistemic Grammar}
 
 
-\textbf{Version}: 0.18 (Public Working Draft)
+\textbf{Version}: 1.0-RC1 (Release Candidate — wire surface FROZEN)
 
-\textbf{Status}: Public Working Draft (2026-06-09). NOT a stable release. Wire-format primitives and namespace shape are settled in this draft except where 0.x → 0.(x+1) wire-breaks are noted; canonical-encoding details, response schemas, and registry process are scaffolded but not finalized. Implementers SHOULD pin against the 0.x series and expect breaking changes until 1.0 publication.
+\textbf{Status}: Release Candidate (2026-06-10). \textbf{The wire surface is frozen at this cut}: implementers SHOULD pin RC1; any change between RC1 and 1.0 is a \textbf{found defect}, not design — the design surface is complete (fifteen §1.4 paths; no open design questions remain; \#57 blocker A closed at this cut via the §5.2.1 JCS redesign). \textbf{One scheduled addition stands between RC1 and 1.0}: the \#70 operational-data subject\_kinds (\texttt{organization} / \texttt{org\_membership} / \texttt{partner\_record}, the Spock-removal Phase 2 envelopes) land \textbf{additively} after federation review — new subject\_kinds, no change to anything frozen here. The \textbf{1.0 label} itself waits on the \#57 freeze gate: streaming substrate shipped (CIRISPersist\#142), Spock removed (\#58), conformance artifacts (OpenAPI + \texttt{dimensions.json}) generated from these frozen shapes, and \textbf{one full implementation cycle across Persist + NodeCore + Lens + Agent + Edge with no new wire-break}. That silence is the freeze signal; 1.0 is these bytes re-tagged.
 
 
-\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-0.18-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-1.0-rc1-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+
+
+\textbf{1.0-RC1 — the freeze cut} (per \#71 backwards-pass + CIRISVerify\#64 + \#57 blocker A): five honesty/safety patches + two pins + the canonical-bytes resolution, then freeze. \textbf{(C1)} §10.5.3 \textbf{removal coalescing} (all removals in one STH window T=2s batch into ONE rotation — caps the cascade at 1/T regardless of churn; the original model's 3,600/hr churn understated realistic broadcast churn \textasciitilde{}2 orders: naive 30\%/hr at N=1M ≈ 3.1 Tbps > the 2 Tbps content fan-out; coalesced ≈ 18.7 Gbps ≈ 0.9\%) + the \textbf{public-broadcast exemption} (ungated \texttt{listed:public} rosters: removal forces no rotation — no confidentiality claim against departed viewers). \textbf{(C2)} §5.6.8.8.2 forward-secrecy honesty: KEM rotation bounds \textit{future} exposure only; historical-content recovery requires DEK rotation + re-encryption, which is NOT mandated — named gap. \textbf{(C3)} §10.1.4 fail-secure exclusion is no longer silent: new §7.7 \texttt{hard\_case:recipient\_excluded:\{scope\}} emitted INTO the affected cohort (never federates beyond). \textbf{(C4)} §5.6.8.8.2 admission MUST-reject content-KEM x25519 == transport x25519. \textbf{(C5)} §9.1 names the two-holders-one-household correlated-failure geometry; authority is the full constitutional kill; the mitigant is \textbf{finding new holders} (active obligation). \textbf{Pins}: §0.9.2.1 base64 = RFC 4648 STANDARD padded (protocol-layer pin; CIRISVerify\#64); ML-KEM-768 pubkey = exactly 1184 B; \texttt{encryption\_pubkeys} joins the §8.1.12.7.1 member set (c); §5.6.8.4 crypto-agility headroom note (v3/ML-KEM-1024 additive). \textbf{Blocker A closed}: §5.2.1 provenance contracts redesigned to **JCS (RFC 8785) objects with pinned \texttt{domain} members\textbf{ — TupleHash128 retired (one canonicalization family); v1 newline forms deprecated-historical; §9.2.1 accord invocation intentionally unmigrated (closed-vocabulary preimage). }No 1+4 change.**
 
 
 \textbf{0.18 — recipient encryption-key registration}: the §10.1.4 substrate-wraps DEK cascade (the 0.17 community + self/family tiers all rely on it) needs each recipient's \textbf{content-encryption} keys (x25519 + ML-KEM-768) — but the federation directory carries only \textbf{signing} keys (Ed25519 + ML-DSA-65), and ML-KEM is not derivable from ML-DSA. 0.18 adds the optional **\texttt{encryption\_pubkeys} field-set on \texttt{identity\_occurrence}** (§5.6.8.8.2), structurally parallel to \texttt{transport\_destination}: self-certified (\texttt{attesting\_key\_id == identity\_key\_id}), hybrid-signed, \texttt{supersedes}-rotatable (rotate a KEM key without touching the signing identity), and \textbf{already cross-region-replicated inside the occurrence envelope} (\texttt{EnvelopeKind::IdentityOccurrence}, CIRISEdge\#65) — so \textbf{no new replication kind, no Edge wire change}. These feed \texttt{wrap\_algorithm: v2} directly (§5.6.8.4). Adds the \textbf{fail-secure-exclusion} rule (§10.1.4): a recipient whose occurrence carries no valid ML-KEM key is \textit{excluded} from the grant (content stays encrypted) — never a plaintext or v1 fallback. \textbf{Key separation (normative):} the content-KEM x25519 is distinct from the signing keys AND from the Reticulum transport x25519 — three purposes, three keypairs, never reused. \textbf{No 1+4 change} — one optional field-set on an existing subject\_kind (§1.4 fifteenth path).
@@ -477,6 +480,13 @@ JCS (§0.9.1) canonicalizes \textbf{object member order} but is silent on three 
 
 \begin{enumerate}\setlength\itemsep{0pt}
 \item \textbf{Byte-field string encoding.} JSON has no byte type, so every byte/binary field is a string whose encoding MUST be pinned. **Key references, hashes, and identifiers — \texttt{key\_id} / \texttt{attesting\_key\_id} / \texttt{attested\_key\_id} / \texttt{subject\_key\_ids[]} elements, public keys, \texttt{destination\_hash}, \texttt{root\_hash}, fingerprints — MUST be lowercase hex per §0.6** (no \texttt{0x}, no separators, byte-length-exact; never base64 in canonical bytes). Fields explicitly documented as base64 (e.g., \texttt{hardware\_attestation}, an opaque attestation blob) use base64 as their definition states — but the \textit{default} for any key/hash/id byte field is §0.6 lowercase hex.
+\end{enumerate}
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **The base64 variant is pinned (1.0-RC1 — CIRISVerify\#64): every field documented as base64 (the \texttt{*\_base64} suffix convention — \texttt{encryption\_pubkeys.x25519\_base64} / \texttt{.ml\_kem\_768\_base64} per §5.6.8.8.2, the directory \texttt{pubkey\_ed25519\_base64} / \texttt{pubkey\_ml\_dsa\_65\_base64}, \texttt{hardware\_attestation}) MUST use the RFC 4648 §4 STANDARD alphabet, WITH padding, no whitespace or embedded newlines** (the \texttt{base64::engine::general\_purpose::STANDARD} shape \texttt{ciris-verify-core} ships). The pin lives at the \textbf{protocol layer}: the crypto layer (\texttt{ciris-crypto}) is correctly encoding-agnostic and deals in raw bytes; the wire encoding is CEG's to pin. A variant mismatch (URL-safe alphabet, stripped padding) produces different signed bytes and a \textbf{silently non-verifying signature} — the same hazard class as the wrap-algorithm wire-string. The CIRISConformance\#9 vector set MUST include a base64-variant case (encode→sign→verify round-trip across two independent encoders).
+\end{itemize}
+
+\begin{enumerate}\setlength\itemsep{0pt}
 \item \textbf{Timestamp encoding.} Every datetime field (\texttt{signed\_at}, \texttt{asserted\_at}, \texttt{valid\_until}, \texttt{delegation\_valid\_from}/\texttt{\_until}, \texttt{valid\_at}, …) is the \textbf{§0.5 canonical string} — UTC literal \texttt{Z} (never \texttt{+00:00}), millisecond precision (exactly three fractional digits), \texttt{YYYY-MM-DDTHH:MM:SS.sssZ}. A producer emitting \texttt{+00:00} or a different sub-second precision produces different bytes and a non-verifying signature.
 \end{enumerate}
 
@@ -1213,39 +1223,39 @@ This section catalogs every prefix family, organized by owning component, with c
 \subsubsection*{§5.2.1 Canonical-bytes contracts for provenance primitives}
 
 
-\begin{quote}\itshape \textbf{0.1 SCAFFOLD NOTE}: The contracts below use newline-delimited \texttt{key=value} encoding for readability. CEG 0.2+ will replace this with TupleHash128 ([FIPS-202]) using explicit domain-separation labels, fixing newline-injection and field-confusion attack surfaces identified in 0.1 cryptographic review. The 0.2 canonical-bytes redesign lands under Phase B per CIRISRegistry\#30 review. Producers building against 0.1 SHOULD treat these contracts as unstable.\end{quote}
+\begin{quote}\itshape \textbf{RESOLVED at 1.0-RC1 (closes \#57 blocker A).} The 0.1 newline-delimited \texttt{key=value} encoding below is \textbf{redesigned to JCS (RFC 8785) objects} per §0.9 — the \textbf{same single canonicalization family} the rest of the federation already ships (\texttt{jcs::canonicalize}, the signed-epoch canon-version gate, §0.9.2.1 determinism rules, §8.1.12.7.1 member sets). The 0.1-review TupleHash128 commitment is \textbf{retired}: introducing a second canonicalization family solely for these two contracts would recreate the very cross-impl divergence hazard the redesign exists to close. JSON string escaping structurally eliminates the newline-injection surface (a \texttt{\textbackslash{}n} inside a value is escaped, never a delimiter), and the explicit \texttt{domain} member provides the domain separation TupleHash labels would have. \textit{(For interop with external standard verifiers, a COSE Sign1 export profile is a tracked \textbf{boundary} adoption — see the standards-boundary roadmap issue — distinct from this interior signing preimage, which is frozen here as JCS.)}\end{quote}
 
 
-\paragraph{\texttt{SkillImportManifest} canonical bytes (0.1 interim)}\mbox{}\\
+\paragraph{\texttt{SkillImportManifest} canonical bytes (v2 — normative)}\mbox{}\\
 
 
 \begin{lstlisting}
-canonical_bytes = sha256(
-    "ciris.skill_import.v1\n" ||
-    "source=" || source_string || "\n" ||
-    "skill_manifest_sha256=" || sha256_hex_lowercase || "\n" ||   // per S0.6
-    "signer_identity=" || signer_key_id || "\n" ||
-    "import_timestamp=" || rfc3339_canonical || "\n" ||           // per S0.5
-    "capability_declaration=" || rfc8785_jcs_json || "\n" ||      // RFC 8785 JCS
-    "valid_until=" || optional_rfc3339_canonical_or_empty         // per S0.5
-)
+canonical_bytes = sha256( JCS( {
+    "domain":                 "ciris.skill_import.v2",       // domain separation; pinned literal
+    "source":                 source_string,
+    "skill_manifest_sha256":  sha256_hex_lowercase,          // per S0.6
+    "signer_identity":        signer_key_id,                 // per S0.6
+    "import_timestamp":       rfc3339_canonical,             // per S0.5
+    "capability_declaration": capability_declaration_object, // a JSON object, canonicalized in place
+    "valid_until":            rfc3339_canonical              // OPTIONAL -- S0.9.2 omit rule: absent if unset
+} ) )
 \end{lstlisting}
 
-Hybrid signature: Ed25519 over \texttt{canonical\_bytes}; ML-DSA-65 over \texttt{canonical\_bytes || ed25519\_signature\_bytes} (bound payload).
 
-
-\paragraph{Per-locale Merkle composition (0.1 interim)}\mbox{}\\
+\paragraph{Per-locale Merkle composition (v2 — normative)}\mbox{}\\
 
 
 \begin{lstlisting}
 leaf_hash[lang_code] = sha256(
-    0x00 ||                                  // RFC 6962 leaf-domain prefix
-    "ciris.locale_manifest.v1\n" ||
-    "target=" || target_string || "\n" ||
-    "locale=" || lang_code || "\n" ||
-    "files_root=" || files_merkle_root_hex_lowercase || "\n" ||   // per S0.6
-    "build_id=" || build_id || "\n" ||
-    "signer_identity=" || signer_key_id
+    0x00 ||                                  // RFC 6962 leaf-domain prefix (binary, outside the JSON)
+    JCS( {
+        "domain":          "ciris.locale_manifest.v2",       // domain separation; pinned literal
+        "target":          target_string,
+        "locale":          lang_code,
+        "files_root":      files_merkle_root_hex_lowercase,  // per S0.6
+        "build_id":        build_id,
+        "signer_identity": signer_key_id                     // per S0.6
+    } )
 )
 
 parent_hash(left, right) = sha256(
@@ -1255,6 +1265,9 @@ parent_hash(left, right) = sha256(
 \end{lstlisting}
 
 Locale ordering: lexicographic by ISO 639-1 / BCP 47 byte representation; \texttt{"polyglot"} sorts last. RFC 6962 padding: duplicate last leaf to next power of 2.
+
+
+\textbf{v1 status (deprecated-historical).} The 0.1 newline \texttt{key=value} forms (\texttt{ciris.skill\_import.v1} / \texttt{ciris.locale\_manifest.v1}) are \textbf{deprecated}: producers MUST emit v2; consumers MAY verify v1 only for artifacts signed before 1.0-RC1, and MUST distinguish the versions by the \texttt{domain} literal (v1 preimages begin with the version-tagged label line; v2 preimages are JCS objects whose first canonical member is \texttt{"build\_id"}/\texttt{"capability\_declaration"} — no confusion is constructible since \texttt{\{} is not a valid v1 label byte). \textit{(The §9.2.1 accord-invocation encoding is intentionally NOT migrated: its preimage is closed-vocabulary — discriminator + nonce + enum fields, no attacker-controlled free text — so the injection surface this redesign closes is not reachable there, and genesis-critical bytes stay stable.)}
 
 
 \subsection*{§5.3 CIRISPersist — substrate health}
@@ -1626,6 +1639,9 @@ Where:
 **The \texttt{wrap\_algorithm} \textit{wire string} (serialized value) is normative for cross-impl decode** — a producer, the substrate, and every consumer MUST serialize/deserialize the exact string above; a mismatch silently fails grant decode (same hazard class as the §10.5.2 STREAM-nonce \texttt{epoch} encoding pinned in \#63).
 
 
+\textbf{Crypto-agility headroom (informative — 1.0-RC1).} The vocab is deliberately version-roomy: a future \texttt{v3} (anticipated: \textbf{ML-KEM-1024}, given national directives treating ML-KEM-768 as interim with retirement horizons near 2030) is a pure \textbf{additive} row — new variant, new wire string, no change to existing grants or to the closed-set decode discipline. Consumers MUST reject an unknown \texttt{wrap\_algorithm} string (fail-secure), which is exactly what makes the addition safe: old consumers refuse v3 grants rather than mis-decoding them.
+
+
 {\footnotesize
 \begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
 \textbf{\texttt{scope}} & \textbf{Use} \\ \hline\endhead
@@ -1777,7 +1793,7 @@ EncryptionPubkeys (CEG 0.18 addition -- the recipient content-encryption KEM bin
 |----------------------|-----------|----------------------------------------------------------------|
 | x25519_base64        | [u8; 32]  | classical KEM half -- a FRESH content-KEM key (NOT the signing  |
 |                      |           |   key, NOT the transport x25519 below -- see key-separation)    |
-| ml_kem_768_base64    | [u8; ~1184] | PQC KEM half (FIPS 203, ML-KEM-768)                          |
+| ml_kem_768_base64    | [u8; 1184] | PQC KEM half (FIPS 203, ML-KEM-768; exactly 1184 raw bytes -- `ML_KEM_768_PUBKEY_LEN` -- pre-base64) |
 
 TransportDestination (CEG 0.12 addition -- the authenticated identity<->address binding):
 | field                     | type      | meaning                                               |
@@ -1852,7 +1868,10 @@ Per CIRISPersist\#192 + CIRISRegistry\#69. The §10.1.4 at-rest DEK cascade is \
 \end{enumerate}
 
 
-\textbf{Key separation (normative — never reuse).} The \texttt{x25519} here is a \textbf{fresh content-KEM key}, distinct from BOTH (a) the occurrence's signing keys AND (b) the Reticulum transport x25519 in §5.6.8.8.1 \texttt{destination\_hash = hash(x25519 ‖ ed25519)} (that is the \textit{RET-link} transport key, classical-only, AV-17 — the federation seed never enters the transport layer, and the transport key never wraps content DEKs). Three key \textit{purposes} — signing, RET-transport, content-KEM — are three distinct keypairs. Deriving the content-KEM x25519 from either of the others is a conformance violation (cross-protocol key reuse).
+\textbf{Key separation (normative — never reuse, and admission-enforced).} The \texttt{x25519} here is a \textbf{fresh content-KEM key}, distinct from BOTH (a) the occurrence's signing keys AND (b) the Reticulum transport x25519 in §5.6.8.8.1 \texttt{destination\_hash = hash(x25519 ‖ ed25519)} (that is the \textit{RET-link} transport key, classical-only, AV-17 — the federation seed never enters the transport layer, and the transport key never wraps content DEKs). Three key \textit{purposes} — signing, RET-transport, content-KEM — are three distinct keypairs. Deriving the content-KEM x25519 from either of the others is a conformance violation (cross-protocol key reuse). \textbf{Admission check (1.0-RC1, \#71 C4):} when an \texttt{identity\_occurrence} carries BOTH \texttt{encryption\_pubkeys} AND \texttt{transport\_destination}, the substrate MUST \textbf{reject at admission} if \texttt{encryption\_pubkeys.x25519\_base64} decodes to the same 32 bytes as \texttt{transport\_destination.reticulum\_x25519\_pubkey} — the one reuse case that is wire-checkable for free. (Reuse of the \textit{signing} key as KEM key is not byte-comparable on the wire — different algorithms — and remains a producer-side conformance obligation.)
+
+
+\textbf{Forward-secrecy scope — honesty note (normative — 1.0-RC1, \#71 C2).} KEM-key rotation via \texttt{supersedes} bounds \textbf{future} exposure only: grants wrapped \textit{after} rotation use the new key. It does \textbf{nothing} for history — every \texttt{key\_grant} previously wrapped to the compromised key persists at rest, and the at-rest threat model (§10.1.4 disk-forensics / host-operator adversary) is \textit{precisely} an adversary holding those old grant bytes; with the old private key they decrypt every DEK ever wrapped to it, and \texttt{rotation\_chain} supersession does not revoke bytes the adversary already holds. \textbf{Recovering historical content after a KEM-key compromise requires DEK rotation + content re-encryption under the new DEK — which CEG does NOT currently mandate.} This is a named gap (the §1.6 honesty discipline): operators with a compromised-key event MUST treat all content whose DEKs were wrapped to that key as exposed, and MAY re-encrypt; the spec provides the mechanism (new DEK + new grants + \texttt{supersedes}) but no automatic trigger. Do not represent KEM rotation as recovering the confidentiality of previously-wrapped content.
 
 
 **These feed \texttt{wrap\_algorithm: v2} directly.** \texttt{\{x25519, ml\_kem\_768\}} are precisely the recipient inputs to \texttt{x25519\_mlkem768\_aes256\_gcm\_hkdf\_sha256} (§5.6.8.4). A consumer/substrate resolving a recipient's wrap target reads the **current (non-superseded, within-\texttt{valid\_until}) \texttt{identity\_occurrence} for that \texttt{key\_id} → its \texttt{encryption\_pubkeys}** (the \texttt{resolve\_encryption\_keys(key\_id)} contract — CIRISPersist\#192).
@@ -2609,6 +2628,7 @@ Per §5.6.8.8 \texttt{identity\_occurrence} + §5.6.8.9 \texttt{family} subject\
 \texttt{hard\_case:family\_membership\_change:\{family\_key\_id\}} & Substrate admits an addition or removal in the named family's roster (per the family's \texttt{consensus\_protocol}) & Same: substrate\_persist \\ \hline
 \texttt{hard\_case:family\_consensus\_protocol\_change:\{family\_key\_id\}} & Substrate admits a \texttt{consensus\_protocol} amendment on a non-entrenched family & Same: substrate\_persist \\ \hline
 \texttt{hard\_case:family\_consensus\_protocol\_violation:\{family\_key\_id\}} & Substrate REJECTS a proposed amendment (rule unsatisfied OR entrenched) & Same: substrate\_persist \\ \hline
+\texttt{hard\_case:recipient\_excluded:\{scope\_key\_id\}} & Substrate fail-secure-skips a recipient in the §10.1.4 at-rest grant cascade (1.0-RC1, \#71 C3). Payload: excluded recipient \texttt{key\_id}, \texttt{reason ∈ \{expired\_occurrence, invalid\_kem\_key, missing\_encryption\_pubkeys\}}, skipped Contribution's envelope ref. \textbf{Cohort-scoped: emitted INTO the affected self/family scope; MUST NOT federate beyond it} — the excluded member can audit; the federation learns nothing (§10.1.4 invisibility preserved). & Same: substrate\_persist \\ \hline
 \end{longtable}}
 
 
@@ -3312,6 +3332,9 @@ Each of the three Self-at-login Contributions is hybrid-signed over \texttt{JCS(
 Registry owns these member sets (this section); Verify computes \texttt{JCS(...)} + the hybrid Ed25519+ML-DSA-65 signature over each via \texttt{jcs::canonicalize} (CIRISVerify\#59); the promotion signature (§10.1.5.3 OQ-4) is the identical JCS bytes — confirmed.
 
 
+**\texttt{encryption\_pubkeys} joins member set (c) (1.0-RC1 — CIRISVerify\#64).** When the occurrence carries the §5.6.8.8.2 \texttt{encryption\_pubkeys} field-set, both halves are \textbf{inside the signed JCS bytes} as opaque base64 strings (RFC 4648 STANDARD, padded — the §0.9.2.1 rule-2 pin). Optional presence rides the §0.9.2 omit rule (absent unless the producer sets it; the signer MUST NOT re-default). They are payload, never verification material — neither half may be fed to a signature-verify path (the §5.6.8.8.2 key-separation rule, type-enforced in Verify).
+
+
 \subsubsection*{§8.1.13 Policy M — Community membership composition (CEG 0.8 addition)}
 
 
@@ -3656,6 +3679,9 @@ Three named human key holders. Initial state at federation genesis:
 Hardware-attested (per §9.4 hardware\_class taxonomy). Permanent: no automatic decay; replacement requires out-of-band CIRIS L3C process per FEDERATION\_ANNOUNCEMENT.md §4.5.3.
 
 
+\textbf{Correlated-failure geometry (named honestly — 1.0-RC1, \#71 C5):} two of the three holders share a household, so the 2-of-3 quorum is physically achievable from one street address — a correlated compromise/coercion surface that entrenchment makes harder to correct later. The authority at stake is the \textbf{full constitutional kill} (\texttt{EmergencyShutdown CONSTITUTIONAL} — not a recoverable pause), so the exposure is real and is not softened here; what scope isolation (§9.2) does guarantee is that compromise cannot escalate \textit{beyond} the kill — accord keys cannot sign grants, licenses, or amendments. \textbf{The mitigant is diversifying the holder set: finding new holders} (via the out-of-band replacement process, FEDERATION\_ANNOUNCEMENT.md §4.5.3) so that no household — and ultimately no single jurisdiction — can assemble the quorum. This is an active obligation on CIRIS L3C, not a deferred nice-to-have.
+
+
 **The HUMANITY\_ACCORD triple is the canonical entrenched-\texttt{family} instance (CEG 0.7 retcon).** Per §5.6.8.9, the accord-holder triple structurally IS a \texttt{family} subject\_kind with:
 
 
@@ -3685,7 +3711,7 @@ The 2-of-3 multi-sig verifier at §9.2.1 is the \texttt{quorum:2/3} consensus\_p
 \subsubsection*{§9.2.1 Invocation canonical bytes (anti-replay; 0.1 scaffold)}
 
 
-\begin{quote}\itshape \textbf{0.1 SCAFFOLD NOTE}: The discriminator + nonce binding below addresses the cross-invocation-replay hole identified by CEG 0.1 cryptographic + red-team review. 0.2 may refine the encoding when §5.2.1 canonical-bytes redesigns to TupleHash128.\end{quote}
+\begin{quote}\itshape \textbf{RESOLVED at 1.0-RC1}: the discriminator + nonce binding below addresses the cross-invocation-replay hole identified by CEG 0.1 cryptographic + red-team review. The anticipated §5.2.1 refinement landed as the \textbf{JCS redesign} (TupleHash128 retired — see §5.2.1); this invocation encoding is \textbf{intentionally NOT migrated}: its preimage is closed-vocabulary (discriminator + nonce + enum fields, no attacker-controlled free text), so the injection surface the §5.2.1 redesign closes is not reachable here, and genesis-critical bytes stay stable.\end{quote}
 
 
 Every \texttt{accord:invoke:*} Contribution signs the following canonical bytes (BOTH the discriminator AND a per-invocation nonce are in the signed payload — preventing CONSTITUTIONAL ↔ notify ↔ drill cross-replay):
@@ -3783,7 +3809,7 @@ All CEG endpoints return:
 
 \begin{itemize}\setlength\itemsep{0pt}
 \item \textbf{Content-Type}: \texttt{application/json} (\texttt{Accept: application/json} honored; other types respond \texttt{406 Not Acceptable})
-\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{0.18}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{1.0-rc1}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 \item \textbf{Time-Source header}: \texttt{X-CEG-Server-Time: <rfc3339\_canonical>} per §0.5 for client clock-skew bounds
 \item \textbf{Pagination} (where applicable): \texttt{?cursor=} + \texttt{?limit=} query params; response includes \texttt{next\_cursor} (null if exhausted) and \texttt{total\_estimate} (server's best estimate, may be approximate)
 \end{itemize}
@@ -3891,6 +3917,11 @@ On admission of a Contribution C with cohort_scope in {self, family}:
             IF kem is None OR kem.ml_kem_768 invalid:
                 # FAIL-SECURE: no valid v2 wrap target ? EXCLUDE r from the grant.
                 # MUST NOT fall back to plaintext or to wrap_algorithm v1.
+                # NOT SILENT (1.0-RC1, #71 C3): emit hard_case:recipient_excluded:{scope_key_id}
+                #   (S7.7) INTO the self/family scope -- recipient r, reason in
+                #   {expired_occurrence, invalid_kem_key, missing_encryption_pubkeys},
+                #   + the skipped Contribution's envelope ref. Scoped to the cohort;
+                #   never federates beyond it (S10.1.4 invisibility preserved).
                 skip r   # content stays encrypted + unreachable to r until r registers encryption_pubkeys
             ELSE:
                 substrate MUST wrap C's DEK via key_grant (S5.6.8.4, wrap_algorithm v2 -- S8.1.12.4)
@@ -3904,6 +3935,9 @@ On admission of a Contribution C with cohort_scope in {self, family}:
 
 
 \textbf{Recipient encryption-key resolution + fail-secure exclusion (CEG 0.18 — CIRISPersist\#192 / \#69).} The wrap target is \textbf{not} a recipient's signing key. \texttt{wrap\_algorithm: v2} needs the recipient's \texttt{\{x25519, ml\_kem\_768\}} \textbf{content-KEM} keys, which the recipient self-certifies via its \texttt{identity\_occurrence.encryption\_pubkeys} (§5.6.8.8.2); the substrate resolves them by \texttt{resolve\_encryption\_keys(key\_id)} = the recipient's current (non-superseded, within-\texttt{valid\_until}) occurrence → its \texttt{encryption\_pubkeys}. Because this layer \textbf{mandates v2}, a recipient whose current occurrence carries **no valid ML-KEM-768 key MUST be fail-secure *excluded*** from the grant — the content remains encrypted and unreachable to it; the substrate MUST NOT fall back to plaintext or to \texttt{wrap\_algorithm: v1}. To be an at-rest-encryption recipient, an identity MUST have a federation-present occurrence carrying \texttt{encryption\_pubkeys}. This is the non-maleficence / fail-secure default: a missing key denies access, never downgrades the protection.
+
+
+\textbf{Exclusion MUST NOT be silent (1.0-RC1 — \#71 C3).} A bare \texttt{skip} makes a fail-secure exclusion indistinguishable from "the family went quiet" — a soft-censorship vector for a buggy or malicious substrate, and a contradiction of the spec's own \texttt{hard\_case:*} attestability grain. On every fail-secure skip the substrate MUST emit **\texttt{hard\_case:recipient\_excluded:\{scope\_key\_id\}}\textbf{ (§7.7) }into the affected self/family scope itself** — carrying the excluded recipient's \texttt{key\_id}, a \texttt{reason} from the closed set \texttt{\{expired\_occurrence, invalid\_kem\_key, missing\_encryption\_pubkeys\}}, and the skipped Contribution's envelope ref — so the excluded member (who still sees cohort-scoped attestations) has something to audit and remediate. The event is cohort-scoped: it MUST NOT federate beyond the self/family (the §10.1.4 invisibility promise is preserved; the \textit{fact} of the family's content is not leaked by its exclusion events).
 
 
 \textbf{Locality dividend} (cewp claim): the structural invisibility mechanism is \textit{why} \textasciitilde{}65\% of activity stays local in the cewp scaling model — \texttt{cohort\_scope: self|family} content is the bulk of daily activity (family photos, personal notes, in-household device chatter), and that bulk never federates. Operators do not configure this; the wire format enforces it.
@@ -4245,10 +4279,16 @@ Stream/epoch-addressed grant supersession (CEG 0.10) & \texttt{(stream\_id, epoc
 {\footnotesize
 \begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
 \textbf{Trigger} & \textbf{Behavior} & \textbf{Forward-secrecy implication} \\ \hline\endhead
-Member removal & \textbf{MANDATORY rotation} — the forward-only-unsubscribe enforcement & Subsequent epochs sealed under a DEK the removed member doesn't have \\ \hline
+Member removal & \textbf{MANDATORY rotation} (coalesced per below; exempt for ungated public broadcasts per below) — the forward-only-unsubscribe enforcement & Subsequent epochs sealed under a DEK the removed member doesn't have \\ \hline
 Member addition & NO rotation + Option-A catch-up per §11.7.1 (subject to \texttt{history\_on\_join}) & New member gets \texttt{key\_grant}s for the current epoch + (optionally) prior epochs per the \texttt{history\_on\_join} envelope field (§4) \\ \hline
 Time / bytes & Optional hygiene rotation & Operator policy; default off \\ \hline
 \end{longtable}}
+
+
+\textbf{Removal coalescing (normative — 1.0-RC1, \#71 C1).} At broadcast scale, naive per-removal rotation is unaffordable: at N = 10⁶ and realistic audience churn (\textasciitilde{}30\%/hr), one rotation per departure ≈ 83 epochs/s → a flat-unicast cascade of \textbf{\textasciitilde{}3.1 Tbps — exceeding the \textasciitilde{}2 Tbps content fan-out itself} (the original model's 3,600/hr churn figure understated broadcast churn by \textasciitilde{}2 orders of magnitude). The substrate therefore MUST \textbf{coalesce removals}: all removals admitted within one STH cadence window \textbf{T (default 2 s, the §10.5.4 equivocation-window grain)} are batched into a \textbf{single} epoch rotation covering the whole batch. This caps the rotation rate at 1/T \textbf{regardless of churn} (≤ 1,800 epochs/hr at T = 2 s → \textasciitilde{}18.7 Gbps flat-unicast cascade at N = 10⁶, \textasciitilde{}0.9\% of content fan-out — the headline restored honestly), and bounds removed-viewer exposure to ≤ T — the same grain the stream's equivocation window already accepts. A removed member's exposure window is therefore \texttt{≤ T}, never "until the next scheduled rotation."
+
+
+\textbf{Public-broadcast exemption (normative).} A \texttt{live\_stream} whose roster is \textbf{ungated} — \texttt{listed: public} AND grants issued to any requester without an admission ceremony — carries \textbf{no confidentiality claim against departed viewers} (anyone, including the departed viewer, can re-subscribe and receive the current DEK on request). For such streams, member removal MUST NOT force rotation (it buys nothing and costs the full cascade); the time/bytes hygiene rotation and the §10.5.2 nonce-space bounds still apply. Rotation-on-removal remains \textbf{MANDATORY for every gated roster} (bounded membership, admission ceremony, or any non-public \texttt{listed} state) — there the DEK \textit{is} the access-control boundary and the forward-only-unsubscribe guarantee is real.
 
 
 \textbf{Rekey conforms to MLS TreeKEM (RFC 9420, normative).} The epoch-DEK rekey on member change is the MLS TreeKEM construction: an O(log N) path rekey, the commit signed once, with RFC 9420 blank-node / unmerged-leaf handling and parent-hash tree integrity. The hybrid KEM (X25519+ML-KEM-768) is the MLS ciphersuite's HPKE KEM.
@@ -5144,7 +5184,7 @@ G3 — Narrow-cell fresh-quorum recusal & \textbf{MITIGATED} & §8.1.5 locality-
 v1.4 T-3 \#1 testimonial\_witness:\{kind\} & \textbf{CLOSED} via §5.6.3 new prefix; opened to open vocabulary in CEG 0.1. &  \\ \hline
 v1.4 T-3 \#2 labor:individual\_loss & \textbf{CLOSED by documentation}. Existing \texttt{non\_maleficence:*} with \texttt{target\_key\_id = affected\_individual} + \texttt{witness\_relation: external} carries the per-individual claim. &  \\ \hline
 v1.4 T-3 \#5 Constitutional-constraint grounding & \textbf{CLOSED in §1.2 prose}. Wire stays tradition-multiplicity-neutral per §1.3.1. &  \\ \hline
-0.1-CRIT canonical-bytes newline-injection & \textbf{SCAFFOLDED} in §5.2.1 with 0.2 redesign committed (TupleHash128 + domain-separation labels) &  \\ \hline
+0.1-CRIT canonical-bytes newline-injection & \textbf{CLOSED at 1.0-RC1} in §5.2.1: contracts redesigned to JCS (RFC 8785) objects with a pinned \texttt{domain} member (TupleHash128 retired — one canonicalization family; JSON escaping structurally removes the newline surface) &  \\ \hline
 0.1-CRIT supersedes/withdraws/recants ordering & \textbf{CLOSED} in §6.1 precedence rule + idempotency dedup &  \\ \hline
 0.1-CRIT cell\_pool < min\_pool cliff & \textbf{CLOSED} in §8.1.5.1 sub-quorum fallback paths &  \\ \hline
 0.1-CRIT no RFC 2119 anchor & \textbf{CLOSED} in §0.1 &  \\ \hline
@@ -5202,7 +5242,7 @@ v1.4 T-3 \#5 Constitutional-constraint grounding & \textbf{CLOSED in §1.2 prose
 {\footnotesize
 \begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
 \textbf{Item} & \textbf{Why deferred} \\ \hline\endhead
-Canonical-bytes redesign (TupleHash128 + domain-separation labels) & Phase B 0.2 commitment per CEG 0.1 review \\ \hline
+\textasciitilde{}\textasciitilde{}Canonical-bytes redesign\textasciitilde{}\textasciitilde{} & \textbf{RESOLVED at 1.0-RC1}: §5.2.1 v2 = JCS objects + \texttt{domain} member (TupleHash128 retired; \#57 blocker A closed) \\ \hline
 Per-platform hardware-attestation chain verification (TPM quote, Apple attestation, FIDO attestation) & Phase D 1.x roadmap per R5 \\ \hline
 Multi-party witness directory admission (2-of-3 steward sign-off) & Phase C 0.2 commitment per §10.3 \\ \hline
 Machine-readable namespace manifest (\texttt{FSD/CEG/dimensions.json}) & Phase E 0.2 commitment per §12.4 \\ \hline

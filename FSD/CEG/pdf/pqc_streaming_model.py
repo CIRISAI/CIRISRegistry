@@ -123,6 +123,17 @@ def sth_pull_bw_bps(N, epoch_rate_hz):
     """Broadcast pull: each subscriber pulls the per-epoch STH (cacheable)."""
     return N * STH * 8 * epoch_rate_hz
 
+CHURN_REALISTIC_PER_HOUR_FRAC = 0.30   # ~30%/hr broadcast-audience churn (1.0-RC1 / #71 C1 correction;
+                                        # the original 3600/hr at N=1M = 0.36%/hr understated by ~2 orders)
+STH_CADENCE_T_S = 2.0                   # removal-coalescing window (== STH cadence, SS10.5.3 normative)
+
+def coalesced_epoch_rate_hz(N, churn_frac_per_hour, T_s=STH_CADENCE_T_S):
+    """SS10.5.3 removal coalescing: all removals within one STH window batch into ONE
+    rotation -> epoch rate is min(raw removal rate, 1/T), i.e. capped at 1/T regardless
+    of churn. listed:public ungated rosters are exempt entirely (rate ~ 0)."""
+    raw = N * churn_frac_per_hour / 3600.0
+    return min(raw, 1.0 / T_s)
+
 def total_egress_mbps(bitrate_mbps, N, churn_per_hour, mode="flat_unicast"):
     """Total producer/substrate egress (Mbps) for a stream of N viewers."""
     epoch_rate_hz = churn_per_hour / 3600.0    # member-removal forces an epoch (§10.5.3)

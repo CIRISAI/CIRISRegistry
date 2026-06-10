@@ -11,7 +11,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 All CEG endpoints return:
 
 - **Content-Type**: `application/json` (`Accept: application/json` honored; other types respond `406 Not Acceptable`)
-- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `0.18`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc1`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 - **Time-Source header**: `X-CEG-Server-Time: <rfc3339_canonical>` per [§0.5](00_conformance.md) for client clock-skew bounds
 - **Pagination** (where applicable): `?cursor=` + `?limit=` query params; response includes `next_cursor` (null if exhausted) and `total_estimate` (server's best estimate, may be approximate)
 
@@ -95,6 +95,11 @@ On admission of a Contribution C with cohort_scope ∈ {self, family}:
             IF kem is None OR kem.ml_kem_768 invalid:
                 # FAIL-SECURE: no valid v2 wrap target ⇒ EXCLUDE r from the grant.
                 # MUST NOT fall back to plaintext or to wrap_algorithm v1.
+                # NOT SILENT (1.0-RC1, #71 C3): emit hard_case:recipient_excluded:{scope_key_id}
+                #   (§7.7) INTO the self/family scope — recipient r, reason ∈
+                #   {expired_occurrence, invalid_kem_key, missing_encryption_pubkeys},
+                #   + the skipped Contribution's envelope ref. Scoped to the cohort;
+                #   never federates beyond it (§10.1.4 invisibility preserved).
                 skip r   # content stays encrypted + unreachable to r until r registers encryption_pubkeys
             ELSE:
                 substrate MUST wrap C's DEK via key_grant (§5.6.8.4, wrap_algorithm v2 — §8.1.12.4)
@@ -106,6 +111,8 @@ On admission of a Contribution C with cohort_scope ∈ {self, family}:
 **Composition with at-rest encryption flow** (CIRISPersist#152): when self/family at-rest encryption is enabled, persist wraps the DEK (`wrap_algorithm: v2`) under each currently-admitted `identity_occurrence`'s `occurrence_key_id` (self) or each `member.key_id` in the named family's roster (family). New occurrence / new family-member admission triggers retroactive `key_grant` emission for all extant `cohort_scope: self|family` content (the "I bought a new phone and want my Twitter history" / "I added Carol to the household" flows from §5.6.8.9 worked example).
 
 **Recipient encryption-key resolution + fail-secure exclusion (CEG 0.18 — [CIRISPersist#192](https://github.com/CIRISAI/CIRISPersist/issues/192) / [#69](https://github.com/CIRISAI/CIRISRegistry/issues/69)).** The wrap target is **not** a recipient's signing key. `wrap_algorithm: v2` needs the recipient's `{x25519, ml_kem_768}` **content-KEM** keys, which the recipient self-certifies via its `identity_occurrence.encryption_pubkeys` ([§5.6.8.8.2](05_namespace.md)); the substrate resolves them by `resolve_encryption_keys(key_id)` = the recipient's current (non-superseded, within-`valid_until`) occurrence → its `encryption_pubkeys`. Because this layer **mandates v2**, a recipient whose current occurrence carries **no valid ML-KEM-768 key MUST be fail-secure *excluded*** from the grant — the content remains encrypted and unreachable to it; the substrate MUST NOT fall back to plaintext or to `wrap_algorithm: v1`. To be an at-rest-encryption recipient, an identity MUST have a federation-present occurrence carrying `encryption_pubkeys`. This is the [non-maleficence / fail-secure default](../../CLAUDE.md): a missing key denies access, never downgrades the protection.
+
+**Exclusion MUST NOT be silent (1.0-RC1 — [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C3).** A bare `skip` makes a fail-secure exclusion indistinguishable from "the family went quiet" — a soft-censorship vector for a buggy or malicious substrate, and a contradiction of the spec's own `hard_case:*` attestability grain. On every fail-secure skip the substrate MUST emit **`hard_case:recipient_excluded:{scope_key_id}`** ([§7.7](07_reserved.md)) **into the affected self/family scope itself** — carrying the excluded recipient's `key_id`, a `reason` from the closed set `{expired_occurrence, invalid_kem_key, missing_encryption_pubkeys}`, and the skipped Contribution's envelope ref — so the excluded member (who still sees cohort-scoped attestations) has something to audit and remediate. The event is cohort-scoped: it MUST NOT federate beyond the self/family (the §10.1.4 invisibility promise is preserved; the *fact* of the family's content is not leaked by its exclusion events).
 
 **Locality dividend** (cewp claim): the structural invisibility mechanism is *why* ~65% of activity stays local in the cewp scaling model — `cohort_scope: self|family` content is the bulk of daily activity (family photos, personal notes, in-household device chatter), and that bulk never federates. Operators do not configure this; the wire format enforces it.
 
@@ -348,9 +355,13 @@ The stream-epoch DEK seals content **O(1)**; the per-subscriber `key_grant` casc
 
 | Trigger | Behavior | Forward-secrecy implication |
 |---|---|---|
-| Member removal | **MANDATORY rotation** — the forward-only-unsubscribe enforcement | Subsequent epochs sealed under a DEK the removed member doesn't have |
+| Member removal | **MANDATORY rotation** (coalesced per below; exempt for ungated public broadcasts per below) — the forward-only-unsubscribe enforcement | Subsequent epochs sealed under a DEK the removed member doesn't have |
 | Member addition | NO rotation + Option-A catch-up per [§11.7.1](11_governance.md) (subject to `history_on_join`) | New member gets `key_grant`s for the current epoch + (optionally) prior epochs per the `history_on_join` envelope field ([§4](04_envelope.md)) |
 | Time / bytes | Optional hygiene rotation | Operator policy; default off |
+
+**Removal coalescing (normative — 1.0-RC1, [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C1).** At broadcast scale, naive per-removal rotation is unaffordable: at N = 10⁶ and realistic audience churn (~30%/hr), one rotation per departure ≈ 83 epochs/s → a flat-unicast cascade of **~3.1 Tbps — exceeding the ~2 Tbps content fan-out itself** (the original model's 3,600/hr churn figure understated broadcast churn by ~2 orders of magnitude). The substrate therefore MUST **coalesce removals**: all removals admitted within one STH cadence window **T (default 2 s, the [§10.5.4](#1054-per-stream-transparency--sth--receipts-v3-lock) equivocation-window grain)** are batched into a **single** epoch rotation covering the whole batch. This caps the rotation rate at 1/T **regardless of churn** (≤ 1,800 epochs/hr at T = 2 s → ~18.7 Gbps flat-unicast cascade at N = 10⁶, ~0.9% of content fan-out — the headline restored honestly), and bounds removed-viewer exposure to ≤ T — the same grain the stream's equivocation window already accepts. A removed member's exposure window is therefore `≤ T`, never "until the next scheduled rotation."
+
+**Public-broadcast exemption (normative).** A `live_stream` whose roster is **ungated** — `listed: public` AND grants issued to any requester without an admission ceremony — carries **no confidentiality claim against departed viewers** (anyone, including the departed viewer, can re-subscribe and receive the current DEK on request). For such streams, member removal MUST NOT force rotation (it buys nothing and costs the full cascade); the time/bytes hygiene rotation and the [§10.5.2](#1052-chunk-sealing--stream-nonce-v2-lock) nonce-space bounds still apply. Rotation-on-removal remains **MANDATORY for every gated roster** (bounded membership, admission ceremony, or any non-public `listed` state) — there the DEK *is* the access-control boundary and the forward-only-unsubscribe guarantee is real.
 
 **Rekey conforms to MLS TreeKEM ([RFC 9420](https://www.rfc-editor.org/rfc/rfc9420), normative).** The epoch-DEK rekey on member change is the MLS TreeKEM construction: an O(log N) path rekey, the commit signed once, with RFC 9420 blank-node / unmerged-leaf handling and parent-hash tree integrity. The hybrid KEM (X25519+ML-KEM-768) is the MLS ciphersuite's HPKE KEM.
 

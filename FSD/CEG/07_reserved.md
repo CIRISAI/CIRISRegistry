@@ -73,6 +73,7 @@ Per [§5.6.8.8](05_namespace.md) `identity_occurrence` + [§5.6.8.9](05_namespac
 | `hard_case:family_membership_change:{family_key_id}` | Substrate admits an addition or removal in the named family's roster (per the family's `consensus_protocol`) | Same: substrate_persist |
 | `hard_case:family_consensus_protocol_change:{family_key_id}` | Substrate admits a `consensus_protocol` amendment on a non-entrenched family | Same: substrate_persist |
 | `hard_case:family_consensus_protocol_violation:{family_key_id}` | Substrate REJECTS a proposed amendment (rule unsatisfied OR entrenched) | Same: substrate_persist |
+| `hard_case:recipient_excluded:{scope_key_id}` | Substrate fail-secure-skips a recipient in the [§10.1.4](10_endpoints.md) at-rest grant cascade (1.0-RC1, [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C3). Payload: excluded recipient `key_id`, `reason ∈ {expired_occurrence, invalid_kem_key, missing_encryption_pubkeys}`, skipped Contribution's envelope ref. **Cohort-scoped: emitted INTO the affected self/family scope; MUST NOT federate beyond it** — the excluded member can audit; the federation learns nothing (§10.1.4 invisibility preserved). | Same: substrate_persist |
 
 Composes with [§7.2](#72-substrate-self-report-reservations-system) — these are part of the same substrate-self-report discipline. Non-substrate emissions on these prefixes are a category error and MUST be rejected.
 

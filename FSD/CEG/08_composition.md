@@ -517,6 +517,8 @@ Each of the three Self-at-login Contributions is hybrid-signed over `JCS(envelop
 
 Registry owns these member sets (this section); Verify computes `JCS(...)` + the hybrid Ed25519+ML-DSA-65 signature over each via `jcs::canonicalize` ([CIRISVerify#59](https://github.com/CIRISAI/CIRISVerify/issues/59)); the promotion signature ([§10.1.5.3](10_endpoints.md) OQ-4) is the identical JCS bytes — confirmed.
 
+**`encryption_pubkeys` joins member set (c) (1.0-RC1 — [CIRISVerify#64](https://github.com/CIRISAI/CIRISVerify/issues/64)).** When the occurrence carries the [§5.6.8.8.2](05_namespace.md) `encryption_pubkeys` field-set, both halves are **inside the signed JCS bytes** as opaque base64 strings (RFC 4648 STANDARD, padded — the [§0.9.2.1](00_conformance.md) rule-2 pin). Optional presence rides the §0.9.2 omit rule (absent unless the producer sets it; the signer MUST NOT re-default). They are payload, never verification material — neither half may be fed to a signature-verify path (the §5.6.8.8.2 key-separation rule, type-enforced in Verify).
+
 ### §8.1.13 Policy M — Community membership composition (CEG 0.8 addition)
 
 Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48) + [§5.6.8.10](05_namespace.md) `community` + [§5.6.8.11](05_namespace.md) `location_proof`. Composition pattern for resolving the **current membership set** of a community, gating cohort-filtered visibility for `cohort_scope: community` content.

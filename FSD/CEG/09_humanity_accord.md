@@ -18,6 +18,8 @@ Three named human key holders. Initial state at federation genesis:
 
 Hardware-attested (per [§9.4](#94-hardware-class-taxonomy) hardware_class taxonomy). Permanent: no automatic decay; replacement requires out-of-band CIRIS L3C process per FEDERATION_ANNOUNCEMENT.md §4.5.3.
 
+**Correlated-failure geometry (named honestly — 1.0-RC1, [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C5):** two of the three holders share a household, so the 2-of-3 quorum is physically achievable from one street address — a correlated compromise/coercion surface that entrenchment makes harder to correct later. The authority at stake is the **full constitutional kill** (`EmergencyShutdown CONSTITUTIONAL` — not a recoverable pause), so the exposure is real and is not softened here; what scope isolation ([§9.2](#92-authority-scope)) does guarantee is that compromise cannot escalate *beyond* the kill — accord keys cannot sign grants, licenses, or amendments. **The mitigant is diversifying the holder set: finding new holders** (via the out-of-band replacement process, FEDERATION_ANNOUNCEMENT.md §4.5.3) so that no household — and ultimately no single jurisdiction — can assemble the quorum. This is an active obligation on CIRIS L3C, not a deferred nice-to-have.
+
 **The HUMANITY_ACCORD triple is the canonical entrenched-`family` instance (CEG 0.7 retcon).** Per [§5.6.8.9](05_namespace.md), the accord-holder triple structurally IS a `family` subject_kind with:
 
 ```
@@ -42,7 +44,7 @@ The 2-of-3 multi-sig verifier at [§9.2.1](#921-invocation-canonical-bytes-anti-
 
 ### §9.2.1 Invocation canonical bytes (anti-replay; 0.1 scaffold)
 
-> **0.1 SCAFFOLD NOTE**: The discriminator + nonce binding below addresses the cross-invocation-replay hole identified by CEG 0.1 cryptographic + red-team review. 0.2 may refine the encoding when [§5.2.1](05_namespace.md) canonical-bytes redesigns to TupleHash128.
+> **RESOLVED at 1.0-RC1**: the discriminator + nonce binding below addresses the cross-invocation-replay hole identified by CEG 0.1 cryptographic + red-team review. The anticipated [§5.2.1](05_namespace.md) refinement landed as the **JCS redesign** (TupleHash128 retired — see §5.2.1); this invocation encoding is **intentionally NOT migrated**: its preimage is closed-vocabulary (discriminator + nonce + enum fields, no attacker-controlled free text), so the injection surface the §5.2.1 redesign closes is not reachable here, and genesis-critical bytes stay stable.
 
 Every `accord:invoke:*` Contribution signs the following canonical bytes (BOTH the discriminator AND a per-invocation nonce are in the signed payload — preventing CONSTITUTIONAL ↔ notify ↔ drill cross-replay):
 

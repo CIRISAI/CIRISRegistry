@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble an exhaustively-complete CEG 0.18 PDF from the markdown spec.
+"""Assemble an exhaustively-complete CEG 1.0-RC1 PDF from the markdown spec.
 No pandoc available -> a focused markdown->LaTeX converter for this spec's
 subset (headings, pipe tables, code fences, lists, inline bold/italic/code/links,
 blockquotes), pdflatex + newunicodechar for the 42 special glyphs.
@@ -161,13 +161,13 @@ PREAMBLE = r'''\documentclass[10pt]{article}
 \setlength{\parindent}{0pt}\setlength{\parskip}{4pt}
 \renewcommand{\arraystretch}{1.15}
 ''' + nuc_lines + r'''
-\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 0.18 (Public Working Draft) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
+\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 1.0-RC1 (Release Candidate --- wire surface frozen) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
 \author{CIRIS Federation --- generated from \texttt{FSD/CEG/}}
 \date{2026-06-06}
 \begin{document}
 \maketitle
 \begin{abstract}\noindent
-This document is the complete CEG 0.18 wire-format specification (the 1+4
+This document is the complete CEG 1.0-RC1 wire-format specification (the 1+4
 minimal-and-adequate attestation grammar), assembled from the 18-section source
 plus the version-history overview. It opens with a quantitative model of
 PQC-native streaming video --- bandwidth and lag --- under CEG \S10.5, isolating
@@ -235,19 +235,32 @@ ML-KEM-768 ciphertext & 1{,}088 & FIPS 203\\\hline
 AES-256-GCM content overhead is 0.0015\% at a 1 MiB chunk. At scale the dominant
 cost is unicast content replication (e.g.\ $\sim$2 Tbps for 1M viewers at 2 Mbps),
 which is the CDN / broadcast-relay-tree problem (1.x), independent of crypto.
-\item \textbf{The PQC ``long tail'' is the per-rekey key cascade under churn --- and
-the delivery model is decisive.} Each member-removal forces an epoch rotation
-(\S10.5.3 forward-secrecy). Three regimes (N=1M, churn=3600/hr, hybrid grant 4.56
-KiB; TreeKEM commit signed once, $\sim$1.2 KiB/node, depth$=$20): \textbf{(a) flat,
-unicast --- O(N) --- $\sim$37 Gbps} (member-specific grants cannot multicast); this is
-the 1.0 shape, still $<$2\% of content fan-out. \textbf{(b) tree, multicast --- O(log
-N) --- $\sim$0.22 Mbps} --- the 1.x lever, but \emph{cheap only if efficient multicast
-exists}. \textbf{(c) tree, unicast --- O(N log N) --- $\sim$219 Gbps --- WORSE than
-flat.} So the tree's entire advantage is multicast aggregation; over a unicast
-RET mesh, flat is competitive-to-better. Whether efficient multicast exists over
-the mesh is exactly the open transport question of \S0.4. \emph{(Earlier drafts of
-this model used $\log^2$ and quoted $\sim$15 Mbps --- an error; corrected to the
-standard MLS TreeKEM O(log N), and the delivery assumption is now explicit.)}
+\item \textbf{The PQC ``long tail'' is the per-rekey key cascade under churn ---
+and \emph{removal coalescing}, not delivery topology, is what makes it
+affordable.} Each \emph{gated-roster} member-removal forces an epoch rotation
+(\S10.5.3 forward-secrecy). \textbf{Churn honesty (1.0-RC1 correction, \#71 C1):}
+earlier drafts modeled churn$=$3{,}600/hr at N$=$1M (0.36\%/hr) --- $\sim$2 orders
+below realistic broadcast-audience churn ($\sim$30\%/hr). At 30\%/hr with naive
+per-removal rotation the flat-unicast cascade is $\sim$\textbf{3.1 Tbps ---
+exceeding the $\sim$2 Tbps content fan-out itself}; the ``cascade $<$2\% of
+content'' headline does NOT survive realistic churn unmitigated. The normative
+mitigations (\S10.5.3): \textbf{(i) removal coalescing} --- all removals within
+one STH window (T$=$2 s) batch into ONE rotation, capping the epoch rate at 1/T
+\emph{regardless of churn} ($\leq$1{,}800 epochs/hr $\rightarrow$ $\sim$18.7 Gbps
+flat-unicast at N$=$1M, $\sim$0.9\% of content fan-out; removed-viewer exposure
+$\leq$ 2 s --- the grain the equivocation window already accepts); \textbf{(ii)
+the public-broadcast exemption} --- an ungated \texttt{listed:public} roster has
+no confidentiality claim against departed viewers, so removal forces no rotation
+at all. With coalescing the three delivery regimes (hybrid grant 4.56 KiB;
+TreeKEM commit $\sim$1.2 KiB/node, depth$=$20) keep their shape: \textbf{(a)
+flat, unicast --- O(N) --- $\sim$18.7 Gbps} (the 1.0 shape); \textbf{(b) tree,
+multicast --- O(log N) --- $\sim$0.1 Mbps} --- the 1.x lever, \emph{cheap only if
+efficient multicast exists}; \textbf{(c) tree, unicast --- O(N log N) --- WORSE
+than flat.} The tree's advantage remains multicast aggregation; whether efficient
+multicast exists over the mesh is the open transport question of \S0.4.
+\emph{(Two published self-corrections now stand in this item: the
+$\log^2$/15 Mbps asymptotic error, and the 3{,}600/hr churn understatement ---
+both caught in review, both kept on record per the \S1.4 honesty discipline.)}
 Fig.~\ref{fig:cascade}.
 \item \textbf{Lag is transport-bound, not crypto-bound.} Per-chunk AES seal/open
 is $\sim$$\mu$s; the ML-KEM-768 DEK decap is $\sim$30 $\mu$s \emph{once per epoch}.
@@ -375,5 +388,5 @@ if __name__ == "__main__":
         body.append(convert(md))
         body.append(r'\clearpage')
     body.append(r'\end{document}')
-    (D/'ceg-0.18.tex').write_text('\n'.join(body), encoding='utf-8')
-    print('wrote ceg-0.18.tex (%d files)' % len(FILES))
+    (D/'ceg-1.0-rc1.tex').write_text('\n'.join(body), encoding='utf-8')
+    print('wrote ceg-1.0-rc1.tex (%d files)' % len(FILES))
