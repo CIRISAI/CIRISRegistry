@@ -340,7 +340,12 @@ key_grant {
     recipient_key_id:         key_id                  // the federation_keys row receiving the DEK
     content_sha256:           sha256_hex_lowercase    // the content this DEK decrypts
     scope:                    GrantScope              // closed-set enum per below
-    wrapped_dek:              base64url               // the DEK encrypted under recipient's pubkey
+    wrapped_dek:              base64url               // the DEK encrypted under recipient's ENCRYPTION pubkeys.
+                                                       // For wrap_algorithm v2 (substrate-wraps, §10.1.4), the
+                                                       // recipient's {x25519, ml_kem_768} come from its current
+                                                       // identity_occurrence.encryption_pubkeys (§5.6.8.8.2) —
+                                                       // NOT its signing keys. A recipient with no registered
+                                                       // ML-KEM key is fail-secure excluded (§5.6.8.8.2 / §10.1.4).
     key_validity_window: {
         start:                rfc3339_canonical       // per §0.5
         end:                  Option<rfc3339_canonical>
@@ -483,9 +488,18 @@ identity_occurrence {
     hardware_attestation:   Option<base64>      // TPM / Secure Enclave / StrongBox / SGX
                                                  //   etc. attestation blob; null for software-only
     transport_destination:  Option<TransportDestination>  // CEG 0.12 — Reticulum binding (below)
+    encryption_pubkeys:     Option<EncryptionPubkeys>      // CEG 0.18 — content-KEM keys (§5.6.8.8.2 below);
+                                                            //   present ⇒ this occurrence is a v2 wrap target
     asserted_at:            rfc3339_canonical   // per §0.5
     valid_until:            Option<rfc3339>     // null = indefinite
 }
+
+EncryptionPubkeys (CEG 0.18 addition — the recipient content-encryption KEM binding; §5.6.8.8.2):
+| field                | type      | meaning                                                        |
+|----------------------|-----------|----------------------------------------------------------------|
+| x25519_base64        | [u8; 32]  | classical KEM half — a FRESH content-KEM key (NOT the signing  |
+|                      |           |   key, NOT the transport x25519 below — see key-separation)    |
+| ml_kem_768_base64    | [u8; ~1184] | PQC KEM half (FIPS 203, ML-KEM-768)                          |
 
 TransportDestination (CEG 0.12 addition — the authenticated identity↔address binding):
 | field                     | type      | meaning                                               |
@@ -532,6 +546,24 @@ Per [CIRISRegistry#56](https://github.com/CIRISAI/CIRISRegistry/issues/56) + [CI
 **Conformance**: a Consumer resolving a member's address MUST verify (1) the `identity_occurrence` signature against the member's federation key, (2) that `destination_hash` derives from `reticulum_x25519_pubkey ‖ reticulum_ed25519_pubkey ‖ app_name ‖ aspects` per the RNS rule (no free-floating hash), and (3) the occurrence is non-superseded + within `valid_until` at resolution time. An unauthenticated announce (no matching signed `transport_destination`) is **advisory-only** — usable as a routing hint, never as an authorization. Rotating the Reticulum destination (new transport identity) is a new `identity_occurrence` `supersedes`-ing the prior — location changes without touching federation identity or community membership.
 
 **1+4 lockdown preserved**: `transport_destination` is one optional field on the existing `identity_occurrence` subject_kind. No new structural primitive, no new subject_kind. Twelfth path ([§1.4](01_foundation.md)) — the wire format expresses **its own addressing layer** (DNS-free, self-certifying member resolution) by composition.
+
+##### §5.6.8.8.2 `encryption_pubkeys` — the recipient content-encryption KEM binding (CEG 0.18 addition)
+
+Per [CIRISPersist#192](https://github.com/CIRISAI/CIRISPersist/issues/192) + [CIRISRegistry#69](https://github.com/CIRISAI/CIRISRegistry/issues/69). The [§10.1.4](10_endpoints.md) at-rest DEK cascade is **substrate-wraps-by-default**: the substrate generates the per-write DEK and wraps it to each active recipient. That wrap (`wrap_algorithm: v2`, §5.6.8.4) needs each recipient's **x25519 + ML-KEM-768 encryption** keys — but the federation directory's key registration carries only **signing** keys (Ed25519 + ML-DSA-65), and **ML-KEM cannot be derived from ML-DSA** (independent algorithms). So recipients must register encryption keys, and the substrate must resolve them by `key_id`. `encryption_pubkeys` is that binding.
+
+**The binding rides `identity_occurrence`, exactly parallel to `transport_destination`.** It inherits the same four properties, already enforced, that an encryption-key binding requires:
+1. **Self-certified** — admitted only when `attesting_key_id == identity_key_id` (or a current occurrence of it), so "these are identity K's encryption keys" is cryptographically proven, not trust-on-first-use. A spoofer cannot forge it.
+2. **Hybrid-signed** (Ed25519 + ML-DSA-65) — the binding itself is PQC-signed.
+3. **Rotatable via `supersedes`** — a new `identity_occurrence` superseding the prior rotates the KEM keys **without touching the stable signing `key_id`** that anchors every attestation/grant. A compromised ML-KEM key rotates for forward secrecy; the signing identity is untouched. (Bundling these onto the signing key registration would couple two independent rotation lifecycles — the reason this is NOT a field on the key record.)
+4. **Already cross-region replicated** — `identity_occurrence` is `EnvelopeKind::IdentityOccurrence` in the locked replication wire ([CIRISEdge#65](https://github.com/CIRISAI/CIRISEdge/issues/65)), so the encryption pubkeys propagate inside the occurrence envelope that already replicates — **no new replication kind, no Edge wire change.** A cross-region recipient's keys resolve wherever its occurrence has propagated. (Encryption *pubkeys* are public → cleartext directory replication is correct, exactly as for signing keys.)
+
+**Key separation (normative — never reuse).** The `x25519` here is a **fresh content-KEM key**, distinct from BOTH (a) the occurrence's signing keys AND (b) the Reticulum transport x25519 in [§5.6.8.8.1](#5688-1-transport_destination--the-authenticated-identityaddress-binding-ceg-012-addition) `destination_hash = hash(x25519 ‖ ed25519)` (that is the *RET-link* transport key, classical-only, AV-17 — the federation seed never enters the transport layer, and the transport key never wraps content DEKs). Three key *purposes* — signing, RET-transport, content-KEM — are three distinct keypairs. Deriving the content-KEM x25519 from either of the others is a conformance violation (cross-protocol key reuse).
+
+**These feed `wrap_algorithm: v2` directly.** `{x25519, ml_kem_768}` are precisely the recipient inputs to `x25519_mlkem768_aes256_gcm_hkdf_sha256` ([§5.6.8.4](#5684-governance-subject_kinds-ceg-03-addition-per-cirisregistry37--38)). A consumer/substrate resolving a recipient's wrap target reads the **current (non-superseded, within-`valid_until`) `identity_occurrence` for that `key_id` → its `encryption_pubkeys`** (the `resolve_encryption_keys(key_id)` contract — [CIRISPersist#192](https://github.com/CIRISAI/CIRISPersist/issues/192)).
+
+**Fail-secure conformance (the [§10.1.4](10_endpoints.md) tie-in).** Because §10.1.4 *mandates* v2 for at-rest encryption, a recipient whose current occurrence carries **no valid ML-KEM-768 key is fail-secure *excluded* from the grant** — the content stays encrypted and unreachable to it; the substrate MUST NOT fall back to plaintext or to v1. To be an at-rest-encryption recipient, an identity MUST have a federation-present `identity_occurrence` carrying `encryption_pubkeys`. (This also resolves the "`family` member named only by `key_id` with no occurrence" case: no presence ⇒ no wrap target ⇒ excluded — correct, since there would be nowhere to deliver/store the wrapped DEK for a member that never established a presence.)
+
+**1+4 lockdown preserved**: `encryption_pubkeys` is one optional field-set on the existing `identity_occurrence` subject_kind. No new structural primitive, no new subject_kind, no new replication kind. Fifteenth path ([§1.4](01_foundation.md)) — the wire format expresses **its own at-rest-encryption key layer** (recipient KEM-key resolution for substrate-wraps) by composition.
 
 #### §5.6.8.9 `family` subject_kind (CEG 0.7 addition)
 

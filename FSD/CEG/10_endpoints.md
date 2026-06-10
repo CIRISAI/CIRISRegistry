@@ -11,7 +11,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 All CEG endpoints return:
 
 - **Content-Type**: `application/json` (`Accept: application/json` honored; other types respond `406 Not Acceptable`)
-- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `0.17`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `0.18`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 - **Time-Source header**: `X-CEG-Server-Time: <rfc3339_canonical>` per [§0.5](00_conformance.md) for client clock-skew bounds
 - **Pagination** (where applicable): `?cursor=` + `?limit=` query params; response includes `next_cursor` (null if exhausted) and `total_estimate` (server's best estimate, may be approximate)
 
@@ -88,14 +88,24 @@ On admission of a Contribution C with cohort_scope ∈ {self, family}:
         via any other directory or discovery surface
     # (2) AT-REST ENCRYPTION — the §8.1.12.4 cascade (defense-in-depth):
     WHEN self/family at-rest encryption is enabled for the deployment:
-        substrate MUST wrap C's DEK via key_grant (§5.6.8.4, wrap_algorithm v2 — §8.1.12.4) to:
-            - if cohort_scope == self:   all current identity_occurrences of C.attesting_key_id
-            - if cohort_scope == family: all current members of family per C.family_id
+        recipients := if cohort_scope == self:   all current identity_occurrences of C.attesting_key_id
+                      if cohort_scope == family: all current members of family per C.family_id
+        FOR each recipient r:
+            kem := resolve_encryption_keys(r.key_id)    # current occurrence's encryption_pubkeys (§5.6.8.8.2)
+            IF kem is None OR kem.ml_kem_768 invalid:
+                # FAIL-SECURE: no valid v2 wrap target ⇒ EXCLUDE r from the grant.
+                # MUST NOT fall back to plaintext or to wrap_algorithm v1.
+                skip r   # content stays encrypted + unreachable to r until r registers encryption_pubkeys
+            ELSE:
+                substrate MUST wrap C's DEK via key_grant (§5.6.8.4, wrap_algorithm v2 — §8.1.12.4)
+                    to kem.{x25519, ml_kem_768}
 ```
 
 **Two layers, not one (normative split — clarified per CIRISPersist#152 review).** (1) **Structural invisibility** — suppressing `holds_bytes:sha256:*` + non-propagation beyond scope — is the **unconditional** privacy promise (the cewp "the wire format can't carry them" claim); it holds even when the at-rest bytes are plaintext, because no discovery attestation federates. (2) **At-rest encryption** — the §8.1.12.4 DEK cascade — is **defense-in-depth** (against local-disk forensics / host operator / cloud-substrate operator, the CIRISPersist#152 threat table); it is operator-policy and MAY default off as a v1 migration posture, **but when enabled MUST use `wrap_algorithm: v2` (hybrid PQC, §8.1.12.4)** — never v1. The 1.0 / CEG-RET-native target is at-rest-on for self/family (the "everything PQC at rest" standard).
 
 **Composition with at-rest encryption flow** (CIRISPersist#152): when self/family at-rest encryption is enabled, persist wraps the DEK (`wrap_algorithm: v2`) under each currently-admitted `identity_occurrence`'s `occurrence_key_id` (self) or each `member.key_id` in the named family's roster (family). New occurrence / new family-member admission triggers retroactive `key_grant` emission for all extant `cohort_scope: self|family` content (the "I bought a new phone and want my Twitter history" / "I added Carol to the household" flows from §5.6.8.9 worked example).
+
+**Recipient encryption-key resolution + fail-secure exclusion (CEG 0.18 — [CIRISPersist#192](https://github.com/CIRISAI/CIRISPersist/issues/192) / [#69](https://github.com/CIRISAI/CIRISRegistry/issues/69)).** The wrap target is **not** a recipient's signing key. `wrap_algorithm: v2` needs the recipient's `{x25519, ml_kem_768}` **content-KEM** keys, which the recipient self-certifies via its `identity_occurrence.encryption_pubkeys` ([§5.6.8.8.2](05_namespace.md)); the substrate resolves them by `resolve_encryption_keys(key_id)` = the recipient's current (non-superseded, within-`valid_until`) occurrence → its `encryption_pubkeys`. Because this layer **mandates v2**, a recipient whose current occurrence carries **no valid ML-KEM-768 key MUST be fail-secure *excluded*** from the grant — the content remains encrypted and unreachable to it; the substrate MUST NOT fall back to plaintext or to `wrap_algorithm: v1`. To be an at-rest-encryption recipient, an identity MUST have a federation-present occurrence carrying `encryption_pubkeys`. This is the [non-maleficence / fail-secure default](../../CLAUDE.md): a missing key denies access, never downgrades the protection.
 
 **Locality dividend** (cewp claim): the structural invisibility mechanism is *why* ~65% of activity stays local in the cewp scaling model — `cohort_scope: self|family` content is the bulk of daily activity (family photos, personal notes, in-household device chatter), and that bulk never federates. Operators do not configure this; the wire format enforces it.
 
