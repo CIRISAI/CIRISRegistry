@@ -11,7 +11,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 All CEG endpoints return:
 
 - **Content-Type**: `application/json` (`Accept: application/json` honored; other types respond `406 Not Acceptable`)
-- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc1`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc2`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 - **Time-Source header**: `X-CEG-Server-Time: <rfc3339_canonical>` per [§0.5](00_conformance.md) for client clock-skew bounds
 - **Pagination** (where applicable): `?cursor=` + `?limit=` query params; response includes `next_cursor` (null if exhausted) and `total_estimate` (server's best estimate, may be approximate)
 
@@ -177,6 +177,21 @@ The tier model is the *same KEM-then-symmetric placement* the streaming model us
 - **promotion**: one hybrid Ed25519+ML-DSA-65 sign (~the §10.5-model per-op cost; ML-DSA-65 sign ~330 µs) + JCS canonicalization — only at the federation-emit moment, never per local write.
 - **query**: the [§4](04_envelope.md)/DAS scope-filtered read; cost is the predicate + index, independent of tier.
 - **observability for modeling**: `local` row count, promotion rate, and `hard_case:consent_revocation_promotion_overdue` count are the three measurable signals; the §10.1.3 24-hour window is the one tunable. A model of a federation's attestation load is therefore *(local-write rate, promotion rate, query rate)* with promotion carrying the only asymmetric-crypto cost — the dual of the streaming model's epoch-rekey tail.
+
+### §10.1.6 Cross-region merge intents — CEG-declared per subject_kind (normative; CEG 1.0-RC2 addition)
+
+Per [CIRISRegistry#70](https://github.com/CIRISAI/CIRISRegistry/issues/70) (Persist review concern D): with operational data joining the CEG-native replication stream ([§5.6.8.13](05_namespace.md)), the substrate runs **more than one merge policy**. The policy is a **normative property of the subject_kind, declared here** — the substrate reads and dispatches on the declaration; it MUST NOT infer policy per record type (the substrate enforces declared merges; it does not invent policy).
+
+| subject_kind(s) | Merge intent | Semantics |
+|---|---|---|
+| `organization`, `org_membership` | **`lww_skew_bounded` + `withdrawal_forward_only`** | Stable-id grouping ([§5.6.8.13](05_namespace.md)); an admitted `withdraws` (deactivation) is forward-only — a later non-withdrawn write does NOT resurrect; else latest `asserted_at` wins; tie-break smallest `attestation_id` ([§6.1](06_relations.md)). The forward-only here is the **lightweight authz flag**, NOT the [§8.1.12](08_composition.md) DEK-cascade crypto path — Commons tier, no DEK exists. |
+| `partner_record` | **`monotonic_quorum`** (the CIRISPersist V058 R1/Q1 machinery, generalized from `revoked_key_id` to `license_id`) | Admission anti-rollback first: a write whose `revision` decreases never enters the merge. Then the `MergeBallot` comparator: `quorum_weight` → signed timestamp → content hash. Quorum-above-time is deliberate — it neutralizes timestamp front-running (F-AV-FRONTRUN) on the records where it matters most. More-restrictive state wins on conflict: `revoked` > `suspended` > `active`. |
+| `revocation` + the three membership-revocations | V058 R1/Q1 (unchanged — the original `monotonic_quorum` instance) | As shipped. |
+| keys / attestations / occurrences / families / communities / location_proofs | Content-addressed idempotent admission (unchanged) | Same content → same `envelope_hash` → dedup; rotation collisions rejected non-destructively. |
+
+**Skew-bounded admission (normative — the LWW front-running fix, [#70](https://github.com/CIRISAI/CIRISRegistry/issues/70) Persist concern B).** For every subject_kind merging by `lww_skew_bounded`, the substrate MUST reject at admission any envelope with `asserted_at > now + tolerance`, where `tolerance` is the [§0.7](00_conformance.md) clock-skew bound (±5 minutes; the existing `CLOCK_SKEW_VIOLATION` error class). Without this, a signer with a forward-skewed clock future-dates `asserted_at` and wins LWW indefinitely; with it, a forward-dated write can win for at most the skew window. This matters precisely because `org_membership` carries `role: OrgAdmin` — unbounded LWW on authz data is a role-escalation surface.
+
+**The two quorums (restated from [§5.6.8.13](05_namespace.md) — different layers, different owners):** the **steward-signature admission quorum** (M-of-N signature set over identical JCS bytes; the [§5.6.8.10](05_namespace.md) founder-quorum machinery at admit — Verify's layer) is NOT the **region merge quorum** (`quorum_weight`, the `MergeBallot` tier-1 ordering above — the substrate's layer). The substrate's merge logic never counts steward signatures; Verify's admission check never orders merges.
 
 ## §10.2 Multi-steward + accord-holder discovery
 

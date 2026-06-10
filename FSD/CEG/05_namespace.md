@@ -1009,6 +1009,78 @@ settlement {
 
 **1+4 lockdown preserved**: `settlement` rides existing `scores` attestation_type with subject_kind discriminator; `settlement_ref` rides the existing `evidence_refs[]` external-reference pattern; binding rides existing `topical_relation` / `subject_key_ids`; visibility rides existing `cohort_scope`. **Zero new structural primitives.** Fourteenth path ([§1.4](01_foundation.md)) — the wire format expresses **commerce-relationship auditability** (the receipt, not the rail) as composition, closing the last form of internet traffic from the completeness audit (CIRISRegistry#59).
 
+#### §5.6.8.13 Operational-data subject_kinds — `organization` / `org_membership` / `partner_record` (CEG 1.0-RC2 addition)
+
+Per [CIRISRegistry#70](https://github.com/CIRISAI/CIRISRegistry/issues/70) (design + three-sided federation review: Edge / Verify / Persist) under the [CIRISRegistry#58](https://github.com/CIRISAI/CIRISRegistry/issues/58) Spock-removal epic. Cross-region **operational Portal data** — organizations, memberships, licenses/partners — becomes signed CEG envelopes replicated by the same anti-entropy carrier as trust data ([CIRISEdge#65](https://github.com/CIRISAI/CIRISEdge/issues/65) v2 wire, `WIRE_PROTOCOL_VERSION 0x02`). This is the **one scheduled additive item** on the 1.0-RC1 frozen surface (README freeze declaration).
+
+**Governing principle (normative): federate the trust/authz-minimal projection; everything else stays region-local.** The federated envelope carries only what the federation needs to enforce trust and authorization cross-region. PII and business detail live in the Registry's own per-region store (today's Portal tables), are NEVER emitted into an operational envelope, and never federate. **Projection minimization is the Registry's emit-side discipline — the Registry is the security-boundary owner**; the substrate's role is admission + merge, and it is explicitly NOT a PII filter (it stores what is signed and emitted).
+
+All three ride existing `scores` + subject_kind discriminator. **Replication wire tokens (normative, snake_case): `organization` · `org_membership` · `partner_record`** — the Edge v2 `EnvelopeKind` additions; v2 `envelope_hash` basis = `sha256(JCS(inner envelope))` per [§0.9](00_conformance.md)/[§0.9.2.1](00_conformance.md). All three are **Commons tier** ([§8.1.13.3](08_composition.md)) — plaintext at rest; the projection is world-readable by design.
+
+```
+organization {
+    org_id:           uuid          // FIRST-CLASS: substrate MUST index as a row column (stable-id resolution below)
+    name:             string
+    org_type:         OrgType       // internal | partner | licensee | community (the proto enum)
+    parent_org_id:    Option<uuid>  // licensee under partner
+    partner_id:       Option<uuid>  // link to partner_record
+    status:           active | suspended | deactivated
+    asserted_at:      rfc3339_canonical          // per §0.5; LWW ordering field
+    valid_until:      Option<rfc3339_canonical>
+}
+// REGION-LOCAL (never federates): tax_id, billing/technical/compliance/primary emails,
+// oauth_provider/oauth_domain, metadata, created_by.
+
+org_membership {
+    user_id:          uuid          // FIRST-CLASS (with org_id): substrate MUST index (user_id, org_id)
+    org_id:           uuid
+    role:             OrgAdmin | KeyManager | Operator | Viewer
+    status:           active | deactivated
+    asserted_at:      rfc3339_canonical
+    valid_until:      Option<rfc3339_canonical>
+}
+// REGION-LOCAL (never federates): the entire User PII record — email, name,
+// oauth_provider/oauth_subject, last_login_at, mfa_enabled/mfa_method, invited_by.
+// Consequence: role-based authz works federation-wide; email→user login resolution
+// is home-region-local.
+
+partner_record {
+    license_id:       uuid          // FIRST-CLASS: substrate MUST index as a row column
+    partner_id:       uuid
+    org_id:           uuid
+    license_type:     LicenseType   // community | community_plus | professional_* | professional_full
+    capabilities_granted:  [string]   // SET-SEMANTICS → lexicographically sorted (§0.9.2.1 rule 1)
+    capabilities_denied:   [string]   // SET-SEMANTICS → sorted
+    max_autonomy_tier:     A0..A4
+    requires_supervisor:   bool
+    geographic_restrictions: [string] // ISO country codes; SET-SEMANTICS → sorted
+    allowed_identity_templates: [string] // SET-SEMANTICS → sorted
+    deployment_limit:      u32
+    offline_grace_hours:   u32
+    status:           active | suspended | revoked
+    revision:         u64           // MONOTONIC per license_id — admission REJECTS any decrease
+                                    //   (the F-AV-ROLLBACK discipline; the merge orders on this,
+                                    //   so a stale `active` can never overwrite a revoke)
+    issued_at:        rfc3339_canonical
+    expires_at:       rfc3339_canonical
+    asserted_at:      rfc3339_canonical
+}
+// No PII split — the partner_record IS the world-verifiable grant; it federates whole.
+```
+
+**Set-semantics declaration (normative — the [#70](https://github.com/CIRISAI/CIRISRegistry/issues/70) Verify catch).** `capabilities_granted[]` / `capabilities_denied[]` / `geographic_restrictions[]` / `allowed_identity_templates[]` are **set-semantics → lexicographically sorted by JCS string form ([§0.9.2.1](00_conformance.md) rule 1)** — and this is *more* than a single-signer determinism rule here: `partner_record` is signed by **M distinct stewards**, and the M-of-N quorum verifies only if all M sign **byte-identical** JCS canonical bytes. Unsorted capability arrays make two stewards who agree on the same grant produce different bytes — the quorum silently collapses and the license fails to admit cross-region. The [CIRISConformance#9](https://github.com/CIRISAI/CIRISConformance/issues/9) vector set MUST include the M-of-N identical-bytes round-trip (M independent canonicalize+sign of one grant → one verifiable signature set). Any unordered list inside a constraints object carries the same declaration.
+
+**No payment-processor data (normative — fail-secure).** An operational envelope MUST NOT carry Stripe-derived or any payment-processor-derived data (customer ids, subscription ids, charge refs, card metadata) — **including via any open-vocabulary field**. Substrate admission MUST reject an operational envelope carrying recognizable payment-processor identifiers (defense-in-depth; the Registry's emit-side minimization is the primary control). Billing remains entirely Portal+Stripe, off-wire ([CLAUDE.md](../../CLAUDE.md) discipline; consistent with [§5.6.8.12](#56812-settlement--cegvalue-transfer-linkage-ceg-014-addition) keeping value-transfer rails off-wire).
+
+**Write authority — two shapes, two verifiers (normative).**
+- `organization` / `org_membership`: **single authorized signer, role-gated** — the envelope is admitted iff `attesting_key_id` holds the required role for the operation, established by a prior non-superseded `org_membership` (rooted at org creation by a steward/system authority). Verification reuses the **[§8.1.12.7.1](08_composition.md) `delegates_to` role-chain resolver** (CIRISVerify#63) — explicitly NOT founder-quorum; implementers MUST NOT build a third bespoke path.
+- `partner_record`: **M-of-N steward quorum** — the signature *set* over the identical JCS bytes is verified at admission by the **[§5.6.8.10](#56810-community-subject_kind-ceg-08-addition) founder-quorum machinery** (`verify_founder_quorum`, CIRISVerify#31). Professional capability grants are federation-wide; a single compromised key MUST NOT be able to forge one.
+- **The two quorums are distinct (normative — do not conflate):** (1) the **steward-signature admission quorum** above (signer authority, verified by Verify at admit) and (2) the **region merge quorum** (`quorum_weight`, the substrate `MergeBallot` tier-1 ordering during cross-region merge — [§10.1.6](10_endpoints.md)). Different mechanisms, different layers, different owners; the substrate's merge logic never counts steward signatures.
+
+**Mutability + current-state resolution (normative — stable-id grouping, NOT chain-walk).** Updates ride `supersedes`; deactivation/revocation rides `withdraws` (the [§5.6.8.5](#5685-event-lifecycle-dimension-families-ceg-04-addition) `event_listing` state-machine pattern). **Current state of a business id is resolved by stable-id grouping**: group all envelopes by the first-class business id (`org_id` / `(user_id, org_id)` / `license_id`) → apply `withdraws` forward-only → latest `asserted_at` (skew-bounded per [§10.1.6](10_endpoints.md)) → tie-break smallest `attestation_id` (the [§6.1](06_relations.md) discipline). For `partner_record`, admission anti-rollback on `revision` precedes the [§10.1.6](10_endpoints.md) quorum merge. Resolution MUST NOT require chain completeness — a region that never observed envelope N−1 still converges (partition tolerance is the point of CEG-native replication). `supersedes` references SHOULD be emitted when the prior is known and serve as **audit lineage only** — decoration, never resolution.
+
+**1+4 lockdown preserved**: three new subject_kinds ride existing `scores` + subject_kind discriminator; lifecycle rides existing `supersedes`/`withdraws`; license authority rides the existing §5.6.8.10 founder-quorum machinery; role authority rides the existing §8.1.12.7.1 delegation resolver; merge intents are substrate dispatch declarations ([§10.1.6](10_endpoints.md)), not wire primitives. **Zero new structural primitives.** Sixteenth path ([§1.4](01_foundation.md)) — the wire format expresses **the federation's own operational/administrative layer** (the org/identity/license records that run the federation's business) as composition, completing the Spock-removal arc: after this, no cross-region byte moves outside a signed CEG envelope.
+
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 
 **Owner**: [`RATCHET/FSD.md`](https://github.com/CIRISAI/RATCHET/blob/main/FSD.md).

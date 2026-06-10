@@ -1,24 +1,26 @@
-\documentclass[10pt]{article}
-\usepackage[a4paper,margin=2cm]{geometry}
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=2.4cm]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{newunicodechar}
 \usepackage{amssymb,amsmath}
-\usepackage{longtable}
-\usepackage{array}
-\usepackage{graphicx}
+\usepackage{longtable,array,booktabs}
 \usepackage{listings}
 \usepackage{xcolor}
+\definecolor{accent}{HTML}{2a4d69}
 \usepackage[hidelinks]{hyperref}
-\usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta,fit,backgrounds}
 \usepackage{titlesec}
-\titleformat{\section}{\Large\bfseries\color{black!80}}{}{0pt}{}
-\lstset{basicstyle=\ttfamily\scriptsize,breaklines=true,columns=fullflexible,
-        frame=single,framerule=0.2pt,rulecolor=\color{black!25},
-        backgroundcolor=\color{black!3},xleftmargin=4pt,aboveskip=4pt,belowskip=4pt}
-\setlength{\parindent}{0pt}\setlength{\parskip}{4pt}
-\renewcommand{\arraystretch}{1.15}
+\titleformat{\section}{\LARGE\bfseries\color{accent}}{}{0pt}{}[\vspace{2pt}\hrule]
+\titleformat{\subsection}{\large\bfseries\color{accent!85}}{}{0pt}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{}{0pt}{}
+\titlespacing*{\section}{0pt}{16pt}{8pt}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,
+        frame=leftline,framerule=1pt,rulecolor=\color{accent!40},
+        backgroundcolor=\color{accent!4},xleftmargin=8pt,aboveskip=6pt,belowskip=6pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{6pt}
+\linespread{1.05}
+\renewcommand{\arraystretch}{1.25}
+\usepackage{sectsty}
 \newunicodechar{§}{\S}
 \newunicodechar{—}{---}
 \newunicodechar{→}{$\rightarrow$}
@@ -61,350 +63,42 @@
 \newunicodechar{≫}{$\gg$}
 \newunicodechar{≈}{$\approx$}
 \newunicodechar{🔴}{[\textbullet]}
-\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 1.0-RC1 (Release Candidate --- wire surface frozen) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
-\author{CIRIS Federation --- generated from \texttt{FSD/CEG/}}
-\date{2026-06-06}
+\title{\vspace{-1cm}\Huge\bfseries\color{accent}CEG\\[6pt]\LARGE The CIRIS Epistemic Grammar\\[14pt]
+\normalsize\mdseries Version 1.0-RC2 --- Reader Edition\\[2pt]
+\itshape a signed, compositional graph language for claims, relationships, authority,\\
+membership, consent, governance, addressing, and settlement across a decentralized network}
+\author{}\date{2026-06-10}
 \begin{document}
-\maketitle
-\begin{abstract}\noindent
-This document is the complete CEG 1.0-RC1 wire-format specification (the 1+4
-minimal-and-adequate attestation grammar), assembled from the 18-section source
-plus the version-history overview. It opens with a quantitative model of
-PQC-native streaming video --- bandwidth and lag --- under CEG \S10.5, isolating
-the scale ``long tail'' (the per-epoch O(N) key cascade and the transport-bound
-realtime lag), then presents the normative spec in full.
-\end{abstract}
-\tableofcontents
+\maketitle\thispagestyle{empty}
+\begin{quote}\itshape This is the human-reading edition: version history, per-path narrative, and
+provenance cross-references are omitted for readability. The canonical working draft
+(with full lineage) is the markdown source and \texttt{ceg-1.0-rc2.pdf}. Conformance is
+judged against the normative wire surface only (\S0.1.1).\end{quote}
 \clearpage
-
-
-\section*{0. PQC Streaming Video --- Bandwidth/Lag Model (``the toy'')}
-\addcontentsline{toc}{section}{0. PQC Streaming Bandwidth/Lag Model}
-
-An analytical, parametric model of CEG \S10.5 streaming under the mandatory PQC
-envelope (\S10.5.3 \texttt{wrap\_algorithm:v2} = X25519+ML-KEM-768; \S10.5.2
-AES-256-GCM chunk seal; hybrid Ed25519+ML-DSA-65 signatures). Every constant is
-sourced from the spec or the relevant FIPS standard. \textbf{The single free
-parameter is Reticulum transport RTT/throughput} --- CEG defers transport to RET,
-so this is the one empirical input that turns the parametric model into concrete
-numbers.
-
-\subsection*{0.1 The CEG/RET vs TCP/IP stack}
-\begin{center}
-\begin{tikzpicture}[node distance=2pt,
-  layer/.style={draw,rounded corners,minimum width=5.4cm,minimum height=0.72cm,align=center,font=\footnotesize},
-  ceg/.style={layer,fill=blue!8}, ip/.style={layer,fill=black!5}]
-\node[ip] (app2) {Application (HTTP/SMTP/RTP\ldots)};
-\node[ip,below=of app2] (tls) {TLS / PKI (X.509 CA)};
-\node[ip,below=of tls] (tcp) {TCP / UDP};
-\node[ip,below=of tcp] (ip) {IP / DNS / BGP};
-\node[ip,below=of ip] (link2) {Link (Ethernet/Wi-Fi/\ldots)};
-\node[font=\small\bfseries,above=6pt of app2] {TCP/IP stack};
-\node[ceg,right=2.4cm of app2] (ceg) {CEG --- 1+4 attestation grammar\\(\S3 + \S5 namespace)};
-\node[ceg,below=of ceg] (deliv) {Delivery axis \S10.5\\(stream/epoch DEK, STH, receipts)};
-\node[ceg,below=of deliv] (res) {Resolution \S8.13.1.1\\(community $\rightarrow$ member $\rightarrow$ dest)};
-\node[ceg,below=of res] (ret) {Reticulum (RET)\\dest-hash, announce, Links};
-\node[ceg,below=of ret] (link3) {Link (LoRa/TCP/serial/\ldots)};
-\node[font=\small\bfseries,above=6pt of ceg] {CEG/RET stack};
-\draw[-Latex] (ceg)--(deliv); \draw[-Latex] (deliv)--(res); \draw[-Latex] (res)--(ret); \draw[-Latex] (ret)--(link3);
-\end{tikzpicture}
-\end{center}
-
-\noindent Trust is intrinsic (signed quorum), not bolted on: \textbf{PKI/CA $\rightarrow$ hybrid
-signatures + founder-quorum}; \textbf{DNS $\rightarrow$ \texttt{resolve\_community}};
-\textbf{A-record $\rightarrow$ signed \texttt{transport\_destination}}; \textbf{IP routing
-$\rightarrow$ RET announce/path-request}.
-
-\subsection*{0.2 Per-message PQC sizes (derived)}
-\begin{center}\footnotesize
-\begin{tabular}{|l|r|l|}\hline
-\textbf{Object} & \textbf{Bytes} & \textbf{Composition}\\\hline
-Hybrid epoch-DEK grant (v2) & 4{,}669 & X25519 32 + ML-KEM-768 ct 1088 + wrapped DEK 48 + hybrid sig 3373 + env 128\\\hline
-Per-stream STH & 3{,}485 & root 32 + sizes 16 + log\_id 64 + hybrid sig 3373\\\hline
-AES-GCM tag / 1 MiB chunk & 16 & 0.0015\% content overhead\\\hline
-ML-DSA-65 sig / Ed25519 sig & 3{,}309 / 64 & FIPS 204 / RFC 8032\\\hline
-ML-KEM-768 ciphertext & 1{,}088 & FIPS 203\\\hline
-\end{tabular}
-\end{center}
-
-\subsection*{0.3 Findings}
-\begin{enumerate}\setlength\itemsep{2pt}
-\item \textbf{PQC is not the bandwidth bottleneck --- content fan-out is.} The
-AES-256-GCM content overhead is 0.0015\% at a 1 MiB chunk. At scale the dominant
-cost is unicast content replication (e.g.\ $\sim$2 Tbps for 1M viewers at 2 Mbps),
-which is the CDN / broadcast-relay-tree problem (1.x), independent of crypto.
-\item \textbf{The PQC ``long tail'' is the per-rekey key cascade under churn ---
-and \emph{removal coalescing}, not delivery topology, is what makes it
-affordable.} Each \emph{gated-roster} member-removal forces an epoch rotation
-(\S10.5.3 forward-secrecy). \textbf{Churn honesty (1.0-RC1 correction, \#71 C1):}
-earlier drafts modeled churn$=$3{,}600/hr at N$=$1M (0.36\%/hr) --- $\sim$2 orders
-below realistic broadcast-audience churn ($\sim$30\%/hr). At 30\%/hr with naive
-per-removal rotation the flat-unicast cascade is $\sim$\textbf{3.1 Tbps ---
-exceeding the $\sim$2 Tbps content fan-out itself}; the ``cascade $<$2\% of
-content'' headline does NOT survive realistic churn unmitigated. The normative
-mitigations (\S10.5.3): \textbf{(i) removal coalescing} --- all removals within
-one STH window (T$=$2 s) batch into ONE rotation, capping the epoch rate at 1/T
-\emph{regardless of churn} ($\leq$1{,}800 epochs/hr $\rightarrow$ $\sim$18.7 Gbps
-flat-unicast at N$=$1M, $\sim$0.9\% of content fan-out; removed-viewer exposure
-$\leq$ 2 s --- the grain the equivocation window already accepts); \textbf{(ii)
-the public-broadcast exemption} --- an ungated \texttt{listed:public} roster has
-no confidentiality claim against departed viewers, so removal forces no rotation
-at all. With coalescing the three delivery regimes (hybrid grant 4.56 KiB;
-TreeKEM commit $\sim$1.2 KiB/node, depth$=$20) keep their shape: \textbf{(a)
-flat, unicast --- O(N) --- $\sim$18.7 Gbps} (the 1.0 shape); \textbf{(b) tree,
-multicast --- O(log N) --- $\sim$0.1 Mbps} --- the 1.x lever, \emph{cheap only if
-efficient multicast exists}; \textbf{(c) tree, unicast --- O(N log N) --- WORSE
-than flat.} The tree's advantage remains multicast aggregation; whether efficient
-multicast exists over the mesh is the open transport question of \S0.4.
-\emph{(Two published self-corrections now stand in this item: the
-$\log^2$/15 Mbps asymptotic error, and the 3{,}600/hr churn understatement ---
-both caught in review, both kept on record per the \S1.4 honesty discipline.)}
-Fig.~\ref{fig:cascade}.
-\item \textbf{Lag is transport-bound, not crypto-bound.} Per-chunk AES seal/open
-is $\sim$$\mu$s; the ML-KEM-768 DEK decap is $\sim$30 $\mu$s \emph{once per epoch}.
-Glass-to-glass lag is dominated by chunk/segment duration, STH cadence (T=2s for
-accountable broadcast), and \textbf{Reticulum Link RTT}. Fig.~\ref{fig:lag}.
-\item \textbf{Join cost is dominated by RNS path-setup, not the handshake.} The
-hybrid KEX (ML-KEM encap+decap) + signature verify are sub-millisecond; RNS path
-establishment is the variable. Fig.~\ref{fig:join}.
-\end{enumerate}
-
-\subsection*{0.4 Do we have enough detail? (yes, parametrically)}
-\textbf{Sufficient and pinned:} all crypto sizes (FIPS 203/204, RFC 8032), the
-AES-GCM chunk overhead, cadence constants (K=64, T=2s, MAX\_CHUNKS/epoch=$2^{24}$,
-1 MiB chunk), and cascade complexity (flat O(N), tree O(log N) with multicast, O(N log N) without).
-\textbf{Parametric (RC1-7 unratified):} K, T, MAX\_CHUNKS --- the model is a
-function of them. \textbf{The one missing empirical input:} Reticulum transport
-characteristics (Link RTT, throughput, MTU, path-setup time) per interface ---
-CEG defers transport to RET, so the lag term is a free parameter. Over IP-backed
-RNS, assume $\sim$internet RTT + small RNS overhead (realtime video feasible);
-over LoRa, seconds (realtime infeasible; store-and-forward only). \textbf{To go
-parametric $\rightarrow$ concrete, measure RNS Link RTT/throughput on the target
-interfaces.} The O($\log$N) tree (1.x) and SFU relay (1.x) are modelled with
-standard complexity, not yet spec-detailed.
-
-\subsection*{0.5 Comparison to other PQC streaming proposals}
-The modern E2E-media stack the industry is converging on is \textbf{MLS (group key,
-TreeKEM) + SFrame (per-frame AEAD) + hybrid-PQC KEM + PQC-TLS transport}; the
-crypto trio everyone lands on is \textbf{ML-KEM-768 + ML-DSA-65 + AES-256-GCM}
-(Zoom's shipped PQC E2EE; the Frontiers 2025 authenticated-PQC-session paper;
-NIST FIPS 203/204). \textbf{CEG \S10.5 is structurally the same stack} --- we
-independently arrived at the converged design, which is the strongest validation
-of the crypto choices.
-
-\begin{center}\scriptsize
-\begin{tabular}{|p{2.6cm}|p{2.4cm}|p{2.4cm}|p{2.4cm}|p{3.2cm}|}\hline
- & \textbf{Zoom PQC E2EE} & \textbf{MLS+SFrame (IETF)} & \textbf{WebRTC DTLS-SRTP} & \textbf{CEG \S10.5} \\\hline
-KEM & ML-KEM-768 & hybrid ML-KEM (agile) & (PQ-DTLS exploratory) & \textbf{hybrid X25519+ML-KEM-768} \\\hline
-Per-frame AEAD & AES-GCM & AES-GCM / CTR+HMAC & SRTP & AES-256-GCM (STREAM nonce) \\\hline
-Group rekey & key tree & \textbf{TreeKEM O(log N)} & n/a (SFU sees plaintext) & flat O(N) 1.0 $\rightarrow$ MLS-tree (RFC 9420) 1.x, multicast-dependent \\\hline
-Transparency log & none & none & none & \textbf{per-stream STH (RFC 6962) + receipts} \\\hline
-Identity / trust & Zoom accounts & app-supplied & X.509 / fingerprints & federation keys + founder-quorum, DNS-free \\\hline
-Topology & central SFU & delivery-service & SFU/P2P & RET mesh, no central server \\\hline
-Maturity & \textbf{shipped at scale} & \textbf{standardized} & \textbf{battle-tested} & pre-1.0 \\\hline
-\end{tabular}
-\end{center}
-
-\noindent\textbf{Where CEG is unique:} it composes media with the federation's
-transparency log + identity + governance + payments under \emph{one} grammar
-(the same 1+4 set), DNS-free over RET, no central server or CA --- the per-stream
-STH (anti-equivocation: a producer can't show different chunk-K to different
-viewers), delivery receipts, and settlement linkage have no equivalent in
-Zoom/MLS/SFrame. \textbf{Where CEG is behind (honest):} MLS \emph{ships} TreeKEM
-today (our O(log N) tree is 1.x); Zoom \emph{ships} PQC E2EE at scale; WebRTC's
-transport is battle-tested where RNS realtime media is unproven (our open
-RTT question). \textbf{Crib list} (\S0.7): adopt MLS TreeKEM (RFC 9420) verbatim
-for the 1.x tree rather than reinvent; consider SFrame framing to ride
-standardization; revisit the forward-only (no-PCS) choice against MLS's PCS.
-
-\subsection*{0.6 Concrete numbers from a transport profile}
-Feeding representative transport assumptions into the model (\texttt{concretize.py};
-replace with \texttt{rns\_transport\_bench.py} measurements):
-\begin{center}\footnotesize
-\begin{tabular}{|p{4.6cm}|r|r|r|l|}\hline
-\textbf{transport (RTT)} & \textbf{realtime call} & \textbf{broadcast} & \textbf{join} & \textbf{verdict}\\\hline
-IP-backed RNS, same region (35 ms) & 115 ms & 2.4 s & 71 ms & interactive-grade\\\hline
-IP-backed RNS, cross-region (140 ms) & 220 ms & 2.5 s & 282 ms & OK ($<$400 ms)\\\hline
-LoRa SF7 (1.2 s) & 1280 ms & 3.6 s & $\sim$10 s & store-and-forward only\\\hline
-\end{tabular}
-\end{center}
-\noindent Over IP-backed RNS, PQC realtime video is interactive-grade; the crypto
-contributes sub-millisecond. (Illustrative pending real RNS measurement.)
-
-\subsection*{0.7 Per-operation benchmark + crib findings}
-Measured here (pyca/cryptography); PQC rows from published liboqs (AVX2);
-cross-check target = ciris-crypto \texttt{benches/federation\_crypto.rs}.
-\begin{center}\footnotesize
-\begin{tabular}{|p{5.2cm}|r|r|l|}\hline
-\textbf{operation} & \textbf{$\mu$s/op} & \textbf{wire B} & \textbf{source}\\\hline
-X25519 ECDH & 23.2 & 32 & measured\\\hline
-Ed25519 sign / verify & 20 / 69 & 64 & measured\\\hline
-AES-256-GCM seal/open (1 MiB) & 144 / 141 & +16/chunk & measured (58 GB/s)\\\hline
-ML-KEM-768 encaps / decaps & $\sim$30 / $\sim$25 & ct 1088 & liboqs\\\hline
-ML-DSA-65 sign / verify & $\sim$330 / $\sim$110 & sig 3309 & liboqs\\\hline
-\end{tabular}
-\end{center}
-\noindent\textbf{The headline that answers ``isn't PQC slow E2E?'':} PQC
-\emph{compute} is comparable to classical (ML-KEM encaps $\sim$30 $\mu$s $\approx$
-X25519 23 $\mu$s); the cost is \emph{size} ($\sim$30--50$\times$). And CEG puts the
-asymmetric PQC on the per-\emph{epoch} cold path while every \emph{frame} rides
-AES-256-GCM ($\sim$58 GB/s, PQC-safe). ``PQC is slow E2E'' conflates size with
-compute; the KEM-then-symmetric placement (same as TLS-bulk, MLS+SFrame) defeats
-it. \textbf{Cribbed gotchas:} (1) \emph{multi-sender nonce reuse} --- in group
-video N senders share an epoch but each emits its own \texttt{stream\_id}, so the
-STREAM nonce prefix HKDF(epoch\_dek; stream\_id, epoch) is per-sender-unique
-(SFrame solves the same hazard with per-sender keys; our per-sender stream\_id is
-equivalent --- now explicit). (2) \emph{TreeKEM unmerged-leaves / double-join} ---
-adopt RFC 9420 handling wholesale in the 1.x tree. (3) \emph{PCS} --- MLS offers
-post-compromise security via key-updates; CEG chose forward-only (Option A);
-flagged for reconsideration.
-
-\begin{figure}[h]\centering
-\includegraphics[width=0.78\textwidth]{fig_cascade.pdf}
-\caption{Per-rekey PQC key cascade vs N under three delivery models. The tree wins ONLY with efficient multicast (b); without it (c) it is worse than flat. Delivery, not complexity, is decisive.}\label{fig:cascade}
-\end{figure}
-\begin{figure}[h]\centering
-\includegraphics[width=0.70\textwidth]{fig_overhead.pdf}
-\caption{PQC key+STH overhead as a share of egress --- content dominates; the key tail bites only at low bitrate $\times$ high churn $\times$ huge N.}\label{fig:overhead}
-\end{figure}
-\begin{figure}[h]\centering
-\includegraphics[width=0.78\textwidth]{fig_lag.pdf}
-\caption{Glass-to-glass lag vs Reticulum Link RTT (the free parameter). PQC adds $\sim\mu$s; transport sets the regime.}\label{fig:lag}
-\end{figure}
-\begin{figure}[h]\centering
-\includegraphics[width=0.70\textwidth]{fig_join.pdf}
-\caption{Stream/call join one-time cost --- RNS path setup dominates; crypto is sub-millisecond.}\label{fig:join}
-\end{figure}
+\tableofcontents
 \clearpage
 
 \section*{CEG — The CIRIS Epistemic Grammar}
 
 
-\textbf{Version}: 1.0-RC1 (Release Candidate — wire surface FROZEN)
+\textbf{Version}: 1.0-RC2 (Release Candidate — wire surface FROZEN; design surface COMPLETE)
 
-\textbf{Status}: Release Candidate (2026-06-10). \textbf{The wire surface is frozen at this cut}: implementers SHOULD pin RC1; any change between RC1 and 1.0 is a \textbf{found defect}, not design — the design surface is complete (fifteen §1.4 paths; no open design questions remain; \#57 blocker A closed at this cut via the §5.2.1 JCS redesign). \textbf{One scheduled addition stands between RC1 and 1.0}: the \#70 operational-data subject\_kinds (\texttt{organization} / \texttt{org\_membership} / \texttt{partner\_record}, the Spock-removal Phase 2 envelopes) land \textbf{additively} after federation review — new subject\_kinds, no change to anything frozen here. The \textbf{1.0 label} itself waits on the \#57 freeze gate: streaming substrate shipped (CIRISPersist\#142), Spock removed (\#58), conformance artifacts (OpenAPI + \texttt{dimensions.json}) generated from these frozen shapes, and \textbf{one full implementation cycle across Persist + NodeCore + Lens + Agent + Edge with no new wire-break}. That silence is the freeze signal; 1.0 is these bytes re-tagged.
+\textbf{Status}: Release Candidate (2026-06-10). \textbf{The wire surface is frozen} (since RC1) and — with this cut — \textbf{the design surface is complete}: the \#70 operational-data subject\_kinds were the one scheduled addition, and they have now landed additively (§5.6.8.13 + §10.1.6, the §1.4 sixteenth path) after three-sided federation review (Edge/Verify/Persist). \textbf{No further additions are scheduled.} Implementers SHOULD pin RC2; any change between RC2 and 1.0 is a \textbf{found defect}, not design. The \textbf{1.0 label} waits on the \#57 freeze gate: streaming substrate shipped (CIRISPersist\#142), Spock removed (\#58), conformance artifacts (OpenAPI + \texttt{dimensions.json}) generated from these frozen shapes, and \textbf{one full implementation cycle across Persist + NodeCore + Lens + Agent + Edge with no new wire-break}. That silence is the freeze signal; 1.0 is these bytes re-tagged.
 
 
-\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-1.0-rc1-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+\begin{quote}\itshape \textbf{Human-reading edition:} \texttt{pdf/ceg-1.0-rc2-reader.pdf} is the de-editorialized, deduplicated, human-first cut (version history, per-path narrative, and provenance cross-refs stripped). This source tree remains the canonical working draft and retains that lineage.\end{quote}
+
+
+\textbf{1.0-RC2 — operational-data envelopes (the scheduled additive cut; design surface complete)} (per \#70, under the \#58 Spock-removal epic; three-sided review Edge/Verify/Persist — zero blockers, zero new structural primitives confirmed): cross-region operational Portal data becomes signed CEG envelopes. \textbf{Three new subject\_kinds} (§5.6.8.13): \texttt{organization} · \texttt{org\_membership} · \texttt{partner\_record} (the Edge v2 \texttt{EnvelopeKind} wire tokens; v2 \texttt{envelope\_hash} = \texttt{sha256(JCS(envelope))}). \textbf{Governing principle}: federate the trust/authz-minimal projection; PII + business detail stay region-local (Registry emit-side discipline — the substrate is not a PII filter). \texttt{User} records do NOT federate — only the role binding does. \textbf{Authority}: org/membership = single-signer role-gated (the §8.1.12.7.1 delegation resolver — never founder-quorum); \texttt{partner\_record} = \textbf{M-of-N steward quorum} (§5.6.8.10 machinery) with the \textbf{admission quorum ≠ merge quorum} distinction normative. \textbf{Determinism}: capability/restriction arrays are set-semantics→sorted (M signers must converge on identical JCS bytes \textit{before} the quorum evaluates — the highest-value pin); \texttt{revision: u64} monotonic anti-rollback per license. \textbf{New §10.1.6}: CEG-declared per-subject\_kind merge intents (\texttt{lww\_skew\_bounded}+\texttt{withdrawal\_forward\_only} / \texttt{monotonic\_quorum} V058-generalized) + the §0.7 skew-bound at admission (closes the LWW role-escalation surface). \textbf{Stable-id resolution} (not chain-walk — partition tolerance); first-class indexed business-id columns. \textbf{No payment-processor data, normative + fail-secure.} Sixteenth path; no 1+4 change. Unblocks \#58 Phase 3 (de-Spock) + Edge v2 + Persist \texttt{put\_*} surfaces.
 
 
 \textbf{1.0-RC1 — the freeze cut} (per \#71 backwards-pass + CIRISVerify\#64 + \#57 blocker A): five honesty/safety patches + two pins + the canonical-bytes resolution, then freeze. \textbf{(C1)} §10.5.3 \textbf{removal coalescing} (all removals in one STH window T=2s batch into ONE rotation — caps the cascade at 1/T regardless of churn; the original model's 3,600/hr churn understated realistic broadcast churn \textasciitilde{}2 orders: naive 30\%/hr at N=1M ≈ 3.1 Tbps > the 2 Tbps content fan-out; coalesced ≈ 18.7 Gbps ≈ 0.9\%) + the \textbf{public-broadcast exemption} (ungated \texttt{listed:public} rosters: removal forces no rotation — no confidentiality claim against departed viewers). \textbf{(C2)} §5.6.8.8.2 forward-secrecy honesty: KEM rotation bounds \textit{future} exposure only; historical-content recovery requires DEK rotation + re-encryption, which is NOT mandated — named gap. \textbf{(C3)} §10.1.4 fail-secure exclusion is no longer silent: new §7.7 \texttt{hard\_case:recipient\_excluded:\{scope\}} emitted INTO the affected cohort (never federates beyond). \textbf{(C4)} §5.6.8.8.2 admission MUST-reject content-KEM x25519 == transport x25519. \textbf{(C5)} §9.1 names the two-holders-one-household correlated-failure geometry; authority is the full constitutional kill; the mitigant is \textbf{finding new holders} (active obligation). \textbf{Pins}: §0.9.2.1 base64 = RFC 4648 STANDARD padded (protocol-layer pin; CIRISVerify\#64); ML-KEM-768 pubkey = exactly 1184 B; \texttt{encryption\_pubkeys} joins the §8.1.12.7.1 member set (c); §5.6.8.4 crypto-agility headroom note (v3/ML-KEM-1024 additive). \textbf{Blocker A closed}: §5.2.1 provenance contracts redesigned to **JCS (RFC 8785) objects with pinned \texttt{domain} members\textbf{ — TupleHash128 retired (one canonicalization family); v1 newline forms deprecated-historical; §9.2.1 accord invocation intentionally unmigrated (closed-vocabulary preimage). }No 1+4 change.**
 
 
-\textbf{0.18 — recipient encryption-key registration} (per CIRISRegistry\#69 + CIRISPersist\#192): the §10.1.4 substrate-wraps DEK cascade (the 0.17 community + self/family tiers all rely on it) needs each recipient's \textbf{content-encryption} keys (x25519 + ML-KEM-768) — but the federation directory carries only \textbf{signing} keys (Ed25519 + ML-DSA-65), and ML-KEM is not derivable from ML-DSA. 0.18 adds the optional **\texttt{encryption\_pubkeys} field-set on \texttt{identity\_occurrence}** (§5.6.8.8.2), structurally parallel to \texttt{transport\_destination}: self-certified (\texttt{attesting\_key\_id == identity\_key\_id}), hybrid-signed, \texttt{supersedes}-rotatable (rotate a KEM key without touching the signing identity), and \textbf{already cross-region-replicated inside the occurrence envelope} (\texttt{EnvelopeKind::IdentityOccurrence}, CIRISEdge\#65) — so \textbf{no new replication kind, no Edge wire change}. These feed \texttt{wrap\_algorithm: v2} directly (§5.6.8.4). Adds the \textbf{fail-secure-exclusion} rule (§10.1.4): a recipient whose occurrence carries no valid ML-KEM key is \textit{excluded} from the grant (content stays encrypted) — never a plaintext or v1 fallback. \textbf{Key separation (normative):} the content-KEM x25519 is distinct from the signing keys AND from the Reticulum transport x25519 — three purposes, three keypairs, never reused. \textbf{No 1+4 change} — one optional field-set on an existing subject\_kind (§1.4 fifteenth path).
+\textbf{0.18 — recipient encryption-key registration}: the §10.1.4 substrate-wraps DEK cascade (the 0.17 community + self/family tiers all rely on it) needs each recipient's \textbf{content-encryption} keys (x25519 + ML-KEM-768) — but the federation directory carries only \textbf{signing} keys (Ed25519 + ML-DSA-65), and ML-KEM is not derivable from ML-DSA. 0.18 adds the optional **\texttt{encryption\_pubkeys} field-set on \texttt{identity\_occurrence}** (§5.6.8.8.2), structurally parallel to \texttt{transport\_destination}: self-certified (\texttt{attesting\_key\_id == identity\_key\_id}), hybrid-signed, \texttt{supersedes}-rotatable (rotate a KEM key without touching the signing identity), and \textbf{already cross-region-replicated inside the occurrence envelope} (\texttt{EnvelopeKind::IdentityOccurrence}, CIRISEdge\#65) — so \textbf{no new replication kind, no Edge wire change}. These feed \texttt{wrap\_algorithm: v2} directly (§5.6.8.4). Adds the \textbf{fail-secure-exclusion} rule (§10.1.4): a recipient whose occurrence carries no valid ML-KEM key is \textit{excluded} from the grant (content stays encrypted) — never a plaintext or v1 fallback. \textbf{Key separation (normative):} the content-KEM x25519 is distinct from the signing keys AND from the Reticulum transport x25519 — three purposes, three keypairs, never reused. \textbf{No 1+4 change} — one optional field-set on an existing subject\_kind (§1.4 fifteenth path).
 
 
 \textbf{0.17 — the three crypto tiers} (per CIRISRegistry\#67; the line is \textit{"does it have a bounded membership roster?"}): the ≤0.16 binary cut (self/family encrypt; everything else plaintext) is replaced by \textbf{self/family} (encrypted + structurally invisible) → \textbf{Community} (\texttt{community} / \texttt{affiliations}: encrypted under a \textbf{per-community DEK} + \texttt{holds\_bytes:*} with cleartext provenance — byte-confidential to members, discoverable by provenance) → \textbf{Commons} (\texttt{species} / \texttt{biosphere} / \texttt{federation}: plaintext, anyone inspects). The community DEK \textit{is} the §10.5.3 epoch-DEK cascade (one shared DEK, O(1)/emission, v2/PQC mandatory) — \textit{"a community is a stream its members subscribe to, cryptographically"} — refuting the 0.8 "infeasible" premise. \textbf{Mandatory, not opt-in} (the tier name is the guarantee; a persecuted community is protected by \textit{being} one). Adds the \textbf{holder-inspectability principle} (§8.1.13.3: nothing above local tier is a forced unattributable opaque blob) + two rulings: \texttt{cohort\_subkind: infrastructure} communities (\texttt{ciris-canonical}/governance) are the \textbf{plaintext Commons exception} (the trust root must be inspectable), and node→canonical conformance traces are \texttt{cohort\_scope: federation} (world-readable). Overturns §8.1.13.4 (community now has the removed-member problem → Option-A re-key). \textbf{No 1+4 change} — the community DEK is the existing epoch cascade applied to \texttt{cohort\_scope: community}.
-
-
-\textbf{0.16 is additive vs 0.15} — the agent-identity hardening + cross-impl byte-determinism wave (no wire-format change; all composition + canonicalization pins over the locked 1+4 set):
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item \textbf{§10.1.5 attestation tier model} — \texttt{local} (deferred-signature, producer-only-authority) vs \texttt{federation} (hybrid-signed, visible) tiers + \texttt{promote} (local→federation) + the open-prefix \texttt{query}; the shared agent-facing attestation surface (CIRISPersist\#172). + §10.1.3 eligibility corrected to "revocation authority, not empty \texttt{subject\_key\_ids}".
-\item \textbf{§8.1.12.7 "Self at login"} — one hybrid hardware-rooted user identity with app + agent occurrences sharing one Policy-L Self DEK, partnered + delegated to act on the user's behalf (CIRISRegistry\#65); + §8.1.12.7.1 signing member sets + \texttt{delegated\_scope} canonical kinds.
-\item \textbf{§0.9.2.1 canonical-bytes determinism rules} — array element ordering (set vs sequence), byte-field→lowercase-hex (§0.6), timestamp→§0.5; the three things JCS doesn't pin (CIRISVerify\#63).
-\item \textbf{PQC at rest extended to self/family} — §8.1.12.4 \texttt{wrap\_algorithm: v2} (X25519+ML-KEM-768) MANDATORY for the at-rest DEK cascade (was v1); §10.1.4 split into unconditional structural-invisibility + defense-in-depth at-rest encryption (CIRISPersist\#152).
-\item \textbf{Standard-pins}: §10.5.2 STREAM-nonce \texttt{epoch} = 8-byte BE (\#63); §10.5.3/§5.6.8.4 \texttt{wrap\_algorithm: v2} wire string \texttt{x25519\_mlkem768\_aes256\_gcm\_hkdf\_sha256} (\#64).
-\item \textbf{Hygiene}: §1.5→§1.6 (overloaded with the Recursive Golden Rule) + §15.6 duplicate-heading fixes.
-\end{itemize}
-
-
-\textbf{0.15 folds the streaming standards in fully} (per CIRISRegistry\#61): the §10.5 streaming surface now \textbf{conforms to} the published standards rather than gesturing at them — the per-frame seal conforms to \textbf{SFrame} (draft-ietf-sframe); the epoch-key rekey conforms to \textbf{MLS TreeKEM} (RFC 9420) with Post-Compromise Security now available (optional, operator-enabled); the delivery-model analysis (flat-unicast O(N) vs tree-multicast O(log N) vs tree-unicast O(N log N)) is carried normatively; and RFC 9420 / SFrame / FIPS 203 / FIPS 204 / RFC 9180 are added to the §0.4 normative references. \textbf{No wire-format change} — the streaming primitives are unchanged, now standards-anchored. Also: §0.1.1 normative-vs-informative demarcation, §1.6 adversary model + privacy non-goals, and the §1.4 honesty pass (inductive-not-closure + the named falsification target) shipped in the 0.14→0.15 hardening.
-
-
-\textbf{0.14 is purely additive vs 0.13} (per CIRISRegistry\#59 + \#55): \textbf{CEG↔value-transfer linkage + an §0.8 H3 prose correction.} Value transfer is not a CEG primitive (it rides USDC-on-Base via x402 under Identity=Wallet); CEG 0.14 adds the **optional, privacy-scoped attestation that \textit{links} a federation action to its off-stack settlement\textbf{ — closing the last form of internet traffic from the completeness audit (commerce-relationship auditability). }One new subject\_kind** (§5.6.8.12) \texttt{settlement} (+ a \texttt{settlement:*} dimension family for the bare-\texttt{scores} shape; parallel to \texttt{consent\_record}/\texttt{key\_grant} primitive-vs-ceremony): \texttt{settled\_action\_ref} + \texttt{rail} + \texttt{settlement\_ref} (chain tx / x402 receipt, cited like an \texttt{evidence\_refs[]} blob) + optional \texttt{amount\_commitment} (cleartext OR hash/range). Self-authenticating via Identity=Wallet; \textbf{privacy-by-default} (\texttt{cohort\_scope: self}, §10.1.4 structural-invisibility applies), auditability opt-in (\texttt{cohort\_scope: public}); CEG records the receipt, the chain settles the value. Matches the converged 2026 SOTA (x402 receipt header + selective-disclosure privacy). \textbf{Plus a prose fix} (§0.8, per \#55): the H3 \texttt{cell\_id} resolution is decoded \textbf{via the H3 library} (resolution field bits 52–55), NOT the high 4 bits (which are the H3 mode marker) — the prior "high 4 bits encode resolution" wording contradicted the spec's own \texttt{8001fffffffffff} res-0 example; example + intent were correct, only the decoding description was wrong. \textbf{1+4 wire-format lockdown preserved} — \texttt{settlement} rides existing \texttt{scores} + subject\_kind discriminator; \texttt{settlement\_ref} rides existing \texttt{evidence\_refs[]}; visibility rides existing \texttt{cohort\_scope}. Zero new structural primitives. Fourteenth independent path on §1.4 — commerce-relationship auditability (the receipt, not the rail) as composition.
-
-
-\textbf{0.13 is purely additive vs 0.12} (per CIRISRegistry\#56): \textbf{realtime group communication as composition.} The delivery axis (CEG 0.10) covered 1:1 observer-share and 1:N broadcast; CEG 0.13 documents that \textbf{group video, voice, desktop/screen sharing, text chat, and topic-scoped channels with sub-channels} are the \textit{same primitive set at N↔N cardinality} — composing from \texttt{community} + \texttt{live\_stream} (§10.5) + \texttt{chat\_message} + member/transport resolution (§8.1.13.1.1). \textbf{One new normative subsection} (§10.5.8) — the composition map (call/voice/screen-share/chat/channel/sub-channel/presence/invite) + a transport-profile extension: broadcast = pull-only (1.0) / relay-tree (1.x); \textbf{realtime small-medium group = direct Reticulum Links} (low-latency mesh, in 1.0 — no relay tree needed at small N); realtime large group = SFU relay (1.x). Ephemeral call = short-lived \texttt{community}; persistent channel = long-lived \texttt{community}. PQC unchanged + mandatory (epoch DEK \texttt{wrap\_algorithm: v2}; hybrid KEX transit). \textbf{1+4 wire-format lockdown preserved} — zero new structural primitives; the entire realtime-collaboration surface is composition over already-locked primitives. Thirteenth independent path on §1.4 — the most product-complete confirmation: a full group-communication platform needs nothing beyond the 1+4 set + the delivery axis + community membership.
-
-
-\textbf{0.12 is purely additive vs 0.11} (per CIRISRegistry\#56 + CIRISEdge\#15): \textbf{the DNS-free addressing layer — authenticated member resolution for a CEG/RET stack.} With Spock removed and replication CEG-native (CIRISRegistry\#58), the federation speaks \textbf{CEG over Reticulum, not TCP/IP} — so resolving "who is in a community and how do I reach them" cannot lean on DNS. CEG 0.12 locks that resolution as a chain of signed bindings: \textbf{one new optional field} \texttt{transport\_destination} on \texttt{identity\_occurrence} (§5.6.8.8.1) — a federation-key-signed binding of a Reticulum dual-key transport destination (\texttt{hash(x25519‖ed25519)}) to an identity, closing AV-42 (spoofed transport↔identity binding) and promoting CIRISEdge\#15 Option B into a first-class auditable CEG shape; \textbf{one new normative resolution section} (§8.1.13.1.1) — deterministic \texttt{resolve\_community} (pinned \texttt{now} / latest / ordering / founder-subset eval) + \texttt{resolve\_member\_transport} (WHO via signed quorum · BINDING via signed occurrence · WHERE via Reticulum) + the cold-start rule (pin \texttt{community\_key\_id} + seed destinations; reachability ≠ trust). \textbf{1+4 wire-format lockdown preserved} — one optional field on an existing subject\_kind + an evaluation algorithm over existing fields; zero new structural primitives. Twelfth independent path on §1.4 — the wire format expresses \textbf{its own addressing/naming layer}, DNS-free and self-certifying.
-
-
-\textbf{0.11 is purely additive vs 0.10} (per CIRISRegistry\#56): **\texttt{cohort\_subkind: infrastructure} — the trust-root community subkind.** CEG 0.8 codified \texttt{community} with one subkind (\texttt{geographic}, admission-over-current-members + \texttt{location\_proof} gate). The CIRIS canonical services (Registry / Lens / Node) need a community that is governed as a \textit{trust root}, not a city: no location gate, and admission evaluated over the \textbf{founder} subset rather than all members (the anti-Sybil guardrail — flooding the membership must not dilute the admission quorum). CEG 0.11 codifies the second canonical \texttt{cohort\_subkind} (§5.6.8.10 "Canonical \texttt{cohort\_subkind: infrastructure}"): one \texttt{infrastructure\_constraint} payload (\texttt{service\_class} + \texttt{admission\_quorum\_basis: "founders"}) + trust-root conformance requirements (\texttt{consensus\_protocol} MUST be \texttt{quorum:M/N}; \texttt{consensus\_protocol\_entrenched} MUST be \texttt{true}; the founder-subset evaluation basis). This is the shape the \texttt{ciris-canonical} trust root adopts instead of a \texttt{family} (rationale: \texttt{CIRISRegistry/MISSION.md} §2.1.1 — public content model, decentralization ramp, legitimacy). \textbf{1+4 wire-format lockdown preserved} — one open-vocab \texttt{cohort\_subkind} value + one optional payload shape; admission rides existing \texttt{consensus\_protocol} + \texttt{supersedes}; the founder-subset basis is an evaluation rule over the existing \texttt{role} field, not a new structural primitive. Eleventh independent path on §1.4.
-
-
-
-The load-bearing insight at CEG 0.10: \textbf{observer-share (N=1) and streaming multicast (N>1) are the same primitive at different cardinality} — subscriber-set = \texttt{community} per Policy M; E2E directed delivery = \texttt{key\_grant} cascade of stream-epoch DEK over the roster. No special-case primitive for streaming, no special-case primitive for observer-share. The wire format's structural set is rich enough for substrate-fan-out and 1:N media multicast without any addition to the 1+4 set. Tenth independent path on §1.4.
-
-
-\textbf{Bifurcated landing}: observer-share half ships \textbf{impl-live} (no remaining blockers per §15.6 RC1 register; Persist V054 confirmed; Edge E1-E4 locked; KEY\_GRANT\_V1\_INFO confirmed at \texttt{CIRISVerify/src/ciris-crypto/src/key\_grant.rs:71}); streaming multicast half ships \textbf{spec-now / impl substrate-pending} — best-effort tier pending CIRISPersist\#142 (unowned/unscheduled), accountable tier additionally pending CIRISRegistry\#34 (STH consistency-proof enforcement). Open coupling caveat \textbf{RC1-1c}: the V054 cross-column CHECK requires content-addressed \texttt{key\_grant}s; the §10.5.3 epoch-key axis needs a \textbf{parallel CHECK arm migration} at Persist — a bounded constraint migration, NOT pure-additive at the Persist constraint layer. Operational ratification \textbf{RC1-7} (constants \texttt{K=64} / \texttt{T=2s} / cosign per-epoch / \texttt{MAX\_CHUNKS\_PER\_EPOCH=2²⁴} + Policy E accountable quorum) pending; operator-tunable, not blocking spec ship.
-
-
-\textbf{rotation\_chain hygiene corrections} folded in: CEG 0.3's \texttt{key\_grant.rotation\_chain} is the \textbf{content-addressed grant-supersession lineage} (per §5.6.8.4 disambiguation), NOT a key-rotation primitive on its own. CEG 0.10 §10.5.3's per-\texttt{(stream\_id, epoch)} epoch-key axis reuses the same payload-level supersession mechanism on a \textbf{separate parallel addressing axis}. Prior CEG text (§11.7.1, §1.4 path-8) wrongly framed \texttt{rotation\_chain} as covering DEK rotation; corrected here.
-
-
-\textbf{0.9 carries one wire-break vs 0.8} (per CIRISRegistry\#49 + CIRISAgent\#856): **\texttt{federation\_keys.identity\_type} becomes a SET of roles — single-key role cohabitation.** Every §7 reserved-prefix emitter rule is now evaluated by set membership (\texttt{X ∈ identity\_type}) rather than scalar equality. A single federation key MAY hold multiple roles at once — e.g. a folded CIRISAgent occurrence whose key is BOTH \texttt{agent} AND \texttt{lenscore\_detector} (§7.4), or a steward key that is both \texttt{substrate\_persist} and \texttt{witness}. This unblocks the CIRISAgent / LensCore fold-in (one key, many roles) which §7.4's scalar gate had blocked.
-
-
-The wire-break is \textbf{representation-only and semantically null for legacy keys}: a pre-0.9 scalar \texttt{identity\_type="X"} is the singleton set \texttt{\{X\}}, so for any single-role key \texttt{X ∈ \{X\}} ≡ \texttt{X == X} and every pre-0.9 gating decision is unchanged. It is the second 0.x wire-break after the §0.2 attestation-ladder rename. \textbf{Zero new structural primitives, subject\_kinds, envelope fields, or §5 dimension prefixes} — the 1+4 wire-format lockdown is untouched; 0.9 is a §7-layer enforcement-rule generalization, NOT a §1.4 "Nth path" namespace addition. The capacity self-emission (§7.5), reasoning-trace, and agent-intent / LensCore-envelope-split resolutions from CIRISAgent\#856 are recorded as settled in §11.9. \textbf{One new conformance subsection} (§7.0.1), \textbf{one new governance section} (§11.9).
-
-
-\textbf{0.8 is additive at the envelope layer vs 0.7} (per CIRISRegistry\#48): **\texttt{community} subject\_kind + \texttt{location\_proof} subject\_kind + \texttt{cohort\_subkind: geographic} discriminator + wire-format-enforced rough-only location precision.**
-
-
-CEG 0.7 codified self/family membership; CEG 0.8 extends the membership story to the next scale — \textbf{communities} — with explicit admission semantics. Sibling subject\_kind to \texttt{family} but with different defaults: content scoped \texttt{cohort\_scope: community} \textbf{federates within the cohort} (emits \texttt{holds\_bytes:sha256:*} per status quo); there is NO at-rest DEK cascade; §10.1.4 structural-invisibility applies to self/family only. Communities scale up; families stay private.
-
-
-The load-bearing privacy primitive at CEG 0.8 is the **\texttt{location\_proof} subject\_kind\textbf{ + the }§0.8 H3 cell canonicalization with rough-only enforcement (\texttt{cell\_resolution ≤ 7})**. Joining a geographic community is a one-way opt-in disclosure of rough location; the substrate enforces the precision bound at the wire format, so a producer cannot accidentally over-share even if the client UI fails to gate. Per ciris.ai/cewp, this is the structural-not-policy framing applied to geospatial disclosure: rough is rough by protocol.
-
-
-\textbf{Two new subject\_kinds}, \textbf{one new envelope field} (\texttt{community\_id} required iff \texttt{cohort\_scope == community}; parallel to \texttt{family\_id}), \textbf{one new canonicalization section} (§0.8 H3 cell + rough-only resolution bound), \textbf{four new substrate-emitted reserved prefixes} (§7.8), \textbf{one new composition policy} (§8.1.13 Policy M), \textbf{one new governance section} (§11.8 geographic-community privacy invariant). Zero new structural primitives. Ninth independent path confirming the 1+4 minimal-and-adequate claim (§1.4) — and the most surprising path so far, demonstrating that \textbf{precision-bounded geospatial constraints can be expressed as canonicalization rules} (parallel to lowercase-hex per §0.6 or millisecond-precision datetime per §0.5), not as new structural primitives.
-
-
-The composition unlocks \textbf{civic engagement + emergency messaging} as worked examples (§5.6.8.10 tables): neighborhood associations, municipal communities, voting districts, town halls, ballot initiatives, public comments, petitions, public-official self-attestation, FOIA requests, citizen-journalist coverage, whistleblower disclosure, civic mutual-aid networks; severe weather warnings, AMBER alerts, shelter-in-place orders, disease outbreak alerts, mass casualty incident coordination, infrastructure failure notices, disaster recovery activation, and the CONSTITUTIONAL-level halt path (the §9 HUMANITY\_ACCORD primitive that CEG 0.7 retconned as the canonical entrenched-\texttt{family} instance). All compose from the existing 1+4 set + the namespace additions.
-
-
-\textbf{0.7 is additive at the envelope layer vs 0.6} (per CIRISRegistry\#47 + CIRISPersist\#152 + ciris.ai/cewp structural-invisibility framing): \textbf{self/family membership primitives + wire-format-level structural invisibility for self/family content.}
-
-
-CEG ≤ 0.6 had no wire-format primitive linking multiple devices/agents to a single logical identity, nor any primitive expressing multi-key collectives like households. CEG 0.7 adds both — **\texttt{identity\_occurrence}\textbf{ (§5.6.8.8; self = trusted devices + agents) and }\texttt{family}** (§5.6.8.9; a group of trusted nodes with a per-family \texttt{consensus\_protocol} governing admission). Both ride existing \texttt{scores} + subject\_kind discriminator; both compose with existing structural primitives (\texttt{supersedes} for membership changes; \texttt{key\_grant.rotation\_chain} for DEK cascade on new-member admission).
-
-
-
-\begin{quote}\itshape Self and family content never emits the attestation that would tell the rest of the network it exists. You don't need a privacy policy to keep family photos off the federation — the wire format can't carry them in the first place.\end{quote}
-
-
-\textbf{New governance section} (§11.7) locks the four open decisions from \#47: Option A forward-secrecy (once shared, always shared at the wire layer; rotation deferred), envelope \texttt{family\_id} for multi-family disambiguation, reserved-prefix substrate ownership, and (the most consequential) **family admission requires consensus per the family's chosen \texttt{consensus\_protocol}** — NOT single-vouch — with six canonical protocols (\texttt{founder\_only} / \texttt{unanimous} / \texttt{majority} / \texttt{quorum:M/N} / \texttt{weighted:\{rubric\}} / \texttt{custom:\{id\}}) and meta-amendment via the protocol's own rules unless \texttt{consensus\_protocol\_entrenched}. Self-occurrence admission remains single-vouch (Signal-style trust-cascade per §11.7.4).
-
-
-\textbf{Retcon at §9.1}: HUMANITY\_ACCORD triple is the canonical entrenched-\texttt{family} instance (3 founders, \texttt{consensus\_protocol: quorum:2/3}, \texttt{consensus\_protocol\_entrenched: true}). The constitutional asymmetry is "an entrenched family that is wire-scope-isolated to halt authority," not a one-off primitive.
-
-
-\textbf{1+4 wire-format lockdown preserved} — zero new structural primitives. Two new subject\_kinds + one new envelope field + four new reserved substrate-emission prefixes + one new composition policy + one new endpoint discipline + governance section + §9 retcon. Eighth independent path confirming the 1+4 minimal-and-adequate claim (§1.4) — demonstrates the structural set is rich enough to express collective-scale membership AND the wire-format-level closure of the cewp structural-invisibility privacy claim.
-
-
-\textbf{0.6 is additive at the envelope layer vs 0.4/0.5} (per CIRISRegistry\#45 + CIRISAgent\#842): \textbf{subject-side consent authority — the missing half of consent at the wire format.} Universal across medical records / photos / interviews / training data / group chat / financial / surveillance / FERPA-shape educational records / multi-party contracts. CEG ≤ 0.5 encoded only producer authority (\texttt{attesting\_key\_id}); CEG 0.6 adds subject authority via \textbf{one new optional envelope field} (§4.2): \texttt{subject\_key\_ids: Vec<KeyId>} — accepts both federation\_keys identities AND canonical-hash identifiers (resolves CIRISAgent\#840 OQ3 as side effect). Pre-0.6 producers omit the field; their Contributions stay in producer-only-authority shape. Pre-0.6 consumers that don't read the field see status-quo behavior.
-
-
-**Semantic broadening of \texttt{withdraws}** (§3.2.3) to admit subject revocation + \texttt{delegates\_to} proxy chain for canonical-hash subjects; the primitive's wire shape is unchanged. \textbf{One new dimension family} (§5.6.8.6 \texttt{consent:*}) covering state / stream / deletion\_sla / deletion\_complete / decay / partnership\_grant / partnership\_accept / scope. \textbf{One new subject\_kind} (§5.6.8.7 \texttt{consent\_record}) — ceremony envelope parallel to \texttt{key\_grant} / \texttt{takedown\_notice}; both bare-\texttt{scores} and ceremony shapes admitted at the same gate. \textbf{New composition policy} (§8.1.11) Policy K — CEM composition. \textbf{New governance section} (§11.6) vertical compliance mapping (HIPAA / GDPR Art 9 / FERPA / CCPA / EU AI Act / etc.) + dimension-pattern-implies-\texttt{subject\_key\_ids} requirement.
-
-
-\textbf{1+4 wire-format lockdown preserved} — zero new structural primitives. One envelope field + one namespace family + one optional subject\_kind + one semantic broadening. Seventh independent path confirming the 1+4 minimal-and-adequate claim (§1.4) — the most consequential path, demonstrating the structural set is rich enough to express not just producer authority but the full duality of producer + subject authority.
-
-
-\textbf{CIRISAgent's CEM} (TEMPORARY / PARTNERED / ANONYMOUS streams per \texttt{docs/CIRIS\_CONSENT\_SERVICE.md}) becomes a \textbf{consumer-policy bundle over the wire primitive} — TEMPORARY = \texttt{valid\_until = +14d}; PARTNERED = bilateral pair; ANONYMOUS = decay-protocol chain. Other agents MAY compose other streams. CEG documents the canonical bundle for ecosystem coordination; CEG does not lock the bundle.
-
-
-\textbf{0.5 is in flight} (codification pending) per CIRISRegistry\#44 + CIRISNodeCore\#26 + CIRISPersist\#142: \texttt{live\_stream} promotion + chunk-DAG composition. Lands when NodeCore\#26 substrate decisions ratify. Additive at the namespace layer (no envelope change); orthogonal to 0.6.
-
-
-\textbf{0.4 is purely additive vs 0.3} (per CIRISRegistry\#40 + CIRISNodeCore\#25 Gap 1 closure at NodeCore commit d0a443a): time-bound state-bearing content. One new \texttt{external\_content} sub\_kind (\texttt{event\_listing} — Eventbrite / Meetup / Lu.ma / calendar / RSVPs / ticketing), one new dimension-family group (§5.6.8.5 \texttt{event:lifecycle:\{state\}} + \texttt{event:rsvp\_count} + \texttt{event:attendance}), two new canonical \texttt{topical\_relation:\{kind\}} entries (\texttt{rsvps} + \texttt{vod\_of}). \textbf{1+4 wire-format lockdown preserved} — event-lifecycle state machine composes from \texttt{withdraws} / \texttt{supersedes} / \texttt{delegates\_to} + the new dimension's latest non-superseded emission; no new structural primitives. **\texttt{live\_stream} remains deferred** (NodeCore\#25 Gap 2 not yet shipped; substrate-side Edge + Persist decisions pending) — CEG 0.4 codifies only what NodeCore shipped, per the downstream-demand-pulls-CEG-additions discipline.
-
-
-\textbf{0.3 is purely additive vs 0.2} (per CIRISRegistry\#37 + \#38 + \#39): multimedia tier + governance additions. Two new Contribution subject\_kinds (\texttt{takedown\_notice} + \texttt{key\_grant}), five new \texttt{external\_content} sub\_kinds (\texttt{image}/\texttt{audio}/\texttt{video}/\texttt{film}/\texttt{model\_3d}), four new dimension families (\texttt{content\_rating:\{scheme\}:\{rating\}}, \texttt{content\_class:\{class\}}, \texttt{cw\_class:\{class\}}, \texttt{age\_assurance:\{level\}}), five new media-prefix families (\texttt{image:*}/\texttt{audio:*}/\texttt{video:*}/\texttt{film:*}/\texttt{model\_3d:*}), new composition policy (§8.1.10 trusted-publisher), new governance sections (§11.4 fast-path takedown, §11.5 hash-database operator policy). \textbf{1+4 wire-format lockdown preserved} — no new structural primitives.
-
-
-\textbf{0.2 carried one wire-break vs 0.1}: §5.2 attestation-ladder prefixes renamed from \texttt{attestation:l\{N\}:*} to mechanism-only form per §1.3.1 T2. See §16.1 lineage.
-
-\textbf{License}: AGPL-3.0-or-later
-
-\textbf{Authoritative for}: The federation wire format, attestation primitive set, namespace, composition discipline, and governance for the CIRIS ecosystem.
-
-\textbf{Relationship to prior documents}: Consolidates and supersedes \texttt{FSD/FSD-002\_FEDERATION\_SURFACE.md} v1.0 through v1.4.3 + the v1.5 candidates from CIRISRegistry\#30 + the translation discipline from \texttt{FSD/LANGUAGE\_PRIMER.md} v1.1. FSD-002 remains as design-history; CEG 0.x is the version-stable spec going forward.
-
-\textbf{Companion documents}: \texttt{FSD/PRIOR\_ART\_SCAN.md} (design-space comparison); \texttt{FSD/SOTA\_SCAN.md} (production-validation comparison); \texttt{FSD/WITNESS\_KIND\_REGISTRY.md} (non-normative open-vocabulary registry referenced by §5.6); \texttt{docs/CEG\_EXPLORATION\_PAGE\_PRIMER.md} (builder primer for \texttt{ciris.ai/grammar}).
-
 
 
 \subsection*{How to read this spec without Cartesian default}
@@ -923,8 +617,6 @@ Consumers walk attestation graphs and compose verdicts. The substrate stores; th
 \subsection*{§1.2 The Ubuntu commitment — relational-anthropology substrate \textit{(informative)}}
 
 
-\begin{quote}\itshape \textit{This section is \textbf{informative} (§0.1.1): it motivates the normative choices but adds no conformance obligation. An implementer may reject this anthropology and still be fully conforming.}\end{quote}
-
 
 Per \texttt{CIRISAgent/ContemplativeTraditions/Ubuntu.lean::F\_ubuntu\_primary\_tradition\_commitment} and \texttt{../MISSION.md} §1.5:
 
@@ -1003,32 +695,15 @@ Existing prefixes failing T2 (the most slip-prone gate) get renamed; the canonic
 The federation has exactly \textbf{one workhorse attestation primitive + four structural composers} at the \textbf{structural layer}. That is a genuine, narrow invariant — the \textit{graph-operation} set is closed at five (\texttt{scores} + \texttt{delegates\_to} / \texttt{supersedes} / \texttt{withdraws} / \texttt{recants}). It is \textbf{not} a claim that the whole grammar is five things.
 
 
-\textbf{Scope of the claim (read this before citing "1+4").} What follows is an \textbf{inductive adequacy result, not a closure theorem.} The fifteen paths below show the structural set is \textit{expressive across the surfaces tested}; they do \textbf{not} prove it generates \textit{every} expressible structured claim. We have not defined the class of structured claims and proven 1+4 generates exactly it — until someone does, "1+4 is adequate" means "adequate across the fifteen surfaces examined," nothing stronger. The refutation bar ("exhibit a claim that cannot be composed") is, honestly, near-unfalsifiable while \textit{composition itself} is unbounded — so absence of a counterexample is weak evidence, and these paths should be read as accumulating confidence, not as proof.
+\textbf{Scope of the claim (read this before citing "1+4").} What follows is an \textbf{inductive adequacy result, not a closure theorem.} The sixteen paths below show the structural set is \textit{expressive across the surfaces tested}; they do \textbf{not} prove it generates \textit{every} expressible structured claim. We have not defined the class of structured claims and proven 1+4 generates exactly it — until someone does, "1+4 is adequate" means "adequate across the sixteen surfaces examined," nothing stronger. The refutation bar ("exhibit a claim that cannot be composed") is, honestly, near-unfalsifiable while \textit{composition itself} is unbounded — so absence of a counterexample is weak evidence, and these paths should be read as accumulating confidence, not as proof.
 
 
 \textbf{"Minimal" is partly an accounting choice.} The structural set is five, but every path moved complexity \textit{into} the namespace and envelope axes rather than removing it. The \textbf{full normative conformance surface} a second implementer must get exactly right is much larger than five: \textasciitilde{}9 \texttt{subject\_kind}s (§5.6.8) plus the open \texttt{external\_content} sub\_kind set, \textasciitilde{}21 optional envelope fields (§4), 13 composition policies (A–M, §8), 5 canonicalization families (§0.5–0.9), 6 \texttt{consensus\_protocol} kinds, the §7 reserved-prefix taxonomy, and dozens of dimension prefixes (§5). "1+4" is the elegant \textit{structural} invariant; it is \textbf{not} the conformance surface, and citing it as "the grammar is five things" understates what interop requires. Always report the surface beside the invariant.
 
 
-This claim has been examined by fifteen independent paths; future paths may extend or refute it via the §11.2 amendment process:
 
+\textit{Sixteen independent design exercises (consent, families, communities, streaming, payments, DNS-free addressing, settlement, ...) each composed without a new structural primitive; the enumeration lives in the canonical working draft.}
 
-\begin{enumerate}\setlength\itemsep{0pt}
-\item \textbf{PRIOR\_ART\_SCAN structural comparison} — no prior system (PGP / SPKI-SDSI / W3C VC / Birdwatch / Pol.is / Kleros / Spritely / Holochain / Aragon / Conviction Voting / Sigstore / SLSA) covers the same shape with fewer primitives.
-\item \textbf{G3 narrow-cell fresh-quorum closure via §8.1.5 composition} — two independently-motivated primitives (\texttt{locality:decision:\{scale\}} + NodeCore P10/P11) composed to close a third gap without adding a structural primitive.
-\item \textbf{v1.4 files-as-Contributions extension} — arbitrary content (binaries, configs, adapters, source files) carries through the federation via \texttt{scores} attestations + SHA-256 \texttt{evidence\_refs[]} resolved through the substrate transport layer, with no addition to the structural-primitive set.
-\item ***Magnifica Humanitas* encyclical mapping** — \textasciitilde{}75-80\% transparent translation rate; the 5\% T-3 EXPRESSIVE\_GAP set produced 10 dimension extensions and ZERO new structural primitives.
-\item \textbf{283-story authorial stress test} (CIRISRegistry\#30) — 9 generation agents + 5 review agents validated against the spec; 30 grammar-gap observations consolidated to 5 v1.5 spec additions, 6 explicit rejections (Cartesian shortcuts the wire resists), 4 primer fixes. No new structural primitives needed.
-\item \textbf{CEG 0.4 time-bound state-bearing content} (per CIRISRegistry\#40 + CIRISNodeCore\#25 Gap 1 closure) — \texttt{event\_listing} lifecycle (open / cancelled / completed / superseded + RSVPs + reschedule + ticket transfer) composes from \texttt{withdraws} + \texttt{supersedes} + \texttt{delegates\_to} + a new dimension family (§5.6.8.5). State machines do not require new structural primitives. NodeCore shipped the ingest path composition-only end-to-end at d0a443a.
-\item \textbf{CEG 0.6 dual-authority composition} (per CIRISRegistry\#45 + CIRISAgent\#842) — subject-side consent authority for content where the subject is not the producer (medical records / photos / interviews / training data / group chat / financial / surveillance / educational records / multi-party contracts) composes from existing primitives: a single new optional envelope field \texttt{subject\_key\_ids} (§4.2) + semantic broadening of \texttt{withdraws} admission (§3.2.3) to admit subject revocation + delegated proxy chain for canonical-hash subjects. Zero new structural primitives. The 1+4 set is rich enough to express the bilateral-pair PARTNERED ceremony, the 90-day decay protocol, the deletion-SLA watcher, AND the multi-subject revocation shape — all by composition over existing primitives. This is the seventh path and the most consequential: it demonstrates that the structural set is rich enough to express not just producer authority over content but the \textbf{full duality of producer + subject authority} that real-world content-shapes require.
-\item \textbf{CEG 0.10 delivery axis} (per CIRISRegistry\#44 absorbed + CIRISLensCore\#857 + CIRISPersist\#142) — observer-share (N=1) and streaming multicast (N>1) are the \textbf{same primitive at different cardinality}, composing from existing structural primitives: subscriber-set = \texttt{community} per Policy M (§8.1.13); E2E directed delivery = \texttt{key\_grant} cascade (§5.6.8.4) of the stream-epoch DEK over the roster; per-stream transparency log = \texttt{SignedTreeHead} per-\texttt{stream\_id} reusing the §10.3 RFC 6962 abstraction; delivery receipts ride \texttt{scores} against the new §7.9 \texttt{delivery\_receipt:\{stream\_id\}} reserved prefix. \textbf{Three new optional envelope fields} (\texttt{delivery\_mode} / \texttt{listed} / \texttt{history\_on\_join}) per §4 make delivery the third orthogonal envelope axis (visibility + revocability + delivery per §4.2.4). Zero new structural primitives. The most operationally consequential of the ten paths: it demonstrates \textbf{substrate-fan-out and 1:N media multicast compose from the same 1+4 set as 1:1 attestations} — no special-case primitive for streaming, no special-case primitive for observer-share. Tenth path.
-\item \textbf{CEG 0.8 community + location\_proof + rough-precision-as-canonicalization composition} (per CIRISRegistry\#48) — geographic communities + opt-in location disclosure compose from existing primitives: two new subject\_kinds (\texttt{community}, \texttt{location\_proof}) ride existing \texttt{scores} + subject\_kind discriminator; admission ceremony rides existing \texttt{consensus\_protocol} machinery from CEG 0.7; revocation rides existing \texttt{withdraws}; forward-only leave rides existing CEG 0.7 §11.7.1 Option A semantic; subject-side opt-in rides existing CEG 0.6 attester-self-signs discipline. \textbf{The novel surface is at canonicalization}, not at primitives: §0.8 H3 cell encoding + the \texttt{cell\_resolution ≤ 7} rough-only rule make "rough is rough by protocol" a wire-format-enforced property rather than an operator-policy convention. \textbf{This is the most surprising of the nine paths} — it demonstrates the 1+4 set is rich enough to express \textbf{precision-bounded geospatial constraints} by treating precision as a canonicalization rule (parallel to lowercase-hex per §0.6 or millisecond-precision datetime per §0.5), not as a new structural primitive. Ninth path.
-\item \textbf{CEG 0.7 self/family membership + structural-invisibility composition} (per CIRISRegistry\#47 + CIRISPersist\#152 + ciris.ai/cewp) — \texttt{identity\_occurrence} (self = trusted devices + agents) + \texttt{family} (a group of trusted nodes; one identity may belong to multiple; per-family \texttt{consensus\_protocol} governs admission) + at-rest encryption flow + \texttt{cohort\_scope: self | family} suppresses \texttt{holds\_bytes:sha256:*} (the cewp structural-invisibility primitive) — all compose from existing primitives. Two new subject\_kinds + one new envelope field (\texttt{family\_id}) + four new substrate-emitted \texttt{hard\_case:*} reserved prefixes + one new composition policy (§8.1.12 Policy L) + retcon of §9 HUMANITY\_ACCORD as the canonical entrenched-\texttt{family} instance. Zero new structural primitives. Membership-change ceremony rides existing \texttt{supersedes}; DEK cascade rides the \texttt{key\_grant} wrap + Option-A re-grant on new-member admission (NOTE: \texttt{rotation\_chain} from CEG 0.3 is the content-addressed grant-supersession lineage per §5.6.8.4 — a separate axis from key rotation; CEG 0.10 §10.5.3 introduces a parallel per-\texttt{(stream\_id, epoch)} axis for streaming key rotation, reusing the same payload-level supersession mechanism on the new axis); meta-amendment of consensus\_protocol parallels existing §11.2.3 entrenchment shape. The 1+4 set is rich enough to express not only individual-scale consent (CEG 0.6) but \textbf{collective-scale membership and the wire-format-level closure of the privacy claim} ("the wire format can't carry self/family content beyond its scope in the first place"). Eighth path.
-\item \textbf{CEG 0.11 trust-root community subkind} (per CIRISRegistry\#56) — the CIRIS canonical services (Registry / Lens / Node) as a governed trust root compose from the existing \texttt{community} primitive without a new structural primitive and without a \texttt{family}: one open-vocab \texttt{cohort\_subkind: infrastructure} value (§5.6.8.10) + one optional \texttt{infrastructure\_constraint} payload (\texttt{service\_class} + \texttt{admission\_quorum\_basis: "founders"}). The anti-Sybil property a trust root needs — \textit{growing the membership must not dilute the admission quorum} — is achieved by evaluating \texttt{consensus\_protocol} over the \textbf{founder subset} (\texttt{role == founder}) rather than all members; this is an evaluation rule over the existing \texttt{role} field, not a new primitive. Trust-root grade is a conformance profile over existing fields (\texttt{consensus\_protocol} MUST be \texttt{quorum:M/N}; \texttt{consensus\_protocol\_entrenched} MUST be \texttt{true}). Zero new structural primitives. The eleventh path demonstrates the 1+4 set expresses \textbf{the federation's own root of trust} — the canonical services that anchor everything else — as just another composition, closing the reflexive case (the grammar describes the institution that publishes the grammar). Eleventh path.
-\item \textbf{CEG 0.12 DNS-free addressing layer} (per CIRISRegistry\#56 + CIRISEdge\#15) — with replication CEG-native and transport over Reticulum (not TCP/IP), member resolution cannot use DNS; it composes as a chain of signed bindings from existing primitives: one optional \texttt{transport\_destination} field on \texttt{identity\_occurrence} (§5.6.8.8.1) binds a Reticulum dual-key destination to an identity under a federation-key signature (closing AV-42), and a normative resolution algorithm (§8.1.13.1.1) chains WHO (\texttt{resolve\_community} + founder-quorum) → BINDING (signed occurrence) → WHERE (Reticulum announce/path-request). Zero new structural primitives. The twelfth path is the deepest reflexive case yet: the wire format expresses \textbf{its own naming and addressing layer} — the function DNS+PKI+BGP serve in the TCP/IP stack — as composition over the 1+4 set, self-certifying and trust-rooted in signed quorum rather than a CA/registrar hierarchy. Twelfth path.
-\item \textbf{CEG 0.13 realtime group communication} (per CIRISRegistry\#56) — a full realtime-collaboration surface (1:1 + group video, voice, desktop/screen sharing, text chat, topic-scoped channels with sub-channels, presence, invite/join/leave) composes entirely from \texttt{community} + \texttt{live\_stream} (the §10.5 delivery axis) + \texttt{chat\_message} + member/transport resolution (§8.1.13.1.1), with only a transport-profile extension (§10.5.8: broadcast pull / realtime small-N direct Reticulum Links / large-N SFU relay). Zero new structural primitives. The thirteenth and most product-complete path: group video, voice, screen share, and channels-with-sub-channels — the surface of an entire realtime-collaboration platform — are \textbf{N↔N cardinality of the same primitive set} that carries 1:1 attestations, ephemeral calls being short-lived \texttt{community} instances and persistent channels long-lived ones. Thirteenth path.
-\item \textbf{CEG 0.14 commerce-relationship auditability} (per CIRISRegistry\#59) — value transfer rides external rails (USDC-on-Base via x402 under Identity=Wallet), but the \textit{linkage} of a federation action to its settlement composes from existing primitives: the \texttt{settlement} subject\_kind (§5.6.8.12) rides \texttt{scores} + subject\_kind discriminator, cites the chain tx / x402 receipt via the existing \texttt{evidence\_refs[]} external-reference pattern, binds via \texttt{topical\_relation} / \texttt{subject\_key\_ids}, and scopes disclosure via existing \texttt{cohort\_scope} (private-by-default, public opt-in). Zero new structural primitives. The fourteenth path extends the tested surface to commerce-relationship auditability: across the internet-traffic forms surveyed in the completeness audit (CIRISRegistry\#59), each composed over the 1+4 set, with value-transfer itself correctly \textbf{out} of the wire (a bridged external rail) and only the trust-fact "this was settled" recorded as composition. This is \textit{coverage of the surveyed forms}, not a proof that no form exists outside them. Fourteenth path.
-\item \textbf{CEG 0.18 at-rest-encryption recipient-key layer} (per CIRISRegistry\#69 + CIRISPersist\#192) — the §10.1.4 substrate-wraps DEK cascade needs each recipient's content-KEM keys (x25519 + ML-KEM-768), which the signing-key registration cannot supply (ML-KEM is not derivable from ML-DSA). It composes from existing primitives: one optional \texttt{encryption\_pubkeys} field-set on \texttt{identity\_occurrence} (§5.6.8.8.2) — self-certified, hybrid-signed, \texttt{supersedes}-rotatable, and already cross-region-replicated \textit{inside} the occurrence envelope — feeds \texttt{wrap\_algorithm: v2} directly, with a fail-secure-exclusion rule for recipients lacking a registered KEM key. Zero new structural primitives, no new subject\_kind, \textbf{no new replication kind}. The fifteenth path mirrors the twelfth (\texttt{transport\_destination}): just as the wire format expressed its own addressing layer by composition, it expresses its own \textbf{at-rest-encryption key-resolution layer} the same way — the recipient-KEM-resolution function a PKI/KMS serves, as one more self-certifying binding on the identity. Fifteenth path.
-\end{enumerate}
 
 
 \textbf{Future extensions are dimension prefixes or envelope fields, not new structural primitives.} Proposals to expand the 1+4 set face a high evidentiary bar and route through the §11.2 amendment process. A successful refutation requires either: (a) demonstrating an operational claim that cannot be expressed via the existing 1+4 set plus envelope composition, OR (b) demonstrating a structural-primitive consolidation that reduces below 1+4 without loss.
@@ -1205,8 +880,6 @@ Per \texttt{PRIOR\_ART\_SCAN.md} Bucket 1: no prior identity system (PGP, SPKI/S
 \subsubsection*{§3.2.3 \texttt{withdraws} admission rule — CEG 0.6 broadening (semantic, not structural)}
 
 
-Per CIRISRegistry\#45 and §4.2 \texttt{subject\_key\_ids}. CEG ≤ 0.5 admitted \texttt{withdraws} only from the original attester (producer self-withdraw). CEG 0.6 broadens the admission rule to recognize subject-side revocation authority. \textbf{The primitive's wire shape is unchanged}; only the substrate admission rule broadens. The 1+4 lockdown is preserved (this is a semantic broadening of an existing primitive, not a new structural primitive).
-
 
 Substrate MUST admit a \texttt{withdraws} Contribution against target \texttt{T} when the issuer's \texttt{key\_id} satisfies \textbf{ANY} of:
 
@@ -1221,7 +894,7 @@ Substrate MUST admit a \texttt{withdraws} Contribution against target \texttt{T}
 \end{longtable}}
 
 
-\textbf{Rule (3) is the elegant answer to the un-enrolled-party case.} When a subject is a Discord user-id, a content-sha256-bound entity, or any other non-federation party (per §4.2.2), revocation authority is mediated through a \texttt{delegates\_to} chain from a federation-keys signer (typically the agent that holds data on behalf of the external party) to the canonical-hash subject. The agent emits \texttt{delegates\_to(canonical\_hash → agent\_key, scope: [consent\_revocation])} at proxy-establishment time; subsequent \texttt{withdraws} from the agent against any Contribution carrying \texttt{canonical\_hash} in its \texttt{subject\_key\_ids} is admitted under rule (3). The \texttt{canonical\_hash} here is the tagged \texttt{canonical:\{hashalg\}:\{hex\}} wire form with the \texttt{\{platform\}:\{entity\_kind\}:\{id\}} preimage convention pinned at §4.2.2.1. **Rule (3) proxy is distinct from \texttt{canonical\_binding}** (a retroactive identity claim that promotes a canonical-hash to a real key\_id, enabling rule (2) direct revocation) — see §4.2.2.2 for the distinction; \texttt{canonical\_binding} is not a new admission rule.
+\textbf{Rule (3) is the elegant answer to the un-enrolled-party case.} When a subject is a Discord user-id, a content-sha256-bound entity, or any other non-federation party, revocation authority is mediated through a \texttt{delegates\_to} chain from a federation-keys signer (typically the agent that holds data on behalf of the external party) to the canonical-hash subject. The agent emits \texttt{delegates\_to(canonical\_hash → agent\_key, scope: [consent\_revocation])} at proxy-establishment time; subsequent \texttt{withdraws} from the agent against any Contribution carrying \texttt{canonical\_hash} in its \texttt{subject\_key\_ids} is admitted under rule (3). The \texttt{canonical\_hash} here is the tagged \texttt{canonical:\{hashalg\}:\{hex\}} wire form with the \texttt{\{platform\}:\{entity\_kind\}:\{id\}} preimage convention pinned at §4.2.2.1. **Rule (3) proxy is distinct from \texttt{canonical\_binding}** (a retroactive identity claim that promotes a canonical-hash to a real key\_id, enabling rule (2) direct revocation) — see §4.2.2.2 for the distinction; \texttt{canonical\_binding} is not a new admission rule.
 
 
 \textbf{Per-rule audit metadata}: substrate SHOULD record which admission rule (1-4) admitted each \texttt{withdraws} Contribution in \texttt{federation\_attestations} metadata so downstream consumers can compose policy (e.g., higher confidence weight for subject self-revocation rule 2 than for proxy rule 3).
@@ -1261,7 +934,7 @@ Every \texttt{scores} Attestation carries this envelope. Field semantics consoli
 \texttt{stake} & no & Per §2 Stake axis; default \texttt{reputational}. Composes with the attester's actual stake-backed-by attestations from §5.9. \\ \hline
 \texttt{community\_id} & no (REQUIRED iff \texttt{cohort\_scope == community}) & \textbf{CEG 0.8 addition.} The \texttt{community\_key\_id} of the community this Contribution is scoped to, per §5.6.8.10 \texttt{community} subject\_kind. One identity MAY belong to multiple communities; the field disambiguates which community's roster gates visibility. Required iff \texttt{cohort\_scope == community} (substrate rejects community-scoped Contributions missing the field). Parallel to \texttt{family\_id} (CEG 0.7) but with different semantics: community content emits \texttt{holds\_bytes:sha256:*} pointing to \textbf{ciphertext + cleartext provenance} — encrypted at rest under the per-community DEK (CEG 0.17, §8.1.13.3; \texttt{cohort\_subkind: infrastructure} communities are the plaintext Commons exception). Byte-level structural-invisibility (no \texttt{holds\_bytes} at all, §10.1.4) remains self/family only. \\ \hline
 \texttt{family\_id} & no (REQUIRED iff \texttt{cohort\_scope == family}) & \textbf{CEG 0.7 addition.} The \texttt{family\_key\_id} of the family this Contribution is scoped to, per §5.6.8.9 \texttt{family} subject\_kind. One identity MAY belong to multiple families (§8.1.12 Policy L); the field disambiguates which family's DEK applies and which membership roster gates visibility. Required iff \texttt{cohort\_scope == family} (substrate rejects family-scoped Contributions missing the field). Composes with §10.1.4 structural-invisibility — `cohort\_scope: self \textbackslash{} \\ \hline
-\texttt{subject\_key\_ids} & no & \textbf{CEG 0.6 addition.} List of consent-holder \texttt{key\_id}s for this Contribution. Each entry MAY be a \texttt{federation\_keys.key\_id} OR a canonical-hash identifier (per §4.2 below). Each listed key has substrate-recognized authority to (a) issue \texttt{withdraws} against this Contribution (per §3.2 broadened admission rule) and (b) emit \texttt{consent:*} dimensions about this Contribution (per §5.6.8.6). Default \texttt{null}/empty = no subject authority (status quo; producer-only authority). Orthogonal to \texttt{cohort\_scope} AND \texttt{delivery\_mode} — see §4.2.4. \\ \hline
+\texttt{subject\_key\_ids} & no & \textbf{CEG 0.6 addition.} List of consent-holder \texttt{key\_id}s for this Contribution. Each entry MAY be a \texttt{federation\_keys.key\_id} OR a canonical-hash identifier (per §4.2 below). Each listed key has substrate-recognized authority to (a) issue \texttt{withdraws} against this Contribution (per §3.2 broadened admission rule) and (b) emit \texttt{consent:*} dimensions about this Contribution. Default \texttt{null}/empty = no subject authority (status quo; producer-only authority). Orthogonal to \texttt{cohort\_scope} AND \texttt{delivery\_mode} — see §4.2.4. \\ \hline
 \texttt{delivery\_mode} & no & \textbf{CEG 0.10 addition.} `pull \textbackslash{} \\ \hline
 \texttt{listed} & no & \textbf{CEG 0.10 addition.} Per-membership opt-in flag — value \texttt{public}. Default absent (roster is producer- + self-queryable, NEVER globally enumerable). Public listing mirrors the §11.8.3 location opt-in discipline: opting into roster visibility is a one-way disclosure the member chooses; substrate does NOT solicit. Composes with §8.1.13 Policy M community membership and the new §10.5 streaming endpoint set. \\ \hline
 \texttt{history\_on\_join} & no & \textbf{CEG 0.10 addition.} `full \textbackslash{} \\ \hline
@@ -1320,7 +993,7 @@ CIRISRegistry\#53 surfaced that a CEG-Conforming implementation cannot interoper
 \end{itemize}
 
 
-\textbf{Why the tag is mandatory and bare-hex is rejected}: a \texttt{federation\_keys.key\_id} is, in the reference Registry, \texttt{hex(sha256(ed25519\_pubkey))} — a \textbf{lowercase 64-char hex string} (\texttt{crypto::HybridCrypto::fingerprint}). A bare canonical-hash (also lowercase 64-char hex) would be \textbf{format-indistinguishable} from a key\_id. The format-disambiguation heuristic proposed in \#53 CONFIRM-2 ("base64 key\_id vs hex canonical-hash") FAILS because Registry key\_ids are themselves hex fingerprints, not base64 pubkeys. The tag is therefore load-bearing, not cosmetic. The §0.6 hex rule governs the \texttt{\{hex\}} segment only; the \texttt{canonical:\{hashalg\}:} prefix is a tagged-union discriminator outside §0.6's scope and is exempt from the "no separators" rule. NodeCore's invented \texttt{canonical:sha256:\{hex\}} form (per NodeCore\#29) is hereby blessed verbatim — drop nothing.
+\textbf{Why the tag is mandatory and bare-hex is rejected}: a \texttt{federation\_keys.key\_id} is, in the reference Registry, \texttt{hex(sha256(ed25519\_pubkey))} — a \textbf{lowercase 64-char hex string} (\texttt{crypto::HybridCrypto::fingerprint}). A bare canonical-hash (also lowercase 64-char hex) would be \textbf{format-indistinguishable} from a key\_id. The format-disambiguation heuristic proposed in \#53 CONFIRM-2 ("base64 key\_id vs hex canonical-hash") FAILS because Registry key\_ids are themselves hex fingerprints, not base64 pubkeys. The tag is therefore load-bearing, not cosmetic. The §0.6 hex rule governs the \texttt{\{hex\}} segment only; the \texttt{canonical:\{hashalg\}:} prefix is a tagged-union discriminator outside §0.6's scope and is exempt from the "no separators" rule. NodeCore's invented \texttt{canonical:sha256:\{hex\}} form is hereby blessed verbatim — drop nothing.
 
 
 **Preimage convention — \texttt{\{platform\}:\{entity\_kind\}:\{id\}} (PIN-1 resolution, load-bearing)**. The string hashed to produce \texttt{\{hex\}} MUST be:
@@ -1422,7 +1095,7 @@ the substrate actively fans out to currently-reachable members
 the named family roster gates the membership set (family_id).
 \end{lstlisting}
 
-This orthogonality is load-bearing for the multi-occurrence consent shape (per \texttt{MULTI\_OCCURRENCE\_CONSENT\_ANALYSIS.md}): subject-side revocation applies federation-wide regardless of producer's \texttt{occurrence\_id}; per-occurrence lifecycle consent is a producer-side concern, separately tracked.
+This orthogonality is load-bearing for the multi-occurrence consent shape: subject-side revocation applies federation-wide regardless of producer's \texttt{occurrence\_id}; per-occurrence lifecycle consent is a producer-side concern, separately tracked.
 
 
 The delivery axis is the \textbf{third orthogonal axis} per CEG 0.10 — CEG ≤ 0.9 encoded visibility + revocability only; the substrate had no envelope-level handle on who actively \textit{receives} + how the substrate fans out. Per §10.5, 0.10 closes that gap with three new optional envelope fields + the new §10.5 endpoint section + a delivery extension to §8.1.13 Policy M.
@@ -1815,7 +1488,7 @@ Time-bound state-bearing sub\_kinds (CEG 0.4 addition per CIRISRegistry\#40 + CI
 {\footnotesize
 \begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
 \textbf{sub\_kind} & \textbf{Use} \\ \hline\endhead
-\texttt{event\_listing} & Time-bound state-bearing content — Eventbrite / Meetup / Lu.ma / calendar invites / RSVPs / ticketing. Source struct carries \texttt{platform}, \texttt{event\_id}, \texttt{title}, \texttt{starts\_at} / \texttt{ends\_at}, \texttt{venue} (Physical / Virtual / Hybrid per NodeCore \texttt{EventVenue} enum), \texttt{capacity}, \texttt{ticket\_grant\_policy} (Open / ApprovalRequired / InvitationOnly / Paid). \textbf{Lifecycle composes from existing structural primitives} — no new wire shape: RSVPs ride \texttt{scores} from attendee \texttt{key\_id} on the event's \texttt{entity\_key\_id}; cancellation rides \texttt{withdraws} against the event Contribution; reschedule rides \texttt{supersedes} with \texttt{differs\_in: ["start\_time", "venue"]}; ticket transfer rides \texttt{delegates\_to} against the ticket-grant Contribution (parallel to \texttt{key\_grant.rotation\_chain} from CEG 0.3). State-transition signal rides the new \texttt{event:lifecycle:\{state\}} dimension family (§5.6.8.5). \textbf{1+4 wire-format lockdown preserved.} \\ \hline
+\texttt{event\_listing} & Time-bound state-bearing content — Eventbrite / Meetup / Lu.ma / calendar invites / RSVPs / ticketing. Source struct carries \texttt{platform}, \texttt{event\_id}, \texttt{title}, \texttt{starts\_at} / \texttt{ends\_at}, \texttt{venue} (Physical / Virtual / Hybrid per NodeCore \texttt{EventVenue} enum), \texttt{capacity}, \texttt{ticket\_grant\_policy} (Open / ApprovalRequired / InvitationOnly / Paid). \textbf{Lifecycle composes from existing structural primitives} — no new wire shape: RSVPs ride \texttt{scores} from attendee \texttt{key\_id} on the event's \texttt{entity\_key\_id}; cancellation rides \texttt{withdraws} against the event Contribution; reschedule rides \texttt{supersedes} with \texttt{differs\_in: ["start\_time", "venue"]}; ticket transfer rides \texttt{delegates\_to} against the ticket-grant Contribution (parallel to \texttt{key\_grant.rotation\_chain} from CEG 0.3). State-transition signal rides the new \texttt{event:lifecycle:\{state\}} dimension family (§5.6.8.5). ** \\ \hline
 \end{longtable}}
 
 
@@ -1917,8 +1590,6 @@ Where \texttt{LegalBasis} is the closed-set enum per \#38 Question 1 (CEG 0.3 lo
 \end{longtable}}
 
 
-\textbf{Propagation}: takedown\_notice rides existing \texttt{withdraws}-against-\texttt{holds\_bytes} per §10.1.2 — there is no new structural primitive. Counter-notice rides the existing ReconsiderationRequest path (§5.6.4 \texttt{reconsideration:\{grounds\}}). The 1+4 lockdown is preserved.
-
 
 \textbf{Fast-path coordination}: see §11.4 for the operator-coordination protocol around immediate-eviction cases (TVEC 1-hour / GIFCT CIP / NCMEC / PerceptualHashCsam / CourtOrder).
 
@@ -1986,8 +1657,6 @@ Where:
 \textbf{Retire-key-grants emission} (per \#38 Question 3 — CEG 0.3 lock): when a publisher mass-retires key\_grants tied to a compromised recipient, the emission uses **a fresh \texttt{key\_grant} Contribution with a \texttt{rotation\_chain} entry that supersedes the prior grant\textbf{ (option }(b)** from \#38). NOT a \texttt{withdraws} against the prior key\_grant (option (a) was considered but rejected — \texttt{withdraws} is the holders-directory eviction primitive in §10.1.2 and overloading it with grant-rotation semantics would muddy the wire-format contract).
 
 
-The 1+4 lockdown is preserved: \texttt{supersedes} is the structural primitive (§3.2); the new \texttt{key\_grant} Contribution's envelope carries the supersession via \texttt{rotation\_chain} field, not via a new attestation\_type. Consumer policy resolves the active grant by walking \texttt{rotation\_chain} to the latest non-superseded entry.
-
 
 \paragraph{§5.6.8.5 Event-lifecycle dimension families (CEG 0.4 addition)}\mbox{}\\
 
@@ -2003,8 +1672,6 @@ Per CIRISRegistry\#40 + CIRISNodeCore\#25 Gap 1 closure (d0a443a). Dimensions em
 \texttt{event:attendance} & Post-event attendance attestation, typically by event organizer \texttt{key\_id}. Polarity carries organizer's confidence (e.g., turnstile-counted vs. honor-system). & signed \\ \hline
 \end{longtable}}
 
-
-\textbf{Composition note}: event\_listing demonstrates that complex state-bearing content shapes do NOT require new structural primitives. The state machine (open → cancelled / completed / superseded) is composed by consumer policy walking the 1+4 set (\texttt{withdraws} / \texttt{supersedes} / \texttt{delegates\_to} for ticket grants) + this dimension family's latest emission. The 1+4 minimal-and-adequate claim (§1.4) holds against time-bound state-bearing content — fifth independent path post-CEG 0.3.
 
 
 \paragraph{§5.6.8.6 Consent namespace family (CEG 0.6 addition)}\mbox{}\\
@@ -2043,7 +1710,7 @@ Per CIRISRegistry\#45 + CIRISAgent\#842. The wire-format primitives for subject-
    substrate emits `hard_case:consent_sla_breach` as observability signal
 \end{lstlisting}
 
-\textbf{1+4 lockdown preserved}: every step rides existing structural primitives (\texttt{scores} / \texttt{withdraws}) plus the new \texttt{consent:*} dimensions. No new attestation\_type.
+No new attestation\_type.
 
 
 \paragraph{§5.6.8.7 \texttt{consent\_record} subject\_kind (CEG 0.6 addition)}\mbox{}\\
@@ -2167,7 +1834,7 @@ DeviceClass (closed-set):
 \textbf{Composition with CIRISAgent CEG-native agent} (CIRISAgent\#840): an agent emitting self-attestations with \texttt{attesting\_key\_id == agent\_self\_key} AND \texttt{attesting\_key\_id} admitted as an \texttt{identity\_occurrence} of the user's \texttt{identity\_key\_id} is structurally speaking AS that identity. The agent's local-tier self-attestations remain its own; federation-tier emissions reach the user's other occurrences via the at-rest encryption flow when \texttt{cohort\_scope: self}.
 
 
-\textbf{1+4 lockdown preserved}: \texttt{identity\_occurrence} rides existing \texttt{scores} attestation\_type with subject\_kind discriminator. No new structural primitive.
+No new structural primitive.
 
 
 \subparagraph{§5.6.8.8.1 \texttt{transport\_destination} — the authenticated identity↔address binding (CEG 0.12 addition)}\mbox{}\\
@@ -2185,7 +1852,7 @@ Per CIRISRegistry\#56 + CIRISEdge\#15 (AV-42). In a \textbf{CEG/RET stack there 
 \textbf{Conformance}: a Consumer resolving a member's address MUST verify (1) the \texttt{identity\_occurrence} signature against the member's federation key, (2) that \texttt{destination\_hash} derives from \texttt{reticulum\_x25519\_pubkey ‖ reticulum\_ed25519\_pubkey ‖ app\_name ‖ aspects} per the RNS rule (no free-floating hash), and (3) the occurrence is non-superseded + within \texttt{valid\_until} at resolution time. An unauthenticated announce (no matching signed \texttt{transport\_destination}) is \textbf{advisory-only} — usable as a routing hint, never as an authorization. Rotating the Reticulum destination (new transport identity) is a new \texttt{identity\_occurrence} \texttt{supersedes}-ing the prior — location changes without touching federation identity or community membership.
 
 
-\textbf{1+4 lockdown preserved}: \texttt{transport\_destination} is one optional field on the existing \texttt{identity\_occurrence} subject\_kind. No new structural primitive, no new subject\_kind. Twelfth path (§1.4) — the wire format expresses \textbf{its own addressing layer} (DNS-free, self-certifying member resolution) by composition.
+No new structural primitive, no new subject\_kind. Twelfth path (§1.4) — the wire format expresses \textbf{its own addressing layer} (DNS-free, self-certifying member resolution) by composition.
 
 
 \subparagraph{§5.6.8.8.2 \texttt{encryption\_pubkeys} — the recipient content-encryption KEM binding (CEG 0.18 addition)}\mbox{}\\
@@ -2216,7 +1883,7 @@ Per CIRISPersist\#192 + CIRISRegistry\#69. The §10.1.4 at-rest DEK cascade is \
 \textbf{Fail-secure conformance (the §10.1.4 tie-in).} Because §10.1.4 \textit{mandates} v2 for at-rest encryption, a recipient whose current occurrence carries **no valid ML-KEM-768 key is fail-secure \textit{excluded} from the grant** — the content stays encrypted and unreachable to it; the substrate MUST NOT fall back to plaintext or to v1. To be an at-rest-encryption recipient, an identity MUST have a federation-present \texttt{identity\_occurrence} carrying \texttt{encryption\_pubkeys}. (This also resolves the "\texttt{family} member named only by \texttt{key\_id} with no occurrence" case: no presence ⇒ no wrap target ⇒ excluded — correct, since there would be nowhere to deliver/store the wrapped DEK for a member that never established a presence.)
 
 
-\textbf{1+4 lockdown preserved}: \texttt{encryption\_pubkeys} is one optional field-set on the existing \texttt{identity\_occurrence} subject\_kind. No new structural primitive, no new subject\_kind, no new replication kind. Fifteenth path (§1.4) — the wire format expresses \textbf{its own at-rest-encryption key layer} (recipient KEM-key resolution for substrate-wraps) by composition.
+No new structural primitive, no new subject\_kind, no new replication kind. Fifteenth path (§1.4) — the wire format expresses \textbf{its own at-rest-encryption key layer} (recipient KEM-key resolution for substrate-wraps) by composition.
 
 
 \paragraph{§5.6.8.9 \texttt{family} subject\_kind (CEG 0.7 addition)}\mbox{}\\
@@ -2405,10 +2072,7 @@ family photos for a week:
 The example demonstrates the clean orthogonality: **\texttt{identity\_occurrence} is for participants that ARE me\textbf{ (across my devices and agents); }\texttt{family} is for trusted nodes that compose with me** (other people's identities, shared household devices, multi-party collectives). Phone = self device; Roku = family device. The two primitives compose without overlap.
 
 
-\textbf{1+4 lockdown preserved}: \texttt{family} rides existing \texttt{scores} attestation\_type with subject\_kind discriminator. Membership changes ride existing \texttt{supersedes} primitive. Removed-member key\_grant cessation rides Option A forward-secrecy (§11.7.1) — the substrate stops wrapping new \texttt{key\_grant}s; no DEK rotation, no re-encryption. (NOTE: CEG 0.3's \texttt{rotation\_chain} field on \texttt{key\_grant} payload is the content-addressed grant-supersession lineage per §5.6.8.4 — a separate axis from key rotation. The per-\texttt{(stream\_id, epoch)} epoch-key axis for CEG 0.10 streaming (§10.5.3) reuses the same payload-level supersession mechanism on a parallel addressing axis.) Zero new structural primitives.
-
-
-\paragraph{§5.6.8.10 \texttt{community} subject\_kind (CEG 0.8 addition)}\mbox{}\\
+Membership changes ride existing \texttt{supersedes} primitive. Removed-member key\_grant cessation rides Option A forward-secrecy (§11.7.1) — the substrate stops wrapping new \texttt{key\_grant}s; no DEK rotation, no re-encryption. (NOTE: CEG 0.3's \texttt{rotation\_chain} field on \texttt{key\_grant} payload is the content-addressed grant-supersession lineage per §5.6.8.4 — a separate axis from key rotation. The per-\texttt{(stream\_id, epoch)} epoch-key axis for CEG 0.10 streaming (§10.5.3) reuses the same payload-level supersession mechanism on a parallel addressing axis.) \#\#\#\# §5.6.8.10 \texttt{community} subject\_kind (CEG 0.8 addition)
 
 
 Per CIRISRegistry\#48. A \texttt{community} is a \textbf{larger node-collective with explicit admission semantics} — sibling subject\_kind to \texttt{family} (CEG 0.7 §5.6.8.9) but with different defaults: content scoped \texttt{cohort\_scope: community} \textbf{federates within the cohort} (emits \texttt{holds\_bytes:sha256:*} per status quo); there is NO at-rest DEK cascade; §10.1.4 structural-invisibility applies to self/family only.
@@ -2499,7 +2163,7 @@ For Alice to join Austin, she emits a \texttt{location\_proof} with a \texttt{ce
 \textbf{Privacy as opt-in}: joining a geographic community is a \textbf{one-way disclosure}. Per §11.8, the \texttt{location\_proof} remains in the audit chain even after the member leaves; rough-only is wire-format-enforced (§0.8.1). The substrate's role is to enforce the opt-in mechanically — produce a \texttt{location\_proof} to join; cannot emit finer than rough.
 
 
-\textbf{Membership change ceremony}: same shape as family (per §5.6.8.9) — rides existing \texttt{supersedes} primitive; admission gated by current \texttt{consensus\_protocol}; additionally for \texttt{geographic} subkind, the candidate's most-recent \texttt{location\_proof} (within \texttt{valid\_until}) MUST be contained in the geographic\_constraint.
+\textbf{Membership change ceremony}: same shape as family — rides existing \texttt{supersedes} primitive; admission gated by current \texttt{consensus\_protocol}; additionally for \texttt{geographic} subkind, the candidate's most-recent \texttt{location\_proof} (within \texttt{valid\_until}) MUST be contained in the geographic\_constraint.
 
 
 \textbf{Substrate emissions on community events}:
@@ -2566,10 +2230,7 @@ CEG 0.8 + earlier specs compose cleanly for civic / democratic participation AND
 The 1+4 lockdown holds across this entire surface — ninth-path confirmation that the wire format is rich enough for democratic-participation use cases without expanding the structural set.
 
 
-\textbf{1+4 lockdown preserved}: \texttt{community} rides existing \texttt{scores} attestation\_type with subject\_kind discriminator. Membership changes ride existing \texttt{supersedes}. Zero new structural primitives.
-
-
-\subparagraph{Canonical \texttt{cohort\_subkind: infrastructure} (CEG 0.11 addition)}\mbox{}\\
+Membership changes ride existing \texttt{supersedes}. \#\#\#\#\# Canonical \texttt{cohort\_subkind: infrastructure} (CEG 0.11 addition)
 
 
 Per CIRISRegistry\#56. The second codified community subkind: a \textbf{governed trust-root collective of canonical/bootstrap service installs} — the shape the CIRIS canonical services (Registry / Lens / Node) adopt instead of a \texttt{family} (rationale: \texttt{CIRISRegistry/MISSION.md} §2.1.1 — public content model, decentralization ramp, legitimacy). Where \texttt{geographic} answers "who is physically here," \texttt{infrastructure} answers "who is a recognized operator of this public service."
@@ -2698,10 +2359,7 @@ location_proof {
 **Composition with \texttt{consent\_record} (CEG 0.6)**: a subject who wants to withdraw their location\_proof AND compel deletion from substrate may emit a \texttt{consent\_record} with \texttt{stance: revoked} + \texttt{scope: [retain, share]} against the location\_proof Contribution. The substrate-side consent SLA watcher (CEG 0.6 §8.1.11.3) clocks producer compliance. Note: this is the consent-revocation surface, distinct from the structural withdraws-forward-only semantic above.
 
 
-\textbf{1+4 lockdown preserved}: \texttt{location\_proof} rides existing \texttt{scores} attestation\_type with subject\_kind discriminator. Withdrawal rides existing \texttt{withdraws}. Consent revocation composes via CEG 0.6 primitives. Zero new structural primitives.
-
-
-\paragraph{§5.6.8.12 \texttt{settlement} — CEG↔value-transfer linkage (CEG 0.14 addition)}\mbox{}\\
+Withdrawal rides existing \texttt{withdraws}. Consent revocation composes via CEG 0.6 primitives. \#\#\#\# §5.6.8.12 \texttt{settlement} — CEG↔value-transfer linkage (CEG 0.14 addition)
 
 
 Per CIRISRegistry\#59 (decision + SOTA) + CIRISAgent\#859 (impl). Value transfer itself is \textbf{not} a CEG primitive — it rides external rails (USDC on Base via x402, keyed to the federation signing key under the \textbf{Identity = Wallet} principle). The \texttt{settlement} primitive is the **optional, privacy-scoped attestation that \textit{links} a federation action to its off-stack settlement** — so a paid relationship (paid stream / tip / subscription / paid \texttt{event\_listing} / compute-job) can be federation-auditable \textit{or} privately recorded, producer's choice. \textbf{CEG records that a settlement happened and binds it to what it paid for; the chain settles the value.} Clean separation of concerns.
@@ -2743,7 +2401,91 @@ settlement {
 \textbf{Lifecycle}: \texttt{withdraws} against a \texttt{settlement} is forward-only (it does not un-happen the on-chain settlement — leaving doesn't un-pay, parallel to \texttt{location\_proof}); a \textit{disputed} or \textit{refunded} settlement is a new \texttt{settlement} / \texttt{scores} referencing the original via \texttt{supersedes} or \texttt{topical\_relation}. CEG never reverses value — it only records the subsequent state.
 
 
-\textbf{1+4 lockdown preserved}: \texttt{settlement} rides existing \texttt{scores} attestation\_type with subject\_kind discriminator; \texttt{settlement\_ref} rides the existing \texttt{evidence\_refs[]} external-reference pattern; binding rides existing \texttt{topical\_relation} / \texttt{subject\_key\_ids}; visibility rides existing \texttt{cohort\_scope}. \textbf{Zero new structural primitives.} Fourteenth path (§1.4) — the wire format expresses \textbf{commerce-relationship auditability} (the receipt, not the rail) as composition, closing the last form of internet traffic from the completeness audit (CIRISRegistry\#59).
+**\textbf{ Fourteenth path (§1.4) — the wire format expresses }commerce-relationship auditability** (the receipt, not the rail) as composition, closing the last form of internet traffic from the completeness audit (CIRISRegistry\#59).
+
+
+\paragraph{§5.6.8.13 Operational-data subject\_kinds — \texttt{organization} / \texttt{org\_membership} / \texttt{partner\_record} (CEG 1.0-RC2 addition)}\mbox{}\\
+
+
+Per CIRISRegistry\#70 (design + three-sided federation review: Edge / Verify / Persist) under the CIRISRegistry\#58 Spock-removal epic. Cross-region \textbf{operational Portal data} — organizations, memberships, licenses/partners — becomes signed CEG envelopes replicated by the same anti-entropy carrier as trust data (CIRISEdge\#65 v2 wire, \texttt{WIRE\_PROTOCOL\_VERSION 0x02}). This is the \textbf{one scheduled additive item} on the 1.0-RC1 frozen surface (README freeze declaration).
+
+
+\textbf{Governing principle (normative): federate the trust/authz-minimal projection; everything else stays region-local.} The federated envelope carries only what the federation needs to enforce trust and authorization cross-region. PII and business detail live in the Registry's own per-region store (today's Portal tables), are NEVER emitted into an operational envelope, and never federate. \textbf{Projection minimization is the Registry's emit-side discipline — the Registry is the security-boundary owner}; the substrate's role is admission + merge, and it is explicitly NOT a PII filter (it stores what is signed and emitted).
+
+
+All three ride existing \texttt{scores} + subject\_kind discriminator. **Replication wire tokens (normative, snake\_case): \texttt{organization} · \texttt{org\_membership} · \texttt{partner\_record}** — the Edge v2 \texttt{EnvelopeKind} additions; v2 \texttt{envelope\_hash} basis = \texttt{sha256(JCS(inner envelope))} per §0.9/§0.9.2.1. All three are \textbf{Commons tier} (§8.1.13.3) — plaintext at rest; the projection is world-readable by design.
+
+
+\begin{lstlisting}
+organization {
+    org_id:           uuid          // FIRST-CLASS: substrate MUST index as a row column (stable-id resolution below)
+    name:             string
+    org_type:         OrgType       // internal | partner | licensee | community (the proto enum)
+    parent_org_id:    Option<uuid>  // licensee under partner
+    partner_id:       Option<uuid>  // link to partner_record
+    status:           active | suspended | deactivated
+    asserted_at:      rfc3339_canonical          // per S0.5; LWW ordering field
+    valid_until:      Option<rfc3339_canonical>
+}
+// REGION-LOCAL (never federates): tax_id, billing/technical/compliance/primary emails,
+// oauth_provider/oauth_domain, metadata, created_by.
+
+org_membership {
+    user_id:          uuid          // FIRST-CLASS (with org_id): substrate MUST index (user_id, org_id)
+    org_id:           uuid
+    role:             OrgAdmin | KeyManager | Operator | Viewer
+    status:           active | deactivated
+    asserted_at:      rfc3339_canonical
+    valid_until:      Option<rfc3339_canonical>
+}
+// REGION-LOCAL (never federates): the entire User PII record -- email, name,
+// oauth_provider/oauth_subject, last_login_at, mfa_enabled/mfa_method, invited_by.
+// Consequence: role-based authz works federation-wide; email->user login resolution
+// is home-region-local.
+
+partner_record {
+    license_id:       uuid          // FIRST-CLASS: substrate MUST index as a row column
+    partner_id:       uuid
+    org_id:           uuid
+    license_type:     LicenseType   // community | community_plus | professional_* | professional_full
+    capabilities_granted:  [string]   // SET-SEMANTICS -> lexicographically sorted (S0.9.2.1 rule 1)
+    capabilities_denied:   [string]   // SET-SEMANTICS -> sorted
+    max_autonomy_tier:     A0..A4
+    requires_supervisor:   bool
+    geographic_restrictions: [string] // ISO country codes; SET-SEMANTICS -> sorted
+    allowed_identity_templates: [string] // SET-SEMANTICS -> sorted
+    deployment_limit:      u32
+    offline_grace_hours:   u32
+    status:           active | suspended | revoked
+    revision:         u64           // MONOTONIC per license_id -- admission REJECTS any decrease
+                                    //   (the F-AV-ROLLBACK discipline; the merge orders on this,
+                                    //   so a stale `active` can never overwrite a revoke)
+    issued_at:        rfc3339_canonical
+    expires_at:       rfc3339_canonical
+    asserted_at:      rfc3339_canonical
+}
+// No PII split -- the partner_record IS the world-verifiable grant; it federates whole.
+\end{lstlisting}
+
+\textbf{Set-semantics declaration (normative — the \#70 Verify catch).} \texttt{capabilities\_granted[]} / \texttt{capabilities\_denied[]} / \texttt{geographic\_restrictions[]} / \texttt{allowed\_identity\_templates[]} are \textbf{set-semantics → lexicographically sorted by JCS string form (§0.9.2.1 rule 1)} — and this is \textit{more} than a single-signer determinism rule here: \texttt{partner\_record} is signed by \textbf{M distinct stewards}, and the M-of-N quorum verifies only if all M sign \textbf{byte-identical} JCS canonical bytes. Unsorted capability arrays make two stewards who agree on the same grant produce different bytes — the quorum silently collapses and the license fails to admit cross-region. The CIRISConformance\#9 vector set MUST include the M-of-N identical-bytes round-trip (M independent canonicalize+sign of one grant → one verifiable signature set). Any unordered list inside a constraints object carries the same declaration.
+
+
+\textbf{No payment-processor data (normative — fail-secure).} An operational envelope MUST NOT carry Stripe-derived or any payment-processor-derived data (customer ids, subscription ids, charge refs, card metadata) — \textbf{including via any open-vocabulary field}. Substrate admission MUST reject an operational envelope carrying recognizable payment-processor identifiers (defense-in-depth; the Registry's emit-side minimization is the primary control). Billing remains entirely Portal+Stripe, off-wire (CLAUDE.md discipline; consistent with §5.6.8.12 keeping value-transfer rails off-wire).
+
+
+\textbf{Write authority — two shapes, two verifiers (normative).}
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{organization} / \texttt{org\_membership}: \textbf{single authorized signer, role-gated} — the envelope is admitted iff \texttt{attesting\_key\_id} holds the required role for the operation, established by a prior non-superseded \texttt{org\_membership} (rooted at org creation by a steward/system authority). Verification reuses the **§8.1.12.7.1 \texttt{delegates\_to} role-chain resolver** (CIRISVerify\#63) — explicitly NOT founder-quorum; implementers MUST NOT build a third bespoke path.
+\item \texttt{partner\_record}: \textbf{M-of-N steward quorum} — the signature \textit{set} over the identical JCS bytes is verified at admission by the \textbf{§5.6.8.10 founder-quorum machinery} (\texttt{verify\_founder\_quorum}, CIRISVerify\#31). Professional capability grants are federation-wide; a single compromised key MUST NOT be able to forge one.
+\item \textbf{The two quorums are distinct (normative — do not conflate):} (1) the \textbf{steward-signature admission quorum} above (signer authority, verified by Verify at admit) and (2) the \textbf{region merge quorum} (\texttt{quorum\_weight}, the substrate \texttt{MergeBallot} tier-1 ordering during cross-region merge — §10.1.6). Different mechanisms, different layers, different owners; the substrate's merge logic never counts steward signatures.
+\end{itemize}
+
+
+\textbf{Mutability + current-state resolution (normative — stable-id grouping, NOT chain-walk).} Updates ride \texttt{supersedes}; deactivation/revocation rides \texttt{withdraws} (the §5.6.8.5 \texttt{event\_listing} state-machine pattern). \textbf{Current state of a business id is resolved by stable-id grouping}: group all envelopes by the first-class business id (\texttt{org\_id} / \texttt{(user\_id, org\_id)} / \texttt{license\_id}) → apply \texttt{withdraws} forward-only → latest \texttt{asserted\_at} (skew-bounded per §10.1.6) → tie-break smallest \texttt{attestation\_id} (the §6.1 discipline). For \texttt{partner\_record}, admission anti-rollback on \texttt{revision} precedes the §10.1.6 quorum merge. Resolution MUST NOT require chain completeness — a region that never observed envelope N−1 still converges (partition tolerance is the point of CEG-native replication). \texttt{supersedes} references SHOULD be emitted when the prior is known and serve as \textbf{audit lineage only} — decoration, never resolution.
+
+
+6.8.10 founder-quorum machinery; role authority rides the existing §8.1.12.7.1 delegation resolver; merge intents are substrate dispatch declarations (§10.1.6), not wire primitives. **\textbf{ Sixteenth path (§1.4) — the wire format expresses }the federation's own operational/administrative layer** (the org/identity/license records that run the federation's business) as composition, completing the Spock-removal arc: after this, no cross-region byte moves outside a signed CEG envelope.
 
 
 \subsection*{§5.7 RATCHET — anti-Sybil / Counter-RII flags}
@@ -2812,17 +2554,11 @@ Lineage:
 \item v1.4.3: canonical-bytes contracts pinned in §5.2.1; Goal substrate cross-ref documented
 \item \textbf{CEG 0.1}: opened \texttt{testimonial\_witness:\{kind\}} to open vocabulary; surfaced \texttt{hard\_case:\{kind\}} open vocabulary in §5.6.6; added \texttt{biosphere} to §2 Scope axis; added \texttt{topical\_relation:translation\_of} sub-leaf in §5.6.8 (LIVE per CIRISNodeCore b1582cb); documented "Trust-Fresh" composition pattern in §8.1.7; added Tiered-Scope Composition pattern in §8.1.8. All polarity columns now populated.
 \item \textbf{CEG 0.2} (wire break): renamed §5.2 attestation-ladder prefixes from \texttt{attestation:l\{N\}:*} to mechanism-only form (\texttt{attestation:self\_verify}, \texttt{attestation:hardware\_rooted}, \texttt{attestation:registry\_consensus}, \texttt{attestation:license\_validity}, \texttt{attestation:agent\_integrity}) per §1.3.1 T2 honest application — L-numbers name ladder-position (a verdict-shape) not mechanism. The L1-L5 ladder is now consumer-side composition per §8.1.9 Policy I — Attestation-Ladder Composition. Deprecated wire shape added to §13.1.
-\item \textbf{CEG 0.3} (additive; per CIRISRegistry\#37 + \#38 + \#39): multimedia tier + governance additions. \textbf{Two new subject\_kinds} documented: \texttt{takedown\_notice} (with \texttt{LegalBasis} closed-set enum of 10 values + per-basis discipline) and \texttt{key\_grant} (with \texttt{wrap\_algorithm} + \texttt{scope} enums + \texttt{rotation\_chain} semantics). \textbf{Five new external\_content sub\_kinds}: \texttt{image}, \texttt{audio}, \texttt{video}, \texttt{film}, \texttt{model\_3d} (+ Phase 2 \texttt{live\_stream}). \textbf{Four new dimension families}: \texttt{content\_rating:\{scheme\}:\{rating\}}, \texttt{content\_class:\{class\}}, \texttt{cw\_class:\{class\}}, \texttt{age\_assurance:\{level\}}. \textbf{Five new media-prefix families}: \texttt{image:*}, \texttt{audio:*}, \texttt{video:*}, \texttt{film:*}, \texttt{model\_3d:*}. New composition policy (§8.1.10) for trusted-publisher path + age-assurance gating. New governance sections (§11.4 fast-path takedown coordination + §11.5 hash-database operator policy). \textbf{1+4 wire-format lockdown preserved} — retire-key-grant rides existing \texttt{supersedes}; takedown propagation rides existing \texttt{withdraws}-against-\texttt{holds\_bytes}; no new structural primitives.
-\item \textbf{CEG 0.4} (additive; per CIRISRegistry\#40 + CIRISNodeCore\#25 Gap 1 closure at d0a443a): time-bound state-bearing content. **One new \texttt{external\_content} sub\_kind**: \texttt{event\_listing} (Eventbrite / Meetup / Lu.ma / calendar / RSVPs / ticketing) with Source struct documented at NodeCore SCHEMA §4.29. \textbf{One new dimension family group} (§5.6.8.5): \texttt{event:lifecycle:\{state\}} (open / cancelled / completed / superseded) + \texttt{event:rsvp\_count} + \texttt{event:attendance}. **Two new canonical \texttt{topical\_relation:\{kind\}} entries** (documentation-only registry additions; no amendment): \texttt{rsvps} (RSVP attestation against an event) + \texttt{vod\_of} (reserved for the deferred live\_stream→video relationship). \textbf{1+4 wire-format lockdown preserved} — lifecycle state machine composes from \texttt{withdraws} / \texttt{supersedes} / \texttt{delegates\_to} + the new dimension's latest non-superseded emission; no new structural primitives. **\texttt{live\_stream} remains deferred** (CIRISNodeCore\#25 Gap 2 not yet shipped; substrate-side Edge + Persist decisions pending) — CEG 0.4 codifies only what NodeCore shipped, per the downstream-demand-pulls-CEG-additions discipline established with 0.3.
+\item \textbf{CEG 0.3} (additive; per CIRISRegistry\#37 + \#38 + \#39): multimedia tier + governance additions. \textbf{Two new subject\_kinds} documented: \texttt{takedown\_notice} (with \texttt{LegalBasis} closed-set enum of 10 values + per-basis discipline) and \texttt{key\_grant} (with \texttt{wrap\_algorithm} + \texttt{scope} enums + \texttt{rotation\_chain} semantics). \textbf{Five new external\_content sub\_kinds}: \texttt{image}, \texttt{audio}, \texttt{video}, \texttt{film}, \texttt{model\_3d} (+ Phase 2 \texttt{live\_stream}). \textbf{Four new dimension families}: \texttt{content\_rating:\{scheme\}:\{rating\}}, \texttt{content\_class:\{class\}}, \texttt{cw\_class:\{class\}}, \texttt{age\_assurance:\{level\}}. \textbf{Five new media-prefix families}: \texttt{image:*}, \texttt{audio:*}, \texttt{video:*}, \texttt{film:*}, \texttt{model\_3d:*}. New composition policy (§8.1.10) for trusted-publisher path + age-assurance gating. New governance sections (§11.4 fast-path takedown coordination + §11.5 hash-database operator policy). - \textbf{CEG 0.4} (additive; per CIRISRegistry\#40 + CIRISNodeCore\#25 Gap 1 closure at d0a443a): time-bound state-bearing content. **One new \texttt{external\_content} sub\_kind**: \texttt{event\_listing} (Eventbrite / Meetup / Lu.ma / calendar / RSVPs / ticketing) with Source struct documented at NodeCore SCHEMA §4.29. \textbf{One new dimension family group} (§5.6.8.5): \texttt{event:lifecycle:\{state\}} (open / cancelled / completed / superseded) + \texttt{event:rsvp\_count} + \texttt{event:attendance}. **Two new canonical \texttt{topical\_relation:\{kind\}} entries** (documentation-only registry additions; no amendment): \texttt{rsvps} (RSVP attestation against an event) + \texttt{vod\_of} (reserved for the deferred live\_stream→video relationship). **\texttt{live\_stream} remains deferred** (CIRISNodeCore\#25 Gap 2 not yet shipped; substrate-side Edge + Persist decisions pending) — CEG 0.4 codifies only what NodeCore shipped, per the downstream-demand-pulls-CEG-additions discipline established with 0.3.
 \item \textbf{CEG 0.5} — \textit{in flight} (codification pending) per CIRISRegistry\#44 + CIRISNodeCore\#26 + CIRISPersist\#142: \texttt{live\_stream} promotion + chunk-DAG composition. Lands when NodeCore\#26 substrate decisions ratify. Additive at the namespace layer (no envelope change).
-\item \textbf{CEG 0.8} (additive at the envelope layer; per CIRISRegistry\#48): **\texttt{community} subject\_kind + \texttt{location\_proof} subject\_kind + \texttt{cohort\_subkind: geographic} discriminator + wire-format-enforced rough-only location precision.** Sibling to CEG 0.7 \texttt{family} but with different defaults (community content federates per status quo; no at-rest DEK cascade; §10.1.4 structural-invisibility does NOT extend to community). Adds: \textbf{two new subject\_kinds} — \texttt{community} (§5.6.8.10; larger node-collective with \texttt{cohort\_subkind} discriminator; canonical \texttt{geographic} subkind with \texttt{geographic\_constraint} payload; same six \texttt{consensus\_protocol} kinds as family) and \texttt{location\_proof} (§5.6.8.11; H3 cell\_id + cell\_resolution ≤ 7 rough-only enforcement; optional \texttt{attestation\_evidence} from ciris-keyring). \textbf{One new envelope field} (§4): \texttt{community\_id} required iff \texttt{cohort\_scope == community} (parallel to \texttt{family\_id} but semantics differ — community federates per status quo). \textbf{One new canonicalization section} (§0.8): H3 cell canonicalization (lowercase hex; resolution-redundancy check; rough-only enforcement; containment semantics). \textbf{Three new substrate-emitted reserved prefixes} (§7.8): \texttt{hard\_case:community\_membership\_change:*} + \texttt{hard\_case:community\_consensus\_protocol\_change:*} + \texttt{hard\_case:community\_consensus\_protocol\_violation:*} + \texttt{hard\_case:location\_proof\_resolution\_violation} (4-prefix total). \textbf{New composition policy} (§8.1.13) Policy M — community membership composition + geographic admission gate (parallel to Policy L but without at-rest cascade). \textbf{New governance section} (§11.8) geographic-community privacy invariant — joining is opt-in disclosure; rough-only is wire-format-enforced; leaving is forward-only (the audit chain preserves the historical claim). \textbf{1+4 wire-format lockdown preserved} — zero new structural primitives; both new subject\_kinds ride existing \texttt{scores} + subject\_kind discriminator; admission gates ride existing \texttt{consensus\_protocol} machinery from CEG 0.7. Ninth independent path confirming 1+4 minimal-and-adequate (§1.4) — demonstrates the wire format can express \textbf{rough-precision geospatial constraints as canonicalization rules} (§0.8) + subject\_kind admission gates, without new structural primitives.
-\item \textbf{CEG 0.10} (additive at the envelope+endpoint+composition layer; per CIRISRegistry\#44 absorbed + CIRISLensCore\#857 + CIRISPersist\#142): \textbf{the delivery axis — third orthogonal envelope concern (visibility + revocability + delivery).} Observer-share (N=1) and streaming multicast (N>1) are the same primitive at different cardinality. Adds: \textbf{three new optional envelope fields} (§4) — \texttt{delivery\_mode:\{pull\textbackslash{}|push\}} + \texttt{listed:public} + \texttt{history\_on\_join:\{full\textbackslash{}|from\_join\}}; \textbf{new endpoint section} (§10.5) — 7 sub-sections covering per-stream \texttt{SignedTreeHead} reusing §10.3 RFC 6962 per-\texttt{stream\_id}, STREAM nonce derivation matching the \texttt{KEY\_GRANT\_V1\_INFO} versioned-context HKDF pattern at \texttt{ciris-crypto/key\_grant.rs}, epoch-keying cascade on a separate addressing axis from \texttt{key\_grant.rotation\_chain}, delivery receipts as JOIN-against-published-root, Edge transport with two-layer crypto + pull-only RC1, D6 entitled-∧-reachable liveness invariant; \textbf{one new reserved prefix} (§7.9) \texttt{delivery\_receipt:\{stream\_id\}}; \textbf{composition extension} (§8.1.13.7) \texttt{delivery\_mode} × Policy M + \texttt{history\_on\_join} × membership additions; **\texttt{rotation\_chain} hygiene fixes** clarify CEG 0.3's \texttt{key\_grant.rotation\_chain} is content-addressed grant-supersession lineage (not key-rotation) and CEG 0.10 introduces a parallel per-\texttt{(stream\_id, epoch)} axis reusing the same payload-level supersession mechanism. \textbf{Bifurcated}: observer-share half impl-live (no blockers); streaming multicast half spec-now/impl substrate-pending CIRISPersist\#142 + accountable tier additionally pending CIRISRegistry\#34. Open gate: RC1-1c V054 CHECK parallel-arm migration (bounded constraint migration, not pure-additive at Persist constraint layer). Tenth independent path confirming 1+4 minimal-and-adequate (§1.4) — substrate-fan-out and 1:N media multicast compose from the same 1+4 set as 1:1 attestations.
-\item \textbf{CEG 0.7} (additive at the envelope layer; per CIRISRegistry\#47 + CIRISPersist\#152 + ciris.ai/cewp structural-invisibility framing): \textbf{self/family membership primitives + wire-format-level structural invisibility.} Two new subject\_kinds — \texttt{identity\_occurrence} (§5.6.8.8; links occurrence\_keys (devices + agents) to a root identity\_key; single-vouch admission; \texttt{device\_class ∈ phone | laptop | server | embedded | agent | service}) and \texttt{family} (§5.6.8.9; group of trusted nodes — members are identity\_keys (which may themselves have multi-occurrence sets); one identity MAY belong to multiple families; per-family \texttt{consensus\_protocol} field (\texttt{founder\_only} / \texttt{unanimous} / \texttt{majority} / \texttt{quorum:M/N} / \texttt{weighted:\{rubric\}} / \texttt{custom:\{id\}}) governs admission; meta-amendment via the protocol's own rules unless \texttt{consensus\_protocol\_entrenched}). \textbf{One new envelope field} (§4): \texttt{family\_id} required iff \texttt{cohort\_scope == family}. \textbf{Four new substrate-emitted reserved prefixes} (§7.7): \texttt{hard\_case:identity\_occurrence\_added:*} + \texttt{hard\_case:family\_membership\_change:*} + \texttt{hard\_case:family\_consensus\_protocol\_change:*} + \texttt{hard\_case:family\_consensus\_protocol\_violation:*}. \textbf{New composition policy} (§8.1.12) Policy L — self/family membership composition + DEK key-grant cascade on new-member admission + Option A forward-secrecy on departure. \textbf{New endpoint discipline} (§10.1.4) structural-invisibility — substrate MUST NOT emit \texttt{holds\_bytes:sha256:*} for \texttt{cohort\_scope: self | family} content; the cewp claim "the wire format can't carry them in the first place" is now normative. \textbf{New governance section} (§11.7) self/family membership governance — locked the 4 open decisions from \#47 (Option A forward-secrecy + envelope \texttt{family\_id} for multi-family + reserved-prefix substrate ownership + single-vouch self / consensus-protocol family). \textbf{Retcon at §9.1}: HUMANITY\_ACCORD triple is the canonical entrenched-\texttt{family} instance (3 founders, \texttt{consensus\_protocol: quorum:2/3}, \texttt{consensus\_protocol\_entrenched: true}). \textbf{1+4 wire-format lockdown preserved} — zero new structural primitives; both new subject\_kinds ride existing \texttt{scores} + subject\_kind discriminator; membership changes ride existing \texttt{supersedes}; DEK cascade rides existing \texttt{key\_grant} wrap + Option-A re-grant (\texttt{rotation\_chain} from CEG 0.3 is the content-addressed grant-supersession lineage, a separate axis — see §5.6.8.4 disambiguation). Eighth independent path confirming 1+4 minimal-and-adequate (§1.4) — demonstrates the structural set is rich enough to express collective-scale membership AND the wire-format-level closure of the cewp structural-invisibility privacy claim.
-\item \textbf{CEG 0.6} (additive at the envelope layer; per CIRISRegistry\#45 + CIRISAgent\#842): \textbf{subject-side consent authority — the missing half of consent at the wire format.} Universal across medical records / photos / interviews / training data / group chat / financial / surveillance / FERPA / multi-party contracts. CEG ≤ 0.5 encoded only producer authority (\texttt{attesting\_key\_id}); CEG 0.6 adds subject authority via \textbf{one new optional envelope field} (§4.2): \texttt{subject\_key\_ids: Vec<KeyId>} — accepts both federation\_keys identities AND canonical-hash identifiers (resolves CIRISAgent\#840 OQ3). **Semantic broadening of \texttt{withdraws}\textbf{ (§3.2.3) to admit subject revocation + delegated proxy chain for canonical-hash subjects; the primitive's wire shape is unchanged. }One new dimension family** (§5.6.8.6): \texttt{consent:*} (8 prefixes — \texttt{state:*}, \texttt{stream:*}, \texttt{deletion\_sla:*}, \texttt{deletion\_complete}, \texttt{decay:*}, \texttt{partnership\_grant}, \texttt{partnership\_accept}, \texttt{scope:*}). \textbf{One new subject\_kind} (§5.6.8.7): \texttt{consent\_record} (ceremony envelope parallel to \texttt{key\_grant} / \texttt{takedown\_notice}; both bare-\texttt{scores} and ceremony shapes admitted at the same gate). \textbf{New composition policy} (§8.1.11) Policy K — CEM composition. \textbf{New governance section} (§11.6) vertical compliance mapping (HIPAA / GDPR Art 9 / FERPA / CCPA / AI training right-to-be-forgotten) + dimension-pattern-implies-\texttt{subject\_key\_ids} requirement. \textbf{1+4 wire-format lockdown preserved} — zero new structural primitives; one envelope field + one namespace family + one optional subject\_kind + one semantic broadening. \textbf{CIRISAgent's CEM} (TEMPORARY / PARTNERED / ANONYMOUS streams) becomes a \textbf{consumer-policy bundle over the wire primitive}, not a wire-format lockdown; other agents MAY compose other streams over the same primitives.
+\item \textbf{CEG 0.6} (additive at the envelope layer; per CIRISRegistry\#45 + CIRISAgent\#842): \textbf{subject-side consent authority — the missing half of consent at the wire format.} Universal across medical records / photos / interviews / training data / group chat / financial / surveillance / FERPA / multi-party contracts. CEG ≤ 0.5 encoded only producer authority (\texttt{attesting\_key\_id}); CEG 0.6 adds subject authority via \textbf{one new optional envelope field} (§4.2): \texttt{subject\_key\_ids: Vec<KeyId>} — accepts both federation\_keys identities AND canonical-hash identifiers (resolves CIRISAgent\#840 OQ3). **Semantic broadening of \texttt{withdraws}\textbf{ (§3.2.3) to admit subject revocation + delegated proxy chain for canonical-hash subjects; the primitive's wire shape is unchanged. }One new dimension family** (§5.6.8.6): \texttt{consent:*} (8 prefixes — \texttt{state:*}, \texttt{stream:*}, \texttt{deletion\_sla:*}, \texttt{deletion\_complete}, \texttt{decay:*}, \texttt{partnership\_grant}, \texttt{partnership\_accept}, \texttt{scope:*}). \textbf{One new subject\_kind} (§5.6.8.7): \texttt{consent\_record} (ceremony envelope parallel to \texttt{key\_grant} / \texttt{takedown\_notice}; both bare-\texttt{scores} and ceremony shapes admitted at the same gate). \textbf{New composition policy} (§8.1.11) Policy K — CEM composition. \textbf{New governance section} (§11.6) vertical compliance mapping (HIPAA / GDPR Art 9 / FERPA / CCPA / AI training right-to-be-forgotten) + dimension-pattern-implies-\texttt{subject\_key\_ids} requirement. \textbf{CIRISAgent's CEM} (TEMPORARY / PARTNERED / ANONYMOUS streams) becomes a \textbf{consumer-policy bundle over the wire primitive}, not a wire-format lockdown; other agents MAY compose other streams over the same primitives.
 \end{itemize}
 
-
-Zero new structural primitives across the entire lineage. 1+4 minimal-and-adequate claim examined across \textbf{10 independent paths} (§1.4) — CEG 0.10 delivery axis (observer-share + streaming multicast as the same primitive at different cardinality) is the tenth and most operationally consequential. The wire format's structural set is stable at 1+4 across content (multimedia + time-bound), consent (dual-authority + decay-protocol + bilateral-pair), collective-scale membership (devices + agents + families + entrenched-families), geospatial admission constraints with wire-format-enforced privacy precision, AND substrate-fan-out / 1:N media multicast.
 
 
 
@@ -3811,7 +3547,7 @@ Operator vocabularies extending \texttt{cohort\_subkind} provide their own \text
 \paragraph{§8.1.13.3 The three crypto tiers + the Community DEK cascade (CEG 0.17, normative — supersedes the 0.8 "no cascade" reasoning)}\mbox{}\\
 
 
-CEG ≤ 0.16 drew a binary cut (self/family encrypt; everything else plaintext), which collapsed a bounded \textbf{Community} and the unbounded \textbf{Commons} into one bucket and left \textbf{no cryptographic home for a persecuted community}. The 0.8 "no at-rest cascade" reasoning ("per-member DEK wrap on every emission would be infeasible") was a \textbf{wrong premise} — corrected here. CEG 0.17 (per CIRISRegistry\#67) draws the line at \textbf{"does it have a bounded membership roster?"} — yes → encrypt, no → plaintext:
+CEG ≤ 0.16 drew a binary cut (self/family encrypt; everything else plaintext), which collapsed a bounded \textbf{Community} and the unbounded \textbf{Commons} into one bucket and left \textbf{no cryptographic home for a persecuted community}. The 0.8 "no at-rest cascade" reasoning ("per-member DEK wrap on every emission would be infeasible") was a \textbf{wrong premise} — corrected here. CEG 0.17 draws the line at \textbf{"does it have a bounded membership roster?"} — yes → encrypt, no → plaintext:
 
 
 {\scriptsize
@@ -3943,7 +3679,7 @@ For \texttt{delivery\_mode: push}, the substrate fans out to \texttt{entitled �
 **\texttt{history\_on\_join} × Policy M membership additions**:
 
 
-On a new-member admission via Policy M, the new member's \texttt{history\_on\_join} envelope value (per §4) determines retroactive content delivery:
+On a new-member admission via Policy M, the new member's \texttt{history\_on\_join} envelope value determines retroactive content delivery:
 
 
 \begin{itemize}\setlength\itemsep{0pt}
@@ -4160,7 +3896,7 @@ All CEG endpoints return:
 
 \begin{itemize}\setlength\itemsep{0pt}
 \item \textbf{Content-Type}: \texttt{application/json} (\texttt{Accept: application/json} honored; other types respond \texttt{406 Not Acceptable})
-\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{1.0-rc1}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+\item \textbf{CEG-API-Version header}: \texttt{CEG-Version: <current spec major.minor>} on every response (track the README \texttt{Version:} field; currently \texttt{1.0-rc2}); clients SHOULD echo \texttt{CEG-Accept-Version: <pinned-version>} on request, naming the version they were built against. Per §0.3 SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 \item \textbf{Time-Source header}: \texttt{X-CEG-Server-Time: <rfc3339\_canonical>} per §0.5 for client clock-skew bounds
 \item \textbf{Pagination} (where applicable): \texttt{?cursor=} + \texttt{?limit=} query params; response includes \texttt{next\_cursor} (null if exhausted) and \texttt{total\_estimate} (server's best estimate, may be approximate)
 \end{itemize}
@@ -4392,6 +4128,28 @@ The tier model is the \textit{same KEM-then-symmetric placement} the streaming m
 \end{itemize}
 
 
+\subsubsection*{§10.1.6 Cross-region merge intents — CEG-declared per subject\_kind (normative; CEG 1.0-RC2 addition)}
+
+
+Per CIRISRegistry\#70 (Persist review concern D): with operational data joining the CEG-native replication stream (§5.6.8.13), the substrate runs \textbf{more than one merge policy}. The policy is a \textbf{normative property of the subject\_kind, declared here} — the substrate reads and dispatches on the declaration; it MUST NOT infer policy per record type (the substrate enforces declared merges; it does not invent policy).
+
+
+{\footnotesize
+\begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
+\textbf{subject\_kind(s)} & \textbf{Merge intent} & \textbf{Semantics} \\ \hline\endhead
+\texttt{organization}, \texttt{org\_membership} & **\texttt{lww\_skew\_bounded} + \texttt{withdrawal\_forward\_only}** & Stable-id grouping (§5.6.8.13); an admitted \texttt{withdraws} (deactivation) is forward-only — a later non-withdrawn write does NOT resurrect; else latest \texttt{asserted\_at} wins; tie-break smallest \texttt{attestation\_id} (§6.1). The forward-only here is the \textbf{lightweight authz flag}, NOT the §8.1.12 DEK-cascade crypto path — Commons tier, no DEK exists. \\ \hline
+\texttt{partner\_record} & **\texttt{monotonic\_quorum}** (the CIRISPersist V058 R1/Q1 machinery, generalized from \texttt{revoked\_key\_id} to \texttt{license\_id}) & Admission anti-rollback first: a write whose \texttt{revision} decreases never enters the merge. Then the \texttt{MergeBallot} comparator: \texttt{quorum\_weight} → signed timestamp → content hash. Quorum-above-time is deliberate — it neutralizes timestamp front-running (F-AV-FRONTRUN) on the records where it matters most. More-restrictive state wins on conflict: \texttt{revoked} > \texttt{suspended} > \texttt{active}. \\ \hline
+\texttt{revocation} + the three membership-revocations & V058 R1/Q1 (unchanged — the original \texttt{monotonic\_quorum} instance) & As shipped. \\ \hline
+keys / attestations / occurrences / families / communities / location\_proofs & Content-addressed idempotent admission (unchanged) & Same content → same \texttt{envelope\_hash} → dedup; rotation collisions rejected non-destructively. \\ \hline
+\end{longtable}}
+
+
+\textbf{Skew-bounded admission (normative — the LWW front-running fix, \#70 Persist concern B).} For every subject\_kind merging by \texttt{lww\_skew\_bounded}, the substrate MUST reject at admission any envelope with \texttt{asserted\_at > now + tolerance}, where \texttt{tolerance} is the §0.7 clock-skew bound (±5 minutes; the existing \texttt{CLOCK\_SKEW\_VIOLATION} error class). Without this, a signer with a forward-skewed clock future-dates \texttt{asserted\_at} and wins LWW indefinitely; with it, a forward-dated write can win for at most the skew window. This matters precisely because \texttt{org\_membership} carries \texttt{role: OrgAdmin} — unbounded LWW on authz data is a role-escalation surface.
+
+
+\textbf{The two quorums (restated from §5.6.8.13 — different layers, different owners):} the \textbf{steward-signature admission quorum} (M-of-N signature set over identical JCS bytes; the §5.6.8.10 founder-quorum machinery at admit — Verify's layer) is NOT the \textbf{region merge quorum} (\texttt{quorum\_weight}, the \texttt{MergeBallot} tier-1 ordering above — the substrate's layer). The substrate's merge logic never counts steward signatures; Verify's admission check never orders merges.
+
+
 \subsection*{§10.2 Multi-steward + accord-holder discovery}
 
 
@@ -4540,7 +4298,7 @@ Full response schemas for these endpoints land in the Rust handlers + OpenAPI ex
 Per CIRISRegistry\#44 absorbed + CIRISLensCore\#857 (observer-share driver) + CIRISPersist\#142 (streaming substrate prerequisite). §10.5 is the \textbf{delivery axis} — the third orthogonal envelope concern alongside visibility (\texttt{cohort\_scope}) and revocability (\texttt{subject\_key\_ids} per §4.2). §3's 1+4 primitive set is untouched; §10.5 is endpoint + envelope + composition extension, NOT a grammar change.
 
 
-\textbf{Bifurcation (per §15.6.1)}:
+\textbf{Bifurcation}:
 
 
 {\footnotesize
@@ -4698,7 +4456,7 @@ Both \texttt{epoch} (key-rotation index — for per-epoch entitlement / billing)
 {\footnotesize
 \begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
 \textbf{Decision} & \textbf{Behavior} \\ \hline\endhead
-\textbf{E2 — pull-only RC1} & RC1 multicast = \textbf{pull-only}: producer seals chunks under the epoch DEK → emits \texttt{holds\_bytes:sha256:*} (per §10.1) → subscribers pull via the existing \texttt{ContentFetch} path. Relay / fan-out tree → 1.x (CIRISRegistry\#46 / \#43) \\ \hline
+\textbf{E2 — pull-only RC1} & RC1 multicast = \textbf{pull-only}: producer seals chunks under the epoch DEK → emits \texttt{holds\_bytes:sha256:*} → subscribers pull via the existing \texttt{ContentFetch} path. Relay / fan-out tree → 1.x (CIRISRegistry\#46 / \#43) \\ \hline
 \textbf{E1 — two-layer crypto (security-critical)} & Transit-key (per CIRISLensCore\#857 prod-lens-via-transit-key) is a \textbf{hop-by-hop transport wrap UNDER the E2E epoch DEK} (two independent crypto layers). MUST NOT replace the cascade — a relay never sees plaintext. Transit-key is for path-confidentiality; epoch-DEK is for end-to-end content confidentiality. \textbf{PQC in transit (normative):} BOTH layers MUST use PQC-grade key agreement — the transit-key wrap MUST be hybrid X25519+ML-KEM-768 (same \texttt{hybrid\_kex} primitive as §10.5.3), and the underlying transport (Edge/Reticulum) MUST negotiate the hybrid/PQC crypto-kind (\texttt{CIR2}, per \texttt{CIRISVerify/docs/CRYPTO\_AGILITY.md}), never classical-only \texttt{CIR1}. Classical-only transport is rejected for streaming. \\ \hline
 \textbf{E3 — fan-out = entitled ∧ reachable} & \textbf{Persist owns durable entitlement} (the roster: signed CEG envelopes, replicated, logged). \textbf{Edge owns transport-reachability} via \texttt{reachability.rs} (CIRISEdge\#29) node-local presence tracker. Fan-out targets the intersection. Reachability is NEVER an attestation, never \texttt{holds\_bytes}, never replicated, never logged — consistent with the §10.1.4 `cohort\_scope: self\textbackslash{} \\ \hline
 \textbf{E4 — durable side rides existing federation-attestation path} & Durable entitlement (roster + epoch-key grants) rides the \textbf{existing federation-attestation Edge path} (CIRISRegistry\#41 handler cutover) — just more \texttt{federation\_attestations} rows. NO net-new Edge transport for the durable side. Net-new is only on §10.5.1 streaming-log endpoints \\ \hline
@@ -4764,10 +4522,7 @@ The low-latency realtime profile (direct Reticulum Links) is \textbf{in 1.0 scop
 \textbf{Ephemeral vs persistent rosters}: a persistent channel is a long-lived \texttt{community}; an ad-hoc call is an **ephemeral \texttt{community}** (short \texttt{valid\_until}, torn down on last-leave). Same primitive, different lifetime — no special-case "session" primitive.
 
 
-The breadth confirmation: a full realtime group-communication platform — group video, voice, screen sharing, chat, and channels-with-sub-channels — requires \textbf{no addition to the 1+4 structural set} beyond the §10.5 delivery axis and the \texttt{community} membership machinery already locked. Thirteenth path.
-
-
-\paragraph{§10.5.8.1 Realtime non-A/V data streams (normative scope boundary)}\mbox{}\\
+The breadth confirmation: a full realtime group-communication platform — group video, voice, screen sharing, chat, and channels-with-sub-channels — requires \textbf{no addition to the 1+4 structural set} beyond the §10.5 delivery axis and the \texttt{community} membership machinery already locked. \#\#\#\# §10.5.8.1 Realtime non-A/V data streams (normative scope boundary)
 
 
 The realtime profile is \textbf{not media-only.} Any high-frequency mutable shared state — multiplayer game ticks, collaborative-editing operations (CRDT/OT), live cursors/whiteboard strokes, remote-control input, high-rate telemetry — rides the \textbf{same} §10.5.8 realtime transport (direct Reticulum Links / SFU at scale) with an application-defined payload codec in place of an A/V codec. The wire is identical: per-\texttt{(stream\_id, epoch)} epoch DEK (§10.5.3, \texttt{wrap\_algorithm: v2} PQC), STREAM-nonce chunk seal (§10.5.2), per-stream STH (§10.5.1). A data-stream chunk is just a chunk.
@@ -4864,7 +4619,7 @@ When two parties independently register confusingly-similar \texttt{\{kind\}} / 
 
 
 \begin{enumerate}\setlength\itemsep{0pt}
-\item \textbf{First-registered wins} for the canonical-attestation surface. The earlier \texttt{signed\_at} (per §0.5) holds the name; later registrations carry a \texttt{differs\_in: ["semantic\_disambiguation"]} clarification or pick a distinct value.
+\item \textbf{First-registered wins} for the canonical-attestation surface. The earlier \texttt{signed\_at} holds the name; later registrations carry a \texttt{differs\_in: ["semantic\_disambiguation"]} clarification or pick a distinct value.
 \item \textbf{Levenshtein-distance guard}: a CEG-Conforming Substrate (CCS) SHOULD compute Levenshtein distance against existing values in the same prefix family at admission; values within distance ≤ 2 of an existing canonical value SHOULD return a \texttt{409 IDEMPOTENT\_CONFLICT} with an advisory hint, NOT a hard reject — the producer may proceed if the similarity is intentional (e.g., \texttt{commonsense} vs \texttt{commonsense\_hard} are intentionally close).
 \item \textbf{No squatting}: a \texttt{\{kind\}} registered but never used (no scored attestations in 90 days) MAY be reclaimed by another producer via the §11.2 amendment process.
 \end{enumerate}
@@ -4983,7 +4738,7 @@ Per CIRISRegistry\#45 + CIRISAgent\#842. The wire-format primitives in §4.2 \te
 \textbf{GDPR Article 7} (consent) & \texttt{consent:state:granted} + \texttt{consent\_record.subject\_key\_id} & Subject's wire-format declaration of consent; revocable via §3.2.3 rule 2 \\ \hline
 \textbf{GDPR Article 9} (special category — health, biometric, sexual orientation, etc.) & \texttt{subject\_key\_ids} MANDATORY for special-category content; producer's \texttt{consent:deletion\_sla} SHOULD be ≤ 30 days & Substrate-level recognition that special category requires subject-side wire authority \\ \hline
 \textbf{GDPR Article 17} (right to erasure) & \texttt{consent:state:revoked} → substrate-watched \texttt{consent:deletion\_sla:\{days\}} → producer emits \texttt{consent:deletion\_complete} OR substrate emits \texttt{hard\_case:consent\_sla\_breach} & The §8.1.11.3 SLA watcher is the wire-format observability primitive for Article 17 compliance \\ \hline
-\textbf{GDPR Article 20} (data portability) & DSAR export via \texttt{attestations.where(s ∈ subject\_key\_ids)} query & CIRISAgent's \texttt{DSARExportPackage} (per \texttt{docs/CIRIS\_CONSENT\_SERVICE.md}) composes from this query trivially \\ \hline
+\textbf{GDPR Article 20} (data portability) & DSAR export via \texttt{attestations.where(s ∈ subject\_key\_ids)} query & CIRISAgent's \texttt{DSARExportPackage} composes from this query trivially \\ \hline
 \textbf{HIPAA 45 CFR 164.502} (uses + disclosures) & `consent:scope:\{retain\textbackslash{} & share\textbackslash{} \\ \hline
 \textbf{HIPAA 45 CFR 164.524} (patient right of access) & DSAR export per Article 20 above & Same composition \\ \hline
 \textbf{FERPA 34 CFR Part 99} (educational records) & \texttt{subject\_key\_ids: [student\_key]} + \texttt{delegates\_to(parent\_key → student\_canonical\_hash, scope: [consent\_revocation])} for minors & Parental authority composes via the existing \texttt{delegates\_to} primitive; no new shape needed \\ \hline
@@ -5558,7 +5313,7 @@ v1.4 T-3 \#5 Constitutional-constraint grounding & \textbf{CLOSED in §1.2 prose
 0.2 — \texttt{attestation:l\{N\}:*} carried ladder-position in wire (T2 violation inherited from FSD-002 v1.0) & \textbf{CLOSED in CEG 0.2} by §5.2 wire-break rename to mechanism-only prefixes + §8.1.9 Policy I consumer-side Attestation-Ladder Composition + §13.1 deprecation entry. Verify v3.7.0 caught the principle; CEG 0.1 inherited the wrong shape from FSD-002 v1.0 baseline without re-examining against the §1.3.1 T2 gate; CEG 0.2 ratifies the correction. &  \\ \hline
 0.9 — Envelope canonical-bytes round-trip determinism (omit-vs-materialize for optional fields with documented defaults) & \textbf{CLOSED in CEG 0.9} by §0.9 — JCS pinned as the canonical encoding (RFC 8785 was already in §0.4 normative refs but not declared as THE envelope encoding); §0.9.2 makes the omit-vs-materialize rule explicit (defaults are interpretation-time, NOT encoding-time; relay MUST preserve member presence/absence as the producer signed); §0.9.3 catalogs every optional §4 field through CEG 0.8; §0.9.5 walks the worked attack the rule closes. Surfaced by external critical review of CEG ≤ 0.8; the rule was implicit and unspecified pre-0.9, which left a real round-trip-determinism hole. Drive-by fixes: §10.0 \texttt{CEG-Version} header un-stuck from \texttt{0.1} → tracks README major.minor; §12.4 \texttt{dimensions.json} aspirational target re-pinned from CEG 0.2 → CEG 1.0 (the 0.3 → 0.8 wave prioritized namespace additions over tooling). &  \\ \hline
 0.10 — Canonical-hash wire form + preimage convention unpinned (subject-identity non-interoperable across producers) & \textbf{CLOSED in CEG 0.10} by §4.2.2.1 — per CIRISRegistry\#53 (NodeCore CEG 0.6 ingest implementation surfaced the gap). \textbf{PIN-1}: preimage convention \texttt{\{platform\}:\{entity\_kind\}:\{id\}} (split-on-first-two-colons so colon-bearing ids like Matrix MXIDs survive; lowercased platform+entity\_kind from open vocab; immutable id verbatim) + 5 cross-implementation conformance vectors with real sha256 output. \textbf{CONFIRM-2}: canonical-hash wire form REQUIRES the \texttt{canonical:\{hashalg\}:\{hex\}} tag — bare hex is REJECTED because Registry \texttt{federation\_keys.key\_id} is itself \texttt{hex(sha256(pubkey))} (lowercase 64-hex), format-indistinguishable from a bare canonical-hash; NodeCore's invented tag form blessed verbatim. \textbf{CONFIRM-3}: rule-(3) \texttt{delegates\_to} proxy (ongoing un-enrolled-subject revocation) vs \texttt{canonical\_binding} (retroactive identity claim promoting canonical-hash → real key\_id) pinned as distinct mechanisms at §4.2.2.2; \texttt{canonical\_binding} is NOT a new admission rule (composes from \texttt{delegates\_to}). \textbf{CONFIRM-4}: \texttt{subject\_kind} is a payload-level discriminator, not an envelope field (§4.2.2.3). \textbf{CONFIRM-5}: bilateral ratification confirmed consumer-policy, not registry-normative (§4.2.2.4). &  \\ \hline
-0.10 — Delivery axis (observer-share + streaming multicast as the missing third envelope axis alongside visibility + revocability) & \textbf{CLOSED-OBSERVER-SHARE / STAGED-STREAMING in CEG 0.10} by §10.5 (new 7-sub-section endpoint group), §4 three new optional envelope fields (\texttt{delivery\_mode} / \texttt{listed} / \texttt{history\_on\_join}), §7.9 \texttt{delivery\_receipt:\{stream\_id\}} reserved prefix, §8.1.13.7 Policy M delivery extension, §4.2.4 3-axis orthogonality update. \textbf{Observer-share (N=1) ships impl-live}; subscriber-set = \texttt{community} per Policy M; per-subscriber \texttt{key\_grant}; no \texttt{stream\_id}. \textbf{Streaming multicast (N>1) ships SPEC-NOW with substrate-pending impl markers} at §10.5.2 / §10.5.3 / §10.5.4 — best-effort tier pending CIRISPersist\#142; accountable tier additionally pending CIRISRegistry\#34 STH consistency-proof enforcement. Open coupling caveat at the Persist constraint layer (RC1-1c): V054 cross-column CHECK requires content-addressed \texttt{key\_grant}s; the §10.5.3 epoch axis needs a parallel CHECK arm migration — bounded, not pure-additive. RC1-7 operational ratification of constants (K=64 / T=2s / cosign per-epoch / MAX\_CHUNKS\_PER\_EPOCH=2²⁴ + Policy E accountable quorum) pending. \texttt{rotation\_chain} hygiene corrections folded in: §5.6.8.4 disambiguation note, §1.4 path-8 wording, §11.7.1 Option B framing, §5.6.8.9 family-cessation wording. Absorbed CIRISRegistry\#44 (closing as superseded). Tenth independent path on the 1+4 minimal-and-adequate claim. &  \\ \hline
+0.10 — Delivery axis (observer-share + streaming multicast as the missing third envelope axis alongside visibility + revocability) & \textbf{CLOSED-OBSERVER-SHARE / STAGED-STREAMING in CEG 0.10} by §10.5 (new 7-sub-section endpoint group), §4 three new optional envelope fields (\texttt{delivery\_mode} / \texttt{listed} / \texttt{history\_on\_join}), §7.9 \texttt{delivery\_receipt:\{stream\_id\}} reserved prefix, §8.1.13.7 Policy M delivery extension, §4.2.4 3-axis orthogonality update. \textbf{Observer-share (N=1) ships impl-live}; subscriber-set = \texttt{community} per Policy M; per-subscriber \texttt{key\_grant}; no \texttt{stream\_id}. \textbf{Streaming multicast (N>1) ships SPEC-NOW with substrate-pending impl markers} at §10.5.2 / §10.5.3 / §10.5.4 — best-effort tier pending CIRISPersist\#142; accountable tier additionally pending CIRISRegistry\#34 STH consistency-proof enforcement. Open coupling caveat at the Persist constraint layer (RC1-1c): V054 cross-column CHECK requires content-addressed \texttt{key\_grant}s; the §10.5.3 epoch axis needs a parallel CHECK arm migration — bounded, not pure-additive. RC1-7 operational ratification of constants (K=64 / T=2s / cosign per-epoch / MAX\_CHUNKS\_PER\_EPOCH=2²⁴ + Policy E accountable quorum) pending. \texttt{rotation\_chain} hygiene corrections folded in: §5.6.8.4 disambiguation note, §1.4 path-8 wording, §11.7.1 Option B framing, §5.6.8.9 family-cessation wording. Absorbed CIRISRegistry\#44 (closing as superseded). &  \\ \hline
 \end{longtable}}
 
 
@@ -5626,256 +5381,6 @@ Deeper Frickerian instantiation (closes R7) & Workshop output \\ \hline
 \end{longtable}}
 
 
-\subsection*{§15.6 CEG 0.10 / RC1 — observer-share + streaming multicast (NORMATIVE-LANDED; streaming half substrate-pending)}
-
-
-\textbf{STATUS UPDATE 2026-06-03}: CEG 0.10 normatively landed on main (commit folds \texttt{DRAFT\_0.10\_delivery\_axis.md} into §4 / §7.9 / §8.1.13.7 / §10.5 + version bump 0.9 → 0.10 + lineage). All §15.6.2 decisions ratified into normative spec text. RC1-1b ✅ confirmed (\texttt{KEY\_GRANT\_V1\_INFO} at \texttt{CIRISVerify/src/ciris-crypto/src/key\_grant.rs:71} as \texttt{b"cewp-key-grant/v1"}). Open coupling caveat RC1-1c (V054 parallel-CHECK migration) flagged in §10.5.3 normative text. RC1-7 (operational constants) flagged as TODO in §10.5.1 — operator-tunable; not blocking normative ship.
-
-
-The §15.6 decision register below is preserved as RC1 audit history.
-
-
-\textbf{Legacy decision register (preserved as RC1 audit history):}
-
-
-Decision register for the RC1 delivery-axis fork. CEG today has a \textbf{visibility} axis (\texttt{cohort\_scope}) and a \textbf{revocability} axis (\texttt{subject\_key\_ids}, §4.2) but \textbf{no delivery axis} — who actively \textit{receives} + how the substrate fans out. Observer-share (1:1, CIRISLensCore\#857) and media/streaming multicast (1:N, absorbs the parked \#44 CEG 0.5 \texttt{live\_stream}) are the \textbf{same primitive at different cardinality}. Cross-team design thread (P1–P4 Persist / V1–V3 Verify / E1–E4 Edge) consolidated here because it is the CEG authority; Edge mirrors its half to its own \texttt{FSD/OPEN\_QUESTIONS.md}.
-
-
-
-\subsubsection*{§15.6.1 Bifurcation — DECIDED (Option A, router-confirmed)}
-
-
-{\footnotesize
-\begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
-\textbf{Half} & \textbf{Rides} & \textbf{RC1 status} \\ \hline\endhead
-Observer-share / directed delivery (single Contribution → subscriber-set; **no \texttt{stream\_id}**) & community roster (§8.1.13 Policy M) + \texttt{key\_grant} (§5.6.8.4 / §10.1.4) — \textbf{both shipping} & \textbf{impl RC1-live} \\ \hline
-Media/streaming multicast (\texttt{live\_stream} chunk-DAG, per-\texttt{(stream\_id, epoch)} keys) & greenfield substrate (\texttt{put\_blob\_chunk} / \texttt{seal\_stream} / stream-chunk table — \textbf{0 occurrences today}) & \textbf{spec now, impl substrate-pending CIRISPersist\#142} \\ \hline
-\end{longtable}}
-
-
-\subsubsection*{§15.6.2 Locked cross-team decisions (grounded)}
-
-
-{\footnotesize
-\begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
-\textbf{Tag} & \textbf{Locked decision} & \textbf{Anchor} \\ \hline\endhead
-Subscription model & No new subject\_kind — subscriber-set = \texttt{community} (Policy M) admitted `producer\_gated\textbackslash{} & open\texttt{; only new wire bit is }delivery\_mode:\{pull\textbackslash{} \\ \hline
-D1 roster visibility & Substrate-private default; per-membership \texttt{listed:public} opt-in (mirrors §11.8.3); never globally enumerable. & producer-side refusal (Edge \texttt{cohort\_scope} v0.19.1 / \#48-A) \\ \hline
-D2 rekey (long pole) & Stream-epoch DEK seals content \textbf{O(1)}; per-subscriber \texttt{key\_grant} cascade distributes the 32-byte epoch key \textbf{O(N)/epoch} (sender-key/Megolm). MLS O(log N) tree = \textbf{1.x}, additive (tree-position on the opaque grant payload — no table migration). & §5.6.8.4 + §8.1.12.4 \\ \hline
-D3 epoch triggers & Removal → \textbf{mandatory rotation} (= the forward-only-unsubscribe enforcement); add → no rotation + Option-A catch-up; time/bytes → optional. FS = \textbf{forward-only, no PCS}. New `history\_on\_join:\{full\textbackslash{} & from\_join\}\texttt{. Epoch index **greenfield, per }stream\_id\texttt{** — NOT }rotation\_chain`. \\ \hline
-D4 chunk integrity & \textbf{Per-stream transparency-log instance} (\texttt{log\_id = stream\_id}), RFC 6962 reused; per-leaf root-after-K verified against nearest signed STH ≥ K. NOT a hash-chain. Stream-log MUST NOT be the federation provenance log. & §10.3 \\ \hline
-V1 stream-root & Producer signs the STH (\textbf{mandatory} authenticity root); witness cosign \textbf{optional} = the best-effort/accountable split; §10.3.1 consistency-proof (\#34 enforcement) = anti-equivocation. Cadence K/T at epoch boundary + \texttt{sealed\_at}; cosign per-epoch. & §10.3 / §10.3.1 \\ \hline
-V2 nonce & 12B = \textbf{7B HKDF-derived prefix ‖ 4B BE counter ‖ 1B last-flag}; prefix \texttt{= HKDF(epoch\_dek; "ciris-stream-nonce/v1" ‖ stream\_id ‖ epoch)}, derived not transmitted; forced epoch-roll before 2³² wrap; cross-epoch reset nonce-safe (DEK changes). & — \\ \hline
-D5 / V3 receipts & Best-effort default; opt-in signed \texttt{delivery\_receipt:\{stream\_id\}} (\textbf{new §7 reserved prefix}), \textbf{validated-not-adjudicated} (MISSION fail-honest). Verify check is a JOIN: sig + \texttt{chunk\_root} is a \textbf{real published STH root} (+ inclusion proof for accountable). \textbf{Proof-of-delivery, NOT proof-of-consumption.} & §7 + §10.3 \\ \hline
-D6 liveness & Two sets: \textbf{entitlement roster} (Persist; signed CEG, edge-propagated, durable, logged) vs \textbf{live-reachability set} (**Edge-owned via \texttt{reachability.rs} / \#29\textbf{; node-local, TTL sec/min, }NEVER an attestation / \texttt{holds\_bytes} / logged\textbf{). }Fan-out = entitled ∧ reachable.** & §10.1.2 TTL; Edge \texttt{reachability.rs} \#29 \\ \hline
-P3 scale & Flat-cascade ships RC1; \textbf{ship the P4 operator cascade-bound WITH the cascade} (else 10⁶ grant Contributions/rekey). Roster shape doesn't preclude the 1.x tree. & — \\ \hline
-P4 catch-up & Bound = \texttt{min(operator depth cap [Lens-core knob, NOT a substrate constant], chunk-eviction horizon)}. Three distinct windows (chunk-eviction ≠ \texttt{holds\_bytes} 24h TTL ≠ grant durability). Catch-up over an evicted epoch returns **\texttt{ContentMiss} — fail-honest, no silent gap**. & [src/retention] (Persist) \\ \hline
-\end{longtable}}
-
-
-\subsubsection*{§15.6.3 Open items — BLOCKING normative 0.10 text}
-
-
-{\scriptsize
-\begin{longtable}{|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|}\hline
-\textbf{OQ} & \textbf{Open item} & \textbf{Owner} & \textbf{Gating} \\ \hline\endhead
-\textbf{RC1-1} & ✅ \textbf{RESOLVED (Persist, on record)} — V054 = two single-column partial indexes (\texttt{media\_content\_sha256}, \texttt{key\_grant\_recipient\_key\_id}), planner-AND'd; \texttt{rotation\_chain} is a payload-level §5.6.8.4 supersession lineage (not a column/index), walked reader-side. \textbf{Separate addressing axis} from the §10.5.3 \texttt{(stream\_id, epoch)} epoch-key; \textbf{shared payload-level supersession}. Wire-invisible. & Persist & done \\ \hline
-\textbf{RC1-1c} & ⚠️ \textbf{Coupling caveat} — the V054 cross-column CHECK requires content-addressed \texttt{key\_grant}s; the §10.5.3 epoch axis needs a \textbf{parallel CHECK arm} (content- OR stream/epoch-addressed) — a bounded constraint migration, \textbf{not a pure index-add}. Recorded so 0.10 doesn't claim "purely additive" at the Persist constraint layer. & Persist (@ \#142) & flagged \\ \hline
-\textbf{RC1-1b} & Confirm the \texttt{KEY\_GRANT\_V1\_INFO} versioned-context HKDF pattern exists in \texttt{key\_grant.rs} (the §10.5.2 V2 nonce-prefix derivation reuses it). Unverifiable from Edge. \textit{(Still owed.)} & Persist & 🔴 V2 \\ \hline
-\textbf{RC1-2} & ✅ \textbf{RESOLVED (2026-06-01)} — \texttt{§10.5} "Streaming transport, per-stream logs \& delivery receipts" ratified as the streaming-clause home. *\texttt{§10.1.5} does not exist; corrected §15.6.4.* & Registry / router & done \\ \hline
-\textbf{RC1-3} & ✅ \textbf{RESOLVED} — E1: transit-key is a \textbf{hop-by-hop wrap UNDER the E2E epoch DEK} (two layers), not replacing the cascade. & Edge & done \\ \hline
-\textbf{RC1-4} & ✅ \textbf{RESOLVED} — E2: RC1 multicast = \textbf{pull-only}; relay/fan-out tree → 1.x (\#46/\#43). & Edge & done \\ \hline
-\textbf{RC1-5} & ✅ \textbf{RESOLVED} — E3: fan-out = \textbf{entitled ∧ reachable}. Edge owns transport-reachability (\texttt{reachability.rs}, \#29); Persist owns durable entitlement. \textit{Supersedes the earlier "Persist holds the live set" — Edge already owns a liveness substrate.} & Edge & done \\ \hline
-\textbf{RC1-6} & ✅ \textbf{RESOLVED} — E4: durable entitlement rides the existing federation-attestation edge path (\#41 cutover); no net-new Edge transport. & Edge & done \\ \hline
-\textbf{RC1-7} & Ratify constants (K=64 / T=2s / cosign per-epoch / \texttt{MAX\_CHUNKS\_PER\_EPOCH=2²⁴}) + accountable-stream quorum = Policy E (§8.1.5 locality-scaled, not fixed N). & router & — \\ \hline
-\end{longtable}}
-
-
-\subsubsection*{§15.6.4 Grounding corrections (recorded so phantom citations do not re-propagate)}
-
-
-{\footnotesize
-\begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
-\textbf{Claimed in the design thread} & \textbf{Corrected against sources} \\ \hline\endhead
-"§10.1.5 Merkle" as an existing anchor & \textbf{§10.1.5 does not exist.} §10 = \texttt{.0/.0.1/.1/.1.1/.1.2/.1.4/.1.3/.2/.3/.3.1/.4}. Streaming = new \textbf{§10.5} (proposed; OQ-RC1-2). \\ \hline
-MISSION:66 / :148 & Misquoted. Fail-honest doctrine at MISSION \textbf{182/197/414/447 + AV-42}; ContentFetch/Body/Miss at \textbf{223} (\#21). \\ \hline
-\texttt{cohort\_scope::suppresses\_holds\_bytes} symbol; "3.9.0/3.9.2" & Not a symbol — **producer-side refusal at \texttt{Edge::send\_*}\textbf{; }v0.19.1 / \#48-A** (crate now v1.1.5). \\ \hline
-"DEK cascade rides \texttt{key\_grant.rotation\_chain}" (§11.7.1 + 0.7 lineage) & \texttt{rotation\_chain} = \textbf{grant-supersession lineage} (§5.6.8.4), not key rotation; epoch rotation is greenfield per \texttt{stream\_id}. → §11.7.1 + §1.4 path-8 + §5.6.8.9 + §16.1 0.7 lineage need a \textbf{hygiene edit folded into 0.10}. \\ \hline
-Streaming as a grammar change & §3 = exactly five primitives, untouched; 0.10 = §4 flag + §8.1.13 ext + new §10 section. \\ \hline
-\end{longtable}}
-
-
-\subsubsection*{§15.6.5 Status}
-
-
-Verify ✅ done (5 original + V1–V3). \textbf{Edge ✅ closed} (E1 two-layer transit / E2 pull-only RC1 / E3 entitled∧reachable via \texttt{reachability.rs} \#29 / E4 existing federation-attestation path; recorded in Edge \texttt{FSD/CEG\_RC1\_BIFURCATION.md} + \texttt{FSD/OPEN\_QUESTIONS.md} OQ-14..17). \textbf{Persist:} P1–P4 done; \textbf{RC1-1 ✅ resolved} (V054 separate addressing axis, shared payload-level supersession), \textbf{RC1-1b} (\texttt{KEY\_GRANT\_V1\_INFO}) still owed, \textbf{RC1-1c} CHECK parallel-arm coupling flagged. Router: \textbf{RC1-2 ✅ §10.5 ratified}; \textbf{RC1-7} (constants) pending. Option A + \#44 absorption confirmed.
-
-
-\textbf{Observer-share half — ZERO remaining blockers, normative-ready now} (rides existing community roster §8.1.13 + \texttt{key\_grant}; needs no Persist confirm, no \#142, no RC1-7). \textbf{Streaming half} final blockers: \textbf{RC1-1b} (Persist) + \textbf{RC1-7} (router constants) + the \textbf{RC1-1c} V054 CHECK parallel-arm; impl \textbf{greenfield-blocked on \#142 step 3} (\texttt{stream\_id}, v3.9 target — \textbf{unowned/unscheduled}, roadmap call), accountable tier additionally on \textbf{\#34}. The 0.10 skeleton is staged at \texttt{DRAFT\_0.10\_delivery\_axis.md}; §15.6.4 \texttt{rotation\_chain} hygiene corrections fold into the weave.
-
-
-
-
-\clearpage
-
-
-\section*{§16 References + lineage}
-
-
-\subsection*{§16.1 CEG specification lineage}
-
-
-{\footnotesize
-\begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
-\textbf{Version} & \textbf{Date} & \textbf{Change} \\ \hline\endhead
-FSD-002 v1.0 & 2026-05-24 & Initial federation surface spec; 73 prefix families \\ \hline
-FSD-002 v1.1 & 2026-05-26 & §1.10 anthropological commitment; F-3 detector under wrong (Cartesian) name \texttt{emergent\_deception} \\ \hline
-FSD-002 v1.2 & 2026-05-27 & Renamed \texttt{emergent\_deception} → \texttt{correlated\_action} per §1.10.1 operational-language gate; added §1.10.1 + §4.9.1 + §4.9.2 disciplines \\ \hline
-FSD-002 v1.3 & 2026-05-27 & §4.9.2.5 1-of-6 sign-off (closed G2); §6.1.5 locality-scaled quorum (closed G3); §13.11 concerns + gaps; v1.3 dimension additions (multilateral\_participation, locality:decision, distributive:access) + envelope (witness\_relation) \\ \hline
-FSD-002 v1.4 & 2026-05-27 & Files-as-Contributions (agent\_files + holds\_bytes); testimonial\_witness; need:* (v1.5-loadbearing absorption); goal:planet enum; §7.7 endpoint shapes \\ \hline
-FSD-002 v1.4.1 & 2026-05-28 & 3.0 / Compliance spec batch (fidelity:explainability\_sla, oversight\_mode, skill\_import, per-locale build\_manifest, etc.); §7.8 STH cosigning \\ \hline
-FSD-002 v1.4.2 & 2026-05-28 & Occurrence\_id/count/role envelope fields (Persist\#110) \\ \hline
-FSD-002 v1.4.3 & 2026-05-28 & §3.2.1 canonical-bytes contracts (SkillImportManifest + per-locale Merkle); §3.6.2 Goal substrate cross-ref \\ \hline
-(CEG 1.0 attempted) & 2026-05-28 & Consolidated spec under CIRIS Epistemic Grammar name; renumbered to \textbf{0.1} after critical-review pass surfaced spec-discipline gaps. The 1.0 attempt is preserved in git history at commit prior to the rename. \\ \hline
-\textbf{CEG 0.10} & \textbf{2026-06-03} & \textbf{Additive at the envelope+endpoint+composition layer (1+4 lockdown preserved; observer-share half impl-live, streaming-multicast half spec-now/impl substrate-pending). Per CIRISRegistry\#44 absorbed + CIRISLensCore\#857 (observer-share driver) + CIRISPersist\#142 (streaming substrate prerequisite).} The \textbf{delivery axis} — third orthogonal envelope concern (visibility + revocability + delivery per §4.2.4). Observer-share (N=1) and streaming multicast (N>1) are the \textbf{same primitive at different cardinality}: subscriber-set = \texttt{community} per §8.1.13 Policy M; E2E directed delivery = \texttt{key\_grant} cascade (§5.6.8.4) of stream-epoch DEK over the roster. Adds: \textbf{three new optional envelope fields} (§4) — `delivery\_mode:\{pull\textbackslash{} \\ \hline
-\textbf{CEG 0.9} & \textbf{2026-06-01} & \textbf{Wire-break (representation-only; semantically null for legacy single-role keys; 1+4 lockdown preserved). Per CIRISRegistry\#49 + CIRISAgent\#856.} \texttt{federation\_keys.identity\_type} generalized from a single scalar role to a \textbf{set of roles} — single-key role cohabitation. Every §7 reserved-prefix emitter rule is evaluated by set membership (\texttt{X ∈ identity\_type}) instead of scalar equality (\texttt{identity\_type == "X"}); a legacy scalar \texttt{identity\_type="X"} is the singleton set \texttt{\{X\}}, so \texttt{X ∈ \{X\}} ≡ \texttt{X == X} and every pre-0.9 gating decision is unchanged. Adds: \textbf{one new conformance subsection} (§7.0.1 identity\_type-as-set normative reading + canonical-bytes encoding: members sorted-ascending, deduplicated, comma-joined — single-role keys encode identically to their pre-0.9 scalar form, preserving signatures over legacy rows) + the §7.4 LensCore-fold worked example; \textbf{one new governance section} (§11.9) recording the amendment, the cohabitation discipline for constitutional (\texttt{accord\_holder}) + substrate (\texttt{substrate\_persist}/\texttt{substrate\_edge}) roles, and the capacity (§7.5 unchanged) / reasoning-trace / agent-intent-vs-LensCore-envelope-split resolutions settled in CIRISAgent\#856. \textbf{Zero new structural primitives / subject\_kinds / envelope fields / §5 dimension prefixes} — NOT a §1.4 "Nth path" namespace addition; a §7-layer enforcement-rule generalization that unblocks the CIRISAgent / LensCore fold-in (one key, many roles; cf. CIRISRegistry\#41 handler cutover + \texttt{registry\_witnesses} → \texttt{federation\_keys.identity\_type="witness"} cohabitation). Second 0.x wire-break after the CEG 0.2 attestation-ladder rename. \\ \hline
-\textbf{CEG 0.8} & \textbf{2026-05-31} & \textbf{Additive at the envelope layer (no wire-break for legacy consumers; 1+4 lockdown preserved). Per CIRISRegistry\#48.} \texttt{community} subject\_kind + \texttt{location\_proof} subject\_kind + \texttt{cohort\_subkind: geographic} discriminator + wire-format-enforced rough-only location precision. Sibling to CEG 0.7 \texttt{family} but with different defaults (community content federates per status quo; no at-rest DEK cascade; §10.1.4 structural-invisibility does NOT extend to community). Adds: \textbf{two new subject\_kinds} (§5.6.8.10 \texttt{community}, §5.6.8.11 \texttt{location\_proof}); \textbf{one new envelope field} (§4 \texttt{community\_id}); \textbf{one new canonicalization section} (§0.8 H3 cell canonicalization with \texttt{cell\_resolution ≤ 7} rough-only enforcement); \textbf{four new substrate-emitted reserved prefixes} (§7.8); \textbf{new composition policy} (§8.1.13 Policy M); \textbf{new governance section} (§11.8 geographic-community privacy invariant). Worked examples (§5.6.8.10) cover \textbf{civic engagement + emergency messaging} composition patterns over the existing 1+4 set + namespace additions: neighborhood associations / municipal communities / voting districts / town halls / ballot initiatives / public comments / petitions / public-official self-attestation / FOIA / citizen-journalism / whistleblower / civic mutual-aid; severe weather / AMBER alerts / shelter-in-place / disease outbreak / mass casualty / infrastructure failure / disaster recovery / CONSTITUTIONAL-level halt. Ninth independent path confirming 1+4 minimal-and-adequate (§1.4) — most surprising path, demonstrates precision-bounded geospatial constraints can be expressed as canonicalization rules (parallel to lowercase-hex per §0.6 or millisecond-precision datetime per §0.5), not as new structural primitives. \\ \hline
-\textbf{CEG 0.7} & \textbf{2026-05-31} & \textbf{Additive at the envelope layer (no wire-break for legacy consumers; 1+4 lockdown preserved). Per CIRISRegistry\#47 + CIRISPersist\#152 + ciris.ai/cewp structural-invisibility framing.} Self/family membership primitives + wire-format-level structural invisibility for self/family content. Adds: \textbf{two new subject\_kinds} — \texttt{identity\_occurrence} (§5.6.8.8; self = trusted devices + agents; single-vouch admission; `device\_class ∈ phone\textbackslash{} \\ \hline
-\textbf{CEG 0.6} & \textbf{2026-05-31} & \textbf{Additive at the envelope layer (no wire-break for legacy consumers; 1+4 lockdown preserved). Per CIRISRegistry\#45 + CIRISAgent\#842.} Subject-side consent authority — the missing half of consent at the wire format. Universal across medical records / photos / interviews / training data / group chat / financial / surveillance / FERPA-shape educational records / multi-party contracts. Adds: \textbf{one new optional envelope field} \texttt{subject\_key\_ids: Vec<KeyId>} (§4.2) accepting both federation\_keys identities AND canonical-hash identifiers (resolves CIRISAgent\#840 OQ3 as side effect); **semantic broadening of \texttt{withdraws}\textbf{ admission (§3.2.3) to admit subject revocation + delegated proxy chain for canonical-hash subjects (the primitive wire shape is unchanged); }one new dimension family** (§5.6.8.6 \texttt{consent:*}) — `state:\{granted\textbackslash{} \\ \hline
-(CEG 0.5) & \textit{in flight} & \texttt{live\_stream} promotion + chunk-DAG composition per CIRISRegistry\#44 + CIRISNodeCore\#26 + CIRISPersist\#142. Codification lands when NodeCore\#26 substrate decisions ratify. Additive at the namespace layer (no envelope change); orthogonal to CEG 0.6. \\ \hline
-\textbf{CEG 0.4} & \textbf{2026-05-30} & \textbf{Additive (no wire-break; 1+4 lockdown preserved). Per CIRISRegistry\#40 + CIRISNodeCore\#25 Gap 1 closure at NodeCore commit d0a443a.} Adds: one new \texttt{external\_content} sub\_kind (\texttt{event\_listing} — Eventbrite / Meetup / Lu.ma / calendar / RSVPs / ticketing); one new dimension-family group at §5.6.8.5 (\texttt{event:lifecycle:\{state\}} with canonical states \texttt{open} / \texttt{cancelled} / \texttt{completed} / \texttt{superseded} + \texttt{event:rsvp\_count} + \texttt{event:attendance}); two new canonical \texttt{topical\_relation:\{kind\}} entries (\texttt{rsvps} for RSVP attestations against an event, \texttt{vod\_of} reserved for the deferred live\_stream→video relationship). The event-lifecycle state machine composes from \texttt{withdraws} (cancellation) + \texttt{supersedes} (reschedule, with \texttt{differs\_in: ["start\_time", "venue"]}) + \texttt{delegates\_to} (ticket transfer, parallel to \texttt{key\_grant.rotation\_chain}) + the new \texttt{event:lifecycle:\{state\}} dimension's latest non-superseded emission. **\texttt{live\_stream} remains deferred\textbf{ (CIRISNodeCore\#25 Gap 2; substrate-side Edge + Persist decisions pending) — CEG 0.4 codifies only what NodeCore shipped, per the downstream-demand discipline established with 0.3. }Sixth independent path** confirming the 1+4 minimal-and-adequate claim (§1.4) against time-bound state-bearing content. \\ \hline
-\textbf{CEG 0.3} & \textbf{2026-05-29} & \textbf{Additive (no wire-break; 1+4 lockdown preserved). Per CIRISRegistry\#37 + \#38 + \#39 (multimedia tier + takedown\_notice + key\_grant + hash-DB governance).} Adds: two new Contribution subject\_kinds (\texttt{takedown\_notice} with \texttt{LegalBasis} 10-value closed-set enum + per-basis discipline; \texttt{key\_grant} with \texttt{wrap\_algorithm} + \texttt{scope} enums + \texttt{rotation\_chain} semantics — retire-key-grant rides existing \texttt{supersedes}, NOT a new primitive); five new \texttt{external\_content} sub\_kinds (\texttt{image}, \texttt{audio}, \texttt{video}, \texttt{film}, \texttt{model\_3d}; + Phase 2 \texttt{live\_stream}); four new dimension families (\texttt{content\_rating:\{scheme\}:\{rating\}}, \texttt{content\_class:\{class\}}, \texttt{cw\_class:\{class\}}, \texttt{age\_assurance:\{level\}}); five new media-prefix families (\texttt{image:*}, \texttt{audio:*}, \texttt{video:*}, \texttt{film:*}, \texttt{model\_3d:*}); new §8.1.10 Policy J trusted-publisher composition (three-layer: distributor attestation chain + content-class/rating gate + age-assurance gate); new §11.4 fast-path takedown coordination protocol (TVEC/NCMEC/GIFCT/PerceptualHashCsam/CourtOrder immediate-removal path + audit-trail discipline + the takedown-isn't-a-coup property); new §11.5 hash-database operator policy (default to self-hosted PDQ against open feeds per \#39 recommendation; document slot for future CIRIS hash-coalition clearinghouse). Cross-refs to CIRISNodeCore FSD/MEDIA\_SHARING.md throughout. \\ \hline
-CEG 0.2 & 2026-05-28 & Wire-break. Renames §5.2 attestation-ladder prefixes from \texttt{attestation:l\{N\}:*} to mechanism-only form (\texttt{attestation:self\_verify}, \texttt{attestation:hardware\_rooted}, \texttt{attestation:registry\_consensus}, \texttt{attestation:license\_validity}, \texttt{attestation:agent\_integrity}) per §1.3.1 T2 honestly applied — L-numbers name ladder-position (verdict-shape), not mechanism. The L1-L5 ladder moves to consumer-side composition as §8.1.9 Policy I — Attestation-Ladder Composition. Deprecated wire shape entered in §13.1; 0.2 closed-gap row in §15.1. Verify v3.7.0 had caught the principle correctly; CEG 0.1 inherited the wrong shape from FSD-002 v1.0 baseline without re-examining against the T2 gate. CIRISVerify v4.0 conforms to CEG 0.2 directly (no intermediate L-numbered re-add).** \\ \hline
-CEG 0.1 & 2026-05-28 & Public Working Draft. Consolidated spec split into 18 files under \texttt{FSD/CEG/}. Adds v1.5 candidates from \#30: \texttt{testimonial\_witness:\{kind\}} open vocabulary; \texttt{hard\_case:\{kind\}} surfaced; \texttt{biosphere} in §2 Scope axis; \texttt{topical\_relation:translation\_of} sub-leaf in §5.6.8 (LIVE per CIRISNodeCore b1582cb); §8.1.7 Trust-Fresh + §8.1.8 Tiered-Scope composition patterns. Records 6 explicit rejections from \#30 stress test in §13.2. Glossaries in §14. Critical-review-pass scaffolding: §0.1 RFC 2119 anchor, §0.2 conformance levels, §0.3 SemVer policy, §0.4 normative references, §0.5-§0.7 canonicalization, §6.1 concurrent-write precedence, §7.0 reserved-prefix enforcement, §8.1.5.1 sub-quorum fallback, §9.2.1 invocation discriminator + nonce, §9.2.2 consumer-UI requirement, §10.0 common response shape + error envelope, §10.1.1-§10.1.2 holds\_bytes verification + TTL, §10.3.1 STH consistency-proof, §11.2.2 collision rule, §11.2.3 meta-amendment entrenchment, §13.3 delegation-laundering anti-pattern, §13.4 withdraws-arbitrage countermeasure. 83 prefix families.** \\ \hline
-\end{longtable}}
-
-
-\subsection*{§16.2 Companion documents}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{FSD/LANGUAGE\_PRIMER.md} — translation grammar (how to write Contributions in CEG)
-\item \texttt{FSD/PRIOR\_ART\_SCAN.md} — design-space comparison (PGP / SPKI-SDSI / W3C VC / Birdwatch / Pol.is / Kleros / Spritely / Holochain / Aragon / Conviction Voting / Sigstore / SLSA)
-\item \texttt{FSD/SOTA\_SCAN.md} — production-validation comparison
-\item \texttt{FSD/WITNESS\_KIND\_REGISTRY.md} — non-normative open-vocabulary registry for \texttt{testimonial\_witness:\{kind\}}
-\item \texttt{docs/CEG\_EXPLORATION\_PAGE\_PRIMER.md} — builder primer for the public-facing exploration page
-\end{itemize}
-
-
-\subsection*{§16.3 Sibling MISSIONs (the namespace owners)}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{CIRISAgent/MISSION.md}
-\item \texttt{CIRISVerify/MISSION.md}
-\item \texttt{CIRISPersist/MISSION.md}
-\item \texttt{CIRISEdge/MISSION.md}
-\item \texttt{CIRISLensCore/MISSION.md}
-\item \texttt{CIRISNodeCore/MISSION.md}
-\item \texttt{RATCHET/FSD.md}
-\item \texttt{CIRISBench/README.md}
-\item \texttt{MISSION.md} — CIRISRegistry's own
-\end{itemize}
-
-
-\subsection*{§16.4 External references (informational)}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item \texttt{ciris.ai/safety-vs-censorship} — the operational-language gate source
-\item \textit{Magnifica Humanitas} encyclical (2026-05-15) — first deployment of the bootstrap-content pattern (§11.3)
-\item \texttt{ciris-response-magnifica-humanitas} — encyclical mapping repo
-\end{itemize}
-
-
-\subsubsection*{CEG 0.10 additions}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item CIRISLensCore\#857 — observer-share driver (prod-lens-via-transit-key); the N=1 cardinality demonstrator that motivated the delivery-axis primitive
-\item CIRISPersist\#142 — streaming substrate prerequisite; sequence \texttt{get\_range} (v3.7) → \texttt{BlobBody::ChunkDag} + manifest (v3.8) → \texttt{put\_blob\_chunk} / \texttt{seal\_stream} + \texttt{federation\_stream\_chunks} (v3.9, births \texttt{stream\_id}); unowned/unscheduled at 0.10 cut
-\item CIRISRegistry\#34 — STH consistency-proof enforcement at cosign admission; load-bearing for the accountable-stream tier per §10.5.1
-\item CIRISRegistry\#44 absorbed — pre-0.10 codification of \texttt{live\_stream} sub\_kind + \texttt{topical\_relation:has\_chunk}; CEG 0.10 absorbs and supersedes
-\item RFC 8785 — JSON Canonicalization Scheme (JCS) — envelope canonicalization per §0.9; composes under §10.5's per-stream \texttt{SignedTreeHead.signing\_bytes} discipline
-\item RFC 6962 — Certificate Transparency — the per-stream transparency-log shape that §10.5.1 instantiates per-\texttt{stream\_id}; the §10.3 cosign + consistency-proof abstractions reused verbatim
-\item \texttt{KEY\_GRANT\_V1\_INFO} — CEG 0.3 HKDF versioned-context pattern (\texttt{b"cewp-key-grant/v1"}); §10.5.2 V2 STREAM nonce-prefix derivation reuses the pattern at the streaming-nonce boundary
-\item Hoang, Reyhanitabar, Rogaway, Vizár — \textit{Online Authenticated-Encryption and its Nonce-Reuse Misuse-Resistance}, CRYPTO 2015 — STREAM nonce layout citation for §10.5.2 V2
-\item NIST FIPS 197 + SP 800-38D — AES + AES-GCM for chunk sealing per §10.5.2
-\item \texttt{CIRISEdge/src/reachability.rs} — node-local reachability tracker (CIRISEdge\#29); the Edge side of the §10.5.6 D6 entitled-∧-reachable invariant; never-an-attestation discipline
-\end{itemize}
-
-
-\subsubsection*{CEG 0.8 additions}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item H3 hierarchical hexagonal indexing — Uber-originated, MIT-licensed; the canonical cell-identifier encoding for \texttt{cell\_id} per §0.8. Resolution table: 0 = \textasciitilde{}4.3 M km²/cell; 5 = \textasciitilde{}250 km²; 7 = \textasciitilde{}5 km² (the rough-only bound per §0.8.1); 10 = \textasciitilde{}15,000 m²; 15 = \textasciitilde{}0.9 m²
-\item CIRISPersist\#153 — substrate implementation tracker (CEG 0.7 sister); CEG 0.8 community + location\_proof admission gates extend the same substrate spec
-\item \texttt{ciris-keyring} optional \texttt{attestation\_evidence} payload for \texttt{location\_proof.attestation\_evidence} — hardware-attested location claims from TPM / Secure Enclave / StrongBox for higher-assurance communities
-\item Civic-engagement composition patterns (§5.6.8.10 worked example): municipal communities, voting districts, town halls, ballot initiatives, public comments, petitions, FOIA, citizen journalism, whistleblower disclosure, mutual-aid networks
-\item Emergency-messaging composition patterns (§5.6.8.10 worked example): severe weather warnings, AMBER alerts, shelter-in-place, evacuation orders, disease outbreak alerts, mass casualty incident coordination, infrastructure failure notices, disaster recovery activation
-\item Comparison with alternative geospatial systems considered + rejected: Google S2 (similar hierarchical cell index; rejected because non-hexagonal cells have non-uniform neighbor-distance properties that complicate containment math for arbitrarily-shaped geographic\_constraints); Geohash (lexicographic prefix-based; rejected because the prefix encoding leaks precision in the string itself, fighting the rough-only enforcement goal); Plus Codes / Open Location Code (similar to Geohash; same prefix-leakage issue)
-\end{itemize}
-
-
-\subsubsection*{CEG 0.7 additions}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item ciris.ai/cewp — CIRIS Epistemic Web Platform identity FSD; the \textbf{structural-invisibility privacy claim} ("Self and family content never emits the attestation that would tell the rest of the network it exists... the wire format can't carry them in the first place") is the load-bearing source for §10.1.4
-\item CIRISPersist\#152 — at-rest encryption substrate spec; the wire-format counterpart of CEG 0.7's membership primitives
-\item CIRISAgent docs/MULTI\_OCCURRENCE\_CONSENT\_ANALYSIS.md — multi-occurrence design (\texttt{identity\_occurrence} is the wire-format primitive making this composable across CEG-native agents)
-\item Signal Protocol — "trust any device I've already onboarded" single-vouch admission pattern that CEG 0.7 §11.7.4 self-occurrence admission adopts
-\item HPKE RFC 9180 — the wrap algorithm that powers the at-rest DEK cascade per §8.1.12.4 (reused from CEG 0.3 \texttt{key\_grant} lock)
-\end{itemize}
-
-
-\subsubsection*{CEG 0.6 additions}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item CIRISAgent ConsentService — \texttt{ConsentStream} (TEMPORARY / PARTNERED / ANONYMOUS) + \texttt{ConsentStatus} + \texttt{ConsentAuditEntry} + \texttt{DSARExportPackage} + \texttt{PartnershipRequestHandler} — the in-graph CEM that becomes a consumer-policy bundle over CEG 0.6 primitives
-\item CIRISAgent docs/CIRIS\_CONSENT\_SERVICE.md — three-stream model + 90-day decay protocol + bilateral partnership protocol + DSAR integration
-\item CIRISAgent docs/MULTI\_OCCURRENCE\_CONSENT\_ANALYSIS.md — per-occurrence lifecycle consent shape (orthogonal to subject-side consent per §4.2.4)
-\item CIRISAgent\#840 — "Design: CEG-native agent — graph\_nodes ARE self-level CEG attestations" (the downstream consumer whose envelope shape CEG 0.6 unblocks)
-\item CIRISAgent\#842 — upstream-blocker for \#840 documenting 7 consent-shape gaps CEG 0.6 closes
-\item CIRISRegistry MISSION.md §1.5 — the philosophical anchor: "consent (M-1's load-bearing property) requires revocability, and revocability requires a halt-authority that lives outside the system being halted"
-\item GDPR Articles 7 (consent), 9 (special category), 17 (right to erasure), 20 (data portability)
-\item HIPAA 45 CFR 164.502 (uses + disclosures), 164.524 (patient right of access)
-\item FERPA 34 CFR Part 99 (educational records)
-\item CCPA §1798.105 (right to delete)
-\item EU AI Act Article 50 (training data transparency + opt-out)
-\item CIRIS Accord §M-1 — meta-goal anchor for consent revocability
-\end{itemize}
-
-
-\subsubsection*{CEG 0.4 additions}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item CIRISNodeCore SCHEMA §4.29 + commit d0a443a — event\_listing ingest path; \texttt{EventListingSource} + \texttt{EventVenue} (Physical / Virtual / Hybrid) + \texttt{TicketGrantPolicy} (Open / ApprovalRequired / InvitationOnly / Paid) types; \texttt{build\_event\_listing\_payload} builder; \texttt{ingest\_event\_listing} async fn; 5 unit tests
-\item CIRISNodeCore\#25 — primary design issue with full coverage matrix (17 content types audited; 15 structurally complete; 2 gaps named: event\_listing closed, live\_stream still deferred)
-\end{itemize}
-
-
-\subsubsection*{CEG 0.3 additions}
-
-
-\begin{itemize}\setlength\itemsep{0pt}
-\item CIRISNodeCore FSD/MEDIA\_SHARING.md — multimedia tier FSD; per-sub\_kind Source struct shapes; takedown\_notice + key\_grant payload designs; PerceptualHashMatcher trait
-\item CIRISNodeCore FSD/CEWP.md — CIRIS Epistemic Web Platform identity FSD (the platform-identity tie-in)
-\item CIRISNodeCore FSD/FEDERATION\_SCALING\_MODEL.md — scaling envelope (tiktok / youtube / netflix / adulthub scenarios)
-\item RFC 9180 — HPKE base mode shape (referenced by \texttt{key\_grant.wrap\_algorithm = X25519AesGcmHkdfSha256})
-\item 17 USC §512 (DMCA), EU DSA Article 16, EU Regulation 2021/784 (TVEC), 18 USC §2258A (NCMEC), GIFCT Content Incident Protocol, UK Online Safety Act, EU AVMSD — \texttt{LegalBasis} enum source regimes per §5.6.8.4
-\item PhotoDNA / PDQ / Project Arachnid / GIFCT hash-sharing — hash-database landscape per §11.5
-\end{itemize}
-
-
-For normative references see §0.4.
-
-
-
-
 \clearpage
 
 
@@ -5899,8 +5404,7 @@ CEG is updated:
 Each update lands as a single commit touching the relevant file(s) + a lineage row in §16.1. The version number bumps per the §0.3 SemVer rules.
 
 
-Last updated: 2026-06-01 (CEG 0.9 Public Working Draft — \texttt{federation\_keys.identity\_type} generalized to a set of roles for single-key cohabitation per CIRISRegistry\#49 + CIRISAgent\#856; representation-only wire-break, 1+4 wire-format lockdown preserved; unblocks the CIRISAgent / LensCore fold-in).
-
+Last updated: 2026-06-01 (CEG 0.9 Public Working Draft — \texttt{federation\_keys.identity\_type} generalized to a set of roles for single-key cohabitation per CIRISRegistry\#49 + CIRISAgent\#856; representation-only wire-break, ---
 
 
 
