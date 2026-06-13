@@ -28,6 +28,14 @@ Every emitter rule in this section — and the [§9.1](09_humanity_accord.md) `a
 
 **Cohabitation does NOT collapse the dimension split.** Role cohabitation grants a key the *right* to emit under each held role's reserved prefixes; it does NOT merge the roles' namespaces. A key holding `{agent, lenscore_detector}` still emits its detector verdicts under `detection:*` (the lenscore-role surface) and its agent-intent attestations under the agent dimensions — the [§7.4](#74-detector-only-prefixes) shadowing rule and the [§7.5](#75-capacity-score-self-emission-rejection) self-emission rejection apply unchanged per held role. See [§7.4](#74-detector-only-prefixes) for the LensCore-fold worked example.
 
+**Co-location is NOT consolidation — the fabric-node discipline (normative, 1.0-RC3).** A *fabric node* (the headless cohabitation runtime that composes registry-authority + lens-observation + node-consensus over one substrate; `agent = fabric node + brain`) routinely holds the **full role-set in one key/process** — `{substrate_persist, steward, lenscore_detector, witness, …}`. This is co-location of **custody**, not consolidation of **authority**, and the separation of powers is held **cryptographically, not procedurally**:
+
+- **Authority stays quorum-bound.** A co-located `steward` role does NOT let a single node issue a federation-scope attestation. Registry-consensus is the [§8.1.13.1.1(a)](08_composition.md) **founder-quorum** over the `ciris-canonical` infrastructure community ([§5.6.8.10](05_namespace.md)), evaluated over `{m : m.role == founder}`. A co-located node gains a *vote*, never a *verdict*.
+- **Observation stays non-authoritative by namespace.** `lenscore_detector` emissions live under `detection:*` and are **validated, not adjudicated** ([§1.4](01_foundation.md)) — never sole evidence for an authority action ([§7.4](#74-detector-only-prefixes) / [§1.3.1 T4](01_foundation.md)).
+- **Observation can never manufacture authority.** Holding both roles cannot make a `detection:*` emission an authority verdict: the namespaces do not merge (above), and authority is quorum-gated *upstream of any single key*. The hazard the LensCore mission warns of — *the lenses becoming the gate* — is structurally unreachable inside one process.
+
+A fabric node co-locating authority + observation + consensus is conformant **iff** these hold. An implementation that lets a co-located node convert what it *observes* into what it can *authorize* has broken the separation at that point and is **non-conformant** — fix the wiring, never weaken the rule.
+
 ## §7.1 The `accord:*` reservation
 
 `accord:*` is reserved: only `federation_keys` rows with `identity_type="accord_holder"` may emit. This is the one constitutional asymmetry in the federation — see [§9](09_humanity_accord.md) HUMANITY_ACCORD.

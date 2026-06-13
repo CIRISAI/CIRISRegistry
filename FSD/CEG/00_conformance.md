@@ -285,6 +285,39 @@ What CEG 0.9 (this section) does NOT do:
 - Modify the §0.5 datetime / §0.6 hex / §0.7 time / §0.8 H3 sub-rules — those are domain-specific and compose under JCS
 - Wire-break prior 0.x emissions — pre-§0.9 emissions that omitted optional fields remain valid; pre-§0.9 emissions that explicitly emitted defaults likewise remain valid; what §0.9 normatively prohibits is RELAY-TIME mutation of presence/absence, which was always wrong but is now explicitly so
 
+## §0.10 NodeCode — the canonical `key_id` shorthand encoding (normative, 1.0-RC3 addition)
+
+Federation `key_id`s are long opaque identifiers. **NodeCode** is the **one** human-shareable shorthand — a compact, QR-able, checksummed render of a peer's identity for **bootstrap UX** (type / paste / scan to add a peer → `trust=UNKNOWN` per [CIRISEdge#46](https://github.com/CIRISAI/CIRISEdge/issues/46); SAS-verify promotes `UNKNOWN → TRUSTED` per [CIRISEdge#47](https://github.com/CIRISAI/CIRISEdge/issues/47)). It is pinned here (per [CIRISRegistry#75](https://github.com/CIRISAI/CIRISRegistry/issues/75), lifted from the shipped `CIRISAgent` codec) so **every implementation renders and parses the same code for the same key** — a cross-impl determinism requirement of the same class as [§0.6](#06-hexadecimal-canonicalization) hex / [§0.9](#09-envelope-canonicalization--jcs--the-omit-vs-materialize-rule-ceg-09-addition) JCS. It is a deterministic *render of an existing `key_id`*, **not** a new envelope field — additive on the frozen 1+4 surface. NodeCode resolution is **DNS-free**: the decoded `key_id` resolves to a destination via the signed `transport_destination` → Reticulum chain ([§5.6.8.8.1](05_namespace.md) / [§8.1.13.1.1](08_composition.md)); a NodeCode carries no hostname.
+
+**Binary payload (normative):**
+
+```
+offset  size  field
+------  ----  -----
+   0      1   version                 = 0x01
+   1     32   key_id_hash             = SHA-256(key_id_str, UTF-8)
+  33     32   pubkey_ed25519          (raw 32 bytes)
+  65      1   key_id_str_len          (0–255)
+  66      N   key_id_str              (UTF-8)
+ 66+N     1   transport_hint_len      (0–255)
+ 67+N     M   transport_hint          (UTF-8; OPTIONAL — len 0 if absent)
+67+N+M    1   alias_hint_len          (0–255)
+68+N+M    K   alias_hint              (UTF-8; OPTIONAL — len 0 if absent)
+   …      2   crc16                   = CRC-16-CCITT over ALL preceding bytes
+```
+
+- All length-prefixed fields are **1-byte** length (max 255 UTF-8 bytes); a field overflow is a malformed NodeCode.
+- `key_id_hash` is the stable 32-byte fingerprint (suitable for binary-only Edge ANNOUNCE surfaces); `key_id_str` carries the display form so a round-trip preserves exactly what the user saw. Both are carried — a decoder MUST verify `SHA-256(key_id_str) == key_id_hash`.
+- **CRC-16-CCITT**: polynomial `0x1021`, init `0xFFFF`, **no** final xor, big-endian; computed over every byte before the trailing 2.
+
+**String form (normative):** the payload is **RFC 4648 base32** (alphabet `A–Z2–7`) with padding **stripped** on encode (re-padded on decode), then split into **4-character groups joined by `-`** and prefixed with **`CIRIS-V1-`**:
+
+```
+CIRIS-V1-ABCD-EFGH-IJKL-…
+```
+
+The encoded form is **case-insensitive** (decoder upper-cases input) and a conformant decoder MUST tolerate dashes, embedded whitespace, and the dash-free QR form. The version token in the prefix (`V1`) tracks the payload `version` byte; a future layout bumps both.
+
 ---
 
 [← Back to CEG README](README.md) | **§0 Conformance** | [Next: §1 Foundation →](01_foundation.md)
