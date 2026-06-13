@@ -36,6 +36,18 @@ Every emitter rule in this section — and the [§9.1](09_humanity_accord.md) `a
 
 A fabric node co-locating authority + observation + consensus is conformant **iff** these hold. An implementation that lets a co-located node convert what it *observes* into what it can *authorize* has broken the separation at that point and is **non-conformant** — fix the wiring, never weaken the rule.
 
+## §7.0.2 `consent_role` — the Counter-RII consent gate (1.0-RC4, ratifies Accord §RC / CIRISAgent#760 OQ-1/2/3)
+
+`federation_keys.consent_role` is the role enum that gates **Counter-RII** probe detection (RATCHET `FSD/COUNTER_RII_DETECTION.md`; Lean `ConsentGate.lean`, 8 theorems verified — F-CR-3 SelfConscience-zero-by-construction proved). Three primitive-level semantics shape persist's `federation_keys.consent_role` schema and edge's `ProbePatternObserver` gate and so **cannot be set per-consumer** — they are **ratified here** (the Accord §RC slot CEG 1.0-RC3 reserved is now filled; [CIRISAgent#760](https://github.com/CIRISAI/CIRISAgent/issues/760) OQ gate closed). All three take the `ConsentGate.lean` default — ratification carries **no predicate or proof change**.
+
+**OQ-1 — revocation chain: `BaseRole`-only, non-recursive.** A `consent_role` is non-recursive: a subsequent revocation **overwrites** the prior revocation record (NO recursive revocation chain embedded in the role). Chain history, **if retained**, MUST live in a separate audit surface and **MUST NOT be embedded in the `consent_role` JSONB**. This locks the substrate-portable JSONB shape — flat, bounded, overwrite-on-revoke — consistent with [§5.6.8.5](05_namespace.md) stable-id grouping (not chain-walk; partition-tolerance) and [§13.5](13_anti_patterns.md) (no key pre-declaring its own state recursively), and **non-breaking against the shipped flat soft-delete substrate** (the permissive "if retained" is deliberate — mandating an audit table would contradict a deployed migration).
+
+**OQ-2 — peer eligibility: blanket suppression.** A node holding the `Peer` `consent_role` escapes Counter-RII detection at **any** `trust_mode`. The cost — a sovereign peer may probe other peers without raising the signal — is **bounded by construction**: `ratchet:flag:counter_rii:{layer}` is **advisory only** ([§5.7](05_namespace.md)) — it can NEVER be sole evidence for `slashing:*`; the WA quorum is the load-bearing adjudication gate. The exemption suppresses an *advisory signal*, not an *enforcement path*. (The [§8.1.12.7](08_composition.md) ↔ CEG-native-agent dual-identity interaction was ruled at [CIRISRegistry#51](https://github.com/CIRISAI/CIRISRegistry/issues/51) ruling 3.)
+
+**OQ-3 — post-window `AuthorizedReview`: strict.** An `AuthorizedReview` `consent_role` is signal-eligible **immediately** at `t > window_end` — no grace period. Matches the fail-secure / clean-state-machine grain ([§15.6](15_gaps.md)); reviewers MUST respect their windows.
+
+With this, `consent_role` is **no longer a reserved-not-yet-written slot** — implementations MAY now build the `consent_role` substrate (the [CIRISPersist#146](https://github.com/CIRISAI/CIRISPersist/issues/146) consent-SLA watcher + schema; the CIRISEdge consent-gate). **1+4 untouched** — `consent_role` is a `federation_keys` identity field (sibling to [§7.0.1](#701-identity_type-is-a-set--single-key-role-cohabitation-ceg-09-addition) `identity_type`), not an envelope primitive.
+
 ## §7.1 The `accord:*` reservation
 
 `accord:*` is reserved: only `federation_keys` rows with `identity_type="accord_holder"` may emit. This is the one constitutional asymmetry in the federation — see [§9](09_humanity_accord.md) HUMANITY_ACCORD.
