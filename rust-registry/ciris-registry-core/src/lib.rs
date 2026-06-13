@@ -51,6 +51,7 @@ pub mod capabilities;
 pub mod config;
 pub mod crypto;
 pub mod db;
+pub mod edge_runtime;
 pub mod edge_transport;
 pub mod error;
 pub mod federation;

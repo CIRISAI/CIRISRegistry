@@ -104,6 +104,16 @@ async fn main() -> Result<()> {
     let federation_directory: Arc<dyn ciris_registry_core::federation::FederationDirectory> =
         ciris_registry_core::federation::build_client(Some(persist_engine.clone()), &settings.federation);
 
+    // Bring up the Edge transport identity (mints/loads the Reticulum
+    // dual-key at CIRIS_REGISTRY_EDGE_IDENTITY_PATH) so GET /v1/identity can
+    // expose this server's full §5.6.8.8.2 6-key federation identity — the
+    // form the ciris-canonical community enrollment (#56) resolves a member
+    // by (WHO + transport identity). Unset env / init failure → None →
+    // /v1/identity emits the 4-of-6 bundle. The native mirror of CIRISLens's
+    // edge_runtime.py (CIRISLens#20).
+    let transport_pubkeys =
+        ciris_registry_core::edge_runtime::init_transport_identity(crypto.key_id()).await;
+
     // Boot-seed the registry's own steward pubkey as a trusted primitive
     // key (project='ciris-registry') ONLY IF NO ROW EXISTS — gives a
     // working default for fresh installs where the registry's runtime
@@ -211,6 +221,8 @@ async fn main() -> Result<()> {
             crypto.clone(),
             metrics_handle,
             federation_directory.clone(),
+            Some(persist_engine.clone()),
+            transport_pubkeys,
         )))
     } else {
         None

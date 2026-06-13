@@ -55,6 +55,16 @@ struct AppState {
     /// `PersistFederationClient` delegating to ciris-persist's federation
     /// directory.
     federation: Arc<dyn crate::federation::FederationDirectory>,
+    /// Raw persist `Engine` for `GET /v1/identity` (the §5.6.8.8.2 6-key
+    /// `LocalIdentityAggregate`). `None` only if the boot engine was not
+    /// constructed; in practice always `Some` (main.rs builds it
+    /// unconditionally). Distinct from `federation` (the directory trait).
+    persist_engine: Option<Arc<ciris_persist::engine::Engine>>,
+    /// `(x25519_pub_base64, ed25519_pub_base64)` of the Reticulum
+    /// transport identity, when `CIRIS_REGISTRY_EDGE_IDENTITY_PATH` is set
+    /// (see [`crate::edge_runtime`]). `None` → `/v1/identity` emits the
+    /// 4-of-6-key bundle without the RET-transport role.
+    transport_pubkeys: Option<(String, String)>,
 }
 
 #[derive(Serialize)]
@@ -343,6 +353,46 @@ async fn metrics(State(state): State<AppState>) -> String {
     ));
 
     output
+}
+
+/// Public endpoint: GET /v1/identity
+///
+/// Emits this registry server's federation identity as the §5.6.8.8.2
+/// six-key `LocalIdentityAggregate` — signing (Ed25519 + ML-DSA-65),
+/// content-KEM (X25519 + ML-KEM-768), and, when the Edge transport identity
+/// is configured (`CIRIS_REGISTRY_EDGE_IDENTITY_PATH`, see
+/// [`crate::edge_runtime`]), the RET-transport role (X25519 + Ed25519).
+/// This is the federation ID the `ciris-canonical` community enrollment
+/// (CIRISRegistry#56) consumes to resolve a member: WHO (federation key) +
+/// the transport identity backing the signed `transport_destination`
+/// binding (§5.6.8.8.1). The native mirror of CIRISLens's `/api/v1/identity`.
+///
+/// When the transport identity is unconfigured the aggregate is the 4-of-6
+/// bundle (RET-transport role absent); persist treats the two transport
+/// pubkeys as both-or-neither.
+async fn identity(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, crate::api::error::ApiError> {
+    let engine = state.persist_engine.as_ref().ok_or_else(|| {
+        crate::api::error::ApiError::from_status(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "federation persist engine not configured".to_string(),
+        )
+    })?;
+    let (tx, te) = match &state.transport_pubkeys {
+        Some((x, e)) => (Some(x.clone()), Some(e.clone())),
+        None => (None, None),
+    };
+    let aggregate = engine
+        .local_identity_aggregate(tx, te)
+        .await
+        .map_err(|e| {
+            crate::api::error::ApiError::internal(format!("local_identity_aggregate: {e}"))
+        })?;
+    let body = serde_json::to_value(&aggregate).map_err(|e| {
+        crate::api::error::ApiError::internal(format!("serialize identity aggregate: {e}"))
+    })?;
+    Ok(Json(body))
 }
 
 /// Public endpoint: GET /v1/steward-key
@@ -2833,12 +2883,16 @@ pub async fn serve(
     crypto: Arc<HybridCrypto>,
     metrics_handle: PrometheusHandle,
     federation: Arc<dyn crate::federation::FederationDirectory>,
+    persist_engine: Option<Arc<ciris_persist::engine::Engine>>,
+    transport_pubkeys: Option<(String, String)>,
 ) -> Result<(), std::io::Error> {
     let state = AppState {
         db,
         crypto,
         metrics_handle: Arc::new(metrics_handle),
         federation,
+        persist_engine,
+        transport_pubkeys,
     };
 
     // Public unauthenticated GET endpoints: rate-limited via the shared
@@ -2851,6 +2905,7 @@ pub async fn serve(
     // device-attestation APIs.
     let public_rate_limited = Router::new()
         .route("/v1/steward-key", get(steward_key))
+        .route("/v1/identity", get(identity))
         // v1.4 FSD-002 §7.7 — multi-steward + accord-holder discovery
         // (CIRISRegistry#21 + #23 Surface 1 + #16 spec support).
         // CIRISVerify v3.1.0+ consumer wiring at ciris-verify-core::ThresholdMember

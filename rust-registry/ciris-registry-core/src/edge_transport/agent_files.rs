@@ -177,6 +177,11 @@ mod tests {
             scrub_timestamp: Utc::now(),
             pqc_completed_at: None,
             persist_row_hash: String::new(),
+            subject_key_ids: Vec::new(),
+            withdraws_admission_rule: None,
+            cohort_scope: "federation".into(),
+            tier: "federation".into(),
+            promoted_at: None,
         }
     }
 
