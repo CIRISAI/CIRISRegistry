@@ -4,6 +4,18 @@
 
 # §14 Glossaries
 
+## §14.0 Core terms (added 1.0-RC5; resolves [CIRISRegistry#77](https://github.com/CIRISAI/CIRISRegistry/issues/77))
+
+These terms are referenced throughout the spec and across sibling repos. Defining them in-spec retires the external `ciris.ai/cewp` placeholder citations.
+
+| Term | Definition |
+|---|---|
+| **CEG** (CIRIS Epistemic Grammar) | This specification. The federation's wire grammar: the "1+4" attestation model (`scores` plus the four relations `delegates_to` / `supersedes` / `withdraws` / `recants`), its namespaces, admission rules, and composition policies. CEG is the *grammar*; CEWP is the *network that speaks it*. |
+| **CEWP** (CIRIS Epistemic Web Platform) | The decentralized network formed when nodes exchange CEG envelopes over [Edge](https://github.com/CIRISAI/CIRISEdge)/Reticulum transport. CEWP is **not a product, server, or central service** — it is the emergent peer-to-peer web of CEG-speaking nodes, exactly as "the Web" is the emergent network of HTTP-speaking servers. It has no owner, no root, and no load-bearing instance (the [§7.0.1](07_reserved.md) fabric-node discipline and the default-not-forced-root rule of [§5.6.8.10](05_namespace.md) guarantee this). A CEWP node is a **fabric node** ([CIRISServer](https://github.com/CIRISAI/CIRISServer)); `agent = fabric node + brain`. |
+| **Fabric node** | A headless CEG/CEWP participant: it attests, stores, observes, reaches consensus, and transports, but does **not** reason or act (no brain). Shipped as CIRISServer. Three deployment shapes: standalone server, embedded-in-agent, or family member. See [§7.0.1](07_reserved.md). |
+| **`ciris-canonical`** | The bootstrap governed community ([cohort_subkind: infrastructure](08_composition.md)) every node ships trusting by default — but which any consumer MAY untrust or re-root ([§5.6.8.10](05_namespace.md) default-**not**-forced-root). Its founding members (`lens` + `registry-us` + `registry-eu` fabric nodes) hold the founder-quorum (2-of-3, entrenched). Trust in it is **role-scoped and ≠ consent** ([§5.6.8.10](05_namespace.md)). |
+| **NodeCode** | The QR-able peer-bootstrap shorthand for a federation key (`CIRIS-V1-…`, base32 + CRC-16). See [§0.10](00_conformance.md). |
+
 ## §14.1 Persist `system:*` leaf glossary (narrative → canonical)
 
 Stories under [§5.3](05_namespace.md) sometimes use warm narrative leaves. The canonical wire form is to the right.

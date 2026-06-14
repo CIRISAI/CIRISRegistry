@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble an exhaustively-complete CEG 1.0-RC4 PDF from the markdown spec.
+"""Assemble an exhaustively-complete CEG 1.0-RC5 PDF from the markdown spec.
 No pandoc available -> a focused markdown->LaTeX converter for this spec's
 subset (headings, pipe tables, code fences, lists, inline bold/italic/code/links,
 blockquotes), pdflatex + newunicodechar for the 42 special glyphs.
@@ -135,7 +135,8 @@ NUC = {
  '│':'|','…':r'\ldots{}','≡':r'$\equiv$','±':r'$\pm$','─':'-','𝒞':r'$\mathcal{C}$',
  '−':'-','⊇':r'$\supseteq$','∩':r'$\cap$','┐':'+','┘':'+','✓':r'\checkmark{}','á':r"\'a",
  '⚠':r'[!]','️':'','∃':r'$\exists$','ρ':r'$\rho$','⌈':r'$\lceil$','⌉':r'$\rceil$',
- '∪':r'$\cup$','≫':r'$\gg$','≈':r'$\approx$','🔴':r'[\textbullet]',
+ '∪':r'$\cup$','≫':r'$\gg$','≈':r'$\approx$','🔴':r'[\textbullet]','⇒':r'$\Rightarrow$',
+ '⟹':r'$\Longrightarrow$','∞':r'$\infty$','µ':r'$\mu$',
 }
 nuc_lines = '\n'.join(r'\newunicodechar{%s}{%s}' % (k, v) for k, v in NUC.items())
 
@@ -161,13 +162,13 @@ PREAMBLE = r'''\documentclass[10pt]{article}
 \setlength{\parindent}{0pt}\setlength{\parskip}{4pt}
 \renewcommand{\arraystretch}{1.15}
 ''' + nuc_lines + r'''
-\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 1.0-RC4 (Release Candidate --- wire surface frozen) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
+\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 1.0-RC5 (Release Candidate --- wire surface frozen) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
 \author{CIRIS Federation --- generated from \texttt{FSD/CEG/}}
-\date{2026-06-06}
+\date{2026-06-14}
 \begin{document}
 \maketitle
 \begin{abstract}\noindent
-This document is the complete CEG 1.0-RC4 wire-format specification (the 1+4
+This document is the complete CEG 1.0-RC5 wire-format specification (the 1+4
 minimal-and-adequate attestation grammar), assembled from the 18-section source
 plus the version-history overview. It opens with a quantitative model of
 PQC-native streaming video --- bandwidth and lag --- under CEG \S10.5, isolating
@@ -388,5 +389,5 @@ if __name__ == "__main__":
         body.append(convert(md))
         body.append(r'\clearpage')
     body.append(r'\end{document}')
-    (D/'ceg-1.0-rc4.tex').write_text('\n'.join(body), encoding='utf-8')
-    print('wrote ceg-1.0-rc4.tex (%d files)' % len(FILES))
+    (D/'ceg-1.0-rc5.tex').write_text('\n'.join(body), encoding='utf-8')
+    print('wrote ceg-1.0-rc5.tex (%d files)' % len(FILES))

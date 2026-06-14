@@ -26,6 +26,8 @@ Every emitter rule in this section — and the [§9.1](09_humanity_accord.md) `a
 
 **Canonical-bytes encoding.** Where `identity_type` enters a canonical-bytes computation (e.g., cross-attestation of a `federation_keys` row), the set MUST be encoded as its members sorted ascending by Unicode code point, deduplicated, comma-joined with no whitespace (e.g., `agent,lenscore_detector`). A single-role key encodes identically to its pre-0.9 scalar form (`agent` ≡ `{agent}` ≡ `"agent"`), preserving signatures over legacy single-role rows.
 
+**Storage representation is an implementation choice — "set" is semantic, not a column type (normative confirmation, 1.0-RC5; resolves [CIRISRegistry#78](https://github.com/CIRISAI/CIRISRegistry/issues/78) caveat 1 / [CIRISPersist#183](https://github.com/CIRISAI/CIRISPersist/issues/183)).** §7.0.1 requires that `identity_type` be *interpreted* as a set (membership test, not scalar equality) and that its *canonical bytes* be the sorted-deduped-comma-joined string above. It does **NOT** mandate a structured/array **column**. A single free-form `TEXT` column holding the comma-joined form, decoded-to-set on read (persist's v6.5.0 shape), **is conformant** — the comma-joined string *is* the canonical representation, and the set is its interpretation. **No substrate migration to a structured column is required.** New `identity_type` values (e.g. `user`, `wise_authority`) are valid additive members of the open role vocabulary; they need no schema change, only inclusion in the membership-test set.
+
 **Cohabitation does NOT collapse the dimension split.** Role cohabitation grants a key the *right* to emit under each held role's reserved prefixes; it does NOT merge the roles' namespaces. A key holding `{agent, lenscore_detector}` still emits its detector verdicts under `detection:*` (the lenscore-role surface) and its agent-intent attestations under the agent dimensions — the [§7.4](#74-detector-only-prefixes) shadowing rule and the [§7.5](#75-capacity-score-self-emission-rejection) self-emission rejection apply unchanged per held role. See [§7.4](#74-detector-only-prefixes) for the LensCore-fold worked example.
 
 **Co-location is NOT consolidation — the fabric-node discipline (normative, 1.0-RC3).** A *fabric node* (the headless cohabitation runtime that composes registry-authority + lens-observation + node-consensus over one substrate; `agent = fabric node + brain`) routinely holds the **full role-set in one key/process** — `{substrate_persist, steward, lenscore_detector, witness, …}`. This is co-location of **custody**, not consolidation of **authority**, and the separation of powers is held **cryptographically, not procedurally**:
@@ -94,6 +96,21 @@ Per [§5.6.8.8](05_namespace.md) `identity_occurrence` + [§5.6.8.9](05_namespac
 | `hard_case:family_consensus_protocol_change:{family_key_id}` | Substrate admits a `consensus_protocol` amendment on a non-entrenched family | Same: substrate_persist |
 | `hard_case:family_consensus_protocol_violation:{family_key_id}` | Substrate REJECTS a proposed amendment (rule unsatisfied OR entrenched) | Same: substrate_persist |
 | `hard_case:recipient_excluded:{scope_key_id}` | Substrate fail-secure-skips a recipient in the [§10.1.4](10_endpoints.md) at-rest grant cascade (1.0-RC1, [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C3). Payload: excluded recipient `key_id`, `reason ∈ {expired_occurrence, invalid_kem_key, missing_encryption_pubkeys}`, skipped Contribution's envelope ref. **Cohort-scoped: emitted INTO the affected self/family scope; MUST NOT federate beyond it** — the excluded member can audit; the federation learns nothing (§10.1.4 invisibility preserved). | Same: substrate_persist |
+
+**Removal-path emission shape (normative, 1.0-RC5 — pins [CIRISPersist#161](https://github.com/CIRISAI/CIRISPersist/issues/161) Ask 5).** The membership-change prefix covers **both add and removal** — there is **no separate `hard_case:member_removed` kind** (it would split one event class across two prefixes for no gain). On the **removal** path the substrate emits the *same* `hard_case:family_membership_change:{family_key_id}` (and the §7.8 `community_membership_change` analog), with the payload distinguishing the direction and carrying what the forward-secrecy + audit consumers need:
+
+```
+hard_case:family_membership_change:{family_key_id}  (payload)
+    change_kind:    "added" | "removed"          // the direction (NEW — pins the removal signal)
+    subject_key_id: key_id                        // the member added/removed
+    cohort_key_id:  key_id                        // the family (or community) key
+    effective_at:   rfc3339_canonical             // the membership-change instant; on removal this is
+                                                  //   the re-key epoch boundary (§8.1.12.5 / §8.1.13.4
+                                                  //   Option-A) after which the removed member receives
+                                                  //   no new wrapped content
+```
+
+So the removal-time substrate signal (the thing persist's `put_family_membership_revocation` path emits) is `change_kind: "removed"` on the existing prefix — consumers and the forward-secrecy re-key key on `effective_at`. Same shape for `community_membership_change` (§7.8) and the `identity_occurrence` removal (a `withdraws` against the occurrence; the substrate emits `family_membership_change` / `community_membership_change` where the occurrence was a member).
 
 Composes with [§7.2](#72-substrate-self-report-reservations-system) — these are part of the same substrate-self-report discipline. Non-substrate emissions on these prefixes are a category error and MUST be rejected.
 

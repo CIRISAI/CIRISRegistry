@@ -464,15 +464,23 @@ ConsentStance (closed-set):
 
 Rides existing `scores` attestation_type with `subject_kind=consent_record` discriminator. No new attestation_type. 1+4 preserved.
 
+**Admission rules (normative, 1.0-RC5 — ratifies [CIRISPersist#146](https://github.com/CIRISAI/CIRISPersist/issues/146) Ask 5).** A `consent_record` Contribution is admitted iff:
+1. **Required fields present**: `subject_key_id`, `stance` (closed-set), `asserted_at` (§0.5-canonical). All others are optional per the envelope above; absent optionals ride the [§0.9.2](00_conformance.md) omit rule.
+2. **`stance` is a closed-set value** (`granted` / `revoked` / `expired`); **`expired` is substrate-emitted only** — a producer/subject MUST NOT assert `expired` (it is the substrate's `valid_until`-passed emission).
+3. **Tier eligibility** per [§10.1.3](10_endpoints.md): a `stance: revoked` `consent_record` is **NOT local-tier-eligible** (it carries subject revocation authority over another party's content) — it goes federation-tier (hybrid-signed) or rides the §10.1.3 24-hour `local → federation` promotion. A `stance: granted` *self*-consent where the subject holds sole authority MAY be local-tier per [§10.1.5.2](10_endpoints.md).
+4. **Composition with the [§3.2.3](03_primitives.md) `withdraws` gate**: a `stance: revoked` `consent_record` whose `subject_key_id` ∈ the target's `subject_key_ids[]` is admitted under §3.2.3 subject-revocation authority (rules 2–4), and the substrate SHOULD record which rule admitted it (the §3.2.3 per-rule audit metadata). No producer co-signature and **no quorum** is required — single-subject authority suffices ([§8.1.11.2](08_composition.md)).
+
+It rides the same admission gate as a bare `scores` on `consent:state:*`; the `consent_record` form simply carries the locked payload schema instead of a free dimension.
+
 **Bilateral pair pattern** (per [CIRISAgent CEM](https://github.com/CIRISAI/CIRISAgent/blob/main/docs/CIRIS_CONSENT_SERVICE.md) PARTNERED stream):
 
 ```
 1. Subject emits consent_record(subject_key_id, stance: granted,
                                  bilateral_pair_id: <fresh-uuid>) +
-                  scores on `consent:partnership_grant`
+                  scores on `consent:partnership_grant:v1`
 2. Producer emits consent_record(subject_key_id, target_key_id: subject_key_id,
                                  stance: granted, bilateral_pair_id: <same-uuid>) +
-                  scores on `consent:partnership_accept`
+                  scores on `consent:partnership_accept:v1`
 3. topical_relation:bilateral_pair links the two Contributions
 4. Consumer policy treats the partnership as ratified iff both halves present
    under the same bilateral_pair_id with stance: granted
@@ -1089,6 +1097,26 @@ partner_record {
 **Mutability + current-state resolution (normative — stable-id grouping, NOT chain-walk).** Updates ride `supersedes`; deactivation/revocation rides `withdraws` (the [§5.6.8.5](#5685-event-lifecycle-dimension-families-ceg-04-addition) `event_listing` state-machine pattern). **Current state of a business id is resolved by stable-id grouping**: group all envelopes by the first-class business id (`org_id` / `(user_id, org_id)` / `license_id`) → apply `withdraws` forward-only → latest `asserted_at` (skew-bounded per [§10.1.6](10_endpoints.md)) → tie-break smallest `attestation_id` (the [§6.1](06_relations.md) discipline). For `partner_record`, admission anti-rollback on `revision` precedes the [§10.1.6](10_endpoints.md) quorum merge. Resolution MUST NOT require chain completeness — a region that never observed envelope N−1 still converges (partition tolerance is the point of CEG-native replication). `supersedes` references SHOULD be emitted when the prior is known and serve as **audit lineage only** — decoration, never resolution.
 
 **1+4 lockdown preserved**: three new subject_kinds ride existing `scores` + subject_kind discriminator; lifecycle rides existing `supersedes`/`withdraws`; license authority rides the existing §5.6.8.10 founder-quorum machinery; role authority rides the existing §8.1.12.7.1 delegation resolver; merge intents are substrate dispatch declarations ([§10.1.6](10_endpoints.md)), not wire primitives. **Zero new structural primitives.** Sixteenth path ([§1.4](01_foundation.md)) — the wire format expresses **the federation's own operational/administrative layer** (the org/identity/license records that run the federation's business) as composition, completing the Spock-removal arc: after this, no cross-region byte moves outside a signed CEG envelope.
+
+#### §5.6.8.14 `identity:canonical_binding` — claiming a canonical-hash subject (CEG 1.0-RC5 addition)
+
+Per [CIRISPersist#146](https://github.com/CIRISAI/CIRISPersist/issues/146) Ask 6 + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842) Gap 3. A `subject_key_ids[]` entry MAY be a **canonical-hash** identifier — `sha256("discord:user_id:12345")`, an external-party id — rather than a `federation_keys` row ([§4.2.2](04_envelope.md)). When the real-world subject behind a canonical hash **later acquires a federation_keys identity**, it needs a wire-format way to **claim** that hash so its revocation authority (and proxy-delegation eligibility) attaches. That is the rebinding ceremony.
+
+**Shape.** A bare `scores` Contribution on the reserved dimension **`identity:canonical_binding:{canonical_hash}`** — `attesting_key_id = K` (the claiming federation key), naming the canonical hash `H` as the bound subject. **Self-asserted** (`witness_relation: self`): K declares "I am the federation identity behind H." Hybrid-signed; admitted federation-tier (it grants authority — not local-tier-eligible, [§10.1.3](10_endpoints.md) discipline).
+
+```
+scores {
+    attesting_key_id: K,                              // the claiming federation_keys identity
+    dimension:        "identity:canonical_binding:{H}", // H = the canonical hash being claimed
+    score:            <positive>,
+    witness_relation: self,
+    asserted_at:      rfc3339_canonical,
+}
+```
+
+**Admission consequence (normative).** After an admitted `identity:canonical_binding` from `K` → `H`, the substrate widens `withdraws` admission ([§3.2.3](03_primitives.md)): a `withdraws` from `K` against any target `T` where `H ∈ T.subject_key_ids[]` is now admitted (K has inherited the canonical-hash subject's revocation authority). **This is what unblocks [§3.2.3 rule 3](03_primitives.md)** — a proxy `delegates_to` to a canonical-hash subject presumes that subject can hold a `delegates_to.attested_key_id`; a never-rebound canonical subject acquires it here.
+
+**Authorization is consumer-policy, not wire (normative honesty).** CEG pins the binding *shape*, NOT proof that K legitimately controls H's preimage. A binding is a *self-assertion*; a consumer weights it by whatever proof-of-control it trusts (OAuth/IdP verification of the `discord:user_id`, an out-of-band attestation, TOFU). The substrate admits the binding and records it; **the trust that K==H is composed by the consumer**, exactly as the [§5.6.8.8.1](#5688-1-transport_destination--the-authenticated-identityaddress-binding-ceg-012-addition) announce is advisory until rooted. A second key claiming the same `H` is admitted too (competing claims surface to consumer policy / RATCHET, not a substrate verdict). **1+4 preserved** — `identity:canonical_binding:{H}` is a reserved `scores` dimension, not a new primitive.
 
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 

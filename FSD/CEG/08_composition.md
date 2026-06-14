@@ -218,6 +218,8 @@ Concrete cases:
 
 Producers MAY mitigate by partitioning content into per-subject Contributions (e.g., one chat-message Contribution per author, linked via `topical_relation:replies_to`) so that one subject's revocation doesn't evict another's content.
 
+> **No distinct multi-subject evict path — admission + precedence is sufficient (normative confirmation, 1.0-RC5; resolves [CIRISPersist#146](https://github.com/CIRISAI/CIRISPersist/issues/146) Ask 4).** Multi-subject eviction is fully expressed by two mechanisms already in the spec and needs **no new primitive, dimension, or `hard_case`**: (1) **admission** — the per-subject `withdraws` is admitted under [§3.2.3 rule 2/3](03_primitives.md) exactly as a single-subject `withdraws` is (each subject in `subject_key_ids` is independently a valid revoker; the rule does not change for `len > 1`); (2) **precedence** — the latest-wins / revoke-is-terminal precedence at the consumer read path ([§8.1.11.1](#81111-effective-consent-resolution-read-path)) applies per-subject, and any one subject's terminal `withdraws` evicts `T` for all (the any-subject-binding above). There is no quorum to compute and no "evict event" to materialize separately from the admitted `withdraws` — the withdrawal IS the evict. Substrates implement this as the OR over per-subject revocation state, not as a new code path.
+
 #### §8.1.11.3 Deletion-SLA watcher (substrate emission)
 
 When subject `s` emits `consent:state:revoked` (or an admitted `withdraws`) against target `T`, substrate watches for producer compliance:
@@ -474,16 +476,17 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 
 Each of the three Self-at-login Contributions is hybrid-signed over `JCS(envelope)` ([§0.9](00_conformance.md) / RFC 8785), and at login promoted to federation-tier (the [§10.1.5.3](10_endpoints.md) promotion canonicalizes the **exact committed member set** — omit-vs-materialize ([§0.9.2](00_conformance.md)) is load-bearing; the signer MUST NOT re-default). **The [§0.9.2.1](00_conformance.md) determinism rules apply** (raised in CIRISVerify#63 review): `subject_key_ids[]` and `delegated_scope[]` are **lexicographically sorted** (set-semantics); `aspects[]` retains RNS order (sequence-semantics); all key/hash/pubkey byte fields (`*_key_id`, `subject_key_ids[]`, the two reticulum pubkeys, `destination_hash`) are **lowercase hex per [§0.6](00_conformance.md)**; all timestamps are **[§0.5](00_conformance.md)-canonical**. The member sets the producer commits (and which `JCS` therefore covers) are pinned below. Optional [§4](04_envelope.md) envelope fields not listed ride the §0.9.2 omit rule (absent unless the producer sets them).
 
-**(a) `consent:partnership_grant` (user side) / `consent:partnership_accept` (agent side)** — bare `scores` ([§5.6.8.6](05_namespace.md)) bound by `bilateral_pair_id`:
+**(a) `consent:partnership_grant:v1` (user side) / `consent:partnership_accept:v1` (agent side)** — bare `scores` ([§5.6.8.6](05_namespace.md)) bound by `bilateral_pair_id`:
 ```
 { attestation_type: "scores",
   attesting_key_id: <user identity_key_id (grant) | agent occurrence_key_id (accept)>,
-  dimension:        "consent:partnership_grant" | "consent:partnership_accept",
+  dimension:        "consent:partnership_grant:v1" | "consent:partnership_accept:v1",
   score:            <positive>,
   subject_key_ids:  [<the partner key: agent occurrence (grant) | user identity (accept)>],
   bilateral_pair_id:<shared pair id>,                       // §8.1.11.4 binding mechanism
   signed_at:        <rfc3339_canonical> }
 ```
+> **Version segment pinned (normative, 1.0-RC5 — resolves [CIRISRegistry#78](https://github.com/CIRISAI/CIRISRegistry/issues/78) caveat 2).** The dimension carries the `:v1` version segment — `consent:partnership_grant:v1` / `consent:partnership_accept:v1` — to satisfy the [§13.1](13_anti_patterns.md) `scores` version-segment gate. This is the canonical form persist v6.5.0 shipped; confirmed, not changed. The `:v1` is the partnership-ceremony schema version (bump to `:v2` only if the bilateral shape changes); the shared `bilateral_pair_id` remains the §8.1.11.4 binding mechanism.
 
 **(b) `delegates_to` (user → agent occurrence)** — the act-on-behalf grant ([§3.2](03_primitives.md) envelope shape):
 ```
