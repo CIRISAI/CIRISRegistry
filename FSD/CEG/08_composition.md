@@ -468,6 +468,17 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 | `network_presence` | announce/resolve the user's `transport_destination` ([§5.6.8.8.1](05_namespace.md)) — be reachable AS the user |
 | `sub_delegation` | issue further `delegates_to` within the granted scope (depth-capped) |
 
+**Partnership WITHOUT agency — the infrastructure delegation profile (normative, 1.0-RC7 — resolves [CIRISRegistry#83](https://github.com/CIRISAI/CIRISRegistry/issues/83) §3).** The flow above binds an **agent** (a key with a brain) to a user as partnership **+ agency** — the scope includes `act_on_behalf` / `message_io`, so the agent reasons and acts AS the user. A **fabric/infrastructure node** ([§7.0.1](07_reserved.md); CIRISServer) needs the *partnership* (identity + the [§5.6.8.10](05_namespace.md) owner-binding that lets it hold non-infra membership standing under the user's authority) but MUST NOT receive agency — [§1.3](01_foundation.md) "infrastructure must not have agency." CEG pins a **reserved two-prefix scope split** so a verifier can enforce this cryptographically:
+
+| prefix | class | scopes |
+|---|---|---|
+| `infra:*` | server-class (allowed for a `node`-role delegate) | `infra:network_presence`, `infra:join_communities`, `infra:serve`, `infra:store`, `infra:attest`, `infra:transport` |
+| `agency:*` | brain-only (forbidden for a pure `node`-role delegate) | `agency:act_on_behalf`, `agency:message_io`, `agency:reason`, `agency:decide` |
+
+**Conformance:** a `delegates_to` whose `attested_key_id` resolves to an identity whose `identity_type` ([§7.0.1](07_reserved.md)) is `node`-only (no `agent`/brain) MUST carry **only** `infra:*` scopes; a verifier MUST **reject** (treat as non-conformant, never grant) an `infra`-only key presenting any `agency:*` scope. This makes §1.3 a wire-checkable invariant: a user-owned fabric node can serve + hold group-membership *standing* under the user's authority, but the delegation **literally cannot carry agency**. The legacy unprefixed kinds above remain valid for `agent`-role delegates (the Self-at-login agency profile) and are the `agency:*` / `infra:network_presence` equivalents; new **infra** delegations SHOULD use the explicit `infra:*` prefixes.
+
+**Cohabitation (`agent = node + brain`):** when both compose in one process, the node holds **partnership-without-agency** (`infra:*` — identity + membership standing) and the brain layers **Self-at-login partnership-with-agency** (`agency:*` — reasoning) as a *separate* `delegates_to`. Two delegations, two scope classes, independently revocable — the user can strip the brain's agency while the fabric node keeps serving.
+
 **Transport (network presence) — AV-17.** Each occurrence binds a `transport_destination` ([§5.6.8.8.1](05_namespace.md)); the app is reachable on RET *as the user occurrence*. The Reticulum destination is a **separate dual-key transport identity** that the user's signing key *authorizes by signing the binding* — the federation signing seed MUST NOT enter the transport layer (AV-17 / [CIRISEdge#15](https://github.com/CIRISAI/CIRISEdge/issues/15)). "User key used as a transport key" means *roots/authorizes* the transport identity, not a shared keypair.
 
 **Worked login flow.** (1) unlock the hardware-rooted user key (WebAuthn presence) → (2) admit the agent occurrence (single-vouch) → Policy-L Self DEK now wraps to both → (3) optionally add the `wise_authority` role to the user's `identity_type` set → (4) bind each occurrence's `transport_destination` → (5) `consent:partnership_grant`/`accept` under a `bilateral_pair_id` → (6) `delegates_to(user → agent occurrence, scope: [act_on_behalf, message_io, network_presence, sub_delegation])`, **promoted to federation-tier**. The app now reads the user's Self locally AND acts as the user on the network; the user can revoke either layer independently.
@@ -487,6 +498,20 @@ Each of the three Self-at-login Contributions is hybrid-signed over `JCS(envelop
   signed_at:        <rfc3339_canonical> }
 ```
 > **Version segment pinned (normative, 1.0-RC5 — resolves [CIRISRegistry#78](https://github.com/CIRISAI/CIRISRegistry/issues/78) caveat 2).** The dimension carries the `:v1` version segment — `consent:partnership_grant:v1` / `consent:partnership_accept:v1` — to satisfy the [§13.1](13_anti_patterns.md) `scores` version-segment gate. This is the canonical form persist v6.5.0 shipped; confirmed, not changed. The `:v1` is the partnership-ceremony schema version (bump to `:v2` only if the bilateral shape changes); the shared `bilateral_pair_id` remains the §8.1.11.4 binding mechanism.
+
+**Canonical signed member set for the two `:v1` envelopes (normative, 1.0-RC7 — resolves [CIRISRegistry#81](https://github.com/CIRISAI/CIRISRegistry/issues/81) / [CIRISVerify#63](https://github.com/CIRISAI/CIRISVerify/issues/63)).** Both impls MUST canonicalize (and thus hybrid-sign) **exactly** this member set, or the JCS bytes — and the signatures — diverge. The set is the [§5.6.8.6](05_namespace.md) bare-`scores` shape; these seven members are **REQUIRED** (present in the JCS for both `grant` and `accept`):
+
+| Member | Value | Verify#63 name |
+|---|---|---|
+| `attestation_type` | literal `"scores"` | — |
+| `attesting_key_id` | **the signer** = `granter_key_id` (grant) / `accepter_key_id` (accept); the bound sig binds because signer ≡ `attesting_key_id` | `granter_key_id` / `accepter_key_id` |
+| `dimension` | literal `"consent:partnership_grant:v1"` \| `"consent:partnership_accept:v1"` | `envelope_type` |
+| `score` | positive (the affirmation) | — |
+| `subject_key_ids` | **exactly `[partner_key_id]`** — the OTHER party (agent occurrence for `grant`, user identity for `accept`); single-element, [§0.9.2.1](00_conformance.md) set-sort is trivial | `partner_key_id` |
+| `bilateral_pair_id` | the shared join ([§8.1.11.4](#81114-bilateral-partnered-pair)) — identical string on both halves | `bilateral_pair_id` |
+| `signed_at` | [§0.5](00_conformance.md)-canonical RFC 3339 | `timestamp` |
+
+**Mapping (so the two impls agree on naming):** `granter`/`accepter` ≡ `attesting_key_id` (the signer of that half); `partner` ≡ `subject_key_ids[0]`. **No `valid_until`** — a PARTNERED pair has no expiry ([§8.1.11.4](#81114-bilateral-partnered-pair)); the field is **omitted** (NOT materialized as `null`), per the [§0.9.2](00_conformance.md) omit rule. **All other [§4](04_envelope.md) envelope fields ride the omit rule** — absent from the JCS unless the producer explicitly sets them; the signer MUST NOT re-default. Additional canonical members are a `:v2` bump, never a silent `:v1` addition. Byte-field members (`attesting_key_id`, `subject_key_ids[]`) are lowercase-hex per [§0.6](00_conformance.md).
 
 **(b) `delegates_to` (user → agent occurrence)** — the act-on-behalf grant ([§3.2](03_primitives.md) envelope shape):
 ```
