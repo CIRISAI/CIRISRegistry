@@ -567,8 +567,9 @@ resolve_member_transport(C, now):
                  hybrid-sig verified against M (or an occurrence of M)   // §5.6.8.8.1
         if occ is null: continue                   // no authenticated binding → skip (fail-secure)
         td = occ.transport_destination
-        REQUIRE td.destination_hash == RNS_hash(td.reticulum_x25519_pubkey
-                 ‖ td.reticulum_ed25519_pubkey ‖ td.app_name ‖ td.aspects)
+        REQUIRE td.destination_hash == rns_destination_hash(    // §5.6.8.8.1.1 pinned two-stage
+                 td.reticulum_x25519_pubkey, td.reticulum_ed25519_pubkey,
+                 td.app_name, td.aspects)                       // NOT a flat-concat SHA-256
         out.push((M, td.destination_hash))
     return out                                     // → Reticulum announce/path-request per dest
 ```

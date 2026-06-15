@@ -520,8 +520,8 @@ TransportDestination (CEG 0.12 addition — the authenticated identity↔address
 |---------------------------|-----------|-------------------------------------------------------|
 | reticulum_x25519_pubkey   | [u8; 32]  | transport identity's encryption key                   |
 | reticulum_ed25519_pubkey  | [u8; 32]  | transport identity's signing key                      |
-| destination_hash          | [u8; 16]  | RNS destination hash (truncated SHA-256); MUST derive |
-|                           |           |   from the two pubkeys + app_name + aspects per RNS   |
+| destination_hash          | [u8; 16]  | RNS destination hash; MUST derive from the two pubkeys |
+|                           |           |   + app_name + aspects per the §5.6.8.8.1.1 algorithm  |
 | app_name                  | string    | RNS destination app (e.g. "ciris.federation")         |
 | aspects                   | [string]  | RNS aspects (ordered; part of the hash preimage)      |
 
@@ -557,7 +557,43 @@ Per [CIRISRegistry#56](https://github.com/CIRISAI/CIRISRegistry/issues/56) + [CI
 
 **The binding = a federation-key-signed `identity_occurrence` carrying `transport_destination`.** Because the occurrence is admitted only when `attesting_key_id == identity_key_id` (or a current occurrence of it) and is hybrid-signed (Ed25519 + ML-DSA-65), the binding `destination_hash ← identity` is cryptographically authenticated. A spoofer cannot forge an `identity_occurrence` signed by the real key. This promotes [CIRISEdge#15](https://github.com/CIRISAI/CIRISEdge/issues/15) Option B (signed-announce attestation) from an Edge-internal app-data format into a **first-class, federation-wide, auditable CEG shape** — the announce app-data MAY carry it for self-authenticating discovery, and the directory holds it as the durable source of truth.
 
-**Conformance**: a Consumer resolving a member's address MUST verify (1) the `identity_occurrence` signature against the member's federation key, (2) that `destination_hash` derives from `reticulum_x25519_pubkey ‖ reticulum_ed25519_pubkey ‖ app_name ‖ aspects` per the RNS rule (no free-floating hash), and (3) the occurrence is non-superseded + within `valid_until` at resolution time. An unauthenticated announce (no matching signed `transport_destination`) is **advisory-only** — usable as a routing hint, never as an authorization. Rotating the Reticulum destination (new transport identity) is a new `identity_occurrence` `supersedes`-ing the prior — location changes without touching federation identity or community membership.
+**Conformance**: a Consumer resolving a member's address MUST verify (1) the `identity_occurrence` signature against the member's federation key, (2) that `destination_hash` recomputes from `reticulum_x25519_pubkey`, `reticulum_ed25519_pubkey`, `app_name`, and `aspects` per the **[§5.6.8.8.1.1](#568811-rns-destination-hash-algorithm-pinned)** pinned algorithm (no free-floating hash), and (3) the occurrence is non-superseded + within `valid_until` at resolution time. An unauthenticated announce (no matching signed `transport_destination`) is **advisory-only** — usable as a routing hint, never as an authorization. Rotating the Reticulum destination (new transport identity) is a new `identity_occurrence` `supersedes`-ing the prior — location changes without touching federation identity or community membership.
+
+###### §5.6.8.8.1.1 RNS destination-hash algorithm (pinned)
+
+**Normative, 1.0-RC6 — reproduces the RNS destination-hash construction in-spec so a conformant verifier can recompute `destination_hash` from this document alone, with no Reticulum vendoring (resolves [CIRISRegistry#80](https://github.com/CIRISAI/CIRISRegistry/issues/80) / [CIRISVerify#28](https://github.com/CIRISAI/CIRISVerify/issues/28)).** This is a **two-stage** hash — it is **NOT** a single SHA-256 over a flat `x25519 ‖ ed25519 ‖ app_name ‖ aspects` preimage. The naive flat form yields a *different, wrong* value; CEG ≤1.0-RC5's "per the RNS rule" wording under-specified this, which is why an independent recompute was previously impossible.
+
+Pinned constants (SHA-256 throughout — RNS `full_hash`):
+
+| name | value | RNS origin |
+|---|---|---|
+| `NAME_HASH_LEN` | **10** bytes | `Identity.NAME_HASH_LENGTH` = 80 bits |
+| `DEST_HASH_LEN` | **16** bytes | `Reticulum.TRUNCATED_HASHLENGTH` = 128 bits |
+
+Algorithm:
+
+```
+# 1. Expanded name — UTF-8. app_name, then each aspect dot-joined, IN THE FIELD ORDER.
+#    The identity hexhash is NOT included (RNS computes name_hash with identity=None).
+expanded_name = app_name
+for aspect in aspects:                     # `aspects` in the field's given order
+    reject if "." in aspect                # dots are illegal inside an aspect
+    expanded_name += "." + aspect
+
+# 2. name_hash = first 10 bytes of SHA-256(expanded_name)
+name_hash = SHA256(utf8(expanded_name))[:NAME_HASH_LEN]            # 10 bytes
+
+# 3. identity_hash = first 16 bytes of SHA-256(x25519_pub ‖ ed25519_pub)
+#    Key order is reticulum_x25519_pubkey (32) THEN reticulum_ed25519_pubkey (32) —
+#    RNS get_public_key() = pub_bytes (X25519) ‖ sig_pub_bytes (Ed25519).
+identity_hash = SHA256(reticulum_x25519_pubkey ‖ reticulum_ed25519_pubkey)[:DEST_HASH_LEN]   # 16 bytes
+
+# 4. destination_hash = first 16 bytes of SHA-256(name_hash ‖ identity_hash)
+#    addr_hash_material is the 26-byte concat (10 + 16); final hash truncates to 16.
+destination_hash = SHA256(name_hash ‖ identity_hash)[:DEST_HASH_LEN]                         # 16 bytes
+```
+
+**Pinned source**: Reticulum `RNS/Destination.py::Destination.hash` + `RNS/Identity.py` (`full_hash` = SHA-256; `truncated_hash`; `get_public_key()` = `pub_bytes ‖ sig_pub_bytes`) + `RNS/Reticulum.py` (`TRUNCATED_HASHLENGTH = 128`). **CEG owns this reproduction**: it is the closed conformance source and does **not** float with upstream Reticulum — a future RNS hash change is a deliberate CEG version bump, never silent drift. A verifier that recomputes `destination_hash` per the four steps above and compares for byte-equality has performed the AV-42 destination-authenticity check; a mismatch MUST be treated as an unauthenticated (advisory-only) announce.
 
 **1+4 lockdown preserved**: `transport_destination` is one optional field on the existing `identity_occurrence` subject_kind. No new structural primitive, no new subject_kind. Twelfth path ([§1.4](01_foundation.md)) — the wire format expresses **its own addressing layer** (DNS-free, self-certifying member resolution) by composition.
 
