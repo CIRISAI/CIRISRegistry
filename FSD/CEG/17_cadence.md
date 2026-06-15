@@ -1,4 +1,4 @@
-[← §16 References](16_references.md) | **§17 Cadence**
+[← §16 References](16_references.md) | **§17 Cadence** | [Next: §18 Interop →](18_interop.md)
 
 ---
 
@@ -20,4 +20,4 @@ Last updated: 2026-06-01 (CEG 0.9 Public Working Draft — `federation_keys.iden
 
 ---
 
-[← §16 References](16_references.md) | **§17 Cadence**
+[← §16 References](16_references.md) | **§17 Cadence** | [Next: §18 Interop →](18_interop.md)
