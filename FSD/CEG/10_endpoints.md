@@ -11,7 +11,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 All CEG endpoints return:
 
 - **Content-Type**: `application/json` (`Accept: application/json` honored; other types respond `406 Not Acceptable`)
-- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc9`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc10`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 - **Time-Source header**: `X-CEG-Server-Time: <rfc3339_canonical>` per [§0.5](00_conformance.md) for client clock-skew bounds
 - **Pagination** (where applicable): `?cursor=` + `?limit=` query params; response includes `next_cursor` (null if exhausted) and `total_estimate` (server's best estimate, may be approximate)
 
@@ -499,6 +499,43 @@ The realtime profile is **not media-only.** Any high-frequency mutable shared st
 `codec_id` lets a receiver know whether `ChunkLayer { spatial: 2, temporal: 2, quality: 0 }` means "SVC base + 2 spatial enhancements" or "MDC quadrant" — without it, layer numbers are ambiguous across codecs. The substrate (Edge) never picks the codec — choice is upstream (agent/server tier); Edge needs only the namespace stable. The variable-depth `SubStreamPath` (MDC tree-path encoding) is the [§85](https://github.com/CIRISAI/CIRISRegistry/issues/85) follow-on (tracked `§N.3`).
 
 **MDC-primacy design intent (informative).** The user-facing contract CEWP realtime A/V targets is *"any node can request a lower-bandwidth stream from peers — as simple as taking every other chunk, down to a blinking dot."* MDC (`0x03`) matches that **symmetrically**: drop any subset → decode the rest at proportionally lower quality, no coordination, no base-layer floor. SVC (`0x01`) is production-deployable today but has a floor (base-layer bytes must arrive) and needs coordination for an "every other chunk" drop. The substrate is **MDC-shaped** (the `ChunkLayer` / `SubStreamPath` model is symmetric-drop-ready) even while production streams ship SVC; the ~20–40% MDC compression overhead vs SVC at equal quality is the accepted cost of symmetric drop semantics.
+
+#### §10.5.8.3 `SealedAvChunk` wire layout (normative, 1.0-RC10 — absorbs CIRISEdge v4.0.0 per [CIRISRegistry#85](https://github.com/CIRISAI/CIRISRegistry/issues/85) §N)
+
+The realtime A/V chunk that lands on each RNS Link payload (and the broadcast pull path). **Byte layout (normative — transcribed from the edge v4.0.0 reference `SealedAvChunk::to_bytes`):**
+
+```
+offset  field                       encoding
+0..32   stream_id                   32 bytes (caller-derived: sha256(stream_meta))
+32..40  epoch                       u64 big-endian
+40..48  chunk_seq                   u64 big-endian
+48..49  codec_id                    u8  (§10.5.8.2 namespace)
+49..50  layer.spatial               u8
+50..51  layer.temporal              u8
+51..52  layer.quality               u8
+52..    double_sealed_ciphertext    remaining bytes
+```
+
+- `CHUNK_HEADER_LEN = 48` (the `stream_id`+`epoch`+`chunk_seq` fixed header, stable since v3.7.0); `CHUNK_CODEC_LAYER_LEN = 4` (the `codec_id`+`ChunkLayer` block).
+- **Backward compatibility (normative, length-disambiguated):** a wire carrying **only** the 48-byte header (no trailing 4-byte block) MUST be read as `codec_id = 0xFF` (opaque) + `layer = {0,0,0}`, bytes `48..` as ciphertext — the v3.7.0 shape. A wire with ≥ `48+4` bytes after parsing the header is read as v3.8.0+ (codec+layer present). New writes always include the 4-byte block.
+- `codec_id` + `layer` are **clear metadata, NOT inputs to the AEAD** ([§10.5.8.2](#10582-codec_id-namespace--realtime-av-chunk-codec-discriminator-normative-10-rc9--ratifies-cirisregistry84)) — a relay drops by `(codec_id, layer)` without compromising the inner DEK; tampering causes mis-decode or drop, never a crypto break.
+
+#### §10.5.8.4 `ChunkLayer` + `ReceiverLayerPolicy` — SVC layer model (normative, 1.0-RC10 — §85 §N.2)
+
+`ChunkLayer` is the 3-byte SVC layer descriptor in the chunk header (`spatial`, `temporal`, `quality`, each `u8`). Each axis is **monotonic**: layer `0` is the base (lowest fidelity, always required); each increment is an additive enhancement. A receiver reconstructs from the prefix `0..=max_spatial × 0..=max_temporal × 0..=max_quality` of cells. The base cell `{0,0,0}` is the **"blinking dot"** — the minimum a participant can subscribe to. For `codec_id = 0xFF` (opaque) the layer MUST be `{0,0,0}`.
+
+`ReceiverLayerPolicy { max_spatial, max_temporal, max_quality }` (each `u8`) is the per-receiver drop policy. It is **advertised over the existing `federation_session` / `key_grant` entitlement surface — NOT a new wire** — and the sender drops chunks above the cap without re-encoding. `admits(layer)` is the per-axis test `spatial ≤ max_spatial ∧ temporal ≤ max_temporal ∧ quality ≤ max_quality`; a chunk tagged `codec_id = 0xFF` MUST be admitted **unconditionally** regardless of policy (the fan-out filter short-circuits before consulting `admits`). Canonical policies: `BLINKING_DOT = {0,0,0}`, `UNCAPPED = {255,255,255}`. This composes with the inner-once / outer-N fan-out optimization ([CIRISEdge#122](https://github.com/CIRISAI/CIRISEdge/issues/122)): the inner seal runs once per chunk; the outer seal runs only for the `(receiver, chunk)` pairs the policy admits.
+
+#### §10.5.8.5 Double-seal + deterministic nonce derivation (normative, 1.0-RC10 — §85 §N)
+
+`double_sealed_ciphertext` is **outer-AEAD( inner-AEAD( chunk_plaintext ) )** — two independent AES-256-GCM layers (12-byte nonce + 16-byte tag, standard ring layout each). The **inner** seal is end-to-end (the epoch-DEK content seal); the **outer** seal is the per-RNS-Link transit wrap (a relay sees the outer layer only, never plaintext — the [§10.5.5 E1](#1055-streaming-deliverymodel-analysis--the-pull-defaults-the-relay-extensions) two-layer posture). Both nonces are **deterministic** (no nonce is transmitted — every holder recomputes; collision-safety rides the [§10.5.8](#1058-realtime-group-communication--composition-ceg-013-addition) single-sender-per-`(stream_id, epoch)` invariant):
+
+```
+inner_nonce = SHA-256( b"CIRIS-AV-INNER-V1" ‖ stream_id[32] ‖ epoch_be8 ‖ chunk_seq_be8 )[0..12]
+outer_nonce = SHA-256( b"CIRIS-AV-OUTER-V1" ‖ link_id ‖ link_seq_be8 )[0..12]
+```
+
+The label bytes (`b"CIRIS-AV-INNER-V1"` / `b"CIRIS-AV-OUTER-V1"`, ASCII, no terminator) are **domain separators pinned by this section** — they bind the nonce to its layer and prevent cross-layer reuse. `epoch`, `chunk_seq`, and `link_seq` are `u64` **big-endian**. `link_seq` is monotonic per RNS Link (transit replay guard). **Conformance is proven by the §85 vector set** (input → expected 12-byte nonce + expected `to_bytes`), generated from the v4.0.0 reference impl — see the [§57](https://github.com/CIRISAI/CIRISRegistry/issues/57) freeze gate.
 
 ### §10.5.7 What CEG 0.10 documents
 
