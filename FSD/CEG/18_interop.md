@@ -1,4 +1,4 @@
-[← §17 Cadence](17_cadence.md) | **§18 Interoperability profiles** | [README](README.md)
+[← §17 Cadence](17_cadence.md) | **§18 Interoperability profiles** | [Next: §19 Holonomic →](19_holonomic.md)
 
 ---
 
@@ -68,4 +68,4 @@ These are committed dispositions whose detailed profiles are written as each lan
 
 ---
 
-[← §17 Cadence](17_cadence.md) | **§18 Interoperability profiles** | [README](README.md)
+[← §17 Cadence](17_cadence.md) | **§18 Interoperability profiles** | [Next: §19 Holonomic →](19_holonomic.md)
