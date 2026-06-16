@@ -11,7 +11,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 All CEG endpoints return:
 
 - **Content-Type**: `application/json` (`Accept: application/json` honored; other types respond `406 Not Acceptable`)
-- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc8`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc9`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 - **Time-Source header**: `X-CEG-Server-Time: <rfc3339_canonical>` per [§0.5](00_conformance.md) for client clock-skew bounds
 - **Pagination** (where applicable): `?cursor=` + `?limit=` query params; response includes `next_cursor` (null if exhausted) and `total_estimate` (server's best estimate, may be approximate)
 
@@ -480,6 +480,25 @@ The realtime profile is **not media-only.** Any high-frequency mutable shared st
 **Scope boundary (the explicit call):**
 - **IN scope (transport):** ordered, sealed, authenticated, PQC-encrypted realtime delivery of arbitrary data-stream payloads — covered by §10.5.8, no addition.
 - **OUT of scope (merge semantic):** the conflict-free / convergent-merge logic for shared mutable state (CRDT, Operational Transform, last-writer-wins, etc.) is **application-layer**, not a CEG primitive — consistent with the [§1.1](01_foundation.md) discipline ("the substrate stores; the wire transports; CEG describes the shape of the claim; consumer policy composes verdicts"). CEG carries the ops; the application converges them. A future codified merge primitive would route through the [§11.2](11_governance.md) amendment process if real demand pulls it (the downstream-demand-pulls-additions discipline), but it is explicitly NOT required for 1.0 — realtime collaborative apps are buildable on the transport today.
+
+#### §10.5.8.2 `codec_id` namespace — realtime A/V chunk codec discriminator (normative, 1.0-RC9 — ratifies [CIRISRegistry#84](https://github.com/CIRISAI/CIRISRegistry/issues/84))
+
+[§10.5.8.1](#10581-realtime-non-av-data-streams-normative-scope-boundary) makes the realtime chunk payload codec **application-defined and opaque to the substrate**. For realtime **A/V at scale**, a hop fanning out chunks ([CIRISEdge#128](https://github.com/CIRISAI/CIRISEdge/issues/128) per-receiver layer policy, [#66](https://github.com/CIRISAI/CIRISEdge/issues/66) SFU relay) must drop chunks for per-receiver bandwidth degradation **without** decrypting them — so the codec's layer-numbering semantics must be a **clear (non-AEAD) discriminator**. CEG ratifies a 1-byte `codec_id` namespace so every implementation reads the same meaning. **This is a namespace ratification on the transport-layer chunk header, not a change to the [§4](04_envelope.md) attestation envelope** — the frozen 1+4 surface and its canonicalization are untouched.
+
+**Wire position (normative).** `codec_id` (1 byte) + `ChunkLayer { spatial: u8, temporal: u8, quality: u8 }` (3 bytes) = a **4-byte additive block** at `SealedAvChunk` header offset **48..52**, after the existing v3.7.0 header. **Clear metadata, NOT inside the AEAD** — a relay drops chunks by `codec_id`/`ChunkLayer` without touching the inner epoch-DEK seal ([§10.5.2](#1052-chunk-seal--stream-nonce-normative--v2-lock)); tampering causes mis-decode or drop, never a crypto break. **Additive + backward-compatible**: a v3.7.0 chunk round-trips identically as `codec_id = 0xFF` + `ChunkLayer { 0, 0, 0 }`. No length-prefix is needed — the block is fixed 4 bytes at a fixed offset.
+
+| Hex | Codec | Semantics |
+|---|---|---|
+| `0x01` | **AV1 SVC** | Scalable Video Coding — 3 spatial × 4 temporal × N SNR layers; base layer required to decode anything. Production default (WebRTC-native, royalty-free). The deployable codec today. |
+| `0x02` | JPEG XS (layered) | Low-latency intra-only; broadcast use case. **Reserved.** |
+| `0x03` | **Symmetric MDC** | Multiple Description Coding — any subset of chunks decodes at proportional fidelity, no base-layer floor. **The substrate design target** (below). **Reserved** — encoder lineage academic-grade today; substrate is MDC-ready. |
+| `0xFF` | Opaque | No scalable-coding semantics; v3.7.0 wire-compat. `ChunkLayer` MUST be `{ 0, 0, 0 }`. Default for legacy / non-layered streams. |
+| `0x04`–`0x7F` | — | **Reserved** for future standardized codecs (CEG-assigned). |
+| `0x80`–`0xFE` | — | **Experimental / per-deployment** — no cross-federation meaning guaranteed. |
+
+`codec_id` lets a receiver know whether `ChunkLayer { spatial: 2, temporal: 2, quality: 0 }` means "SVC base + 2 spatial enhancements" or "MDC quadrant" — without it, layer numbers are ambiguous across codecs. The substrate (Edge) never picks the codec — choice is upstream (agent/server tier); Edge needs only the namespace stable. The variable-depth `SubStreamPath` (MDC tree-path encoding) is the [§85](https://github.com/CIRISAI/CIRISRegistry/issues/85) follow-on (tracked `§N.3`).
+
+**MDC-primacy design intent (informative).** The user-facing contract CEWP realtime A/V targets is *"any node can request a lower-bandwidth stream from peers — as simple as taking every other chunk, down to a blinking dot."* MDC (`0x03`) matches that **symmetrically**: drop any subset → decode the rest at proportionally lower quality, no coordination, no base-layer floor. SVC (`0x01`) is production-deployable today but has a floor (base-layer bytes must arrive) and needs coordination for an "every other chunk" drop. The substrate is **MDC-shaped** (the `ChunkLayer` / `SubStreamPath` model is symmetric-drop-ready) even while production streams ship SVC; the ~20–40% MDC compression overhead vs SVC at equal quality is the accepted cost of symmetric drop semantics.
 
 ### §10.5.7 What CEG 0.10 documents
 
