@@ -79,7 +79,7 @@ Reads as: the consumer wants confirmation that (a) the cert chain is currently v
 
 Not a wire primitive; a recognized composition pattern that consumer libraries SHOULD expose as a named one-call helper.
 
-### §8.1.8 Policy H — Tiered-Scope Composition (CEG 0.1 addition; LIVE)
+### §8.1.8 Policy H — Tiered-Scope Composition (LIVE)
 
 Per CIRISNodeCore commit b1582cb three-tier interface model. Three feed-shape composition idioms that read attestations by `cohort_scope`:
 
@@ -103,7 +103,7 @@ A Contribution's `cohort_scope` MAY be widened (promoted) by emitting a `superse
 
 This pattern is wire-format-clean: re-uses the structural primitive `supersedes` rather than introducing a `promote` primitive. The chain is walkable via `references_attestation_id` so the promotion lineage is preserved.
 
-### §8.1.9 Policy I — Attestation-Ladder Composition (CEG 0.2 addition)
+### §8.1.9 Policy I — Attestation-Ladder Composition
 
 The familiar L1-L5 verification "ladder" (self_verify → hardware_rooted → registry_consensus → license_validity → agent_integrity) is **consumer-side composition over the mechanism prefixes** in [§5.2](05_namespace.md), not a wire-level taxonomy.
 
@@ -141,7 +141,7 @@ Consumers MAY render the ladder as `L1` / `L2` / `L3` / `L4` / `L5` for UI / das
 
 **Migration from CEG 0.1**: prior emissions of `attestation:l{N}:*` MUST be re-emitted as `attestation:{mechanism}` per the table above. Substrate-conformance migration (CIRISRegistry#17) reads-side compatibility: consumers SHOULD accept the deprecated `attestation:l{N}:*` form during the 0.1 → 0.2 transition window but MUST emit only the mechanism form going forward. The deprecated form is rejected at admission once §11.2 amendment formally retires it (target: CEG 0.3).
 
-### §8.1.10 Policy J — Trusted-Publisher composition (CEG 0.3 addition)
+### §8.1.10 Policy J — Trusted-Publisher composition
 
 Composition pattern for multimedia content discovery per CIRISRegistry#37 + CIRISNodeCore FSD/MEDIA_SHARING.md. Reads as: "this `external_content` Contribution comes from a publisher whose attestation chain is trusted at the cohort level, with content-class + content-rating + age-assurance composed into the gate."
 
@@ -175,7 +175,7 @@ Where the `age_assurance:{level}` ordering is: `self < provider:{verifier_key}:a
 
 **Anti-tricking guarantee parallel to §8.1.6**: the canonical-distributor Layer 1 rule MUST apply regardless of vote accumulation. No amount of NodeCore P4 vote weight elevates an unverified distributor into Layer 1; the only path is the operator-set trust list. Binds CIRIS L3C: cannot exempt itself from this rule for its own content distribution.
 
-### §8.1.11 Policy K — CEM composition (CEG 0.6 addition)
+### §8.1.11 Policy K — CEM composition
 
 Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) + [CIRISAgent#842](https://github.com/CIRISAI/CIRISAgent/issues/842). Composition pattern for dual-authority Contributions where the subject is named via [§4.2](04_envelope.md) `subject_key_ids`, with consent state composed from the [§5.6.8.6](05_namespace.md) `consent:*` namespace family.
 
@@ -547,7 +547,7 @@ Registry owns these member sets (this section); Verify computes `JCS(...)` + the
 
 **`encryption_pubkeys` joins member set (c) (1.0-RC1 — [CIRISVerify#64](https://github.com/CIRISAI/CIRISVerify/issues/64)).** When the occurrence carries the [§5.6.8.8.2](05_namespace.md) `encryption_pubkeys` field-set, both halves are **inside the signed JCS bytes** as opaque base64 strings (RFC 4648 STANDARD, padded — the [§0.9.2.1](00_conformance.md) rule-2 pin). Optional presence rides the §0.9.2 omit rule (absent unless the producer sets it; the signer MUST NOT re-default). They are payload, never verification material — neither half may be fed to a signature-verify path (the §5.6.8.8.2 key-separation rule, type-enforced in Verify).
 
-### §8.1.13 Policy M — Community membership composition (CEG 0.8 addition)
+### §8.1.13 Policy M — Community membership composition
 
 Per [CIRISRegistry#48](https://github.com/CIRISAI/CIRISRegistry/issues/48) + [§5.6.8.10](05_namespace.md) `community` + [§5.6.8.11](05_namespace.md) `location_proof`. Composition pattern for resolving the **current membership set** of a community, gating cohort-filtered visibility for `cohort_scope: community` content.
 
@@ -570,7 +570,7 @@ resolve_community(C, now):
 
 Same shape as `resolve_family` ([§8.1.12.2](#81122-family-membership-resolution)). Each `member.key_id` is an identity (which may itself have a multi-occurrence set via CEG 0.7 `identity_occurrence`).
 
-##### §8.1.13.1.1 Deterministic resolution + member→address resolution (CEG 0.12, NORMATIVE)
+##### §8.1.13.1.1 Deterministic resolution + member→address resolution (NORMATIVE)
 
 In a CEG/RET stack member resolution replaces DNS+IP: it is a chain of *signed* bindings, and every implementation MUST resolve **identically** (a 1.0 interop requirement). Two normative pins:
 
@@ -651,7 +651,7 @@ evaluate_subkind_admission(subkind, current, proposed):
 
 Operator vocabularies extending `cohort_subkind` provide their own `evaluate_subkind_admission` predicates per the `custom:{id}` consensus_protocol hook pattern from CEG 0.7 [§8.1.12.3](#81123-membership-change-admission-per-consensus_protocol).
 
-#### §8.1.13.3 The three crypto tiers + the Community DEK cascade (CEG 0.17, normative — supersedes the 0.8 "no cascade" reasoning)
+#### §8.1.13.3 The three crypto tiers + the Community DEK cascade (normative — supersedes the 0.8 "no cascade" reasoning)
 
 CEG ≤ 0.16 drew a binary cut (self/family encrypt; everything else plaintext), which collapsed a bounded **Community** and the unbounded **Commons** into one bucket and left **no cryptographic home for a persecuted community**. The 0.8 "no at-rest cascade" reasoning ("per-member DEK wrap on every emission would be infeasible") was a **wrong premise** — corrected here. CEG 0.17 (per [CIRISRegistry#67](https://github.com/CIRISAI/CIRISRegistry/issues/67)) draws the line at **"does it have a bounded membership roster?"** — yes → encrypt, no → plaintext:
 
@@ -715,7 +715,7 @@ Communities compose with consent (CEG 0.6) and self-collectives (CEG 0.7) cleanl
 - A community member who is also a subject in `subject_key_ids` of a community-scoped Contribution retains revocation authority per CEG 0.6 [§3.2.3](03_primitives.md) rule 2; the orthogonality between cohort_scope (visibility) and subject_key_ids (revocability) holds at community scope same as at family scope
 - A geographic community whose `geographic_constraint` covers a region that overlaps a family's at-home location does NOT cross-contaminate: families are not auto-admitted to communities; communities are not auto-admitted to families. Each membership is explicit, ceremony-shaped, and independent.
 
-#### §8.1.13.7 Delivery extension — `delivery_mode` × Policy M (CEG 0.10 addition)
+#### §8.1.13.7 Delivery extension — `delivery_mode` × Policy M
 
 Per [CIRISRegistry#44 absorbed](https://github.com/CIRISAI/CIRISRegistry/issues/44) + [CIRISLensCore#857](https://github.com/CIRISAI/CIRISLensCore/issues/857). Policy M's community-membership composition extends to govern the **delivery axis** (`delivery_mode` envelope field per [§4](04_envelope.md)). The subscriber-set for any push-delivery flow IS a `community` Contribution; "subscribe = join the community"; inherits revocation, consensus, and structural-invisibility from Policy M unchanged.
 

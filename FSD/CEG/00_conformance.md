@@ -152,10 +152,7 @@ Used by community admission gates per [§8.1.13](08_composition.md) Policy M: a 
 
 ### §0.8.3 What CEG 0.8 documents
 
-- The lowercase-hex canonical form for `cell_id`
-- The resolution-redundancy check (the resolution **decoded from the H3 index** of `cell_id` MUST match `cell_resolution`)
-- The rough-only enforcement (`location_proof.cell_resolution ≤ 7`)
-- The containment semantics for community admission
+Scope pointer: the H3 canonicalization rules above (§0.8 lowercase-hex `cell_id`, §0.8.1 rough-only `cell_resolution ≤ 7`, §0.8.2 containment for community admission).
 
 What CEG 0.8 does NOT do:
 - Mandate H3 over alternative geospatial systems (S2, Geohash) — H3 is chosen for hex-cell uniformity, well-defined parent/child hierarchy, and protocol-agnostic absence of a centralized gazetteer dependency. Operator-internal use of other systems is unconstrained; the wire format uses H3.
@@ -274,10 +271,7 @@ Post-§0.9 (explicit, normative):
 
 ### §0.9.6 What CEG 0.9 (this section) documents
 
-- The JCS-as-canonical-encoding rule for envelope signing bytes
-- The omit-vs-materialize rule for optional fields with documented defaults (the round-trip-determinism fix)
-- The relay-preservation discipline that closes the worked attack at §0.9.5
-- The per-field encoding catalog (§0.9.3) covering every optional [§4](04_envelope.md) field introduced through CEG 0.8
+Scope pointer: the JCS canonicalization rules above (§0.9 JCS-as-encoding, §0.9.2 omit-vs-materialize + relay-preservation, §0.9.3 per-field catalog, §0.9.5 worked attack).
 
 What CEG 0.9 (this section) does NOT do:
 - Introduce a new encoding format — JCS is the only encoding

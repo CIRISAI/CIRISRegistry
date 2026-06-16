@@ -11,7 +11,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 All CEG endpoints return:
 
 - **Content-Type**: `application/json` (`Accept: application/json` honored; other types respond `406 Not Acceptable`)
-- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc12`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
+- **CEG-API-Version header**: `CEG-Version: <current spec major.minor>` on every response (track the [README](README.md) `Version:` field; currently `1.0-rc13`); clients SHOULD echo `CEG-Accept-Version: <pinned-version>` on request, naming the version they were built against. Per [§0.3](00_conformance.md) SemVer policy, MAJOR mismatch is a wire-incompat reject; MINOR mismatch is compatible (clients MAY warn).
 - **Time-Source header**: `X-CEG-Server-Time: <rfc3339_canonical>` per [§0.5](00_conformance.md) for client clock-skew bounds
 - **Pagination** (where applicable): `?cursor=` + `?limit=` query params; response includes `next_cursor` (null if exhausted) and `total_estimate` (server's best estimate, may be approximate)
 
@@ -62,7 +62,7 @@ A CEG-Conforming Consumer (CCC) MUST verify the full SHA-256 of received bytes a
 
 A `holds_bytes:sha256:{prefix}` attestation has a default validity of **24 hours** from `signed_at`. After that the holder is considered stale; consumer policy MUST attempt at most 2 holders in parallel and accept the first successful full-SHA verification. On `ContentMiss` (holder no longer has the blob), the consumer MUST emit a `withdraws` against the `holds_bytes:sha256:{prefix}` attestation referencing the stale holder, with `withdrawal_reason: "content_miss"`. Holders consistently failing ContentMiss are downweighted in `PeerResolver::resolve_holders`.
 
-### §10.1.4 Structural invisibility — `holds_bytes:sha256:*` suppression for `cohort_scope: self | family` (CEG 0.7 addition)
+### §10.1.4 Structural invisibility — `holds_bytes:sha256:*` suppression for `cohort_scope: self | family`
 
 Per [CIRISRegistry#47](https://github.com/CIRISAI/CIRISRegistry/issues/47) + [ciris.ai/cewp](https://ciris.ai/cewp) load-bearing claim:
 
@@ -76,7 +76,7 @@ CEG 0.7 codifies this as a normative substrate discipline. When a Contribution c
 - A non-member peer cannot even *discover* the bytes exist via the substrate — the only attestations referencing them are scoped to the self-collective / family and never federate beyond it.
 - This is the wire-format-level closure of the cewp **structural invisibility** claim: privacy emerges from format constraints, not from operator policy or legal undertaking.
 
-> **Scope (normative — see [§1.6](01_foundation.md)):** structural invisibility buys **content-holding confidentiality only**. It does NOT hide that the relationship exists (`family_id`, admission `hard_case:*` events), who-talks-to-whom (resolution + RET announce/path-request expose endpoints), or traffic-analysis channels (STH cadence, key-cascade timing, chunk size/rate). It is not unobservability or metadata privacy — those require the opt-in Anonymous Tier. Do not represent CEG as providing the stronger properties.
+> **Scope (normative):** structural invisibility buys **content-holding confidentiality only** — it is NOT relationship-existence, metadata, traffic-analysis, or unobservability privacy. The bounding non-goals are stated canonically at [§1.6.2](01_foundation.md); do not represent CEG as providing the stronger properties.
 
 **Substrate enforcement**:
 
@@ -96,10 +96,10 @@ On admission of a Contribution C with cohort_scope ∈ {self, family}:
                 # FAIL-SECURE: no valid v2 wrap target ⇒ EXCLUDE r from the grant.
                 # MUST NOT fall back to plaintext or to wrap_algorithm v1.
                 # NOT SILENT (1.0-RC1, #71 C3): emit hard_case:recipient_excluded:{scope_key_id}
-                #   (§7.7) INTO the self/family scope — recipient r, reason ∈
-                #   {expired_occurrence, invalid_kem_key, missing_encryption_pubkeys},
-                #   + the skipped Contribution's envelope ref. Scoped to the cohort;
-                #   never federates beyond it (§10.1.4 invisibility preserved).
+                #   (§7.7, which defines the closed reason-set) INTO the self/family
+                #   scope — recipient r, reason, + the skipped Contribution's envelope
+                #   ref. Scoped to the cohort; never federates beyond it (§10.1.4
+                #   invisibility preserved).
                 skip r   # content stays encrypted + unreachable to r until r registers encryption_pubkeys
             ELSE:
                 substrate MUST wrap C's DEK via key_grant (§5.6.8.4, wrap_algorithm v2 — §8.1.12.4)
@@ -112,7 +112,7 @@ On admission of a Contribution C with cohort_scope ∈ {self, family}:
 
 **Recipient encryption-key resolution + fail-secure exclusion (CEG 0.18 — [CIRISPersist#192](https://github.com/CIRISAI/CIRISPersist/issues/192) / [#69](https://github.com/CIRISAI/CIRISRegistry/issues/69)).** The wrap target is **not** a recipient's signing key. `wrap_algorithm: v2` needs the recipient's `{x25519, ml_kem_768}` **content-KEM** keys, which the recipient self-certifies via its `identity_occurrence.encryption_pubkeys` ([§5.6.8.8.2](05_namespace.md)); the substrate resolves them by `resolve_encryption_keys(key_id)` = the recipient's current (non-superseded, within-`valid_until`) occurrence → its `encryption_pubkeys`. Because this layer **mandates v2**, a recipient whose current occurrence carries **no valid ML-KEM-768 key MUST be fail-secure *excluded*** from the grant — the content remains encrypted and unreachable to it; the substrate MUST NOT fall back to plaintext or to `wrap_algorithm: v1`. To be an at-rest-encryption recipient, an identity MUST have a federation-present occurrence carrying `encryption_pubkeys`. This is the [non-maleficence / fail-secure default](../../CLAUDE.md): a missing key denies access, never downgrades the protection.
 
-**Exclusion MUST NOT be silent (1.0-RC1 — [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C3).** A bare `skip` makes a fail-secure exclusion indistinguishable from "the family went quiet" — a soft-censorship vector for a buggy or malicious substrate, and a contradiction of the spec's own `hard_case:*` attestability grain. On every fail-secure skip the substrate MUST emit **`hard_case:recipient_excluded:{scope_key_id}`** ([§7.7](07_reserved.md)) **into the affected self/family scope itself** — carrying the excluded recipient's `key_id`, a `reason` from the closed set `{expired_occurrence, invalid_kem_key, missing_encryption_pubkeys}`, and the skipped Contribution's envelope ref — so the excluded member (who still sees cohort-scoped attestations) has something to audit and remediate. The event is cohort-scoped: it MUST NOT federate beyond the self/family (the §10.1.4 invisibility promise is preserved; the *fact* of the family's content is not leaked by its exclusion events).
+**Exclusion MUST NOT be silent (1.0-RC1 — [#71](https://github.com/CIRISAI/CIRISRegistry/issues/71) C3).** A bare `skip` makes a fail-secure exclusion indistinguishable from "the family went quiet" — a soft-censorship vector for a buggy or malicious substrate, and a contradiction of the spec's own `hard_case:*` attestability grain. On every fail-secure skip the substrate MUST emit **`hard_case:recipient_excluded:{scope_key_id}`** ([§7.7](07_reserved.md), which defines the closed `reason` set) **into the affected self/family scope itself** — carrying the excluded recipient's `key_id`, a `reason`, and the skipped Contribution's envelope ref — so the excluded member (who still sees cohort-scoped attestations) has something to audit and remediate. The event is cohort-scoped: it MUST NOT federate beyond the self/family (the §10.1.4 invisibility promise is preserved; the *fact* of the family's content is not leaked by its exclusion events).
 
 **Locality dividend** (cewp claim): the structural invisibility mechanism is *why* ~65% of activity stays local in the cewp scaling model — `cohort_scope: self|family` content is the bulk of daily activity (family photos, personal notes, in-household device chatter), and that bulk never federates. Operators do not configure this; the wire format enforces it.
 
@@ -157,9 +157,7 @@ Pins the **shared attestation surface** the four CEG-RC1 implementations (CIRISA
 
 #### §10.1.5.2 Local-tier eligibility — the discriminator is *revocation authority*, not subject-set emptiness
 
-A write is local-tier-eligible iff **the producer holds sole revocation authority** over it. This is **NOT** the same as "empty `subject_key_ids`" (the over-narrow CEG 0.6 qualifier, corrected at [§10.1.3](#1013-consent-revocations-are-not-local-tier-eligible-ceg-06-addition)): a producer-authority self-attestation MAY name a subject per [§4.2.6](04_envelope.md) and remain local-eligible — `observed:user:{hash}:*`, `epistemic:about:{key}:*`, a self-`consent:partnered:{user}`, the [§4.2.3](04_envelope.md) self-`identity:current` with `subject_key_ids=[self]`.
-
-**The single carve-out (MUST go signed / promote, never local):** a Contribution where a **subject other than the producer holds revocation authority** — concretely a `withdraws` admitted under [§3.2.3 rule 2/3](03_primitives.md) or a `consent:state:revoked` whose `attesting_key_id` is a member of the *target's* `subject_key_ids`. These ride the §10.1.3 24-hour promotion obligation. `witness_relation` MUST be `self` for any local-tier write.
+A write is local-tier-eligible iff **the producer holds sole revocation authority** over it. The discriminator (*revocation authority*, NOT empty `subject_key_ids`), the producer-authority-with-named-subject examples, and the single carve-out (a Contribution where a subject other than the producer holds revocation authority — a `withdraws` under [§3.2.3 rule 2/3](03_primitives.md) or a subject-emitted `consent:state:revoked`, which MUST go signed / promote per the §10.1.3 24-hour obligation, never local) are defined canonically at [§10.1.3](#1013-consent-revocations-are-not-local-tier-eligible-ceg-06-addition). Tier-specific addition: `witness_relation` MUST be `self` for any local-tier write.
 
 #### §10.1.5.3 Promotion — `local → federation` (the deferred-signature moment)
 
@@ -539,21 +537,7 @@ The label bytes (`b"CIRIS-AV-INNER-V1"` / `b"CIRIS-AV-OUTER-V1"`, ASCII, no term
 
 ### §10.5.7 What CEG 0.10 documents
 
-- The delivery axis as the third orthogonal envelope concern (visibility + revocability + delivery)
-- The bifurcated observer-share (impl-live) vs streaming multicast (substrate-pending #142) split
-- Per-stream transparency-log instances ([§10.5.1](#1051-per-stream-log--stream-root-normative--v1-lock))
-- STREAM nonce derivation ([§10.5.2](#1052-chunk-seal--stream-nonce-normative--v2-lock)) reusing the `KEY_GRANT_V1_INFO` HKDF pattern
-- Epoch-keying cascade on a separate addressing axis from `rotation_chain` ([§10.5.3](#1053-epoch-keying--cascade-normative--d2--d3-substrate-pending-142))
-- Delivery-receipt canonical bytes + the validated-not-adjudicated discipline ([§10.5.4](#1054-delivery-receipts-normative--d5--v3-lock))
-- Edge transport with two-layer crypto + pull-only RC1 + entitled-∧-reachable fan-out ([§10.5.5](#1055-transport--edge-layer-normative--e1e4-lock-per-156215_gapsmd))
-- D6 liveness invariant ([§10.5.6](#1056-d6-liveness-invariant--entitled-vs-reachable-normative))
-
-What CEG 0.10 does NOT do:
-
-- Change the 1+4 primitive set ([§3](03_primitives.md)) — delivery rides existing primitives
-- Bundle the streaming-half substrate impl in Persist — that lives at Persist#142 + the RC1-1c parallel CHECK arm migration
-- Specify the relay / fan-out tree shape for push-mode multicast — RC1 is pull-only; push tree → 1.x (CIRISRegistry#46 / #43)
-- Lock the constants K / T / MAX_CHUNKS_PER_EPOCH or the accountable-stream quorum — operator-tunable; ratification pending per [§15.6.3](15_gaps.md) RC1-7
+Scope pointer: the §10.5 streaming surface — delivery axis ([§10.5.1](#1051-per-stream-log--stream-root-normative--v1-lock)–[§10.5.6](#1056-d6-liveness-invariant--entitled-vs-reachable-normative)) — does **not** change the 1+4 primitive set ([§3](03_primitives.md)) (delivery rides existing primitives), does **not** bundle the streaming-half substrate impl (Persist#142 + the RC1-1c CHECK-arm migration), keeps push-mode multicast relay/fan-out pull-only at RC1 (push tree → 1.x, per [§10.5.5](#1055-transport--edge-layer-normative--e1e4-lock-per-156215_gapsmd) E2), and leaves the K / T / MAX_CHUNKS_PER_EPOCH constants + accountable-stream quorum operator-tunable (ratification pending per [§15.6](15_gaps.md) RC1-7).
 
 ---
 

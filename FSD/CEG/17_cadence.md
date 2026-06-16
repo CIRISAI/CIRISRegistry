@@ -16,7 +16,7 @@ CEG is updated:
 
 Each update lands as a single commit touching the relevant file(s) + a lineage row in [§16.1](16_references.md). The version number bumps per the [§0.3](00_conformance.md) SemVer rules.
 
-Last updated: 2026-06-01 (CEG 0.9 Public Working Draft — `federation_keys.identity_type` generalized to a set of roles for single-key cohabitation per [CIRISRegistry#49](https://github.com/CIRISAI/CIRISRegistry/issues/49) + [CIRISAgent#856](https://github.com/CIRISAI/CIRISAgent/issues/856); representation-only wire-break, 1+4 wire-format lockdown preserved; unblocks the CIRISAgent / LensCore fold-in).
+Last updated: 2026-06-16 (CEG 1.0-RC12 — unified retirement / forever-memory model in [§19.7](19_holonomic.md); no 1+4 change, no wire break). Full version-by-version history in [§16.1](16_references.md).
 
 ---
 
