@@ -88,6 +88,52 @@ The byte-exact signed preimages and the `compute_alm_topology` output are pinned
 
 **Disposition mapping.** The [§19.3](#193-fountain-storage--swarm-rarity-p--r) `EjectionVerdict` values are points on this one axis: `Keep` = above-floor, no pressure; `EjectToTier` = a downward step (still recoverable, lower fidelity); aggregation = N→1 downward step; `EjectHardDelete` = forced descent below the floor + purge-still-recoverable-tiers. They are not distinct mechanisms — they are stops on the single pressure-driven descent.
 
+### §19.7.1 `AggregationMetaV1` — the aggregation-tier wire contract (normative, 1.0-RC14)
+
+The metadata that tags one tier of the §19.7 memory pyramid: which content, at what aggregation tier, over which source members, by which mechanical operator. **CEG-canonical** — unlike the [§19.6](#196-conformance--the-57-freeze-gate) shapes (transcribed from edge v4.0.x), no reference impl yet defines these bytes ([CIRISPersist](https://github.com/CIRISAI/CIRISPersist) v8.3.0's `content_aggregation` stores `aggregation_meta` **opaque** — the wire-churn firewall), so this section **defines** the byte layout; impls conform to it. Resolves [CIRISRegistry#89](https://github.com/CIRISAI/CIRISRegistry/issues/89); unblocks [CIRISVerify#79](https://github.com/CIRISAI/CIRISVerify/issues/79).
+
+`AggregationMetaV1` is a **substrate wire shape, NOT a [§4](04_envelope.md) attestation** — no 1+4 change. Its signing preimage uses the [§19.0](#190-canonicalization-boundary--the-14-line-normative) binary discipline (length-prefixed, big-endian, domain-separated — **NOT** [§0.9](00_conformance.md) JCS). Preimage byte order (normative):
+
+```
+preimage = b"AGG-META-v1\0\0\0\0\0"          // 16-byte domain separator (exact)
+         ‖ u32_be(version = 1)
+         ‖ lp(content_id)                     // the root content this pyramid is for
+         ‖ lp(corpus_kind)                     // "trace" | "blob" | "av_chunk" | …
+         ‖ u32_be(tier)                        // 0 = source granularity; higher = more aggregated
+         ‖ lp(aggregation_algorithm_id)        // opaque codec id, e.g. "raptorq-pyramid-v1"
+         ‖ u32_be(source_count)                // N members aggregated into this tier (descent fan-in)
+         ‖ member_commitment[32]               // §19.7.1.1 Merkle root over the source member ids
+         ‖ lp(noise_floor_descriptor)          // what survives below the floor (codec-specific, canonical)
+//  lp(x) = u32_be(byte_len(utf8(x))) ‖ utf8(x)     // length-prefixed UTF-8
+```
+
+`content_id`, byte-valued ids, and `member_commitment` are lowercase-hex per [§0.6](00_conformance.md) where rendered as strings; `member_commitment` on the wire is the raw 32 bytes. **Bound-hybrid signature** (the [§19.0](#190-canonicalization-boundary--the-14-line-normative) rule): `Ed25519(preimage)` + `ML-DSA-65(preimage ‖ ed25519_sig)`; a verifier MUST reject a tier lacking a valid ML-DSA-65 half **at ingest and before persistence** (the [§10.1.5.1.1](10_endpoints.md) store-path rule applies — `AggregationMetaV1` is federation-tier).
+
+#### §19.7.1.1 `member_commitment` (descent integrity)
+
+`member_commitment` is the Merkle root over the **source member ids aggregated into this tier**, computed by the **[§19.1](#191-wholenesswitness-divergence-detection-witness) WholenessWitness Merkle construction** (same `leaf = SHA-256(utf8(member_id))`, **lexicographic** leaf order, `node = SHA-256(left ‖ right)`, odd-node duplication, and empty-set sentinel) — reused deliberately so the federation carries **one** aggregation/witness Merkle scheme, not a third. (It therefore inherits, and is resolved by, the §19.1 RFC-6962 `0x00/0x01`-prefix decision — see §19.1.) `member_commitment` lets any verifier confirm a tier was aggregated from exactly the claimed sources without holding the sources.
+
+### §19.7.2 Descent rule (normative, 1.0-RC14)
+
+`descend(content_id, corpus_kind, tier) → [member_id]` returns the **ordered** source members aggregated into the tier-`tier` composite — the tier-`(tier−1)` members one level down the pyramid. It MUST be a **pure, deterministic** function: two impls return the **byte-equal ordered list** for byte-equal inputs. The order is the **lexicographic member-id order** `member_commitment` (§19.7.1.1) committed to — so a returned list re-derives the parent's `member_commitment` byte-for-byte (the descent-integrity check).
+
+**Descent never terminates at zero (the forever-memory floor).** Below tier 0 (source granularity) the content's **collective gist persists as the lowest retained tier** — a composite whose members are no longer *individually* recoverable (it is **below the noise floor**, §19.7) but whose blur survives. `descend` past the noise floor yields the blur, never an empty/destroyed object. The function is **pressure-independent** (pure navigation); **pressure drives which tiers are *retained*** (§19.7), not the descent computation. Ascending (aggregation, operator 2) is the N→1 inverse with fan-in `source_count`.
+
+### §19.7.3 `EjectionVerdict` — the tier-aware retirement surface (normative, 1.0-RC14)
+
+The single verdict surface a verifier exposes and a substrate consumes to gate one step of the §19.7 descent. CEG pins it as the canonical superset of the rarity-only `RetentionDecision` that [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) v5.9.0 already ships:
+
+```
+EjectionVerdict ::= Keep            // above the floor, no pressure step
+                  | EjectToTier      // one downward step: still recoverable, lower fidelity
+                                     //   (intra-object layer-drop OR N→1 aggregation)
+                  | EjectHardDelete  // forced descent below the floor + purge still-recoverable tiers
+```
+
+Mapping (normative): the v5.9.0 `RetentionDecision{RetainRare|RetainNonRare|EvictEligible}` is the rarity sub-decision *within* `EjectToTier`/`Keep`; `EvictEligible` + capacity pressure → `EjectToTier`; `EvictEligible` + a `withdraws`/`consent:state:revoked` (§19.3 N5) → `EjectHardDelete` (the fastest descent, never tier-shed — §19.7). A pure fabric node MAY compute `EjectToTier` mechanically; `EjectHardDelete` MUST purge per §19.3 N5. Verify exposes `EjectionVerdict`; persist consumes it to drive `put_aggregated_tier` (EjectToTier) vs `evict_fountain_content_hard_delete` (EjectHardDelete).
+
+**Conformance + vectors.** §19.7.1–.3 are added to the [§19.6](#196-conformance--the-57-freeze-gate) / [#57](https://github.com/CIRISAI/CIRISRegistry/issues/57) vector gate as a **new family**: input → expected bytes for the `AggregationMetaV1` preimage + signature, `member_commitment` (source-id list → expected 32-byte root), and `descend` (inputs → expected ordered list). Because no reference impl defined these bytes, the **first conformant implementation generates the vectors from this section** and a second reproduces them byte-for-byte; until then §19.7.1–.3 are **pinned-but-unproven — RC-grade, not 1.0** (the existing v5.9.0-proven §19.6 vectors are unaffected — this is a *new* shape family, not a change to them).
+
 ---
 
 [← §18 Interop](18_interop.md) | **§19 Holonomic substrate** | [README](README.md)
