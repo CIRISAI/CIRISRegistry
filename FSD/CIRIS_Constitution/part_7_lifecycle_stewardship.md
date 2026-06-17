@@ -193,7 +193,7 @@ Assess the potential worst-case harm associated with the creation if deployed or
 **STEP C: Stewardship Tier (ST)**
 Calculate the Stewardship Tier based on influence and potential risk.
 
-`ST = ceil( (CIS × RM) / 7 ) (Minimum ST is 1, Maximum ST is 5)`
+`ST = ceil( (CIS × RM) / 7) (Minimum ST is 1, Maximum ST is 5)`
 
 **ST Implications & Integration with CIRIS Processes:**
 The calculated Stewardship Tier directly informs the requirements and scrutiny level within the standard CIRIS PDMA process and WA oversight:

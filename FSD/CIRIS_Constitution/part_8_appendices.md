@@ -12,7 +12,7 @@
 
 ### 8.1.1 `registry-core` — Core terms (added 1.0-RC5; resolves [CIRISRegistry#77](https://github.com/CIRISAI/CIRISRegistry/issues/77))
 
-## Core terms (added; resolves [](https://github.com/CIRISAI/CIRISRegistry/issues/77))
+## Core terms
 
 These terms are referenced throughout the spec and across sibling repos. Defining them in-spec retires the external `ciris.ai/cewp` placeholder citations.
 
@@ -156,7 +156,7 @@ Do not invent intermediate categories.
 
 # §15 Concerns + acknowledged gaps
 
-Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOTA_SCAN.md` production-validation comparison, *Magnifica Humanitas* encyclical mapping + 283-story stress test) surfaced concerns. CEG 0.1 critical-review pass added five more reviewer perspectives (cryptography, distributed systems, standards architecture, adversarial red-team, application development). Concerns named here so external reviewers see them acknowledged rather than discovered.
+Three independent methodologies surfaced concerns. CEG 0.1 critical-review pass added five more reviewer perspectives (cryptography, distributed systems, standards architecture, adversarial red-team, application development). Concerns named here so external reviewers see them acknowledged rather than discovered.
 
 ### 8.3.1 `acknowledged` — Acknowledged risks (named as bets)
 
@@ -171,11 +171,11 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 | **R5** — `hardware_class` self-assertion vs cryptographic attestation | Per [CC 4.2.2.1](#): no normative attestation-chain verification in 0.1. Bet that placeholder/dev-class rejection + trust-multipliers cover the deployment window until per-platform attestation chains land in 1.x. |
 | **R6** — `occurrence_id` / `occurrence_count` / `occurrence_role` self-assertion | Per [CC 2.1](#): env-var-driven, no cryptographic fleet-attestation primitive in 0.1. Bet that downstream compliance reviewers can correlate via correlated `signed_at` clusters + `evidence_refs[]` cross-checks; first incident drives a fleet-attestation primitive design workshop. |
 | **R7** — Frickerian discipline ([CC 4.4.1](#)) vocabulary without full method | First-pass shallow Frickerian SHOULD-rules; bet that the structural safeguards ([CC 3.1.9.3](#) testimonial_witness disciplines, never-sole-evidence-for-slashing) absorb the gap until a deeper hermeneutical-resource analysis lands as a workshop output. |
-| **R8** — Conceptual scope vs governable surface | By 0.14 one grammar spans identity, communities, consent, location, communications, streaming, payments, governance, constitutional mechanisms, addressing, and transparency logs. Historically, projects unifying that many layers fail when one layer dominates the others; the harder risk is *governability* — can a human amendment body ([CC 4.5.1](#)) steward a system of this breadth? **Bet**: structural minimalism keeps the *amendable structural surface* tiny even as the namespace grows ([CC 1.7](#) 1+4), and the strict primitive/namespace/composition/verdict separation ([CC 1.13.5](#)) means scope grows in the *open-vocab namespace* (locally evolvable) rather than the *governed core*. **Residual**: namespace + composition-policy sprawl can still outrun review capacity; mitigation is the [CC 4.5.1](#) high evidentiary bar + the post-1.0 candidate backlog ([](https://github.com/CIRISAI/CIRISRegistry/issues/51)). The remaining challenge is no longer purely technical. |
+| **R8** — Conceptual scope vs governable surface | By 0.14 one grammar spans identity, communities, consent, location, communications, streaming, payments, governance, constitutional mechanisms, addressing, and transparency logs. Historically, projects unifying that many layers fail when one layer dominates the others; the harder risk is *governability* — can a human amendment body ([CC 4.5.1](#)) steward a system of this breadth? **Bet**: structural minimalism keeps the *amendable structural surface* tiny even as the namespace grows ([CC 1.7](#) 1+4), and the strict primitive/namespace/composition/verdict separation ([CC 1.13.5](#)) means scope grows in the *open-vocab namespace* (locally evolvable) rather than the *governed core*. **Residual**: namespace + composition-policy sprawl can still outrun review capacity; mitigation is the [CC 4.5.1](#) high evidentiary bar + the post-1.0 candidate backlog. The remaining challenge is no longer purely technical. |
 
 ### 8.3.2 `child-safety` — Child-safety — fails-secure governance vs the shared detection limit (the honest line)
 
-[SOURCE BODY NOT PRESENT IN reader-md/15_gaps.md] §15.7 (child-safety honest line) is referenced in README.md (recorded at 1.0-RC22/RC23) as residing in 15_gaps.md, but the current reader-md snapshot of 15_gaps.md ends at §15.5 (line 86) and contains no §15.7 section body to copy verbatim.
+[SOURCE BODY NOT PRESENT IN reader-md/15_gaps.md] §15.7 (child-safety honest line) is referenced in README.md as residing in 15_gaps.md, but the current reader-md snapshot of 15_gaps.md ends at §15.5 (line 86) and contains no §15.7 section body to copy verbatim.
 
 ### 8.3.3 `observer-share` — CEG 0.10 / RC1 — observer-share + streaming multicast (NORMATIVE-LANDED; streaming half substrate-pending)
 
@@ -190,7 +190,7 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 | G1 — Revocation privacy | **RETRACTED** | Wrong threat model. The Registered path's thesis is public verifiability per [`../MISSION.md`](../../MISSION.md) §1.1. |
 | G2 — Rules-layer Sybil | **MITIGATED** | [CC 4.5.1](#) step 5 1-of-6 accord/steward sign-off + CC 4.5.1.2 meta-amendment entrenchment. |
 | G3 — Narrow-cell fresh-quorum recusal | **MITIGATED** | [CC 4.4.3.1](#) locality-scaled quorum + CC 4.4.3.1.1 sub-quorum fallback. |
-| v1.4 T-3 #1 testimonial_witness:{kind} | **CLOSED** via [CC 3.1.9.3](#) new prefix; opened to open vocabulary in. |
+| v1.4 T-3 #1 testimonial_witness:{kind} | **CLOSED** via [CC 3.1.9.3](#) new prefix; opened to open vocabulary in CEG 0.1. |
 | v1.4 T-3 #2 labor:individual_loss | **CLOSED by documentation**. Existing `non_maleficence:*` with `target_key_id = affected_individual` + `witness_relation: external` carries the per-individual claim. |
 | v1.4 T-3 #5 Constitutional-constraint grounding | **CLOSED in [CC 1.13.1](#) prose**. Wire stays tradition-multiplicity-neutral per [CC 1.2](#). |
 | 0.1-CRIT canonical-bytes newline-injection | in [CC 3.1.2.1](#): contracts redesigned to JCS (RFC 8785) objects with a pinned `domain` member (TupleHash128 retired — one canonicalization family; JSON escaping structurally removes the newline surface) |
@@ -212,7 +212,7 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 | 0.1-MED `withdraws` arbitrage | **CLOSED** in [CC 4.1.4](#) consumer-policy countermeasure |
 | 0.2 — `attestation:l{N}:*` carried ladder-position in wire (T2 violation inherited from FSD-002 v1.0) | **CLOSED in CEG 0.2** by [CC 3.1.2](#) wire-break rename to mechanism-only prefixes + [CC 4.4.3.6](#) Policy I consumer-side Attestation-Ladder Composition + [CC 4.1.3](#) deprecation entry. Verify v3.7.0 caught the principle; CEG 0.1 inherited the wrong shape from FSD-002 v1.0 baseline without re-examining against the [CC 1.2](#) T2 gate; CEG 0.2 ratifies the correction. |
 | 0.9 — Envelope canonical-bytes round-trip determinism (omit-vs-materialize for optional fields) | **CLOSED in CEG 0.9** by [CC 2.6.1](#) (JCS pinned as the envelope encoding; omit-vs-materialize rule in [CC 2.6.1.1](#); per-field catalog [CC 2.6.1.2](#); worked attack [CC 2.6.1.4](#)). |
-| 0.10 — Canonical-hash wire form + preimage convention unpinned | **CLOSED in CEG 0.10** by [CC 2.3.2.1](#)–[CC 2.3.2.4](#) (preimage `{platform}:{entity_kind}:{id}` + required `canonical:{hashalg}:{hex}` tag + conformance vectors); per [](https://github.com/CIRISAI/CIRISRegistry/issues/53). |
+| 0.10 — Canonical-hash wire form + preimage convention unpinned | **CLOSED in CEG 0.10** by [CC 2.3.2.1](#)–[CC 2.3.2.4](#) (preimage `{platform}:{entity_kind}:{id}` + required `canonical:{hashalg}:{hex}` tag + conformance vectors); per. |
 | 0.10 — Delivery axis (observer-share + streaming multicast, third envelope axis) | **CLOSED-OBSERVER-SHARE / STAGED-STREAMING in CEG 0.10** by [CC 5.3.3](#) + [CC 2.1](#) (`delivery_mode`/`listed`/`history_on_join`) + [CC 3.4.6](#) + [CC 4.4.3.2.6](#). Streaming-half open caveats RC1-1b/RC1-1c/RC1-7 tracked in CC 8.3.3. |
 
 ### 8.3.5 `first-adopter` — First-adopter exposures (no prior validation; explicit bets)
@@ -230,7 +230,7 @@ Three independent methodologies (`PRIOR_ART_SCAN.md` structural comparison, `SOT
 
 | Item | Why deferred |
 |---|---|
-| ~~Canonical-bytes redesign~~ |: [CC 3.1.2.1](#) v2 = JCS objects + `domain` member (TupleHash128 retired; #57 blocker A closed) |
+| ~~Canonical-bytes redesign~~ | [CC 3.1.2.1](#) v2 = JCS objects + `domain` member (TupleHash128 retired; #57 blocker A closed) |
 | Per-platform hardware-attestation chain verification (TPM quote, Apple attestation, FIDO attestation) | Phase D 1.x roadmap per R5 |
 | Multi-party witness directory admission (2-of-3 steward sign-off) | Phase C 0.2 commitment per [CC 5.3.1](#) |
 | Machine-readable namespace manifest (`FSD/CEG/dimensions.json`) | Phase E 0.2 commitment per [CC 8.2.1](#) |
@@ -323,7 +323,7 @@ At a media-publish boundary a node MAY emit a C2PA assertion carrying a CEG atte
 
 CEG's moat is its **semantics**: the 1+4 grammar, the consent architecture, founder-quorum trust, who-vouches-for-what-revocable-by-whom. We never adopt anyone's semantics. We adopt the **envelopes, encodings, and verification primitives** everyone shares — **at the boundary only**. A second *interior* canonicalization or claim family would recreate the cross-impl divergence hazard the [§2.6.1](00_conformance.md) JCS freeze exists to close ([§3.1.2.1](05_namespace.md) records this decision); so the interior stays one family, frozen, and every standard below is reached at an edge.
 
-Four boundary modes (the full roadmap + dispositions live in [](https://github.com/CIRISAI/CIRISRegistry/issues/72)):
+Four boundary modes:
 
 | Mode | Meaning | Standards |
 |---|---|---|
@@ -338,17 +338,17 @@ Four boundary modes (the full roadmap + dispositions live in [](https://github.c
 
 CEG is updated:
 
-- On every prefix admission to [CC 3.1](#3.1) (per [CC 4.5](#4.5) amendment process)
+- On every prefix admission to [CC 3.1](#3.1)
 - On every envelope field addition to [CC 2.1](#2.1)
 - On every endpoint shape addition to [CC 5.3](#5.3)
 - On every anti-pattern admission to [CC 4.1](#4.1) (with citation to the stress test or methodology that surfaced it)
 - On every gap state transition in [CC 8.3](#8.3)
 - On every CIRISAccord revision affecting the federation surface
-- On every conformance-language or normative-reference change in [CC 2.6](#2.6) (MAJOR per [CC 2.6.4](#2.6.4))
+- On every conformance-language or normative-reference change in [CC 2.6](#2.6)
 
 Each update lands as a single commit touching the relevant file(s) + a lineage row in [CC 8.6.2](#8.6.2). The version number bumps per the [CC 2.6.4](#2.6.4) SemVer rules.
 
-Last updated: 2026-06-16 (CEG 1.0-RC12 — unified retirement / forever-memory model in [CC 6.1.2](#6.1.2); no 1+4 change, no wire break). Full version-by-version history in [CC 8.6.2](#8.6.2).
+Last updated: 2026-06-16. Full version-by-version history in [CC 8.6.2](#8.6.2).
 
 ## 8.6 `references-lineage` — References + lineage
 
