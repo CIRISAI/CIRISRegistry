@@ -6,7 +6,9 @@
 
 ---
 
-## 5.1 `epoch` — Epoch keying + cascade (normative — D2 / D3; substrate-pending #142)
+A wire-format attestation makes a *claim*; it does not carry the *bytes* the claim is about. Part 5 is the layer beneath the grammar: how content actually moves, who is allowed to see that it exists, how live media is sealed and rekeyed as audiences change, and how delivery is acknowledged. Two disciplines run through every mechanism here. The first is **non-maleficence / fail-secure**: a missing key, an unreachable peer, an evicted chunk all resolve to *less* access and an honest miss — never a silent downgrade to plaintext or a fabricated success. The second is **integrity through structure**: privacy and authenticity are properties the wire format *cannot violate*, not promises an operator makes. Where the rest of the Constitution says what a claim means, Part 5 says how the claim — and the bytes it points at — survive the network without losing either guarantee.
+
+## 5.1 `epoch` — Epoch keying + cascade (normative — D2 / D3)
 
 The stream-epoch DEK seals content **O(1)**; the per-subscriber `key_grant` cascade distributes the 32-byte epoch key **O(N)/epoch** (sender-key / Megolm shape) = [CC 4.4.3.4.1](08_composition.md) Policy-L cascade applied to a community roster against a *rotating* key.
 
@@ -17,11 +19,11 @@ The stream-epoch DEK seals content **O(1)**; the per-subscriber `key_grant` casc
 | Axis | Addressing | Where it lives | Supersession |
 |---|---|---|---|
 | Content-addressed grant supersession | `(content_sha256, recipient_key_id)` | [`cirisnode_contributions`](https://github.com/CIRISAI/CIRISPersist) V054 partial indexes (planner-AND'd) | `rotation_chain` payload-level lineage (list of prior `key_grant_id`s); walked reader-side |
-| Stream/epoch-addressed grant supersession | `(stream_id, epoch[, recipient])` | `federation_stream_chunks(stream_id, seq)` (Persist#142 step 3; v3.9.0 target; **NOT YET LANDED — unowned/unscheduled**) | Same `rotation_chain` payload-level supersession **reused on the new axis** (RC1-1 ✅ Persist on record) |
+| Stream/epoch-addressed grant supersession | `(stream_id, epoch[, recipient])` | `federation_stream_chunks(stream_id, seq)` | Same `rotation_chain` payload-level supersession **reused on the new axis** |
 
-⚠️ **Not pure-additive at the Persist constraint layer (RC1-1c)**: the V054 cross-column CHECK requires `key_grant` rows be content-addressed (`media_content_sha256 IS NOT NULL`). The CC 5.1 epoch-key axis with NULL `media_content_sha256` would be REJECTED by today's CHECK. Introducing the new axis requires a **parallel CHECK arm migration** at Persist (content-addressed OR stream/epoch-addressed) — a bounded constraint migration, not a pure index-add. The spec text does not claim "purely additive" at the Persist constraint layer.
+⚠️ **Not pure-additive at the Persist constraint layer**: the V054 cross-column CHECK requires `key_grant` rows be content-addressed (`media_content_sha256 IS NOT NULL`). The CC 5.1 epoch-key axis with NULL `media_content_sha256` would be REJECTED by today's CHECK. Introducing the new axis requires a **parallel CHECK arm migration** at Persist (content-addressed OR stream/epoch-addressed) — a bounded constraint migration, not a pure index-add. The spec text does not claim "purely additive" at the Persist constraint layer.
 
-**Epoch triggers (D3)**:
+**Epoch triggers (D3)** carry the forward-secrecy guarantee — once a member leaves, subsequent content is sealed under a key they cannot derive:
 
 | Trigger | Behavior | Forward-secrecy implication |
 |---|---|---|
@@ -29,7 +31,7 @@ The stream-epoch DEK seals content **O(1)**; the per-subscriber `key_grant` casc
 | Member addition | NO rotation + Option-A catch-up per [CC 4.5.12.1](11_governance.md) (subject to `history_on_join`) | New member gets `key_grant`s for the current epoch + (optionally) prior epochs per the `history_on_join` envelope field ([CC 2.1](04_envelope.md)) |
 | Time / bytes | Optional hygiene rotation | Operator policy; default off |
 
-**Removal coalescing.** At broadcast scale, naive per-removal rotation is unaffordable: at N = 10⁶ and realistic audience churn (~30%/hr), one rotation per departure ≈ 83 epochs/s → a flat-unicast cascade of **~3.1 Tbps — exceeding the ~2 Tbps content fan-out itself** (the original model's 3,600/hr churn figure understated broadcast churn by ~2 orders of magnitude). The substrate therefore MUST **coalesce removals**: all removals admitted within one STH cadence window **T (default 2 s, the [CC 5.3.3.6](#1054-per-stream-transparency--sth--receipts-v3-lock) equivocation-window grain)** are batched into a **single** epoch rotation covering the whole batch. This caps the rotation rate at 1/T **regardless of churn** (≤ 1,800 epochs/hr at T = 2 s → ~18.7 Gbps flat-unicast cascade at N = 10⁶, ~0.9% of content fan-out — the headline restored honestly), and bounds removed-viewer exposure to ≤ T — the same grain the stream's equivocation window already accepts. A removed member's exposure window is therefore `≤ T`, never "until the next scheduled rotation."
+**Removal coalescing.** At broadcast scale, naive per-removal rotation is unaffordable: at N = 10⁶ and realistic audience churn (~30%/hr), one rotation per departure ≈ 83 epochs/s → a flat-unicast cascade of **~3.1 Tbps — exceeding the ~2 Tbps content fan-out itself**. The substrate therefore MUST **coalesce removals**: all removals admitted within one STH cadence window **T (default 2 s, the [CC 5.3.3.6](#1054-per-stream-transparency--sth--receipts-v3-lock) equivocation-window grain)** are batched into a **single** epoch rotation covering the whole batch. This caps the rotation rate at 1/T **regardless of churn** (≤ 1,800 epochs/hr at T = 2 s → ~18.7 Gbps flat-unicast cascade at N = 10⁶, ~0.9% of content fan-out), and bounds removed-viewer exposure to ≤ T — the same grain the stream's equivocation window already accepts. A removed member's exposure window is therefore `≤ T`, never "until the next scheduled rotation."
 
 **Public-broadcast exemption (normative).** A `live_stream` whose roster is **ungated** — `listed: public` AND grants issued to any requester without an admission ceremony — carries **no confidentiality claim against departed viewers** (anyone, including the departed viewer, can re-subscribe and receive the current DEK on request). For such streams, member removal MUST NOT force rotation (it buys nothing and costs the full cascade); the time/bytes hygiene rotation and the [CC 5.3.3.1](#1052-chunk-sealing--stream-nonce-v2-lock) nonce-space bounds still apply. Rotation-on-removal remains **MANDATORY for every gated roster** (bounded membership, admission ceremony, or any non-public `listed` state) — there the DEK *is* the access-control boundary and the forward-only-unsubscribe guarantee is real.
 
@@ -37,17 +39,17 @@ The stream-epoch DEK seals content **O(1)**; the per-subscriber `key_grant` casc
 
 **Delivery is decisive (carried from the bandwidth model).** The TreeKEM advantage is *multicast aggregation*, not the tree itself: with efficient multicast the commit egress is **O(log N)** (one commit serves all); over unicast the commit must reach each member, **O(N log N)** — in which case the **flat per-member cascade (O(N), one grant per member) is competitive-to-better**. The substrate MUST select per deployment based on whether the transport multicasts; the choice is **wire-invisible** (tree position rides the opaque `key_grant` payload; no schema migration). Whether the RET mesh offers efficient multicast is the open transport question (the bandwidth model's one free parameter).
 
-**Forward secrecy** is forward-only by default ([CC 4.5.12.1](11_governance.md) Option A). **Post-Compromise Security (PCS)** is now AVAILABLE (inherent to TreeKEM key-updates: a compromised current member heals on the next commit) and is **OPTIONAL, operator-enabled** — a deployment MAY require periodic self-updates for PCS, or stay forward-only.
+**Forward secrecy** is forward-only by default ([CC 4.5.12.1](11_governance.md) Option A). **Post-Compromise Security (PCS)** is AVAILABLE (inherent to TreeKEM key-updates: a compromised current member heals on the next commit) and is **OPTIONAL, operator-enabled** — a deployment MAY require periodic self-updates for PCS, or stay forward-only.
 
 **Catch-up bound (P4)**: `min(operator depth cap [LensCore knob, NOT a substrate constant], chunk-eviction horizon)`. Three distinct windows that are NOT conflated: chunk-eviction horizon ≠ [CC 5.3.2.1](#1012-holder-directory-ttl--contentmiss-feedback) `holds_bytes` 24h TTL ≠ grant durability. A catch-up request against an evicted epoch returns **`ContentMiss` — fail-honest, no silent gap** (consistent with the [`MISSION.md`](../../MISSION.md) fail-honest invariant). Operators MUST ship the P4 cap **with** the cascade, else 10⁶ grant Contributions per rekey is the unbounded worst case.
 
 ## 5.2 `family` — Structural invisibility — `holds_bytes:sha256:*` suppression for `cohort_scope: self | family`
 
-Per + [ciris.ai/cewp](https://ciris.ai/cewp) load-bearing claim:
+The strongest privacy guarantee in the system is the one the operator cannot switch off. The load-bearing claim from [ciris.ai/cewp](https://ciris.ai/cewp):
 
 > Self and family content never emits the attestation that would tell the rest of the network it exists. You don't need a privacy policy to keep family photos off the federation — the wire format can't carry them in the first place.
 
-CEG 0.7 codifies this as a normative substrate discipline. When a Contribution carries `cohort_scope: self` OR `cohort_scope: family`, the substrate MUST NOT emit a corresponding `holds_bytes:sha256:{prefix}` directory attestation per [CC 3.1.9.1](05_namespace.md) — the content's bytes are delivered to admitted members of the relevant self-collective ([CC 3.3.6](05_namespace.md) `identity_occurrence`) or family ([CC 3.3.4](05_namespace.md)) via the at-rest encryption flow, NOT via the public holder-discovery directory.
+This is codified as a normative substrate discipline. When a Contribution carries `cohort_scope: self` OR `cohort_scope: family`, the substrate MUST NOT emit a corresponding `holds_bytes:sha256:{prefix}` directory attestation per [CC 3.1.9.1](05_namespace.md) — the content's bytes are delivered to admitted members of the relevant self-collective ([CC 3.3.6](05_namespace.md) `identity_occurrence`) or family ([CC 3.3.4](05_namespace.md)) via the at-rest encryption flow, NOT via the public holder-discovery directory.
 
 **The privacy property is structural, not policy**:
 
@@ -61,31 +63,31 @@ CEG 0.7 codifies this as a normative substrate discipline. When a Contribution c
 
 ```
 On admission of a Contribution C with cohort_scope ∈ {self, family}:
- # (1) STRUCTURAL INVISIBILITY — UNCONDITIONAL (the cewp privacy promise):
- substrate MUST NOT emit holds_bytes:sha256:* for C's evidence_refs bytes
- substrate MUST NOT propagate C beyond the self-collective / family scope
- via any other directory or discovery surface
- # (2) AT-REST ENCRYPTION — the §8.1.12.4 cascade (defense-in-depth):
- WHEN self/family at-rest encryption is enabled for the deployment:
- recipients:= if cohort_scope == self: all current identity_occurrences of C.attesting_key_id
- if cohort_scope == family: all current members of family per C.family_id
- FOR each recipient r:
- kem:= resolve_encryption_keys(r.key_id) # current occurrence's encryption_pubkeys (§5.6.8.8.2)
- IF kem is None OR kem.ml_kem_768 invalid:
- # FAIL-SECURE: no valid v2 wrap target ⇒ EXCLUDE r from the grant.
- # MUST NOT fall back to plaintext or to wrap_algorithm v1.
- # NOT SILENT: emit hard_case:recipient_excluded:{scope_key_id}
- # (§7.7, which defines the closed reason-set) INTO the self/family
- # scope — recipient r, reason, + the skipped Contribution's envelope
- # ref. Scoped to the cohort; never federates beyond it (§10.1.4
- # invisibility preserved).
- skip r # content stays encrypted + unreachable to r until r registers encryption_pubkeys
- ELSE:
- substrate MUST wrap C's DEK via key_grant (§5.6.8.4, wrap_algorithm v2 — §8.1.12.4)
- to kem.{x25519, ml_kem_768}
+    # (1) STRUCTURAL INVISIBILITY — UNCONDITIONAL (the cewp privacy promise):
+    substrate MUST NOT emit holds_bytes:sha256:* for C's evidence_refs bytes
+    substrate MUST NOT propagate C beyond the self-collective / family scope
+        via any other directory or discovery surface
+    # (2) AT-REST ENCRYPTION — the §8.1.12.4 cascade (defense-in-depth):
+    WHEN self/family at-rest encryption is enabled for the deployment:
+        recipients := if cohort_scope == self:   all current identity_occurrences of C.attesting_key_id
+                      if cohort_scope == family: all current members of family per C.family_id
+        FOR each recipient r:
+            kem := resolve_encryption_keys(r.key_id)    # current occurrence's encryption_pubkeys (§5.6.8.8.2)
+            IF kem is None OR kem.ml_kem_768 invalid:
+                # FAIL-SECURE: no valid v2 wrap target ⇒ EXCLUDE r from the grant.
+                # MUST NOT fall back to plaintext or to wrap_algorithm v1.
+                # NOT SILENT: emit hard_case:recipient_excluded:{scope_key_id}
+                #   (§7.7, which defines the closed reason-set) INTO the self/family
+                #   scope — recipient r, reason, + the skipped Contribution's envelope
+                #   ref. Scoped to the cohort; never federates beyond it (§10.1.4
+                #   invisibility preserved).
+                skip r   # content stays encrypted + unreachable to r until r registers encryption_pubkeys
+            ELSE:
+                substrate MUST wrap C's DEK via key_grant (§5.6.8.4, wrap_algorithm v2 — §8.1.12.4)
+                    to kem.{x25519, ml_kem_768}
 ```
 
-**Two layers, not one.** (1) **Structural invisibility** — suppressing `holds_bytes:sha256:*` + non-propagation beyond scope — is the **unconditional** privacy promise (the cewp "the wire format can't carry them" claim); it holds even when the at-rest bytes are plaintext, because no discovery attestation federates. (2) **At-rest encryption** — the CC 4.4.3.4.1 DEK cascade — is **defense-in-depth**; it is operator-policy and MAY default off as a v1 migration posture, **but when enabled MUST use `wrap_algorithm: v2` (hybrid PQC, CC 4.4.3.4.1)** — never v1. The 1.0 / CEG-RET-native target is at-rest-on for self/family (the "everything PQC at rest" standard).
+**Two layers, not one.** (1) **Structural invisibility** — suppressing `holds_bytes:sha256:*` + non-propagation beyond scope — is the **unconditional** privacy promise (the cewp "the wire format can't carry them" claim); it holds even when the at-rest bytes are plaintext, because no discovery attestation federates. (2) **At-rest encryption** — the CC 4.4.3.4.1 DEK cascade — is **defense-in-depth** (against local-disk forensics, the host operator, or the cloud-substrate operator); it is operator-policy and MAY default off as a v1 migration posture, **but when enabled MUST use `wrap_algorithm: v2` (hybrid PQC, CC 4.4.3.4.1)** — never v1. The CEG-RET-native target is at-rest-on for self/family (the "everything PQC at rest" standard).
 
 **Composition with at-rest encryption flow**: when self/family at-rest encryption is enabled, persist wraps the DEK (`wrap_algorithm: v2`) under each currently-admitted `identity_occurrence`'s `occurrence_key_id` (self) or each `member.key_id` in the named family's roster (family). New occurrence / new family-member admission triggers retroactive `key_grant` emission for all extant `cohort_scope: self|family` content (the "I bought a new phone and want my Twitter history" / "I added Carol to the household" flows from CC 3.3.4 worked example).
 
@@ -97,9 +99,9 @@ On admission of a Contribution C with cohort_scope ∈ {self, family}:
 
 **Boundary cases**:
 
-- `cohort_scope: community | affiliations | federation` content emits `holds_bytes:sha256:*` per status-quo behavior. CEG 0.7 changes ONLY the self/family path.
+- `cohort_scope: community | affiliations | federation` content emits `holds_bytes:sha256:*` per status-quo behavior. Only the self/family path is suppressed.
 - A `cohort_scope: self` Contribution that is later promoted via `supersedes` to `cohort_scope: community` emits `holds_bytes:sha256:*` at promotion time on the NEW Contribution. The original `cohort_scope: self` Contribution's bytes remain structurally-invisible at federation; only the promoted scope's bytes propagate.
-- `cohort_scope: self` content with `subject_key_ids` containing a non-self party (e.g., a private note Alice writes ABOUT Bob) is admitted and stays in Alice's self-collective; Bob does NOT receive a key_grant unless Bob is also in Alice's self (not the case for two distinct identities). Bob's [CC 2.3](04_envelope.md) subject-side revocation authority over the note still composes per CEG 0.6, but the bytes never reach Bob without Alice's explicit re-emit at a higher cohort_scope including Bob.
+- `cohort_scope: self` content with `subject_key_ids` containing a non-self party (e.g., a private note Alice writes ABOUT Bob) is admitted and stays in Alice's self-collective; Bob does NOT receive a key_grant unless Bob is also in Alice's self (not the case for two distinct identities). Bob's [CC 2.3](04_envelope.md) subject-side revocation authority over the note still composes, but the bytes never reach Bob without Alice's explicit re-emit at a higher cohort_scope including Bob.
 
 ## 5.3 `endpoint` — Endpoint shapes
 
@@ -107,7 +109,7 @@ CEG specifies five public + one admin HTTP endpoint shape for the discovery + co
 
 ### 5.3.1 `witness` — STH cosigning + witness directory
 
-CIRISVerify v2.12.0+ ships consumer-side `SignedTreeHead::cosign` + `count_valid_witnesses` + `witness_quorum_met`. CEG's emission half:
+The witness directory is where transparency becomes accountable: independent witnesses cosign the log's tree heads so a producer cannot show one history to one party and a different one to another. CIRISVerify v2.12.0+ ships consumer-side `SignedTreeHead::cosign` + `count_valid_witnesses` + `witness_quorum_met`. CEG's emission half:
 
 ### `POST /v1/transparency/sth/cosign` (public)
 
@@ -117,15 +119,15 @@ Request body:
 
 ```json
 {
- "tree_size": <int>,
- "root_hash_sha256_hex": "<64-char-lowercase>", // per §0.6
- "signed_at": "<rfc3339_canonical>", // per §0.5
- "witness_key_id": "<string>",
- "ed25519_signature_b64": "<base64-url>",
- "mldsa65_signature_b64": "<base64-url>",
- "consistency_proof_root_hash_sha256_hex": "<64-char-lowercase>",
- "consistency_proof_tree_size": <int>,
- "consistency_proof_path_b64": ["<base64-url>",...]
+  "tree_size": <int>,
+  "root_hash_sha256_hex": "<64-char-lowercase>",     // per §0.6
+  "signed_at": "<rfc3339_canonical>",                // per §0.5
+  "witness_key_id": "<string>",
+  "ed25519_signature_b64": "<base64-url>",
+  "mldsa65_signature_b64": "<base64-url>",
+  "consistency_proof_root_hash_sha256_hex": "<64-char-lowercase>",
+  "consistency_proof_tree_size": <int>,
+  "consistency_proof_path_b64": ["<base64-url>", ...]
 }
 ```
 
@@ -133,58 +135,59 @@ Canonical bytes (witness MUST sign these):
 
 ```
 canonical = sha256(
- "ciris.sth_cosign.v1\n" ||
- "tree_size=" || decimal_no_leading_zeros || "\n" ||
- "root_hash_sha256=" || sha256_hex_lowercase || "\n" || // per §0.6
- "signed_at=" || rfc3339_canonical // per §0.5)
+    "ciris.sth_cosign.v1\n" ||
+    "tree_size=" || decimal_no_leading_zeros || "\n" ||
+    "root_hash_sha256=" || sha256_hex_lowercase || "\n" ||  // per §0.6
+    "signed_at=" || rfc3339_canonical                       // per §0.5
+)
 ```
 
 Ed25519 over `canonical`; ML-DSA-65 over `canonical || ed25519_sig` (bound payload).
 
-#### 5.3.1.1 `consistency-proof` — Consistency-proof requirement (normative; addresses CEG 0.1 distsys review)
+#### 5.3.1.1 `consistency-proof` — Consistency-proof requirement (normative)
 
-A witness signing an STH MUST first verify a consistency proof from the prior STH it cosigned (or from genesis if it is the witness's first cosignature against this log). The Registry MUST reject `POST /v1/transparency/sth/cosign` requests that omit the `consistency_proof_*` fields OR whose consistency proof does not verify against the named prior STH. `witness_quorum_met` is therefore "quorum on log consistency," not "quorum on a string."
+A cosignature only means something if the witness has checked that the new tree is a consistent extension of the one it last saw — otherwise quorum is agreement on a string, not on a history. A witness signing an STH MUST first verify a consistency proof from the prior STH it cosigned (or from genesis if it is the witness's first cosignature against this log). The Registry MUST reject `POST /v1/transparency/sth/cosign` requests that omit the `consistency_proof_*` fields OR whose consistency proof does not verify against the named prior STH. `witness_quorum_met` is therefore "quorum on log consistency," not "quorum on a string."
 
-**ENFORCED as of Registry v2.3.0**. The cosign request carries `consistency_proof_path_b64[]` (base64 RFC 6962 §2.1.2 node hashes). The Registry anchors the check against the prior `(tree_size, root_hash)` **it recorded** for that witness — not a root the requester claims — and rejects: missing proof when a prior STH exists or a tree_size behind the witness's prior cosigned STH → `MALFORMED_REQUEST`; a proof that does not reconstruct both roots → `CONSISTENCY_PROOF_INVALID` ([CC 5.3.6.1](#1001-error-envelope)). A witness's first cosignature is exempt ("from genesis"). The RFC 6962 verifier is vendored from `ciris-verify-core::transparency` (Registry omits that crate for a libsqlite3 linker reason) and proven against independent known-answer vectors.
+The cosign request carries `consistency_proof_path_b64[]` (base64 RFC 6962 §2.1.2 node hashes). The Registry anchors the check against the prior `(tree_size, root_hash)` **it recorded** for that witness — not a root the requester claims — and rejects: missing proof when a prior STH exists or a tree_size behind the witness's prior cosigned STH → `MALFORMED_REQUEST`; a proof that does not reconstruct both roots → `CONSISTENCY_PROOF_INVALID` ([CC 5.3.6.1](#1001-error-envelope)). A witness's first cosignature is exempt ("from genesis"). The RFC 6962 verifier is vendored from `ciris-verify-core::transparency` (Registry omits that crate for a libsqlite3 linker reason) and proven against independent known-answer vectors.
 
 ### 5.3.2 `transport` — Transport substrate for byte-level content
 
-Wire-format Attestations carry claims; they don't carry bytes. When a claim's `evidence_refs[]` cites a SHA-256-addressed blob, the bytes travel via Edge transport substrate: `MessageType::ContentFetch` + `ContentBody` + `ContentMiss`. Holder-discovery via Persist's `holds_bytes:sha256:*` directory; peer-resolution via Edge's `PeerResolver::resolve_holders`. NodeCore node-mode peers serve the bytes per their MISSION §3.4 cohabitation contract. Attestation envelope shape unchanged; SHA-256 in `evidence_refs[]` becomes universally resolvable to bytes through the substrate.
+Wire-format Attestations carry claims; they don't carry bytes. When a claim's `evidence_refs[]` cites a SHA-256-addressed blob (e.g., an installer binary, a config file, an adapter package per `agent_files:*` per [CC 3.1.7 / CC 3.1.10](05_namespace.md)), the bytes travel via Edge transport substrate: `MessageType::ContentFetch` + `ContentBody` + `ContentMiss`. Holder-discovery via Persist's `holds_bytes:sha256:*` directory; peer-resolution via Edge's `PeerResolver::resolve_holders`. NodeCore node-mode peers serve the bytes per their MISSION §3.4 cohabitation contract. Attestation envelope shape unchanged; SHA-256 in `evidence_refs[]` becomes universally resolvable to bytes through the substrate.
 
 #### 5.3.2.1 `holder` — Holder directory TTL + ContentMiss feedback
 
 A `holds_bytes:sha256:{prefix}` attestation has a default validity of **24 hours** from `signed_at`. After that the holder is considered stale; consumer policy MUST attempt at most 2 holders in parallel and accept the first successful full-SHA verification. On `ContentMiss` (holder no longer has the blob), the consumer MUST emit a `withdraws` against the `holds_bytes:sha256:{prefix}` attestation referencing the stale holder, with `withdrawal_reason: "content_miss"`. Holders consistently failing ContentMiss are downweighted in `PeerResolver::resolve_holders`.
 
-#### 5.3.2.2 `consent-revocations` — Consent revocations are NOT local-tier-eligible (CEG 0.6 addition)
+#### 5.3.2.2 `consent-revocations` — Consent revocations are NOT local-tier-eligible
 
-Per Gap 2 +. The CEG-native agent design proposes **local-tier signature deferral** — self-attestations skip the hybrid Ed25519 + ML-DSA-65 signature path locally and only sign at federation-tier promotion. This is sound for **producer-only-authority self-attestations**. **The discriminator is *who holds revocation authority*, NOT whether `subject_key_ids` is empty**: a producer-authority self-attestation MAY name a subject in `subject_key_ids` per [CC 2.3.1](04_envelope.md) — e.g. `observed:user:{hash}:*`, `epistemic:about:{key}:*`, a self-`consent:partnered:{user}`, or the [CC 2.3.4](04_envelope.md) self-`identity:current` with `subject_key_ids=[self]` — and remains local-tier-eligible, because the producer holds the authority and no *other* subject can revoke it. The single carve-out is below: a Contribution where a **subject other than the producer holds revocation authority** over it.
+A user's withdrawal of consent is the one signal federation peers rely on to stop propagating that user's data — so it can never be left unsigned and invisible to them, even briefly. The CEG-native agent design proposes **local-tier signature deferral** — self-attestations skip the hybrid Ed25519 + ML-DSA-65 signature path locally and only sign at federation-tier promotion. This is sound for **producer-only-authority self-attestations**. **The discriminator is *who holds revocation authority*, NOT whether `subject_key_ids` is empty**: a producer-authority self-attestation MAY name a subject in `subject_key_ids` per [CC 2.3.1](04_envelope.md) — e.g. `observed:user:{hash}:*`, `epistemic:about:{key}:*`, a self-`consent:partnered:{user}`, or the [CC 2.3.4](04_envelope.md) self-`identity:current` with `subject_key_ids=[self]` — and remains local-tier-eligible, because the producer holds the authority and no *other* subject can revoke it. The single carve-out is below: a Contribution where a **subject other than the producer holds revocation authority** over it.
 
 **Consent revocations from subjects MUST NOT use the local-tier deferral path.** When a Contribution carries non-empty `subject_key_ids`, any subsequent `consent:state:revoked` emission OR `withdraws` admitted under [CC 2.4.1.1 rule 2 or 3](03_primitives.md) from a subject in that set MUST promote to federation-tier within a bounded window. Default window: **24 hours** (operator-tunable per local policy).
 
-**Rationale**: subject-side revocation is the wire-format observability primitive that federation peers depend on to honor consent. If a user revokes consent in the local-tier scope of one agent's substrate, and that revocation is unsigned + unpromoted for an extended window, other federation peers continue propagating the user's data — exactly the failure mode CEG 0.6 exists to close.
+**Rationale**: subject-side revocation is the wire-format observability primitive that federation peers depend on to honor consent. If a user revokes consent in the local-tier scope of one agent's substrate, and that revocation is unsigned + unpromoted for an extended window, other federation peers continue propagating the user's data — exactly the failure mode this closes.
 
 **Substrate emission**: substrate MUST emit `hard_case:consent_revocation_promotion_overdue` when a subject-side revocation has been local-tier for longer than the operator-configured window without federation-tier promotion. LensCore composes `detection:consent:promotion_delay_pattern` on top (operator monitoring; not a slashing trigger on its own).
 
-**Composition with self-attestation pattern**: the CEG-native agent's `consent:partnered:{user_key}` self-attestation (producer-side stance) MAY ride local-tier; the user's `consent:state:revoked` against the agent's stance Contribution (subject-side) MUST NOT. This preserves the cardinality wins from #840 while closing the leak window.
+**Composition with the self-attestation pattern**: the CEG-native agent's `consent:partnered:{user_key}` self-attestation (producer-side stance) MAY ride local-tier; the user's `consent:state:revoked` against the agent's stance Contribution (subject-side) MUST NOT. This preserves the cardinality win of deferral while closing the leak window.
 
-#### 5.3.2.3 `merge` — Cross-region merge intents — CEG-declared per subject_kind (normative; CEG 1.0-RC2 addition)
+#### 5.3.2.3 `merge` — Cross-region merge intents — CEG-declared per subject_kind (normative)
 
-Per (Persist review concern D): with operational data joining the CEG-native replication stream ([CC 3.3.9](05_namespace.md)), the substrate runs **more than one merge policy**. The policy is a **normative property of the subject_kind, declared here** — the substrate reads and dispatches on the declaration; it MUST NOT infer policy per record type (the substrate enforces declared merges; it does not invent policy).
+With operational data joining the CEG-native replication stream ([CC 3.3.9](05_namespace.md)), the substrate runs **more than one merge policy**. The policy is a **normative property of the subject_kind, declared here** — the substrate reads and dispatches on the declaration; it MUST NOT infer policy per record type (the substrate enforces declared merges; it does not invent policy).
 
 | subject_kind(s) | Merge intent | Semantics |
 |---|---|---|
 | `organization`, `org_membership` | **`lww_skew_bounded` + `withdrawal_forward_only`** | Stable-id grouping ([CC 3.3.9](05_namespace.md)); an admitted `withdraws` (deactivation) is forward-only — a later non-withdrawn write does NOT resurrect; else latest `asserted_at` wins; tie-break smallest `attestation_id` ([CC 3.5.1](06_relations.md)). The forward-only here is the **lightweight authz flag**, NOT the [CC 4.4.3.4](08_composition.md) DEK-cascade crypto path — Commons tier, no DEK exists. |
 | `partner_record` | **`monotonic_quorum`** (the CIRISPersist V058 R1/Q1 machinery, generalized from `revoked_key_id` to `license_id`) | Admission anti-rollback first: a write whose `revision` decreases never enters the merge. Then the `MergeBallot` comparator: `quorum_weight` → signed timestamp → content hash. Quorum-above-time is deliberate — it neutralizes timestamp front-running (F-AV-FRONTRUN) on the records where it matters most. More-restrictive state wins on conflict: `revoked` > `suspended` > `active`. |
-| `revocation` + the three membership-revocations | V058 R1/Q1 (unchanged — the original `monotonic_quorum` instance) | As shipped. |
-| keys / attestations / occurrences / families / communities / location_proofs | Content-addressed idempotent admission (unchanged) | Same content → same `envelope_hash` → dedup; rotation collisions rejected non-destructively. |
+| `revocation` + the three membership-revocations | V058 R1/Q1 (the original `monotonic_quorum` instance) | As shipped. |
+| keys / attestations / occurrences / families / communities / location_proofs | Content-addressed idempotent admission | Same content → same `envelope_hash` → dedup; rotation collisions rejected non-destructively. |
 
-**Skew-bounded admission (normative — the LWW front-running fix, [#70](https://github.com/CIRISAI/CIRISRegistry/issues/70) Persist concern B).** For every subject_kind merging by `lww_skew_bounded`, the substrate MUST reject at admission any envelope with `asserted_at > now + tolerance`, where `tolerance` is the [CC 2.6.7](00_conformance.md) clock-skew bound (±5 minutes; the existing `CLOCK_SKEW_VIOLATION` error class). Without this, a signer with a forward-skewed clock future-dates `asserted_at` and wins LWW indefinitely; with it, a forward-dated write can win for at most the skew window. This matters precisely because `org_membership` carries `role: OrgAdmin` — unbounded LWW on authz data is a role-escalation surface.
+**Skew-bounded admission (normative — the LWW front-running fix).** For every subject_kind merging by `lww_skew_bounded`, the substrate MUST reject at admission any envelope with `asserted_at > now + tolerance`, where `tolerance` is the [CC 2.6.7](00_conformance.md) clock-skew bound (±5 minutes; the existing `CLOCK_SKEW_VIOLATION` error class). Without this, a signer with a forward-skewed clock future-dates `asserted_at` and wins LWW indefinitely; with it, a forward-dated write can win for at most the skew window. This matters precisely because `org_membership` carries `role: OrgAdmin` — unbounded LWW on authz data is a role-escalation surface.
 
 **The two quorums (restated from [CC 3.3.9](05_namespace.md) — different layers, different owners):** the **steward-signature admission quorum** (M-of-N signature set over identical JCS bytes; the [CC 3.2](05_namespace.md) founder-quorum machinery at admit — Verify's layer) is NOT the **region merge quorum** (`quorum_weight`, the `MergeBallot` tier-1 ordering above — the substrate's layer). The substrate's merge logic never counts steward signatures; Verify's admission check never orders merges.
 
 #### 5.3.2.4 `attestation-tier` — The attestation tier model — local-tier write, query, promotion (normative)
 
-Pins the **shared attestation surface** the four CEG-RC1 implementations (CIRISAgent, CIRISNodeCore, CIRISLensCore, CIRISRegistry) write/query/promote through, so it is analyzable + modelable as one contract. The substrate exposes the *methods*; CEG pins the *wire/conformance semantics* every implementation MUST agree on. **No 1+4 change** — a "tier" is recorded state on an attestation, not a new primitive.
+Pins the **shared attestation surface** the four CEG-RC1 implementations (CIRISAgent, CIRISNodeCore, CIRISLensCore, CIRISRegistry) write/query/promote through, so it is analyzable + modelable as one contract. The substrate exposes the *methods*; CEG pins the *wire/conformance semantics* every implementation MUST agree on. **No 1+4 change** — a "tier" is recorded state on an attestation, not a new primitive. The tier split serves the same fail-secure cost discipline as streaming: cheap, unsigned writes stay private and local until the costly hybrid signature is paid exactly once, at the moment authority actually crosses to the federation.
 
 ##### 5.3.2.4.1 `authority-local` — Local-tier eligibility — the discriminator is *revocation authority*, not subject-set emptiness
 
@@ -209,18 +212,18 @@ Promotion computes the hybrid signature and flips the row federation-visible. It
 
 **Invariant (substrate MUST enforce):** `tier = federation ⟹ hybrid signature present`. Nothing crosses to federation-visible unsigned. A `local` row is **labelled** local and MUST NOT be served as federation-authoritative ([fail-honest](../../MISSION.md)). The read-gate is **orthogonal** to `cohort_scope`: it is an additional filter (`local ⟹ caller is the producing occurrence`), composing with the CC 5.2 target-membership predicate. Threat entries: AV-59 (local row leaked to a non-self caller), AV-60 (unsigned local served as authoritative), AV-61 (the two gates de-synced).
 
-###### 5.3.2.4.3.1 `admission-pqc` — The PQC half is MANDATORY at admission — no classical-only, no hybrid-pending accommodation (normative, CEG 1.0)
+###### 5.3.2.4.3.1 `admission-pqc` — The PQC half is MANDATORY at admission — no classical-only, no hybrid-pending accommodation (normative)
 
-**Resolves (Verify audit F1); satisfies the [#57](https://github.com/CIRISAI/CIRISRegistry/issues/57) "PQC-everywhere REQUIRED" freeze gate.** The CC 5.3.2.4.3 invariant `tier = federation ⟹ hybrid signature present` is **enforced at the admission gate as of CEG 1.0**, and "present" means **verified**: every federation-tier admission gate MUST check **both** halves — Ed25519 over `JCS(envelope)` **and** ML-DSA-65 over `JCS(envelope) ‖ ed25519_sig` (the [CC 3.1.2.1](05_namespace.md) bound-payload form) — and MUST **reject** a federation-tier Contribution that carries only the classical half. This binds **all operational-authority admission gates**, explicitly including `operational_admit` (key_grant / partner / org-membership / license writes), the [CC 3.3.6.2](05_namespace.md) `transport_destination` binding, and the [CC 3.2](05_namespace.md) `partner_record` / founder-quorum gates.
+The CC 5.3.2.4.3 invariant `tier = federation ⟹ hybrid signature present` is **enforced at the admission gate**, and "present" means **verified**: every federation-tier admission gate MUST check **both** halves — Ed25519 over `JCS(envelope)` **and** ML-DSA-65 over `JCS(envelope) ‖ ed25519_sig` (the [CC 3.1.2.1](05_namespace.md) bound-payload form) — and MUST **reject** a federation-tier Contribution that carries only the classical half. This binds **all operational-authority admission gates**, explicitly including `operational_admit` (key_grant / partner / org-membership / license writes), the [CC 3.3.6.2](05_namespace.md) `transport_destination` binding, and the [CC 3.2](05_namespace.md) `partner_record` / founder-quorum gates.
 
-**This is an immediate 1.0 requirement — not a phased cutover.** Pre-1.0 the PQC half was honored *opportunistically* (a deliberate rollout accommodation so hybrid-pending members could federate while ML-DSA-65 wiring landed); **CEG 1.0 closes that window with no fleet-floor and no calendar trigger.** The rationale is exactly the threat hybrid exists to defend: an adversary holding a future Ed25519 break could forge a grant / binding / partner-record and have it admitted if the classical half alone sufficed. There is **no `require_hybrid: false` posture at 1.0** — a verifier's hybrid-required check is always-on, never an operator toggle; the only conformant state for a federation-tier key is "carries a valid ML-DSA-65 half." A key that has not completed PQC wiring is **not 1.0-conformant for federation-tier emission** and is confined to local-tier (self-read, [CC 5.3.2.4.1](#10152-local-tier-eligibility--the-discriminator-is-revocation-authority-not-subject-set-emptiness)) until it does. The mandate is at the **federation admission boundary only** — the single place authority crosses; local-tier rows MAY still defer the signature per [CC 5.3.2.2](#1013-consent-revocations-are-not-local-tier-eligible-ceg-06-addition).
+**This is an immediate requirement — not a phased cutover.** There is no opportunistic-acceptance window and no fleet-floor or calendar trigger. The rationale is exactly the threat hybrid exists to defend: an adversary holding a future Ed25519 break could forge a grant / binding / partner-record and have it admitted if the classical half alone sufficed. There is **no `require_hybrid: false` posture** — a verifier's hybrid-required check is always-on, never an operator toggle; the only conformant state for a federation-tier key is "carries a valid ML-DSA-65 half." A key that has not completed PQC wiring is **not conformant for federation-tier emission** and is confined to local-tier (self-read, [CC 5.3.2.4.1](#10152-local-tier-eligibility--the-discriminator-is-revocation-authority-not-subject-set-emptiness)) until it does. The mandate is at the **federation admission boundary only** — the single place authority crosses; local-tier rows MAY still defer the signature per [CC 5.3.2.2](#1013-consent-revocations-are-not-local-tier-eligible-ceg-06-addition).
 
 **The mandate binds the durable store + replication path, not only the authority gates.** "Federation-tier" means **every** federation-tier attestation, including the bulk **per-trace / store-and-replicate** path — not merely the operational-authority gates enumerated above. A federation-tier trace written to the durable, content-addressed, replicated corpus MUST carry (and a verifier MUST check on ingest) the ML-DSA-65 half exactly as a `key_grant` does; there is **no "operational authority vs testimony leaf" exemption** (federation root and the trace leaf are bound by the same rule). **Content-addressing is NOT a defense against forge-later:** a CRQC-era adversary who breaks Ed25519 mints a backdated trace under a historical key and hashes **their own** forgery — the content hash matches by construction, so the address proves nothing about authenticity. Because the trace store is *kept for posterity* (it outlives the classical primitive), the per-trace signature is the single most forge-exposed surface in the federation — the "store at massive scale" CEWP crux — and the PQC half is mandatory there for the same forge-now / harvest-now-exploit-later reason as the at-rest DEK cascade ([CC 5.1](#1053-membership-change--epoch-rekey) / [CC 4.4.3.4.1](08_composition.md)). A substrate persisting/replicating a federation-tier row whose envelope signature lacks a valid ML-DSA-65 half MUST reject it at the ingest gate — store-then-quarantine is non-conformant.
 
-##### 5.3.2.4.4 `persist-query` — Query — open-prefix dimensions, bounded operators (normative; resolves CIRISPersist#172 OQ-2)
+##### 5.3.2.4.4 `persist-query` — Query — open-prefix dimensions, bounded operators (normative)
 
 The uniform read filters on `(dimensions[], valid_at, confidence_floor, subject_key_id?, scope)`.
-- **`dimensions[]` is an OPEN-vocabulary set of prefix strings, matched by hierarchical prefix — NOT a closed enum.** Per [CC 4.5.1.1](11_governance.md) axis-vocabulary discipline, dimension prefixes are open vocab (the 0.6→0.15 cadence shipped new families — `consent:*`, `detection:community:*`, `settlement:*` — continuously). A closed enum would force a substrate redeploy per CEG namespace addition and break forward-compat. A query for `detection:*` matches `detection:correlated_action:bribery` etc.; an exact string matches exactly.
+- **`dimensions[]` is an OPEN-vocabulary set of prefix strings, matched by hierarchical prefix — NOT a closed enum.** Per [CC 4.5.1.1](11_governance.md) axis-vocabulary discipline, dimension prefixes are open vocab (new families — `consent:*`, `detection:community:*`, `settlement:*` — ship continuously). A closed enum would force a substrate redeploy per CEG namespace addition and break forward-compat. A query for `detection:*` matches `detection:correlated_action:bribery` etc.; an exact string matches exactly.
 - **The bounded surface is the *operator set*, not the *vocabulary*.** The apophatic discipline (a fixed, named surface — not an OLAP/graph engine) is preserved by the **closed set of five predicates** above + no caller-composed SQL/projections — NOT by closing the dimension vocabulary. *Open data, closed operators.*
 - `valid_at` filters `asserted_at ≤ valid_at < COALESCE(expires_at, ∞)`; `confidence_floor` filters `weight ≥ floor`; `scope` applies BOTH the CC 5.2 target-membership gate AND the CC 5.3.2.4.3 tier gate. Write-side reserved-prefix emitter gates ([CC 3.4.7.1](07_reserved.md)) are unaffected — read is gated by scope, not by dimension authority.
 
@@ -236,16 +239,16 @@ The tier model is the *same KEM-then-symmetric placement* the streaming model us
 
 A CEG-Conforming Consumer (CCC) MUST verify the full SHA-256 of received bytes against the value in `evidence_refs[]` BEFORE handing the bytes to any consumer (Agent loader, Portal renderer, etc.). The `holds_bytes:sha256:{prefix}` directory ([CC 3.1.9.1](05_namespace.md)) carries only a short prefix for index efficiency; the consumer MUST NOT short-circuit verification to the prefix. Bytes that fail the full-SHA check MUST be discarded and the holder MUST be reported via the `holds_bytes:sha256:{prefix}` chain (emit a `withdraws` or negative score per consumer policy).
 
-### 5.3.3 `transport-streaming` — Streaming transport, per-stream logs & delivery receipts (CEG 0.10 addition)
+### 5.3.3 `transport-streaming` — Streaming transport, per-stream logs & delivery receipts
 
-Per [ absorbed](https://github.com/CIRISAI/CIRISRegistry/issues/44) + (observer-share driver) + (streaming substrate prerequisite). CC 5.3.3 is the **delivery axis** — the third orthogonal envelope concern alongside visibility (`cohort_scope`) and revocability. [CC 2.4](03_primitives.md)'s 1+4 primitive set is untouched; CC 5.3.3 is endpoint + envelope + composition extension, NOT a grammar change.
+This is the **delivery axis** — the third orthogonal envelope concern alongside visibility (`cohort_scope`) and revocability. [CC 2.4](03_primitives.md)'s 1+4 primitive set is untouched; this is an endpoint + envelope + composition extension, NOT a grammar change.
 
 **Bifurcation**:
 
 | Half | Cardinality | RC1 status |
 |---|---|---|
 | **Observer-share / directed delivery** (single Contribution → subscriber-set; no `stream_id`) | N=1 typical; per-subscriber `key_grant` | **impl-live**; substrate paths shipping per [CC 3.3.2](05_namespace.md) `key_grant` + [CC 4.4.3.2](08_composition.md) Policy M membership |
-| **Media / streaming multicast** (`live_stream` chunk-DAG; per-`(stream_id, epoch)` keys) | N>1; flat per-epoch `key_grant` cascade | **spec-now, impl substrate-pending **; subsections CC 5.3.3.1 / CC 5.1 / CC 5.3.3.6 ride this dependency |
+| **Media / streaming multicast** (`live_stream` chunk-DAG; per-`(stream_id, epoch)` keys) | N>1; flat per-epoch `key_grant` cascade | **spec-now, impl substrate-pending**; subsections CC 5.3.3.1 / CC 5.1 / CC 5.3.3.6 ride this dependency |
 
 #### 5.3.3.1 `stream` — Chunk seal + STREAM nonce (normative — V2 lock)
 
@@ -255,17 +258,17 @@ Per-chunk content sealing **conforms to SFrame** ([draft-ietf-sframe](https://da
 nonce[12] = prefix[7] ‖ counter_be[4] ‖ last_flag[1]
 ```
 
-- **`prefix[7]`** — derived, NOT transmitted: `prefix = HKDF-SHA256(epoch_dek; info)[0..7]` where the HKDF `info` is the **byte-exact** concatenation: `info = b"ciris-stream-nonce/v1" ‖ stream_id_utf8 ‖ epoch_be8`, with `stream_id_utf8` = the UTF-8 bytes of `stream_id` and **`epoch_be8` = the `u64` epoch as 8-byte big-endian** (`epoch.to_be_bytes`, consistent with `counter_be`). **This encoding is normative and MUST be byte-identical across producer, substrate, and every consumer** — the CC 5.1 zero-trust-of-host posture has consumers recompute this exact nonce to *open* chunks, so any BE/LE/ASCII disagreement on `epoch` yields a different `prefix` → different nonce → GCM auth-tag failure (silent whole-stream decryption failure), the same hazard class `counter_be` already guards. No length-prefix on `stream_id` is required: the fixed-length tag prefix + fixed 8-byte `epoch` suffix make the parse unambiguous (distinct `(stream_id, epoch)` pairs always yield distinct `info` — unequal `stream_id` length changes total `info` length; equal length splits unambiguously). Matches the **`KEY_GRANT_V1_INFO`** versioned-context HKDF pattern at [`CIRISVerify/src/ciris-crypto/src/key_grant.rs:71`](https://github.com/CIRISAI/CIRISVerify/blob/main/src/ciris-crypto/src/key_grant.rs) (`b"cewp-key-grant/v1"`). Per-`(stream_id, epoch)` unique; verifiable by any holder of the epoch DEK
-- **`counter_be[4]`** — 32-bit big-endian; hard ceiling 2³²−1 chunks per epoch. Substrate MUST force an epoch roll before wrap. Recommended operational cap: **`MAX_CHUNKS_PER_EPOCH = 2²⁴`** (~16.7M chunks/epoch) to keep per-epoch state + proof sizes bounded (operator-tunable; ratification pending per RC1-7)
+- **`prefix[7]`** — derived, NOT transmitted: `prefix = HKDF-SHA256(epoch_dek; info)[0..7]` where the HKDF `info` is the **byte-exact** concatenation: `info = b"ciris-stream-nonce/v1" ‖ stream_id_utf8 ‖ epoch_be8`, with `stream_id_utf8` = the UTF-8 bytes of `stream_id` and **`epoch_be8` = the `u64` epoch as 8-byte big-endian** (`epoch.to_be_bytes()`, consistent with `counter_be`). **This encoding is normative and MUST be byte-identical across producer, substrate, and every consumer** — the CC 5.1 zero-trust-of-host posture has consumers recompute this exact nonce to *open* chunks, so any BE/LE/ASCII disagreement on `epoch` yields a different `prefix` → different nonce → GCM auth-tag failure (silent whole-stream decryption failure), the same hazard class `counter_be` already guards. No length-prefix on `stream_id` is required: the fixed-length tag prefix + fixed 8-byte `epoch` suffix make the parse unambiguous (distinct `(stream_id, epoch)` pairs always yield distinct `info` — unequal `stream_id` length changes total `info` length; equal length splits unambiguously). Matches the **`KEY_GRANT_V1_INFO`** versioned-context HKDF pattern at [`CIRISVerify/src/ciris-crypto/src/key_grant.rs:71`](https://github.com/CIRISAI/CIRISVerify/blob/main/src/ciris-crypto/src/key_grant.rs) (`b"cewp-key-grant/v1"`). Per-`(stream_id, epoch)` unique; verifiable by any holder of the epoch DEK
+- **`counter_be[4]`** — 32-bit big-endian; hard ceiling 2³²−1 chunks per epoch. Substrate MUST force an epoch roll before wrap. Recommended operational cap: **`MAX_CHUNKS_PER_EPOCH = 2²⁴`** (~16.7M chunks/epoch) to keep per-epoch state + proof sizes bounded (operator-tunable)
 - **`last_flag[1]`** — `0x01` on the final chunk of an epoch (sealed by `seal_stream` per CC 5.1); `0x00` otherwise. The distinct nonce on the final chunk gives **truncation + append resistance**: an adversary cannot drop the final chunk and pass off a short stream, nor append past a sealed segment
 
 **Cross-epoch counter reset is nonce-safe (normative reasoning)**: GCM's catastrophic case is reuse of a `(key, nonce)` pair. On epoch roll the DEK changes, so a reset counter lives in a different keyspace — `(DEK_e, nonce=0)` and `(DEK_{e+1}, nonce=0)` are distinct pairs. The enforced invariant is therefore only within a single epoch: counter strictly monotonic, never wraps (guaranteed by the forced roll). Across epochs, reset is free.
 
 **Single-sender-per-`(stream_id, epoch)` invariant (normative — nonce-collision safety; cribbed from SFrame/MLS)**: the `counter_be[4]` space of a `(stream_id, epoch)` is owned by **exactly one** sender — the `stream_id`'s producer. Two distinct senders MUST NOT seal chunks under the same `(stream_id, epoch)` DEK, or their independently-incremented counters could collide into a reused `(DEK, nonce)` pair (GCM-catastrophic). In **group video** ([CC 5.3.3.2](#1058-realtime-group-communication--composition-ceg-013-addition)) each participant emits their **own** `live_stream` with their **own** `stream_id`, so the nonce prefix `HKDF(epoch_dek; "ciris-stream-nonce/v1" ‖ stream_id ‖ epoch)` is per-sender-unique by construction — the same hazard SFrame avoids with per-sender keys, achieved here by per-sender `stream_id`. Substrate MUST reject a chunk-append whose `(stream_id, seq)` collides with an existing sealed chunk (replay/forking guard, [CC 5.1](#1053-epoch-keying--cascade-normative--d2--d3-substrate-pending-142)).
 
-#### 5.3.3.2 `composition` — Realtime group communication — composition (CEG 0.13 addition)
+#### 5.3.3.2 `composition` — Realtime group communication — composition
 
-Per. The delivery axis was framed for 1:1 observer-share and 1:N broadcast multicast. Realtime **group communication** — group video, voice, desktop/screen sharing, text chat, and topic-scoped channels with sub-channels — is the **same primitive set at N↔N cardinality**. It composes entirely from `community` ([CC 3.2](05_namespace.md)) + `live_stream` (the CC 5.3.3 streaming surface) + `chat_message` + member/transport resolution ([CC 4.4.3.2.4.1](08_composition.md)). **Zero new structural primitives** — this is the thirteenth path on the [CC 1.7](01_foundation.md) claim and the most product-complete: the whole realtime-collaboration surface is composition.
+The delivery axis was framed for 1:1 observer-share and 1:N broadcast multicast. Realtime **group communication** — group video, voice, desktop/screen sharing, text chat, and topic-scoped channels with sub-channels — is the **same primitive set at N↔N cardinality**. It composes entirely from `community` ([CC 3.2](05_namespace.md)) + `live_stream` (the CC 5.3.3 streaming surface) + `chat_message` + member/transport resolution ([CC 4.4.3.2.4.1](08_composition.md)). **Zero new structural primitives** — this is the thirteenth path on the [CC 1.7](01_foundation.md) claim and the most product-complete: the whole realtime-collaboration surface is composition.
 
 **The composition map (all generic — no new wire):**
 
@@ -294,7 +297,7 @@ The low-latency realtime profile (direct Reticulum Links) is **in 1.0 scope** be
 
 The breadth confirmation: a full realtime group-communication platform — group video, voice, screen sharing, chat, and channels-with-sub-channels — requires **no addition to the 1+4 structural set** beyond the CC 5.3.3 delivery axis and the `community` membership machinery already locked.
 
-##### 5.3.3.2.1 `namespace-realtime` — `codec_id` namespace — realtime A/V chunk codec discriminator (normative, 1.0-RC9 — ratifies [CIRISRegistry#84](https://github.com/CIRISAI/CIRISRegistry/issues/84))
+##### 5.3.3.2.1 `namespace-realtime` — `codec_id` namespace — realtime A/V chunk codec discriminator (normative)
 
 [CC 5.3.3.2.2](#10581-realtime-non-av-data-streams-normative-scope-boundary) makes the realtime chunk payload codec **application-defined and opaque to the substrate**. For realtime **A/V at scale**, a hop fanning out chunks must drop chunks for per-receiver bandwidth degradation **without** decrypting them — so the codec's layer-numbering semantics must be a **clear (non-AEAD) discriminator**. CEG ratifies a 1-byte `codec_id` namespace so every implementation reads the same meaning. **This is a namespace ratification on the transport-layer chunk header, not a change to the [CC 2.1](04_envelope.md) attestation envelope** — the frozen 1+4 surface and its canonicalization are untouched.
 
@@ -309,7 +312,7 @@ The breadth confirmation: a full realtime group-communication platform — group
 | `0x04`–`0x7F` | — | **Reserved** for future standardized codecs (CEG-assigned). |
 | `0x80`–`0xFE` | — | **Experimental / per-deployment** — no cross-federation meaning guaranteed. |
 
-`codec_id` lets a receiver know whether `ChunkLayer { spatial: 2, temporal: 2, quality: 0 }` means "SVC base + 2 spatial enhancements" or "MDC quadrant" — without it, layer numbers are ambiguous across codecs. The substrate (Edge) never picks the codec — choice is upstream (agent/server tier); Edge needs only the namespace stable. The variable-depth `SubStreamPath` (MDC tree-path encoding) is the [§85](https://github.com/CIRISAI/CIRISRegistry/issues/85) follow-on (tracked `§N.3`).
+`codec_id` lets a receiver know whether `ChunkLayer { spatial: 2, temporal: 2, quality: 0 }` means "SVC base + 2 spatial enhancements" or "MDC quadrant" — without it, layer numbers are ambiguous across codecs. The substrate (Edge) never picks the codec — choice is upstream (agent/server tier); Edge needs only the namespace stable. The variable-depth `SubStreamPath` (MDC tree-path encoding) is a follow-on (tracked `§N.3`).
 
 **MDC-primacy design intent (informative).** The user-facing contract CEWP realtime A/V targets is *"any node can request a lower-bandwidth stream from peers — as simple as taking every other chunk, down to a blinking dot."* MDC (`0x03`) matches that **symmetrically**: drop any subset → decode the rest at proportionally lower quality, no coordination, no base-layer floor. SVC (`0x01`) is production-deployable today but has a floor (base-layer bytes must arrive) and needs coordination for an "every other chunk" drop. The substrate is **MDC-shaped** (the `ChunkLayer` / `SubStreamPath` model is symmetric-drop-ready) even while production streams ship SVC; the ~20–40% MDC compression overhead vs SVC at equal quality is the accepted cost of symmetric drop semantics.
 
@@ -321,59 +324,59 @@ The realtime profile is **not media-only.** Any high-frequency mutable shared st
 - **IN scope (transport):** ordered, sealed, authenticated, PQC-encrypted realtime delivery of arbitrary data-stream payloads — covered by CC 5.3.3.2, no addition.
 - **OUT of scope (merge semantic):** the conflict-free / convergent-merge logic for shared mutable state (CRDT, Operational Transform, last-writer-wins, etc.) is **application-layer**, not a CEG primitive — consistent with the [CC 1.13.4](01_foundation.md) discipline ("the substrate stores; the wire transports; CEG describes the shape of the claim; consumer policy composes verdicts"). CEG carries the ops; the application converges them. A future codified merge primitive would route through the [CC 4.5.1](11_governance.md) amendment process if real demand pulls it (the downstream-demand-pulls-additions discipline), but it is explicitly NOT required for 1.0 — realtime collaborative apps are buildable on the transport today.
 
-##### 5.3.3.2.3 `registry-wire` — `SealedAvChunk` wire layout (normative, 1.0-RC10 — absorbs CIRISEdge v4.0.0 per [CIRISRegistry#85](https://github.com/CIRISAI/CIRISRegistry/issues/85) §N)
+##### 5.3.3.2.3 `registry-wire` — `SealedAvChunk` wire layout (normative)
 
 The realtime A/V chunk that lands on each RNS Link payload (and the broadcast pull path). **Byte layout (normative — transcribed from the edge v4.0.0 reference `SealedAvChunk::to_bytes`):**
 
 ```
-offset field encoding
-0..32 stream_id 32 bytes (caller-derived: sha256(stream_meta))
-32..40 epoch u64 big-endian
-40..48 chunk_seq u64 big-endian
-48..49 codec_id u8 (§10.5.8.2 namespace)
-49..50 layer.spatial u8
-50..51 layer.temporal u8
-51..52 layer.quality u8
-52.. double_sealed_ciphertext remaining bytes
+offset  field                       encoding
+0..32   stream_id                   32 bytes (caller-derived: sha256(stream_meta))
+32..40  epoch                       u64 big-endian
+40..48  chunk_seq                   u64 big-endian
+48..49  codec_id                    u8  (§10.5.8.2 namespace)
+49..50  layer.spatial               u8
+50..51  layer.temporal              u8
+51..52  layer.quality               u8
+52..    double_sealed_ciphertext    remaining bytes
 ```
 
 - `CHUNK_HEADER_LEN = 48` (the `stream_id`+`epoch`+`chunk_seq` fixed header, stable since v3.7.0); `CHUNK_CODEC_LAYER_LEN = 4` (the `codec_id`+`ChunkLayer` block).
 - **Backward compatibility (normative, length-disambiguated):** a wire carrying **only** the 48-byte header (no trailing 4-byte block) MUST be read as `codec_id = 0xFF` (opaque) + `layer = {0,0,0}`, bytes `48..` as ciphertext — the v3.7.0 shape. A wire with ≥ `48+4` bytes after parsing the header is read as v3.8.0+ (codec+layer present). New writes always include the 4-byte block.
 - `codec_id` + `layer` are **clear metadata, NOT inputs to the AEAD** ([CC 5.3.3.2.1](#10582-codec_id-namespace--realtime-av-chunk-codec-discriminator-normative-10-rc9--ratifies-cirisregistry84)) — a relay drops by `(codec_id, layer)` without compromising the inner DEK; tampering causes mis-decode or drop, never a crypto break.
 
-##### 5.3.3.2.4 `chunklayer` — `ChunkLayer` + `ReceiverLayerPolicy` — SVC layer model (normative, 1.0-RC10 — §85 §N.2)
+##### 5.3.3.2.4 `chunklayer` — `ChunkLayer` + `ReceiverLayerPolicy` — SVC layer model (normative)
 
 `ChunkLayer` is the 3-byte SVC layer descriptor in the chunk header (`spatial`, `temporal`, `quality`, each `u8`). Each axis is **monotonic**: layer `0` is the base (lowest fidelity, always required); each increment is an additive enhancement. A receiver reconstructs from the prefix `0..=max_spatial × 0..=max_temporal × 0..=max_quality` of cells. The base cell `{0,0,0}` is the **"blinking dot"** — the minimum a participant can subscribe to. For `codec_id = 0xFF` (opaque) the layer MUST be `{0,0,0}`.
 
 `ReceiverLayerPolicy { max_spatial, max_temporal, max_quality }` (each `u8`) is the per-receiver drop policy. It is **advertised over the existing `federation_session` / `key_grant` entitlement surface — NOT a new wire** — and the sender drops chunks above the cap without re-encoding. `admits(layer)` is the per-axis test `spatial ≤ max_spatial ∧ temporal ≤ max_temporal ∧ quality ≤ max_quality`; a chunk tagged `codec_id = 0xFF` MUST be admitted **unconditionally** regardless of policy (the fan-out filter short-circuits before consulting `admits`). Canonical policies: `BLINKING_DOT = {0,0,0}`, `UNCAPPED = {255,255,255}`. This composes with the inner-once / outer-N fan-out optimization: the inner seal runs once per chunk; the outer seal runs only for the `(receiver, chunk)` pairs the policy admits.
 
-##### 5.3.3.2.5 `stream-double` — Double-seal + deterministic nonce derivation (normative, 1.0-RC10 — §85 §N)
+##### 5.3.3.2.5 `stream-double` — Double-seal + deterministic nonce derivation (normative)
 
-`double_sealed_ciphertext` is **outer-AEAD( inner-AEAD( chunk_plaintext))** — two independent AES-256-GCM layers (12-byte nonce + 16-byte tag, standard ring layout each). The **inner** seal is end-to-end (the epoch-DEK content seal); the **outer** seal is the per-RNS-Link transit wrap (a relay sees the outer layer only, never plaintext — the [CC 5.3.3.5 E1](#1055-streaming-deliverymodel-analysis--the-pull-defaults-the-relay-extensions) two-layer posture). Both nonces are **deterministic** (no nonce is transmitted — every holder recomputes; collision-safety rides the [CC 5.3.3.2](#1058-realtime-group-communication--composition-ceg-013-addition) single-sender-per-`(stream_id, epoch)` invariant):
+`double_sealed_ciphertext` is **outer-AEAD( inner-AEAD( chunk_plaintext ) )** — two independent AES-256-GCM layers (12-byte nonce + 16-byte tag, standard ring layout each). The **inner** seal is end-to-end (the epoch-DEK content seal); the **outer** seal is the per-RNS-Link transit wrap (a relay sees the outer layer only, never plaintext — the [CC 5.3.3.5 E1](#1055-streaming-deliverymodel-analysis--the-pull-defaults-the-relay-extensions) two-layer posture). Both nonces are **deterministic** (no nonce is transmitted — every holder recomputes; collision-safety rides the [CC 5.3.3.2](#1058-realtime-group-communication--composition-ceg-013-addition) single-sender-per-`(stream_id, epoch)` invariant):
 
 ```
-inner_nonce = SHA-256( b"CIRIS-AV-INNER-V1" ‖ stream_id[32] ‖ epoch_be8 ‖ chunk_seq_be8)[0..12]
-outer_nonce = SHA-256( b"CIRIS-AV-OUTER-V1" ‖ link_id ‖ link_seq_be8)[0..12]
+inner_nonce = SHA-256( b"CIRIS-AV-INNER-V1" ‖ stream_id[32] ‖ epoch_be8 ‖ chunk_seq_be8 )[0..12]
+outer_nonce = SHA-256( b"CIRIS-AV-OUTER-V1" ‖ link_id ‖ link_seq_be8 )[0..12]
 ```
 
-The label bytes (`b"CIRIS-AV-INNER-V1"` / `b"CIRIS-AV-OUTER-V1"`, ASCII, no terminator) are **domain separators pinned by this section** — they bind the nonce to its layer and prevent cross-layer reuse. `epoch`, `chunk_seq`, and `link_seq` are `u64` **big-endian**. `link_seq` is monotonic per RNS Link (transit replay guard). **Conformance is proven by the §85 vector set** (input → expected 12-byte nonce + expected `to_bytes`), generated from the v4.0.0 reference impl — see the [§57](https://github.com/CIRISAI/CIRISRegistry/issues/57) freeze gate.
+The label bytes (`b"CIRIS-AV-INNER-V1"` / `b"CIRIS-AV-OUTER-V1"`, ASCII, no terminator) are **domain separators pinned by this section** — they bind the nonce to its layer and prevent cross-layer reuse. `epoch`, `chunk_seq`, and `link_seq` are `u64` **big-endian**. `link_seq` is monotonic per RNS Link (transit replay guard). **Conformance is proven by the vector set** (input → expected 12-byte nonce + expected `to_bytes`), generated from the v4.0.0 reference impl.
 
 #### 5.3.3.3 `per-stream` — Per-stream log + stream-root (normative — V1 lock)
 
-For each live_stream:
+A live stream is its own transparency log, which is what makes a producer accountable for what it streamed: the signed roots commit the producer to a single chunk history. For each live_stream:
 
 - `log_id = stream_id`; chunks = leaves; stream-root = `SignedTreeHead{ log_id: stream_id, tree_size: chunk_count, root_hash, timestamp, signature }`
 - **Producer signs the STH — MANDATORY** authenticity root; hybrid Ed25519 + ML-DSA-65 per the [CC 5.3.1](#103-sth-cosigning--witness-directory) `signing_bytes` discipline; canonical bytes per [CC 2.6.1](00_conformance.md) JCS for the envelope-bearing wrapper
 - **Witness cosign — OPTIONAL**, via the [CC 5.3.1](#103-sth-cosigning--witness-directory) path verbatim. This is the best-effort / accountable split:
- - **Best-effort** (open media) → producer-signed root only; impl-pending only
- - **Accountable** (paid media, registry propagation, emergency) → witness cosign per [CC 5.3.1.1](#1031-consistency-proof-requirement-normative-addresses-ceg-01-distsys-review) consistency-proof, which is the **anti-equivocation guarantee** — producer cannot show different chunk-K to different subscribers nor rewrite mid-stream. Accountable tier is impl-pending BOTH #142 AND (STH consistency-proof enforcement)
-- **Cadence**: producer publishes a signed root every `K` chunks OR `T` seconds (whichever first), **always at an epoch boundary** (CC 5.1) + at `sealed_at`. Witness cosign runs **per-epoch** (coarser than per-K to keep cosign-quorum cost off the hot path). Default pins: **K=64, T=2s**
+  - **Best-effort** (open media) → producer-signed root only; impl-pending only
+  - **Accountable** (paid media, registry propagation, emergency) → witness cosign per [CC 5.3.1.1](#1031-consistency-proof-requirement-normative-addresses-ceg-01-distsys-review) consistency-proof, which is the **anti-equivocation guarantee** — producer cannot show different chunk-K to different subscribers nor rewrite mid-stream. Accountable tier is impl-pending the streaming substrate AND STH consistency-proof enforcement
+- **Cadence**: producer publishes a signed root every `K` chunks OR `T` seconds (whichever first), **always at an epoch boundary** (CC 5.1) + at `sealed_at`. Witness cosign runs **per-epoch** (coarser than per-K to keep cosign-quorum cost off the hot path). Default pins: **K=64, T=2s** (operator-tunable)
 - **Incremental verify** (D4): each leaf's "root-after-K" lets a subscriber verify chunk K's inclusion against the nearest signed STH ≥ K via the [CC 5.3.1.1](#1031-consistency-proof-requirement-normative-addresses-ceg-01-distsys-review) consistency path. No new commitment structure beyond the per-leaf chain-link + periodic STH that CC 5.3.1 already provides.
 - **Accountable-stream quorum**: Policy E ([CC 4.4.3.1](08_composition.md) locality-scaled quorum) applies — not a fixed N. Emergency-channel roots want a higher quorum than a paid-media stream; locality scaling provides the gradient.
 
 #### 5.3.3.4 `liveness` — D6 liveness invariant — entitled vs reachable (normative)
 
-Two sets are NEVER conflated:
+Two sets are NEVER conflated — the durable record of who is *allowed* in, and the ephemeral fact of who is *currently here*. Mixing them would turn presence into a logged, federated attestation, which the fail-secure posture forbids:
 
 - **Entitlement roster** (Persist-owned): signed CEG envelope, Edge-propagated, durable, logged. It's **evidence** — it MUST propagate + be auditable. Per [CC 4.4.3.2](08_composition.md) Policy M community-membership composition
 - **Live-reachability set** (Edge-owned): generalizes the [CC 5.3.2.1](#1012-holder-directory-ttl--contentmiss-feedback) `EdgeConfig.holds_bytes_ttl_seconds` 24h default down to seconds-to-minutes for live-multicast. Node-local presence tracker. **NEVER an attestation, never `holds_bytes`, never replicated, never logged**
@@ -382,7 +385,7 @@ Two sets are NEVER conflated:
 
 **Heartbeat-suppression discipline**: this is a **producer-side-refusal invariant** (same class as the [CC 5.2](#1014-structural-invisibility--holds_bytessha256-suppression-for-cohort_scope-self--family-ceg-07-addition) `cohort_scope: self|family` `holds_bytes` suppression). Missed (entitled-but-unreachable) members fall back to pull on reconnect — substrate does NOT keep retrying push, does NOT emit a "delivery_failed" attestation, does NOT log liveness state. The reconnect-then-pull catch-up rides CC 5.1 `history_on_join`.
 
-#### 5.3.3.5 `transport-edge` — Transport — Edge layer (normative — E1–E4 lock per [§15.6.2](15_gaps.md))
+#### 5.3.3.5 `transport-edge` — Transport — Edge layer (normative — E1–E4 lock)
 
 | Decision | Behavior |
 |---|---|
@@ -395,16 +398,16 @@ Two sets are NEVER conflated:
 
 A `delivery_receipt:{stream_id}` Contribution is a subscriber's signed acknowledgement that they received chunk K under the named stream + epoch. **Best-effort default**; opt-in for **accountable** profiles (registry propagation, emergency).
 
-**Canonical bytes**:
+**Canonical bytes** (domain-separated + length-prefixed, matching `SignedTreeHead::signing_bytes` discipline; per [CC 2.6.1](00_conformance.md) the envelope-bearing wrapper is JCS-encoded, but the receipt's signed-bytes inner payload follows the explicit-length-prefix shape below):
 
 ```
 receipt_signing_bytes =
- "ciris-delivery-receipt/v1" // domain separator
- ‖ len(subscriber_key) ‖ subscriber_key
- ‖ len(stream_id) ‖ stream_id
- ‖ epoch (u64 LE)
- ‖ chunk_root ([u8; 32])
- ‖ K (u64 LE)
+    "ciris-delivery-receipt/v1"                       // domain separator
+  ‖ len(subscriber_key) ‖ subscriber_key
+  ‖ len(stream_id)      ‖ stream_id
+  ‖ epoch        (u64 LE)
+  ‖ chunk_root   ([u8; 32])
+  ‖ K            (u64 LE)
 ```
 
 Both `epoch` (key-rotation index — for per-epoch entitlement / billing) and `K`/`chunk_root` (chunk position + its committed root) are independent indices — both required (each names a distinct authorization scope).
@@ -417,7 +420,7 @@ Both `epoch` (key-rotation index — for per-epoch entitlement / billing) and `K
 
 **Semantics — proof-of-DELIVERY, not proof-of-CONSUMPTION**: the receipt proves the subscriber received bytes committing to chunk K. It does NOT prove they decrypted those bytes (they may not hold the epoch DEK). Consumers MUST NOT overclaim a delivery receipt as proof of consumption. Per the [`MISSION.md`](../../MISSION.md) fail-honest invariant + [CC 1.7](01_foundation.md) "Verify authenticates origin, does not compose 'delivered'/'owes N'", Verify's role is validation-not-adjudication: emit the validated receipt as an attestation on `delivery_receipt:{stream_id}` — the "delivered" verdict is consumer policy.
 
-**Accountable-stream receipt quorum**: Policy E ([CC 4.4.3.1](08_composition.md) locality-scaled) — same shape as the CC 5.3.3.3 STH quorum. Ratification pending per RC1-7.
+**Accountable-stream receipt quorum**: Policy E ([CC 4.4.3.1](08_composition.md) locality-scaled) — same shape as the CC 5.3.3.3 STH quorum.
 
 #### 5.3.3.7 `normative` — Framing (normative)
 
@@ -425,11 +428,13 @@ A stream is **its own per-stream transparency-log instance** (`log_id = stream_i
 
 The 1+4 wire-format lockdown holds: there are no new `attestation_type` values. Stream chunks ride content addressing; stream-roots ride the existing `SignedTreeHead` shape; delivery receipts ride `scores` against the new `delivery_receipt:{stream_id}` reserved prefix ([CC 3.4.6](07_reserved.md)).
 
-#### 5.3.3.8 `documents-what` — What CEG 0.10 documents
+#### 5.3.3.8 `documents-what` — What the streaming surface documents
 
-Scope pointer: the CC 5.3.3 streaming surface — delivery axis ([CC 5.3.3.3](#1051-per-stream-log--stream-root-normative--v1-lock)–[CC 5.3.3.4](#1056-d6-liveness-invariant--entitled-vs-reachable-normative)) — does **not** change the 1+4 primitive set ([CC 2.4](03_primitives.md)) (delivery rides existing primitives), does **not** bundle the streaming-half substrate impl (Persist#142 + the RC1-1c CHECK-arm migration), keeps push-mode multicast relay/fan-out pull-only at RC1, and leaves the K / T / MAX_CHUNKS_PER_EPOCH constants + accountable-stream quorum operator-tunable.
+Scope pointer: the CC 5.3.3 streaming surface — delivery axis ([CC 5.3.3.3](#1051-per-stream-log--stream-root-normative--v1-lock)–[CC 5.3.3.4](#1056-d6-liveness-invariant--entitled-vs-reachable-normative)) — does **not** change the 1+4 primitive set ([CC 2.4](03_primitives.md)) (delivery rides existing primitives), does **not** bundle the streaming-half substrate impl (the streaming-chunk store + the parallel CHECK-arm migration), keeps push-mode multicast relay/fan-out pull-only at RC1, and leaves the K / T / MAX_CHUNKS_PER_EPOCH constants + accountable-stream quorum operator-tunable.
 
 ### 5.3.4 `multi-steward` — Multi-steward + accord-holder discovery
+
+These endpoints publish the trust roots themselves — the steward set and accord holders — so a verifier can discover *whom* to trust before trusting anything. Every response is hybrid-signed by the serving steward, and a consumer MUST verify that signature before promoting any field to a trust root: this is the fidelity / fail-secure floor for the whole discovery surface.
 
 ### `GET /v1/steward-key`
 
@@ -439,30 +444,30 @@ Response (`200 OK`):
 
 ```json
 {
- "stewards": [
- {
- "region": "us",
- "key_id": "us-steward-2026",
- "ed25519_pubkey_b64": "<base64-url>",
- "mldsa65_pubkey_b64": "<base64-url>",
- "hardware_class": "HSM_FIPS_140_3_L3",
- "deployed": true,
- "fingerprint_sha256_hex": "<64-char-lowercase>",
- "cert_validity_self_attest": {
- "valid_until": "<rfc3339_canonical>",
- "signature_b64": "<base64-url>"
- }
- },
- {"region": "eu",..., "deployed": false},
- {"region": "apac",..., "deployed": false}
- ],
- "threshold_policy": {"required": 2, "available": 1},
- "response_signature": {
- "signer_key_id": "us-steward-2026",
- "ed25519_b64": "<base64-url>",
- "mldsa65_b64": "<base64-url>",
- "canonical_bytes_label": "ciris.steward_key_response.v1"
- }
+  "stewards": [
+    {
+      "region": "us",
+      "key_id": "us-steward-2026",
+      "ed25519_pubkey_b64": "<base64-url>",
+      "mldsa65_pubkey_b64": "<base64-url>",
+      "hardware_class": "HSM_FIPS_140_3_L3",
+      "deployed": true,
+      "fingerprint_sha256_hex": "<64-char-lowercase>",
+      "cert_validity_self_attest": {
+        "valid_until": "<rfc3339_canonical>",
+        "signature_b64": "<base64-url>"
+      }
+    },
+    {"region": "eu", ..., "deployed": false},
+    {"region": "apac", ..., "deployed": false}
+  ],
+  "threshold_policy": {"required": 2, "available": 1},
+  "response_signature": {
+    "signer_key_id": "us-steward-2026",
+    "ed25519_b64": "<base64-url>",
+    "mldsa65_b64": "<base64-url>",
+    "canonical_bytes_label": "ciris.steward_key_response.v1"
+  }
 }
 ```
 
@@ -484,7 +489,7 @@ Chronological rotation events from `registry_signing_keys` table. Substrate-conf
 
 `GET /v1/builds/{version}` returns the BuildRecordResponse with a `federation_provenance` block. `GET /v1/verify/build-manifest/{project}/{version}/{target}` (Path B) returns the verbatim signed BuildManifest. `GET /v1/agent_files/{kind}?platform_or_target=...` returns the [CC 4.4.3.7](08_composition.md) trust-composition layers. `GET /v1/partner/{key_id}` composes ProfileScorecard data from existing tables.
 
-Full response schemas for these endpoints land in the Rust handlers + OpenAPI export; CEG 0.2 commits to publishing a versioned OpenAPI spec alongside this document.
+Full response schemas for these endpoints land in the Rust handlers + OpenAPI export; the spec commits to publishing a versioned OpenAPI spec alongside this document.
 
 ### 5.3.6 `common` — Common response shape
 
@@ -501,13 +506,13 @@ All error responses MUST conform to:
 
 ```json
 {
- "error": {
- "code": "<ENUM_VALUE>",
- "http_status": <int>,
- "message": "<human-readable>",
- "request_id": "<server-assigned>",
- "details": {<error-specific fields>}
- }
+  "error": {
+    "code": "<ENUM_VALUE>",
+    "http_status": <int>,
+    "message": "<human-readable>",
+    "request_id": "<server-assigned>",
+    "details": {<error-specific fields>}
+  }
 }
 ```
 

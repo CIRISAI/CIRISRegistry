@@ -8,7 +8,7 @@
 
 ## 2.1 `envelope` — The envelope
 
-Every `scores` Attestation carries this envelope. Field semantics consolidated here.
+The envelope is where a claim becomes accountable. Every `scores` Attestation carries it, and every field below either binds the claim to evidence, names who may revoke it, or records the conditions under which it was made — the integrity guarantees that let a consumer trust a stranger's signed word. Field semantics are consolidated here once; the rest of the Part references back to this table.
 
 | Field | Required | Description |
 |---|:---:|---|
@@ -38,6 +38,8 @@ Every `scores` Attestation carries this envelope. Field semantics consolidated h
 
 ### 2.1.1 `forward-compatibility` — Forward-compatibility rule
 
+The envelope is meant to grow without breaking the peers already speaking it. Two rules make that safe: the canonical-bytes contract (so a new field never silently changes what an old signature covers) and an unknown-field discipline (so a consumer never rejects an envelope merely for carrying a field it has not learned yet).
+
 > **Canonical-bytes contract**: the canonical-bytes encoding of this envelope for signing follows [CC 2.6.1](#2.6.1) (JCS over the envelope object; defaults are interpretation-time, NOT encoding-time; relay MUST preserve member presence/absence exactly as the producer signed). Optional fields with documented defaults in the table above ride the CC 2.6.1.1 omit-vs-materialize rule. Conditional-required fields are NOT optional-with-default and substrate rejects mis-shape per [CC 2.3.1](#2.3.1) + [CC 4.5.2.1](#4.5.2.1) + [CC 4.5.12.2](#4.5.12.2).
 
 A Conforming Consumer that receives an envelope carrying a field-name it does not recognize MUST:
@@ -51,9 +53,9 @@ Producers introducing a new envelope field MUST follow the [CC 2.6.4](#2.6.4) ve
 
 ## 2.2 `conformance` — Conformance levels
 
-A **Producer** is any peer that emits Contributions onto the federation wire. A **Consumer** is any peer that reads and composes verdicts over received Contributions. A **Substrate Implementation** is the storage + transport + crypto layer (CIRISPersist + CIRISEdge + CIRISVerify) underneath both.
+Interoperability needs named roles so that "conforming" means the same thing to every peer. A **Producer** is any peer that emits Contributions onto the federation wire. A **Consumer** is any peer that reads and composes verdicts over received Contributions. A **Substrate Implementation** is the storage + transport + crypto layer (CIRISPersist + CIRISEdge + CIRISVerify) underneath both.
 
-Three normative conformance profiles:
+Three normative conformance profiles set the floor each role must meet:
 
 1. **CEG-Conforming Producer (CCP)** — emits well-formed envelopes per [CC 2.1](#2.1), signs per CC 2.6.5 References [hybrid-sig], respects reserved-prefix rules per [CC 3.4](#3.4), declares its `oversight_mode` and `witness_relation` per [CC 2.1](#2.1).
 2. **CEG-Conforming Consumer (CCC)** — verifies hybrid signatures, enforces reserved-prefix rules at admission, implements at least Policy A ([CC 4.4.3.8](#4.4.3.8)) with the default aggregation rules from [CC 4.4.2](#4.4.2), MUST honor `null` placeholder/dev hardware-class rejection per [CC 4.2.2](#4.2.2).
@@ -61,9 +63,9 @@ Three normative conformance profiles:
 
 Sections that follow MAY add per-feature conformance subsections; the three profiles above are the minimums.
 
-## 2.3 `subject_keys` — `subject_key_ids` semantics (CEG 0.6)
+## 2.3 `subject_keys` — `subject_key_ids` semantics
 
-Per. The missing half of consent at the wire format: CEG 0.x baseline encoded only **producer authority** (`attesting_key_id`); CEG 0.6 adds **subject authority** for content where the subject of the data is not the producer of the data.
+Consent is incomplete if only the producer of data has authority over it. The baseline envelope encoded **producer authority** alone (`attesting_key_id`); `subject_key_ids` adds the missing half — **subject authority** — for content where the subject of the data is not the producer of the data. This is the wire-format expression of the Autonomy and Non-maleficence principles: a person who appears in someone else's data can still pull it.
 
 ### 2.3.1 `subject_kind-subject-2` — Subject-bearing dimensions (governance requirement)
 
@@ -71,26 +73,28 @@ Per [CC 4.5.2](#4.5.2), dimensions whose namespace pattern names a subject (e.g.
 
 ### 2.3.2 `federation-key` — Federation-key vs canonical-hash identifier
 
+A subject is not always a federation-enrolled identity. The two forms below let `subject_key_ids` name either an enrolled key that can sign for itself or an external party that cannot — without losing the external party's revocation rights.
+
 `subject_key_ids[i]` MAY be either:
 
 1. **A `federation_keys.key_id`** — the subject is a federation-enrolled identity that can sign on its own behalf. Direct revocation: subject signs a `withdraws` against this Contribution; substrate admits via rule (2) of [CC 2.4.1 broadened `withdraws` admission](#2.4.1). Wire form: the bare `key_id` (no tag).
 2. **A tagged canonical-hash identifier** — the subject is an external party with no federation_keys row (Discord user-id, channel-id, content-sha256-bound entity, etc.). The substrate cannot verify a signature from this entity directly; **revocation rides a `delegates_to` proxy chain** per rule (3) of [CC 2.4.1 broadened admission](#2.4.1). Wire form: a tagged string per CC 2.3.2.1 below.
 
-Resolves [ OQ3](https://github.com/CIRISAI/CIRISAgent/issues/840) — "self-attestation about un-enrolled parties — canonical-hash or pseudonymous federation_keys?" — with the answer "both, distinguished by an explicit tag on the canonical-hash variant."
+This answers the open question of how to attest about un-enrolled parties — canonical-hash or pseudonymous federation_keys — with "both, distinguished by an explicit tag on the canonical-hash variant."
 
-#### 2.3.2.1 `registry-canonical` — Canonical-hash wire form + preimage convention (CEG 0.10 normative pin; per CIRISRegistry#53)
+#### 2.3.2.1 `registry-canonical` — Canonical-hash wire form + preimage convention
 
-surfaced that a CEG-Conforming implementation cannot interoperate without two things the pre-0.10 spec left unpinned: (a) how a canonical-hash entry is distinguished from a `federation_keys.key_id` entry on the wire, and (b) what string is hashed (the preimage). Both are now normative.
+A CEG-Conforming implementation cannot interoperate without pinning two things: (a) how a canonical-hash entry is distinguished from a `federation_keys.key_id` entry on the wire, and (b) what string is hashed (the preimage). Both are normative.
 
-**Wire form — tag REQUIRED (CONFIRM-2 resolution)**. A canonical-hash entry MUST carry the tag `canonical:{hashalg}:{hex}`:
+**Wire form — tag REQUIRED**. A canonical-hash entry MUST carry the tag `canonical:{hashalg}:{hex}`:
 
 - `{hashalg}` — the hash algorithm; `sha256` is the v1 algorithm. Algorithm-agility: future hashes (e.g. `sha3-256`) extend this position without ambiguity
 - `{hex}` — the digest in [CC 2.6.3](#2.6.3) canonical hex (lowercase, unpadded, byte-length-exact: 64 chars for sha256)
 - Example: `canonical:sha256:ff7c5632dae6ef3ae7f6283bd35268bc7910332414aa8a1c35a1645ca0295f61`
 
-**Why the tag is mandatory and bare-hex is rejected**: a `federation_keys.key_id` is, in the reference Registry, `hex(sha256(ed25519_pubkey))` — a **lowercase 64-char hex string** ([`crypto::HybridCrypto::fingerprint`](../../rust-registry/ciris-registry-core/src/crypto/mod.rs)). A bare canonical-hash (also lowercase 64-char hex) would be **format-indistinguishable** from a key_id. The format-disambiguation heuristic proposed in #53 CONFIRM-2 ("base64 key_id vs hex canonical-hash") FAILS because Registry key_ids are themselves hex fingerprints, not base64 pubkeys. The tag is therefore load-bearing, not cosmetic. The CC 2.6.3 hex rule governs the `{hex}` segment only; the `canonical:{hashalg}:` prefix is a tagged-union discriminator outside CC 2.6.3's scope and is exempt from the "no separators" rule. NodeCore's invented `canonical:sha256:{hex}` form is hereby blessed verbatim — drop nothing.
+**Why the tag is mandatory and bare-hex is rejected**: a `federation_keys.key_id` is, in the reference Registry, `hex(sha256(ed25519_pubkey))` — a **lowercase 64-char hex string** ([`crypto::HybridCrypto::fingerprint`](../../rust-registry/ciris-registry-core/src/crypto/mod.rs)). A bare canonical-hash (also lowercase 64-char hex) would be **format-indistinguishable** from a key_id. A "base64 key_id vs hex canonical-hash" disambiguation heuristic FAILS because Registry key_ids are themselves hex fingerprints, not base64 pubkeys. The tag is therefore load-bearing, not cosmetic. The CC 2.6.3 hex rule governs the `{hex}` segment only; the `canonical:{hashalg}:` prefix is a tagged-union discriminator outside CC 2.6.3's scope and is exempt from the "no separators" rule.
 
-**Preimage convention — `{platform}:{entity_kind}:{id}` (PIN-1 resolution, load-bearing)**. The string hashed to produce `{hex}` MUST be:
+**Preimage convention — `{platform}:{entity_kind}:{id}`**. The string hashed to produce `{hex}` MUST be:
 
 ```
 preimage = "{platform}:{entity_kind}:{id}"
@@ -115,26 +119,26 @@ The split-on-first-two-colons rule means a producer constructs the preimage by j
 | `twitter:user:1455079377986420736` (numeric id, NOT @handle) | `10243ba010bf159a45197d368f91c025ef6ac1eb7f42ca32e55b414d90c861c2` | `canonical:sha256:10243ba0…90c861c2` |
 | `email:address:alice@example.org` | `04481a02fccfc8d99a47bde4f0563dd360d425b0734e8fcd8d5dd7198d0a263f` | `canonical:sha256:04481a02…98d0a263f` |
 
-#### 2.3.2.2 `canonical_binding` — Rule-(3) proxy vs `canonical_binding` — distinct mechanisms (CONFIRM-3 resolution)
+#### 2.3.2.2 `canonical_binding` — Rule-(3) proxy vs `canonical_binding` — distinct mechanisms
 
 These are **two distinct mechanisms**, not one:
 
 - **Rule-(3) `delegates_to` proxy** ([CC 2.4.1.1](#2.4.1.1) admission rule 3) — *ongoing* revocation authority for an un-enrolled subject. A federation-enrolled key (typically the agent holding data on behalf of the external party) carries `delegates_to(canonical_hash → agent_key, scope: [consent_revocation])`; the agent proxies revocation. The subject never enrolls; the agent acts for them indefinitely.
 - **`canonical_binding`** — *retroactive identity claim*. A now-enrolled federation key asserts "I AM the entity behind `canonical:sha256:{hex}`", binding past canonical-hash subject entries to its real identity. After an admitted `canonical_binding`, the formerly-un-enrolled subject can sign `withdraws` **directly** under rule (2) — the binding promotes the canonical-hash to a real key_id for admission purposes.
 
-`canonical_binding` is **NOT a new admission rule** (no "rule 5"). It composes: the binding is itself a `delegates_to`-shaped attestation (`delegates_to(canonical_hash → newly_enrolled_key, scope: [identity_binding])`) admitted because the enrolling key proves control of the preimage out-of-band. Once bound, rule (2) [direct subject revocation] becomes available to the bound key, and rule (3) [proxy] is no longer needed for that subject. NodeCore's conflation of the two in its shipped code comment (per #53) should be corrected to this framing.
+`canonical_binding` is **NOT a new admission rule** (no "rule 5"). It composes: the binding is itself a `delegates_to`-shaped attestation (`delegates_to(canonical_hash → newly_enrolled_key, scope: [identity_binding])`) admitted because the enrolling key proves control of the preimage out-of-band. Once bound, rule (2) [direct subject revocation] becomes available to the bound key, and rule (3) [proxy] is no longer needed for that subject.
 
-#### 2.3.2.3 `subject_kind-payload` — `subject_kind` is a payload-level discriminator (CONFIRM-4 resolution)
+#### 2.3.2.3 `subject_kind-payload` — `subject_kind` is a payload-level discriminator
 
 `subject_kind` (e.g. `consent_record`, `consent_replication` ([CC 3.3.7](#3.3.7)), `key_grant`, `takedown_notice`, `community`, `family`, `identity_occurrence`, `location_proof`) is a **payload-level** field — it lives inside the Contribution payload, parallel to how `external_content` carries `sub_kind` in payload. It is NOT an envelope-level field. The envelope-level fields are exactly those in the [CC 2.1](#2.1) table (`cohort_scope`, `subject_key_ids`, `community_id`, `family_id`, `delivery_mode`, etc.); `subject_kind` is the payload discriminator that selects which [CC 3.3](#3.3) payload schema applies. The CC 3.3.5 `consent_record` example and any conformant producer payload agree byte-for-byte: `"subject_kind": "consent_record"` is a payload member.
 
-#### 2.3.2.4 `bilateral` — Bilateral ratification is consumer-policy (CONFIRM-5 resolution)
+#### 2.3.2.4 `bilateral` — Bilateral ratification is consumer-policy
 
 Per [CC 3.3.5](#3.3.5) step 4: a bilateral partnership is "ratified iff both halves present under the same `bilateral_pair_id` with `stance: granted`" — and this predicate is **consumer policy**, NOT registry-normative. CIRISAgent's CEM `PartnershipRequestHandler` is the canonical consumer that enforces it. Ingest-layer builders (NodeCore's `build_bilateral_pair_id` + request/accept builders) correctly produce the two halves WITHOUT enforcing ratification — that is the right boundary. The substrate admits each half independently; composition of the pair into a ratified partnership is a downstream read-time computation, never an admission gate.
 
-### 2.3.3 `cohort-orthogonality` — Orthogonality with `cohort_scope` AND `delivery_mode` (3-axis per CEG 0.10)
+### 2.3.3 `cohort-orthogonality` — Orthogonality with `cohort_scope` AND `delivery_mode` (3-axis)
 
-CEG envelope encodes **three independent envelope-level concerns** that compose without overlap:
+The envelope keeps visibility, revocability, and delivery as three independent concerns so they can be reasoned about — and enforced — separately. They compose without overlap:
 
 | Axis | Field | Authority | Names |
 |---|---|---|---|
@@ -159,7 +163,7 @@ the named family roster gates the membership set (family_id).
 
 This orthogonality is load-bearing for the multi-occurrence consent shape: subject-side revocation applies federation-wide regardless of producer's `occurrence_id`; per-occurrence lifecycle consent is a producer-side concern, separately tracked.
 
-The delivery axis is the **third orthogonal axis** per CEG 0.10 — CEG ≤ 0.9 encoded visibility + revocability only; the substrate had no envelope-level handle on who actively *receives* + how the substrate fans out. Per [CC 5.3.3](#5.3.3), 0.10 closes that gap with three new optional envelope fields + the new CC 5.3.3 endpoint section + a delivery extension to [CC 4.4.3.2](#4.4.3.2) Policy M.
+The delivery axis is the **third orthogonal axis**: visibility + revocability alone left the substrate with no envelope-level handle on who actively *receives* content and how the substrate fans out. Per [CC 5.3.3](#5.3.3), three optional envelope fields + the CC 5.3.3 endpoint section + a delivery extension to [CC 4.4.3.2](#4.4.3.2) Policy M close that gap.
 
 ### 2.3.4 `self-as-subject` — Self-as-subject ceremony
 
@@ -171,21 +175,19 @@ When `attesting_key_id ∈ subject_key_ids`, the Contribution is a **self-consen
 
 > A consent record is a signed declaration by a subject about the substrate's continued processing of content where that subject appears.
 
-The medical record / photo / interview / training-datum / group-chat case all share the same shape — a producer publishes a Contribution; one or more subjects appear in it; the subjects retain revocation authority. The non-medical example table at walks 13 content shapes uniformly.
+The medical record, photo, interview, training-datum, and group-chat cases all share the same shape — a producer publishes a Contribution; one or more subjects appear in it; the subjects retain revocation authority. A single shape carries thirteen distinct content cases uniformly.
 
 ### 2.3.6 `absent` — Empty/absent = status-quo
 
-`subject_key_ids: null` or `[]` is the status-quo shape (producer-only authority; same as all CEG ≤ 0.5 Contributions). All CEG 0.x consumers that don't read the field see status-quo behavior. CEG 0.6 is additive at the envelope layer.
+`subject_key_ids: null` or `[]` is the status-quo shape (producer-only authority; same as a baseline Contribution carrying no subject authority). Consumers that don't read the field see status-quo behavior. Subject authority is additive at the envelope layer — adding it never changes how an existing consumer reads an envelope that omits it.
 
 ## 2.4 `primitive` — The primitive set — 1+4
 
-# The primitive set — 1+4
+The whole grammar reduces to five wire primitives: one workhorse that makes claims, and four structural composers that operate on the claim graph itself. Minimal-and-adequate is the design discipline — fewer primitives mean a smaller surface to attack, audit, and prove conformant, which is what Integrity asks of the wire.
 
 ### 2.4.1 `structure` — The four structural composers
 
-## The four structural composers
-
-Operations on the attestation graph itself, not score-claims on entities:
+The four structural composers act on the attestation graph itself, not as score-claims on entities. They are how an attester delegates authority, replaces a row, retracts a row, or admits a row was false:
 
 | `attestation_type` | What it does | Envelope shape |
 |---|---|---|
@@ -201,9 +203,9 @@ Operations on the attestation graph itself, not score-claims on entities:
 - A **prudent-retraction** ("I'm withdrawing without claiming it was false; context has changed") is `withdraws`.
 - An **authority-source claim via delegation** ("this constitutional position derives from authority-key X in scope Y") is `delegates_to` with X as `attested_key_id` (the [CC 2.4.1.2](#2.4.1.2) reuse pattern for authority-source claims, replacing what would otherwise need a `grounding:{tradition}:{principle}` prefix that fails [CC 1.2](#1.2) T2).
 
-#### 2.4.1.1 `withdraws` — `withdraws` admission rule — CEG 0.6 broadening (semantic, not structural)
+#### 2.4.1.1 `withdraws` — `withdraws` admission rule (semantic, not structural)
 
-### `withdraws` admission rule — CEG 0.6 broadening (semantic, not structural)
+Revocation has to reach beyond the original producer without inventing new structure. The `withdraws` admission rule broadens *who* the substrate accepts a retraction from — federation-enrolled subjects, proxies for un-enrolled subjects, and delegates — while keeping the primitive itself unchanged.
 
 Substrate MUST admit a `withdraws` Contribution against target `T` when the issuer's `key_id` satisfies **ANY** of:
 
@@ -222,19 +224,13 @@ Substrate MUST admit a `withdraws` Contribution against target `T` when the issu
 
 #### 2.4.1.2 `delegates_to` — Authority-source claims via `delegates_to`
 
-### Authority-source claims via `delegates_to`
-
 A constitutional or framework claim can name its source-of-authority by emitting `delegates_to` against an `attested_key_id` representing the framework, with `delegated_scope` naming the principle. Example: a Ubuntu-substrate commitment in [CC 1.13.1](#1.13.1) commitment 2 can be expressed as `delegates_to` against the `ubuntu_relational_substrate` framework-key with `delegated_scope: ["personhood_constitutive_by_attestation"]`. Reuses the existing structural primitive rather than introducing a `grounding:{tradition}:{principle}` prefix (which would fail [CC 1.2](#1.2) T2 — "tradition" claims are interpretive, not mechanism-descriptive).
 
 #### 2.4.1.3 `recants` — The `recants` distinction matters
 
-### The `recants` distinction matters
-
 Per `PRIOR_ART_SCAN.md` Bucket 1: no prior identity system (PGP, SPKI/SDSI, W3C VC) typed epistemic-error-admission as a wire primitive distinct from retraction. CEG types both because the Recursive Golden Rule applies to attesters: admitting error is a primary act, not a derivative of retraction. Consumer policy can apply different trust adjustments to attesters who `recant` versus those who `withdraw`.
 
 ### 2.4.2 `scores` — The workhorse: `scores`
-
-## The workhorse: `scores`
 
 The federation has exactly **one** workhorse attestation primitive. Every claim about an entity — positive or negative, identity or capability or behavior or state or commitment, by any attester source — is expressed as a `scores` attestation on a named dimension.
 
@@ -264,7 +260,7 @@ Full field semantics in [CC 2.1](#2.1).
 
 ## 2.5 `reasoning` — The reasoning grammar — the eight axes
 
-These are how a consumer reasons about an envelope. They are **not wire fields**; they are the canonical questions a consumer can ask about any Attestation.
+The wire stays minimal precisely because the richness lives in how consumers *reason* about it. These eight axes are **not wire fields**; they are the canonical questions a consumer can ask about any Attestation. Nothing in the wire prescribes the verdict — the axes are the vocabulary the verdict is built from.
 
 | Axis | Question | Values |
 |---|---|---|
@@ -277,11 +273,11 @@ These are how a consumer reasons about an envelope. They are **not wire fields**
 | **Scope** | At what scale does the claim apply | self / family / community / affiliations / species / biosphere / federation |
 | **Inter-attestation relations** | How does this attestation relate to others | standalone / refers-to / supersedes / withdraws / recants / corroborates / contradicts / clarifies |
 
-`biosphere` added to Scope per (distinct from `species` which is Homo sapiens cohort). See [CC 4.1](#4.1) for the `planet` colloquial alias note.
+`biosphere` is a distinct Scope value from `species` (which is the Homo sapiens cohort). See [CC 4.1](#4.1) for the `planet` colloquial alias note.
 
 ## 2.6 `foreword` — Foreword
 
-CEG — the CIRIS Epistemic Grammar — is the federation's language for making **structured, signed, machine-checkable claims about reality and each other**. It is the wire format the federation's peers speak.
+CEG — the CIRIS Epistemic Grammar — is the federation's language for making **structured, signed, machine-checkable claims about reality and each other**. It is the wire format the federation's peers speak. Everything above is that grammar; everything below is the canonicalization discipline that makes one peer's bytes verify identically on another peer's machine — the mechanical foundation of the Integrity principle.
 
 The grammar has exactly five wire-format primitives (one workhorse + four structural composers) and an open-vocabulary dimension namespace organized by mechanism-descriptive prefixes. Consumers compose verdicts from primitive attestations using the policies in [CC 4.4](#4.4); nothing in the wire format prescribes what verdict to reach.
 
@@ -293,11 +289,11 @@ This specification has **two readerships**:
 
 Both readerships should read [CC 1.13](#1.13) first.
 
-### 2.6.1 `envelope-canonicalization` — Envelope canonicalization — JCS + the omit-vs-materialize rule (CEG 0.9 addition)
+### 2.6.1 `envelope-canonicalization` — Envelope canonicalization — JCS + the omit-vs-materialize rule
 
-Per external critical-review surface (the round-trip-determinism concern that landed against CEG ≤ 0.8). Closes the canonical-bytes ambiguity that accumulated as CEG 0.x acquired optional fields with documented defaults — `epistemic_mode`/`witness_relation`/`occurrence_*`/`stake` (pre-0.4 baseline), `oversight_mode`, `subject_key_ids`, `family_id`, `community_id`.
+This rule closes the canonical-bytes ambiguity that arises whenever an envelope carries optional fields with documented defaults — `epistemic_mode`/`witness_relation`/`occurrence_*`/`stake`, `oversight_mode`, `subject_key_ids`, `family_id`, `community_id`. Without it, two honest peers can disagree on the bytes and a valid signature fails to verify.
 
-**The hazard is structural and the reviewer named it correctly.** If Producer A omits an optional field (relying on the [CC 2.1](#2.1) documented default) and Relay R re-serializes the attestation with the default materialized into the byte stream, the canonical bytes diverge and the Ed25519 + ML-DSA-65 signatures no longer verify. Pre-§0.9 CEG implicitly required producers, substrates, relays, and consumers to all make the same choice; §0.9 makes the rule explicit and normative.
+**The hazard is structural.** If Producer A omits an optional field (relying on the [CC 2.1](#2.1) documented default) and Relay R re-serializes the attestation with the default materialized into the byte stream, the canonical bytes diverge and the Ed25519 + ML-DSA-65 signatures no longer verify. The rule below makes the discipline explicit and normative: every party — producer, substrate, relay, consumer — must make the same choice, and that choice is "preserve what the producer signed, exactly."
 
 #### 2.6.1.1 `round-trip` — The round-trip rule — defaults are interpretation-time, not encoding-time (normative)
 
@@ -321,11 +317,11 @@ Both producers compute different canonical bytes (Producer B's includes the `"ep
 - Materializing an omitted default ("the producer omitted `epistemic_mode` so I'll fill in `direct` for clarity") MUST NOT happen
 - Reordering object members on re-emission is REQUIRED (JCS lexicographic order; if a producer somehow emits non-canonical order, the relay re-canonicalizes — but member presence/absence stays fixed)
 
-This composes with the [CC 2.1.1](#2.1.1) forward-compatibility rule (which already mandates preserving unknown fields on read and re-emission). §0.9.2 extends the same preservation discipline to known-optional fields.
+This composes with the [CC 2.1.1](#2.1.1) forward-compatibility rule (which already mandates preserving unknown fields on read and re-emission); the same preservation discipline extends to known-optional fields.
 
 ##### 2.6.1.1.1 `canonicalization-array` — Array ordering + byte-field + timestamp encoding (normative — the three determinism rules JCS does NOT pin)
 
-JCS ([CC 2.6.1.3](#2.6.1.3)) canonicalizes **object member order** but is silent on three things that still let two conformant producers emit different bytes (and therefore non-verifying signatures, the §0.9 hazard). All three are pinned here once, globally, for every CEG envelope:
+JCS ([CC 2.6.1.3](#2.6.1.3)) canonicalizes **object member order** but is silent on three things that still let two conformant producers emit different bytes (and therefore non-verifying signatures, the same hazard). All three are pinned here once, globally, for every CEG envelope:
 
 1. **Array element order.** An array field is one of two kinds, stated in its [CC 2.1](#2.1)/[CC 3.1](#3.1) definition:
  - **Set-semantics** (order carries no meaning) — elements MUST be **lexicographically sorted by their JCS string form (UTF-16 code-unit order, ascending)** before signing. This is producer-independent: any producer building the set in any order yields identical bytes. **`subject_key_ids[]` and `delegates_to.delegated_scope[]` are set-semantics → sorted.**
@@ -334,11 +330,11 @@ JCS ([CC 2.6.1.3](#2.6.1.3)) canonicalizes **object member order** but is silent
  - **The base64 variant is pinned: every field documented as base64 MUST use the RFC 4648 §4 STANDARD alphabet, WITH padding, no whitespace or embedded newlines** (the `base64::engine::general_purpose::STANDARD` shape `ciris-verify-core` ships). The pin lives at the **protocol layer**: the crypto layer (`ciris-crypto`) is correctly encoding-agnostic and deals in raw bytes; the wire encoding is CEG's to pin. A variant mismatch (URL-safe alphabet, stripped padding) produces different signed bytes and a **silently non-verifying signature** — the same hazard class as the wrap-algorithm wire-string. The vector set MUST include a base64-variant case (encode→sign→verify round-trip across two independent encoders).
 3. **Timestamp encoding.** Every datetime field (`signed_at`, `asserted_at`, `valid_until`, `delegation_valid_from`/`_until`, `valid_at`, …) is the **[CC 2.6.2](#2.6.2) canonical string** — UTC literal `Z` (never `+00:00`), millisecond precision (exactly three fractional digits), `YYYY-MM-DDTHH:MM:SS.sssZ`. A producer emitting `+00:00` or a different sub-second precision produces different bytes and a non-verifying signature.
 
-With §0.9.1 (key order) + §0.9.2 (omit-vs-materialize) + these three, **byte-identity across conformant implementations is closed by construction**. The cross-impl JCS vector set MUST cover all three (a set-vs-sequence array case, a hex-vs-base64 byte case, a timestamp case) alongside the per-Contribution vectors.
+With key order (JCS) + omit-vs-materialize + these three, **byte-identity across conformant implementations is closed by construction**. The cross-impl JCS vector set MUST cover all three (a set-vs-sequence array case, a hex-vs-base64 byte case, a timestamp case) alongside the per-Contribution vectors.
 
 #### 2.6.1.2 `per-field` — Per-field encoding table (informational)
 
-The §0.9.2 rule applies uniformly to every optional [CC 2.1](#2.1) field. Catalog as of CEG 0.9:
+The omit-vs-materialize rule applies uniformly to every optional [CC 2.1](#2.1) field. Catalog:
 
 | Field | Introduced | Default per §4 | Canonical when omitted | Canonical when explicit |
 |---|---|---|---|---|
@@ -371,15 +367,15 @@ CEG envelope signing bytes are computed via **JCS — JSON Canonicalization Sche
 - Strings escaped per RFC 8259 §7 with the JCS narrowing on `\uXXXX` form
 - Numbers serialized per the ES6-derived rule (RFC 8785 §3.2.2.3) — integers without trailing `.0`, no exponent unless the magnitude requires it
 
-A CEG-Conforming Producer MUST produce signing bytes via JCS over the envelope object. A CEG-Conforming Consumer (CCC) MUST recompute signing bytes via the same JCS rule for signature verification. A CEG-Conforming Substrate (CCS) MUST preserve the as-received envelope object bytes for relay (per §0.9.2 below); it MAY store a parsed representation alongside, but the canonical-bytes contract is against the as-received form, not the parsed-and-re-serialized form.
+A CEG-Conforming Producer MUST produce signing bytes via JCS over the envelope object. A CEG-Conforming Consumer (CCC) MUST recompute signing bytes via the same JCS rule for signature verification. A CEG-Conforming Substrate (CCS) MUST preserve the as-received envelope object bytes for relay (per the round-trip rule above); it MAY store a parsed representation alongside, but the canonical-bytes contract is against the as-received form, not the parsed-and-re-serialized form.
 
-#### 2.6.1.4 `worked` — Worked attack the §0.9 rule closes
+#### 2.6.1.4 `worked` — Worked attack the rule closes
 
-Pre-§0.9 (implicit / unspecified) failure mode:
+Without the rule (implicit / unspecified) failure mode:
 
 > Alice's CEG-Conforming Producer signs an envelope omitting `epistemic_mode`. Bob's CEG-Conforming Relay receives, parses, materializes the default `"direct"`, re-serializes via JCS, and forwards to Carol. Carol receives the relay-modified envelope with the new bytes, computes JCS, verifies signature → **FAILS** because Alice signed over bytes without the `epistemic_mode` member. Carol cannot distinguish "Bob is a malicious relay corrupting the bytes" from "Bob is honestly applying defaults to be helpful." Carol rejects. The attestation is lost in transit despite no party acting in bad faith.
 
-Post-§0.9 (explicit, normative):
+With the rule (explicit, normative):
 
 > Bob's relay MUST preserve member presence/absence exactly. Bob forwards the as-received bytes. Carol's verify succeeds. The semantic interpretation step at Carol (applying default `"direct"` to the absent member) happens AFTER signature verification.
 
@@ -401,15 +397,15 @@ On signature verify:
  b. Forward original signature S unchanged
 ```
 
-#### 2.6.1.6 `section` — What CEG 0.9 (this section) documents
+#### 2.6.1.6 `section` — Scope of the canonicalization rule
 
-Scope pointer: the JCS canonicalization rules above (§0.9 JCS-as-encoding, §0.9.2 omit-vs-materialize + relay-preservation, §0.9.3 per-field catalog, §0.9.5 worked attack).
+Scope pointer: the JCS canonicalization rules above (JCS-as-encoding, omit-vs-materialize + relay-preservation, per-field catalog, worked attack).
 
-What CEG 0.9 (this section) does NOT do:
+What this rule does NOT do:
 - Introduce a new encoding format — JCS is the only encoding
 - Change any semantic interpretation — defaults still apply at interpretation time per [CC 2.1](#2.1)
-- Modify the §0.5 datetime / §0.6 hex / §0.7 time / §0.8 H3 sub-rules — those are domain-specific and compose under JCS
-- Wire-break prior 0.x emissions — pre-§0.9 emissions that omitted optional fields remain valid; pre-§0.9 emissions that explicitly emitted defaults likewise remain valid; what §0.9 normatively prohibits is RELAY-TIME mutation of presence/absence, which was always wrong but is now explicitly so
+- Modify the datetime / hex / time / H3 sub-rules — those are domain-specific and compose under JCS
+- Wire-break prior emissions — emissions that omitted optional fields remain valid; emissions that explicitly emitted defaults likewise remain valid; what the rule normatively prohibits is RELAY-TIME mutation of presence/absence, which was always wrong but is now explicitly so
 
 ### 2.6.2 `canonicalization` — Date-time canonicalization
 
@@ -426,6 +422,8 @@ Canonical form: `YYYY-MM-DDTHH:MM:SS.sssZ`. Example: `2026-05-28T13:45:09.000Z`.
 Every hex string used in canonical-bytes encoding (e.g., SHA-256 digests in `root_hash`, public-key fingerprints) MUST be **lowercase**, **unpadded** (no leading `0x`, no separators), and **byte-length-exact** (a SHA-256 digest is exactly 64 hex characters). Producers MUST emit lowercase; consumers MUST reject uppercase when verifying.
 
 ### 2.6.4 `policy-versioning` — Versioning policy
+
+The grammar can evolve only if every change announces whether it breaks the wire. SemVer makes that announcement machine-legible, so a peer knows from the version alone whether it can still interoperate.
 
 CEG follows **SemVer 2.0.0** with these mapping rules:
 
@@ -464,9 +462,9 @@ The following documents are normatively cited; implementations MUST conform to t
 
 Informational citations (Magnifica Humanitas, anthropological literature, Ubuntu philosophical literature, etc.) appear in [CC 8.6.1](#8.6.1) without normative force.
 
-### 2.6.6 `canonicalization-cell` — H3 cell canonicalization (CEG 0.8 addition)
+### 2.6.6 `canonicalization-cell` — H3 cell canonicalization
 
-Per + [CC 3.3.3](#3.3.3) `location_proof` + [CC 3.2](#3.2) `community` with `cohort_subkind: geographic`.
+Geographic claims compose with [CC 3.3.3](#3.3.3) `location_proof` and [CC 3.2](#3.2) `community` with `cohort_subkind: geographic`.
 
 Geographic primitives in CEG use [H3 hierarchical hexagonal indexing](https://h3geo.org/) as the canonical cell-identifier encoding. H3 partitions the Earth's surface into hexagonal cells at 16 resolution levels (0 = coarsest, ~4.3 M km² per cell; 15 = finest, ~0.9 m² per cell). Each cell has a 64-bit integer ID, conventionally encoded as a 15-character lowercase hex string.
 
@@ -483,7 +481,7 @@ Geographic primitives in CEG use [H3 hierarchical hexagonal indexing](https://h3
 
 #### 2.6.6.1 `location` — Rough-only enforcement for `location_proof` (normative)
 
-Per privacy invariant. A `location_proof` subject_kind Contribution ([CC 3.3.3](#3.3.3)) MUST carry `cell_resolution ≤ 7` (H3 resolution 7 hexagons average ~5 km² edge-length, sufficient for city/borough-level disclosure without block/building precision). Producers attempting to emit finer-resolution `location_proof` Contributions MUST have admission rejected at the substrate gate.
+Location disclosure is bounded by the protocol itself, not by operator goodwill — the Non-maleficence principle made mechanical. A `location_proof` subject_kind Contribution ([CC 3.3.3](#3.3.3)) MUST carry `cell_resolution ≤ 7` (H3 resolution 7 hexagons average ~5 km² edge-length, sufficient for city/borough-level disclosure without block/building precision). Producers attempting to emit finer-resolution `location_proof` Contributions MUST have admission rejected at the substrate gate.
 
 This is the wire-format-enforced privacy promise: **rough is rough by protocol**, not by operator policy. A producer cannot accidentally over-share at the protocol layer; a malformed client cannot publish a precise location even if its UI fails to gate. Substrate emits `hard_case:location_proof_resolution_violation` ([CC 3.4.2](#3.4.2)) on rejection so operators can observe malformed-producer patterns.
 
@@ -496,11 +494,11 @@ A cell `C` at resolution `R_C` is **contained within** a cell `B` at resolution 
 
 Used by community admission gates per [CC 4.4.3.2](#4.4.3.2) Policy M: a `location_proof` Contribution's `cell_id` MUST be contained within the geographic community's `geographic_constraint.cell_id` for membership admission.
 
-#### 2.6.6.3 `documents` — What CEG 0.8 documents
+#### 2.6.6.3 `documents` — Scope of the H3 rule
 
-Scope pointer: the H3 canonicalization rules above (§0.8 lowercase-hex `cell_id`, §0.8.1 rough-only `cell_resolution ≤ 7`, §0.8.2 containment for community admission).
+Scope pointer: the H3 canonicalization rules above (lowercase-hex `cell_id`, rough-only `cell_resolution ≤ 7`, containment for community admission).
 
-What CEG 0.8 does NOT do:
+What the H3 rule does NOT do:
 - Mandate H3 over alternative geospatial systems (S2, Geohash) — H3 is chosen for hex-cell uniformity, well-defined parent/child hierarchy, and protocol-agnostic absence of a centralized gazetteer dependency. Operator-internal use of other systems is unconstrained; the wire format uses H3.
 - Provide a place-name registry. Communities self-name; cell IDs are the substrate-level binding. UI may map cell IDs to human-readable names per consumer policy.
 - Restrict community-side `geographic_constraint.cell_resolution`. A community CAN scope itself at any resolution (e.g., an "Austin metro" community at resolution 5, ~250 km²; a smaller-scale "Downtown Austin" community at resolution 7, ~5 km²). The rough-only invariant applies to `location_proof`, NOT to community definitions.
@@ -513,9 +511,9 @@ Time-skew between cosigners on a single STH ([CC 5.3.1](#5.3.1)) is bounded by t
 
 For long-lived attestations carrying `valid_until` in the future, the freshness check is "the attestation has not yet reached its `valid_until`, AND the current consumer clock is within ±5 minutes of the substrate's network-consensus clock"; a consumer whose clock drifts past the skew bound MUST fail-secure (reject) rather than accept.
 
-### 2.6.8 `key_id` — NodeCode — the canonical `key_id` shorthand encoding (normative, 1.0-RC3 addition)
+### 2.6.8 `key_id` — NodeCode — the canonical `key_id` shorthand encoding (normative)
 
-Federation `key_id`s are long opaque identifiers. **NodeCode** is the **one** human-shareable shorthand — a compact, QR-able, checksummed render of a peer's identity for **bootstrap UX**. It is pinned here so **every implementation renders and parses the same code for the same key** — a cross-impl determinism requirement of the same class as [CC 2.6.3](#2.6.3) hex / [CC 2.6.1](#2.6.1) JCS. It is a deterministic *render of an existing `key_id`*, **not** a new envelope field — additive on the frozen 1+4 surface. NodeCode resolution is **DNS-free**: the decoded `key_id` resolves to a destination via the signed `transport_destination` → Reticulum chain ([CC 3.3.6.2](#3.3.6.2) / [CC 4.4.3.2.4.1](#4.4.3.2.4.1)); a NodeCode carries no hostname.
+Federation `key_id`s are long opaque identifiers, unfit for a human to type or read aloud. **NodeCode** is the **one** human-shareable shorthand — a compact, QR-able, checksummed render of a peer's identity for **bootstrap UX**. It is pinned here so **every implementation renders and parses the same code for the same key** — a cross-impl determinism requirement of the same class as [CC 2.6.3](#2.6.3) hex / [CC 2.6.1](#2.6.1) JCS. It is a deterministic *render of an existing `key_id`*, **not** a new envelope field — additive on the frozen 1+4 surface. NodeCode resolution is **DNS-free**: the decoded `key_id` resolves to a destination via the signed `transport_destination` → Reticulum chain ([CC 3.3.6.2](#3.3.6.2) / [CC 4.4.3.2.4.1](#4.4.3.2.4.1)); a NodeCode carries no hostname.
 
 **Binary payload (normative):**
 
