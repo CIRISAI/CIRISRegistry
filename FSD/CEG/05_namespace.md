@@ -1180,14 +1180,19 @@ Per [CIRISRegistry#97](https://github.com/CIRISAI/CIRISRegistry/issues/97). An *
 
 ```
 scores {
+    // ── envelope-level (§4 table — frozen surface, untouched) ──
     attesting_key_id: G,                          // the granting (sending) node
     dimension:        "consent:replication:v1",
-    score:            <positive>,
-    subject_key_ids:  [P],                         // the peer authorized to receive
-    grants:           "replication",
-    attestation_prefixes: ["capacity:", ...],      // the prefix set G consents to replicate to P
+    score:            <positive>,                 // positive-only grant; a withdraws/recants retracts (never a negative score)
+    subject_key_ids:  [P],                         // the single recipient peer authorized to receive
     cohort_scope:     "federation",
-    asserted_at:      rfc3339_canonical,
+    witness_relation: "self",                      // REQUIRED — G attests its OWN replication intent
+    valid_until:      <optional rfc3339>,          // optional — time-boxed peering (§5.6.8.7 staleness)
+    // ── payload-level (§4.2.2.3 — subject_kind selects the schema; NOT envelope fields) ──
+    subject_kind:         "consent_replication",
+    grants:               "replication",           // constant
+    attestation_prefixes: ["capacity:"],           // §0.9 JCS array, sorted ascending + deduplicated
+    asserted_at:          rfc3339_canonical,
 }
 ```
 
@@ -1195,7 +1200,11 @@ scores {
 
 **Revocation (normative).** A `withdraws`/`recants` ([§3.2.3](03_primitives.md)) from G against its own `consent:replication` grant retracts the consent. Because admission is key-rooted (above), revocation has teeth only if honored: on revoke, **the granting node MUST cease replicating the named prefixes to P and SHOULD deregister/expire P's directory authorization for them**, and **a consumer MUST treat rows replicated from G under a withdrawn grant as non-conformant** (the [§11](11_governance.md) location-proof precedent — the wire cannot un-send bytes a peer already holds; it can mark forward-only and oblige cessation). A grant carries optional `valid_until` ([§5.6.8.7](#5687-consent_record-subject_kind) semantics) for time-boxed peering.
 
-**1+4 preserved** — `consent:replication:{version}` is an open-vocabulary `consent:*` dimension on the existing `scores` type ([§11.2.1](11_governance.md)); no new attestation_type, no new envelope field, no new replication `EnvelopeKind` (it replicates as an ordinary `Attestation`). The frozen wire surface is untouched.
+**Conformance shape (locked, normative — 1.0-RC29; resolves [CIRISRegistry#98](https://github.com/CIRISAI/CIRISRegistry/issues/98)).** The grant is conformance-gradable as follows. Its **envelope-level** fields are exactly `attesting_key_id = G`, `dimension = "consent:replication:v1"`, `score > 0` (positive-only — the family's `consent:state:granted` polarity; magnitude is not load-bearing and a retraction is a `withdraws`/`recants`, never a negative score), `subject_key_ids = [P]` (the **single** recipient peer), `cohort_scope = "federation"`, `witness_relation = "self"` (**REQUIRED** — a G→P grant is G attesting about its *own* replication intent; pinning `self` is what forecloses a third party forging a grant in G's name, since only G signs with G's key as the attested-intent-holder), and optional `valid_until` (the [§4](04_envelope.md) envelope field, [§5.6.8.7](#5687-consent_record-subject_kind) staleness semantics) for time-boxed peering. The grant's parameters — `grants` (the constant `"replication"`) and `attestation_prefixes` — are **payload-level** members ([§4.2.2.3](#4223-subject_kind-is-a-payload-level-discriminator-confirm-4-resolution)) carried under `subject_kind: "consent_replication"`, **NOT** envelope fields: this is *exactly* why 1+4 is preserved — the §4 envelope table is untouched. `attestation_prefixes` is the [§0.9](00_conformance.md) JCS-canonical array of [§5](05_namespace.md) namespace-prefix strings G consents to replicate (trailing `:` significant — e.g. `"capacity:"`), **sorted ascending + deduplicated**, so two implementations holding the same grant agree byte-for-byte on `(G, P, prefix-set, validity)` and revocation-scope matching is deterministic.
+
+**Bilateral pairing + partial revocation (normative).** `G → P` and `P → G` are independent unilateral grants; each SHOULD carry `topical_relation: bilateral_pair` (the [§5.6.8.6](#5686-consent-namespace-family-ceg-06-addition) `consent:partnership_grant`/`consent:partnership_accept` precedent) so a consumer can pair them — a bilateral peering is ratified **iff both are present and live**. A `withdraws`/`recants` against a grant retracts it **whole**; a producer **narrowing** the prefix set (dropping `capacity:` while keeping another) MUST `supersedes` ([§3.2.3](03_primitives.md)) the grant with a new one carrying the narrower `attestation_prefixes` — it MUST NOT silently drop a prefix from a still-live grant (a silent narrowing is indistinguishable, to a consumer, from no change — and the cessation obligation below can only attach to an explicit retract/supersede).
+
+**1+4 preserved** — `consent:replication:{version}` is an open-vocabulary `consent:*` dimension on the existing `scores` type ([§11.2.1](11_governance.md)); no new attestation_type, no new envelope field (the `grants` / `attestation_prefixes` parameters are payload-level per §4.2.2.3, above), no new replication `EnvelopeKind` (it replicates as an ordinary `Attestation`). The frozen wire surface is untouched.
 
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 

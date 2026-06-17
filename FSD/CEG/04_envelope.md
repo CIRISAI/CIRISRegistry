@@ -101,7 +101,7 @@ These are **two distinct mechanisms**, not one:
 
 #### §4.2.2.3 `subject_kind` is a payload-level discriminator (CONFIRM-4 resolution)
 
-`subject_kind` (e.g. `consent_record`, `key_grant`, `takedown_notice`, `community`, `family`, `identity_occurrence`, `location_proof`) is a **payload-level** field — it lives inside the Contribution payload, parallel to how `external_content` carries `sub_kind` in payload. It is NOT an envelope-level field. The envelope-level fields are exactly those in the [§4](#4-the-envelope) table (`cohort_scope`, `subject_key_ids`, `community_id`, `family_id`, `delivery_mode`, etc.); `subject_kind` is the payload discriminator that selects which [§5.6.8.x](05_namespace.md) payload schema applies. The §5.6.8.7 `consent_record` example and any conformant producer payload agree byte-for-byte: `"subject_kind": "consent_record"` is a payload member.
+`subject_kind` (e.g. `consent_record`, `consent_replication` ([§5.6.8.15](05_namespace.md)), `key_grant`, `takedown_notice`, `community`, `family`, `identity_occurrence`, `location_proof`) is a **payload-level** field — it lives inside the Contribution payload, parallel to how `external_content` carries `sub_kind` in payload. It is NOT an envelope-level field. The envelope-level fields are exactly those in the [§4](#4-the-envelope) table (`cohort_scope`, `subject_key_ids`, `community_id`, `family_id`, `delivery_mode`, etc.); `subject_kind` is the payload discriminator that selects which [§5.6.8.x](05_namespace.md) payload schema applies. The §5.6.8.7 `consent_record` example and any conformant producer payload agree byte-for-byte: `"subject_kind": "consent_record"` is a payload member.
 
 #### §4.2.2.4 Bilateral ratification is consumer-policy (CONFIRM-5 resolution)
 
