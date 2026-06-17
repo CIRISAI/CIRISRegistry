@@ -284,8 +284,8 @@ The grammar has exactly five wire-format primitives (one workhorse + four struct
 CEG is **substrate-consuming**: it sits above the federation substrate (CIRISPersist for storage, CIRISVerify for crypto, CIRISEdge for transport) and below the application tier (CIRISAgent). It does not author primitives in the substrate it consumes; it composes policy over them. It is also **substrate-supplying** for the second-tier consensus crates (CIRISNodeCore for consensus, CIRISLensCore for detection) — they own slices of the dimension namespace and emit attestations that other CEG consumers read.
 
 This specification has **two readerships**:
-- **Implementers** of federation primitives consuming or emitting CEG attestations: read §1-§11 normative.
-- **Translators** mapping substantive content into CEG envelopes: read §12-§14 + the [`LANGUAGE_PRIMER.md`](../LANGUAGE_PRIMER.md) companion.
+- **Implementers** of federation primitives consuming or emitting CEG attestations: read CC 1.13-CC 4.5 normative.
+- **Translators** mapping substantive content into CEG envelopes: read CC 8.2-CC 8.1 + the [`LANGUAGE_PRIMER.md`](../LANGUAGE_PRIMER.md) companion.
 
 Both readerships should read [CC 1.13](#1.13) first.
 
@@ -327,7 +327,7 @@ JCS ([CC 2.6.1.3](#2.6.1.3)) canonicalizes **object member order** but is silent
  - **Set-semantics** (order carries no meaning) — elements MUST be **lexicographically sorted by their JCS string form (UTF-16 code-unit order, ascending)** before signing. This is producer-independent: any producer building the set in any order yields identical bytes. **`subject_key_ids[]` and `delegates_to.delegated_scope[]` are set-semantics → sorted.**
  - **Sequence-semantics** (order is meaningful) — elements retain their as-authored order. **`transport_destination.aspects[]`** (RNS hash preimage order), **`key_grant.rotation_chain`** (supersession lineage), and **`evidence_refs[]`** (producer-asserted order) are sequence-semantics → preserved. A field's definition MUST declare which kind it is; absent a declaration, set-semantics (sorted) is the default.
 2. **Byte-field string encoding.** JSON has no byte type, so every byte/binary field is a string whose encoding MUST be pinned. **Key references, hashes, and identifiers — `key_id` / `attesting_key_id` / `attested_key_id` / `subject_key_ids[]` elements, public keys, `destination_hash`, `root_hash`, fingerprints — MUST be lowercase hex per [CC 2.6.3](#2.6.3)** (no `0x`, no separators, byte-length-exact; never base64 in canonical bytes). Fields explicitly documented as base64 (e.g., `hardware_attestation`, an opaque attestation blob) use base64 as their definition states — but the *default* for any key/hash/id byte field is CC 2.6.3 lowercase hex.
- - **The base64 variant is pinned: every field documented as base64 MUST use the RFC 4648 §4 STANDARD alphabet, WITH padding, no whitespace or embedded newlines** (the `base64::engine::general_purpose::STANDARD` shape `ciris-verify-core` ships). The pin lives at the **protocol layer**: the crypto layer (`ciris-crypto`) is correctly encoding-agnostic and deals in raw bytes; the wire encoding is CEG's to pin. A variant mismatch (URL-safe alphabet, stripped padding) produces different signed bytes and a **silently non-verifying signature** — the same hazard class as the wrap-algorithm wire-string. The vector set MUST include a base64-variant case (encode→sign→verify round-trip across two independent encoders).
+ - **The base64 variant is pinned: every field documented as base64 MUST use the RFC 4648 CC 2.1 STANDARD alphabet, WITH padding, no whitespace or embedded newlines** (the `base64::engine::general_purpose::STANDARD` shape `ciris-verify-core` ships). The pin lives at the **protocol layer**: the crypto layer (`ciris-crypto`) is correctly encoding-agnostic and deals in raw bytes; the wire encoding is CEG's to pin. A variant mismatch (URL-safe alphabet, stripped padding) produces different signed bytes and a **silently non-verifying signature** — the same hazard class as the wrap-algorithm wire-string. The vector set MUST include a base64-variant case (encode→sign→verify round-trip across two independent encoders).
 3. **Timestamp encoding.** Every datetime field (`signed_at`, `asserted_at`, `valid_until`, `delegation_valid_from`/`_until`, `valid_at`, …) is the **[CC 2.6.2](#2.6.2) canonical string** — UTC literal `Z` (never `+00:00`), millisecond precision (exactly three fractional digits), `YYYY-MM-DDTHH:MM:SS.sssZ`. A producer emitting `+00:00` or a different sub-second precision produces different bytes and a non-verifying signature.
 
 With key order (JCS) + omit-vs-materialize + these three, **byte-identity across conformant implementations is closed by construction**. The cross-impl JCS vector set MUST cover all three (a set-vs-sequence array case, a hex-vs-base64 byte case, a timestamp case) alongside the per-Contribution vectors.
@@ -336,7 +336,7 @@ With key order (JCS) + omit-vs-materialize + these three, **byte-identity across
 
 The omit-vs-materialize rule applies uniformly to every optional [CC 2.1](#2.1) field. Catalog:
 
-| Field | Introduced | Default per §4 | Canonical when omitted | Canonical when explicit |
+| Field | Introduced | Default per CC 2.1 | Canonical when omitted | Canonical when explicit |
 |---|---|---|---|---|
 | `epistemic_mode` | pre-0.4 | `direct` | member absent | `"epistemic_mode":"direct"` (or other enum value) |
 | `witness_relation` | pre-0.4 | `external` | member absent | `"witness_relation":"self"` (or other enum value) |
@@ -361,11 +361,11 @@ The conditional-required fields `family_id` and `community_id` are NOT optional-
 
 CEG envelope signing bytes are computed via **JCS — JSON Canonicalization Scheme, [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785)** (Rundgren, Jordan, Erdtman; March 2020). JCS pins, in summary:
 
-- Object members sorted lexicographically by member name (UTF-16 code-unit order, RFC 8785 §3.2.3)
+- Object members sorted lexicographically by member name (UTF-16 code-unit order, RFC 8785 CC 2.4.1.1)
 - No insignificant whitespace
-- UTF-8 byte encoding (RFC 8259 §8.1)
-- Strings escaped per RFC 8259 §7 with the JCS narrowing on `\uXXXX` form
-- Numbers serialized per the ES6-derived rule (RFC 8785 §3.2.2.3) — integers without trailing `.0`, no exponent unless the magnitude requires it
+- UTF-8 byte encoding (RFC 8259 CC 4.4.3)
+- Strings escaped per RFC 8259 CC 3.4 with the JCS narrowing on `\uXXXX` form
+- Numbers serialized per the ES6-derived rule (RFC 8785 CC 2.4) — integers without trailing `.0`, no exponent unless the magnitude requires it
 
 A CEG-Conforming Producer MUST produce signing bytes via JCS over the envelope object. A CEG-Conforming Consumer (CCC) MUST recompute signing bytes via the same JCS rule for signature verification. A CEG-Conforming Substrate (CCS) MUST preserve the as-received envelope object bytes for relay (per the round-trip rule above); it MAY store a parsed representation alongside, but the canonical-bytes contract is against the as-received form, not the parsed-and-re-serialized form.
 
@@ -427,7 +427,7 @@ The grammar can evolve only if every change announces whether it breaks the wire
 
 CEG follows **SemVer 2.0.0** with these mapping rules:
 
-- **MAJOR (X.0.0)** — any wire-incompatible change: removal of an envelope field, change of a field's semantic, removal of a structural primitive, change to canonical-bytes domain-separation labels, removal or breaking-redefinition of a [CC 3.1](#3.1) prefix, change to a [CC 3.4](#3.4) reservation, or change to the §0.1 / §0.2 conformance language.
+- **MAJOR (X.0.0)** — any wire-incompatible change: removal of an envelope field, change of a field's semantic, removal of a structural primitive, change to canonical-bytes domain-separation labels, removal or breaking-redefinition of a [CC 3.1](#3.1) prefix, change to a [CC 3.4](#3.4) reservation, or change to the CC 2.6.9 / CC 2.2 conformance language.
 - **MINOR (0.X.0)** — wire-compatible additions: new prefix in [CC 3.1](#3.1), new envelope field with documented default, new composition policy in [CC 4.4](#4.4), new endpoint shape in [CC 5.3](#5.3), new optional conformance subsection. Existing Conforming Producers and Consumers continue to interoperate without modification.
 - **PATCH (0.0.X)** — clarifications, editorial fixes, additions to non-normative sections ([WITNESS_KIND_REGISTRY](../WITNESS_KIND_REGISTRY.md), glossaries [CC 8.1](#8.1)), addition to [CC 8.3](#8.3) acknowledged-gaps, fixes to non-normative examples in [CC 8.1](#8.1).
 
@@ -445,7 +445,7 @@ The following documents are normatively cited; implementations MUST conform to t
 | [FIPS-180-4] | [FIPS 180-4](https://csrc.nist.gov/pubs/fips/180-4/upd1/final) — SHA-256 and the SHA-2 family |
 | [FIPS-202] | [FIPS 202](https://csrc.nist.gov/pubs/fips/202/final) — SHA-3 / SHAKE128 / SHAKE256 / TupleHash |
 | [FIPS-204] | [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final) — ML-DSA (Module-Lattice-Based Digital Signature Algorithm); CEG uses parameter set ML-DSA-65 |
-| [RFC-3339] | [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339) — Date and Time on the Internet, with fractional-seconds disambiguation in §0.5 below |
+| [RFC-3339] | [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339) — Date and Time on the Internet, with fractional-seconds disambiguation in CC 2.6.2 below |
 | [RFC-5905] | [RFC 5905](https://www.rfc-editor.org/rfc/rfc5905) — Network Time Protocol Version 4 |
 | [RFC-6962] | [RFC 6962](https://www.rfc-editor.org/rfc/rfc6962) — Certificate Transparency; this spec's transparency-log discipline tracks 6962 except where 6962-bis (RFC 9162) supersedes |
 | [RFC-8032] | [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032) — Edwards-Curve Digital Signature Algorithm (EdDSA); specifically Ed25519 |

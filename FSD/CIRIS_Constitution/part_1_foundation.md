@@ -148,7 +148,7 @@ The principles above are the federation's *why*. The sections that follow are th
 
 ### 1.13.1 `ubuntu` — The Ubuntu commitment — relational-anthropology substrate *(informative)*
 
-Per `CIRISAgent/ContemplativeTraditions/Ubuntu.lean::F_ubuntu_primary_tradition_commitment` and [`../MISSION.md`](../../MISSION.md) §1.5:
+Per `CIRISAgent/ContemplativeTraditions/Ubuntu.lean::F_ubuntu_primary_tradition_commitment` and [`../MISSION.md`](../../MISSION.md) CC 1.13.2:
 
 > *Umuntu ngumuntu ngabantu* — a person is a person through other persons. Persons are not atomic; the relation IS the person.
 
@@ -194,7 +194,7 @@ The following are **explicitly out of scope** at the base CEG/RET layer; treatin
 - **Unobservability / anonymity.** Base CEG/RET provides neither sender/receiver anonymity nor cover traffic. Self-certifying cryptographic identities are *pseudonymous*, and the transport reveals path endpoints. Anonymity is a **separate, opt-in** mechanism (the CIRISNodeCore Anonymous Tier — Sphinx onion routing), NOT a property of base CEG.
 - **Post-compromise security (PCS) for streams.** The [CC 4.5.12.1](#45121-forward-secrecy-on-member-departure--option-a) Option-A choice is forward-only: a member removed at epoch *e* cannot read epoch *e+1*, but a *compromised current member's* key is not self-healed by a key-update the way MLS PCS provides.
 
-#### 1.13.3.2 `primitive-what` — What the structural-invisibility primitive ([§10.1.4](10_endpoints.md)) buys
+#### 1.13.3.2 `primitive-what` — What the structural-invisibility primitive ([CC 5.2](10_endpoints.md)) buys
 
 Suppressing `holds_bytes:sha256:*` for `cohort_scope: self | family` content gives **content-holding confidentiality**: a non-member cannot *discover that the bytes exist via the substrate* and cannot *fetch* them (no holder is advertised; the bytes are delivered only to admitted members via the at-rest key cascade). End-to-end content confidentiality is additionally provided by the per-epoch DEK (hybrid X25519+ML-KEM-768) and AES-256-GCM. That is the whole of what omission buys.
 

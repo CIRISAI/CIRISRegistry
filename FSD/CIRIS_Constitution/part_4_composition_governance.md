@@ -124,9 +124,9 @@ Three named human key holders. Initial state at federation genesis:
 | 2 | Eric Kudzin | 2-of-3 |
 | 3 | Haley Bradley | 2-of-3 |
 
-Hardware-attested. Permanent: no automatic decay; replacement requires out-of-band CIRIS L3C process per FEDERATION_ANNOUNCEMENT.md §4.5.3.
+Hardware-attested. Permanent: no automatic decay; replacement requires out-of-band CIRIS L3C process per FEDERATION_ANNOUNCEMENT.md CC 2.1.
 
-**Correlated-failure geometry:** two of the three holders share a household, so the 2-of-3 quorum is physically achievable from one street address — a correlated compromise/coercion surface that entrenchment makes harder to correct later. The authority at stake is the **full constitutional kill** (`EmergencyShutdown CONSTITUTIONAL` — not a recoverable pause), so the exposure is real and is not softened here; what scope isolation ([CC 4.2.1](#92-authority-scope)) does guarantee is that compromise cannot escalate *beyond* the kill — accord keys cannot sign grants, licenses, or amendments. **The mitigant is diversifying the holder set: finding new holders** (via the out-of-band replacement process, FEDERATION_ANNOUNCEMENT.md §4.5.3) so that no household — and ultimately no single jurisdiction — can assemble the quorum. This is an active obligation on CIRIS L3C, not a deferred nice-to-have.
+**Correlated-failure geometry:** two of the three holders share a household, so the 2-of-3 quorum is physically achievable from one street address — a correlated compromise/coercion surface that entrenchment makes harder to correct later. The authority at stake is the **full constitutional kill** (`EmergencyShutdown CONSTITUTIONAL` — not a recoverable pause), so the exposure is real and is not softened here; what scope isolation ([CC 4.2.1](#92-authority-scope)) does guarantee is that compromise cannot escalate *beyond* the kill — accord keys cannot sign grants, licenses, or amendments. **The mitigant is diversifying the holder set: finding new holders** (via the out-of-band replacement process, FEDERATION_ANNOUNCEMENT.md CC 2.1) so that no household — and ultimately no single jurisdiction — can assemble the quorum. This is an active obligation on CIRIS L3C, not a deferred nice-to-have.
 
 **The HUMANITY_ACCORD triple is the canonical entrenched-`family` instance.** Per [CC 3.3.4](05_namespace.md), the accord-holder triple structurally IS a `family` subject_kind with:
 
@@ -144,7 +144,7 @@ family {
 }
 ```
 
-The 2-of-3 multi-sig verifier at [CC 4.2.1.1](#921-invocation-canonical-bytes-anti-replay-01-scaffold) is the `quorum:2/3` consensus_protocol enforcement; the entrenchment property is what prevents any federation-internal authority from amending the protocol. §9 remains load-bearing for the **role-recognition policy** and the **scope-isolation** discipline. The constitutional asymmetry is "an entrenched family that is wire-scope-isolated to halt authority," not a one-off primitive. Other entrenched-family instances (a national-emergency triple, an international body, a court-ordered preservation triple) MAY appear in operator deployments; HUMANITY_ACCORD is the one CIRIS L3C deployments ship at genesis.
+The 2-of-3 multi-sig verifier at [CC 4.2.1.1](#921-invocation-canonical-bytes-anti-replay-01-scaffold) is the `quorum:2/3` consensus_protocol enforcement; the entrenchment property is what prevents any federation-internal authority from amending the protocol. CC 4.2 remains load-bearing for the **role-recognition policy** and the **scope-isolation** discipline. The constitutional asymmetry is "an entrenched family that is wire-scope-isolated to halt authority," not a one-off primitive. Other entrenched-family instances (a national-emergency triple, an international body, a court-ordered preservation triple) MAY appear in operator deployments; HUMANITY_ACCORD is the one CIRIS L3C deployments ship at genesis.
 
 ### 4.2.4 `policy-concern` — Concern split — key material vs role-recognition policy
 
@@ -242,7 +242,7 @@ The line is drawn at **"does it have a bounded membership roster?"** — yes →
 | **Community** | `community`, `affiliations` | **encrypted under the community DEK** | `holds_bytes:*` **+ cleartext provenance** | community members (DEK cascade) |
 | **Commons** | `species`, `biosphere`, `federation` | **plaintext** | `holds_bytes:*` | anyone |
 
-**Community DEK cascade (MANDATORY).** Community content (`cohort_scope: community | affiliations`) is encrypted at rest under a **per-community DEK** and emits `holds_bytes:sha256:*` carrying **cleartext provenance** (`attesting_key_id`, `community_id`, reason/dimension) so non-member holders can make an informed keep/evict decision without reading content. The community DEK **is the [CC 5.1](10_endpoints.md) epoch-DEK cascade applied to `cohort_scope: community`** — *a community is a stream its members subscribe to, cryptographically*: **one** DEK shared across emissions (per-emission cost O(1), not O(members)), wrapped to each member on admission, re-wrapped on membership change (§8.1.13.4), **`wrap_algorithm: v2` (hybrid PQC) MANDATORY** (same harvest-now-decrypt-later reasoning as [CC 4.4.3.4.1](#81124-key-grant-cascade-the-at-rest-encryption-flow) / [CC 5.1](10_endpoints.md)). This is **mandatory, not opt-in** — the tier name *is* the guarantee; a persecuted community is protected by *being a community*, not by remembering a flag. (Deliberately stronger than the [CC 4.4.3.4.1](#81124-key-grant-cascade-the-at-rest-encryption-flow) self/family opt-in: self/family has structural invisibility so at-rest crypto is defense-in-depth; community *federates*, so the DEK is its **sole** confidentiality boundary.)
+**Community DEK cascade (MANDATORY).** Community content (`cohort_scope: community | affiliations`) is encrypted at rest under a **per-community DEK** and emits `holds_bytes:sha256:*` carrying **cleartext provenance** (`attesting_key_id`, `community_id`, reason/dimension) so non-member holders can make an informed keep/evict decision without reading content. The community DEK **is the [CC 5.1](10_endpoints.md) epoch-DEK cascade applied to `cohort_scope: community`** — *a community is a stream its members subscribe to, cryptographically*: **one** DEK shared across emissions (per-emission cost O(1), not O(members)), wrapped to each member on admission, re-wrapped on membership change (CC 4.4.3.2.2), **`wrap_algorithm: v2` (hybrid PQC) MANDATORY** (same harvest-now-decrypt-later reasoning as [CC 4.4.3.4.1](#81124-key-grant-cascade-the-at-rest-encryption-flow) / [CC 5.1](10_endpoints.md)). This is **mandatory, not opt-in** — the tier name *is* the guarantee; a persecuted community is protected by *being a community*, not by remembering a flag. (Deliberately stronger than the [CC 4.4.3.4.1](#81124-key-grant-cascade-the-at-rest-encryption-flow) self/family opt-in: self/family has structural invisibility so at-rest crypto is defense-in-depth; community *federates*, so the DEK is its **sole** confidentiality boundary.)
 
 **Holder-inspectability principle (normative rationale).** Any data a host holds above local tier MUST support an informed keep/evict decision: either the holder **inspects the bytes** (Commons — plaintext, maximally inspectable, hence the *preferred* social-distribution mechanism) **or** it **inspects the provenance** (Community — the cleartext `attesting_key_id` + `community_id` + reason on an otherwise-encrypted blob) and chooses to hold opaque ciphertext for a community it trusts. **Nothing above local tier is ever a forced, unattributable opaque blob.** This is *why* the split is shaped this way and what the eviction rules (persist `EvictionSweeper` / `evict_actor`) enforce.
 
@@ -317,7 +317,7 @@ Same shape as `resolve_family` ([CC 4.4.3.4.4](#81122-family-membership-resoluti
 
 In a CEG/RET stack member resolution replaces DNS+IP: it is a chain of *signed* bindings, and every implementation MUST resolve **identically** (an interop requirement). Two normative pins:
 
-**(a) Determinism of `resolve_community`.** Where the §8.1.13.1 computation has choices, they are fixed:
+**(a) Determinism of `resolve_community`.** Where the CC 4.4.3.2.4 computation has choices, they are fixed:
 - **`now` semantics** — the resolving Consumer's own clock; membership is evaluated as of `now` (a member is included iff joined ≤ `now` and not removed ≤ `now`). No global clock assumed.
 - **"latest non-superseded"** — the `community` Contribution with the highest `signed_at`; on equal `signed_at`, the higher `canonical_bytes_hash` ([CC 2.6.1](00_conformance.md)) wins (total order, no ambiguity). The same comparator the R1/Q1 merge uses (quorum_weight DESC → signed_timestamp DESC → canonical_bytes_hash).
 - **member ordering** — the returned set is canonically ordered by `key_id` (lowercase-hex byte order) for any downstream hashing/iteration.
@@ -342,7 +342,7 @@ resolve_member_transport(C, now):
  return out // → Reticulum announce/path-request per dest
 ```
 
-The three resolutions and their trust roots: **WHO** = `resolve_community` (signed Contribution + founder-quorum) · **BINDING** = `transport_destination` (federation-key-signed `identity_occurrence`, §5.6.8.8.1) · **WHERE** = Reticulum announce/path-request (mesh, no CEG). Reachability is never trust ([CC 5.3.3.4](10_endpoints.md)): a path that answers is not an authorization; only the signed binding + quorum are.
+The three resolutions and their trust roots: **WHO** = `resolve_community` (signed Contribution + founder-quorum) · **BINDING** = `transport_destination` (federation-key-signed `identity_occurrence`, CC 3.3.6.2) · **WHERE** = Reticulum announce/path-request (mesh, no CEG). Reachability is never trust ([CC 5.3.3.4](10_endpoints.md)): a path that answers is not an authorization; only the signed binding + quorum are.
 
 **Cold-start (bootstrap).** A node that knows only `community_key_id` needs two out-of-band pins: (1) the `community_key_id` itself (trust anchor) and (2) ≥1 **seed `destination_hash`** (reachability). It reaches any one seed, pulls the signed `community` Contribution, runs `resolve_member_transport`, verifies founder-quorum against the pinned `community_key_id`, then floats on the live set thereafter. A malicious seed cannot forge membership (quorum signature check) — it can only deny service (try another seed). **Bootstrap reachability ≠ bootstrap trust.** `ciris-canonical` ([CC 3.2](05_namespace.md)) is the root community whose seeds clients pin.
 
@@ -451,7 +451,7 @@ Per CIRISNodeCore three-tier interface model. Three feed-shape composition idiom
 | **community_feed** | `{family, community, affiliations}` | cohort-weighted; expertise WITHIN cohort matters; cross-cohort attestations downweighted unless explicitly invited |
 | **global_feed** | `{species, biosphere, federation}` | full federation expertise weighting; fact-checkers (`encyclopedia:*` editors, `news:*` fact-check attestations) carry weight; [CC 4.4.1](#83-frickerian-discipline--consumer-policy-norms) Frickerian discipline applied |
 
-**Composition with [CC 3.3](05_namespace.md) sub_kinds**: each NodeCore `external_content` sub_kind (`encyclopedia_article`, `news_article`, `accord_data`, `local_data`) composes naturally across these tiers because all four use the same envelope shape. A `local_data` Contribution starts at `cohort_scope: self` and SHOULD only appear in `local_feed`; promotion to community/global widens `cohort_scope` via the `supersedes` structural primitive (see §8.1.8.1 below).
+**Composition with [CC 3.3](05_namespace.md) sub_kinds**: each NodeCore `external_content` sub_kind (`encyclopedia_article`, `news_article`, `accord_data`, `local_data`) composes naturally across these tiers because all four use the same envelope shape. A `local_data` Contribution starts at `cohort_scope: self` and SHOULD only appear in `local_feed`; promotion to community/global widens `cohort_scope` via the `supersedes` structural primitive (see CC 4.4.3.3.1 below).
 
 ##### 4.4.3.3.1 `supersedes` — Promotion via `supersedes` (worked pattern)
 
@@ -571,10 +571,10 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 | scope | authorizes the delegate to emit, on the delegator's behalf | shipped primitive |
 |---|---|---|
 | `moderate` | a `moderation:{allegation_type}` ModerationEvent + the report→`scores` path + `age_assurance:*`/`content_class:*` gates | [CC 3.1.9.2](05_namespace.md) / [CC 4.4.3.10](08_composition.md) |
-| `takedown` | a `takedown_notice` (incl. the §11.4 immediate-removal fast-path) | [CC 3.3.2](05_namespace.md) / [CC 4.5.3](11_governance.md) |
+| `takedown` | a `takedown_notice` (incl. the CC 4.5.3 immediate-removal fast-path) | [CC 3.3.2](05_namespace.md) / [CC 4.5.3](11_governance.md) |
 | `review` | a `reconsideration:{grounds}` appeal / review | [CC 3.1.9.2](05_namespace.md) |
 
-**Enforced-admission rule (normative):** a moderation action above is admitted **iff** its `attesting_key_id` is the delegator itself **or** sits on a live `delegates_to` chain bearing the matching scope from the delegator (the entity holding the duty over the target content/scope) — exactly the §3.2.3 rule-(3) proxy shape (`scope ⊇ {moderate|takedown|review}`), depth-capped per [CC 4.1.1](13_anti_patterns.md), revocable by `withdraws` against the `delegates_to`. **Reject otherwise.** Every action is therefore delegate-signed, delegator-traceable up the chain, and revocable — the [CC 4.5.3](11_governance.md) **"takedown-isn't-a-coup"** property made *structural* (coordinated + attributable + revocable, never a unilateral seizure). See [CC 4.5.5](11_governance.md). **1+4 preserved** — a `delegated_scope` vocabulary + enforcement addition over the existing `delegates_to`; the action primitives already ship; no new structural primitive.
+**Enforced-admission rule (normative):** a moderation action above is admitted **iff** its `attesting_key_id` is the delegator itself **or** sits on a live `delegates_to` chain bearing the matching scope from the delegator (the entity holding the duty over the target content/scope) — exactly the CC 2.4.1.1 rule-(3) proxy shape (`scope ⊇ {moderate|takedown|review}`), depth-capped per [CC 4.1.1](13_anti_patterns.md), revocable by `withdraws` against the `delegates_to`. **Reject otherwise.** Every action is therefore delegate-signed, delegator-traceable up the chain, and revocable — the [CC 4.5.3](11_governance.md) **"takedown-isn't-a-coup"** property made *structural* (coordinated + attributable + revocable, never a unilateral seizure). See [CC 4.5.5](11_governance.md). **1+4 preserved** — a `delegated_scope` vocabulary + enforcement addition over the existing `delegates_to`; the action primitives already ship; no new structural primitive.
 
 **Partnership WITHOUT agency — the infrastructure delegation profile.** The flow above binds an **agent** (a key with a brain) to a user as partnership **+ agency** — the scope includes `act_on_behalf` / `message_io`, so the agent reasons and acts AS the user. A **fabric/infrastructure node** ([CC 3.4.7.1](07_reserved.md); CIRISServer) needs the *partnership* (identity + the [CC 3.2](05_namespace.md) owner-binding that lets it hold non-infra membership standing under the user's authority) but MUST NOT receive agency — [CC 1.13.5](01_foundation.md) "infrastructure must not have agency." CEG pins a **reserved two-prefix scope split** so a verifier can enforce this cryptographically:
 
@@ -583,7 +583,7 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 | `infra:*` | server-class (allowed for a `node`-role delegate) | `infra:network_presence`, `infra:join_communities`, `infra:serve`, `infra:store`, `infra:attest`, `infra:transport` |
 | `agency:*` | brain-only (forbidden for a pure `node`-role delegate) | `agency:act_on_behalf`, `agency:message_io`, `agency:reason`, `agency:decide` |
 
-**Conformance:** a `delegates_to` whose `attested_key_id` resolves to an identity whose `identity_type` ([CC 3.4.7.1](07_reserved.md)) is `node`-only (no `agent`/brain) MUST carry **only** `infra:*` scopes; a verifier MUST **reject** (treat as non-conformant, never grant) an `infra`-only key presenting any `agency:*` scope. This makes §1.3 a wire-checkable invariant: a user-owned fabric node can serve + hold group-membership *standing* under the user's authority, but the delegation **literally cannot carry agency**. The legacy unprefixed kinds above remain valid for `agent`-role delegates (the Self-at-login agency profile) and are the `agency:*` / `infra:network_presence` equivalents; new **infra** delegations SHOULD use the explicit `infra:*` prefixes.
+**Conformance:** a `delegates_to` whose `attested_key_id` resolves to an identity whose `identity_type` ([CC 3.4.7.1](07_reserved.md)) is `node`-only (no `agent`/brain) MUST carry **only** `infra:*` scopes; a verifier MUST **reject** (treat as non-conformant, never grant) an `infra`-only key presenting any `agency:*` scope. This makes CC 1.13.5 a wire-checkable invariant: a user-owned fabric node can serve + hold group-membership *standing* under the user's authority, but the delegation **literally cannot carry agency**. The legacy unprefixed kinds above remain valid for `agent`-role delegates (the Self-at-login agency profile) and are the `agency:*` / `infra:network_presence` equivalents; new **infra** delegations SHOULD use the explicit `infra:*` prefixes.
 
 **Cohabitation (`agent = node + brain`):** when both compose in one process, the node holds **partnership-without-agency** (`infra:*` — identity + membership standing) and the brain layers **Self-at-login partnership-with-agency** (`agency:*` — reasoning) as a *separate* `delegates_to`. Two delegations, two scope classes, independently revocable — the user can strip the brain's agency while the fabric node keeps serving.
 
@@ -593,7 +593,7 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 
 ###### 4.4.3.4.3.1 `canonicalization-signing` — Signing member sets (normative — the JCS contract Verify hybrid-signs)
 
-Each of the three Self-at-login Contributions is hybrid-signed over `JCS(envelope)` ([CC 2.6.1](00_conformance.md) / RFC 8785), and at login promoted to federation-tier (the [CC 5.3.2.4.2](10_endpoints.md) promotion canonicalizes the **exact committed member set** — omit-vs-materialize ([CC 2.6.1.1](00_conformance.md)) is load-bearing; the signer MUST NOT re-default). **The [CC 2.6.1.1.1](00_conformance.md) determinism rules apply**: `subject_key_ids[]` and `delegated_scope[]` are **lexicographically sorted** (set-semantics); `aspects[]` retains RNS order (sequence-semantics); all key/hash/pubkey byte fields (`*_key_id`, `subject_key_ids[]`, the two reticulum pubkeys, `destination_hash`) are **lowercase hex per [CC 2.6.3](00_conformance.md)**; all timestamps are **[CC 2.6.2](00_conformance.md)-canonical**. The member sets the producer commits (and which `JCS` therefore covers) are pinned below. Optional [CC 2.1](04_envelope.md) envelope fields not listed ride the §0.9.2 omit rule (absent unless the producer sets them).
+Each of the three Self-at-login Contributions is hybrid-signed over `JCS(envelope)` ([CC 2.6.1](00_conformance.md) / RFC 8785), and at login promoted to federation-tier (the [CC 5.3.2.4.2](10_endpoints.md) promotion canonicalizes the **exact committed member set** — omit-vs-materialize ([CC 2.6.1.1](00_conformance.md)) is load-bearing; the signer MUST NOT re-default). **The [CC 2.6.1.1.1](00_conformance.md) determinism rules apply**: `subject_key_ids[]` and `delegated_scope[]` are **lexicographically sorted** (set-semantics); `aspects[]` retains RNS order (sequence-semantics); all key/hash/pubkey byte fields (`*_key_id`, `subject_key_ids[]`, the two reticulum pubkeys, `destination_hash`) are **lowercase hex per [CC 2.6.3](00_conformance.md)**; all timestamps are **[CC 2.6.2](00_conformance.md)-canonical**. The member sets the producer commits (and which `JCS` therefore covers) are pinned below. Optional [CC 2.1](04_envelope.md) envelope fields not listed ride the CC 2.6.1.1 omit rule (absent unless the producer sets them).
 
 **(a) `consent:partnership_grant:v1` (user side) / `consent:partnership_accept:v1` (agent side)** — bare `scores` ([CC 3.3.1](05_namespace.md)) bound by `bilateral_pair_id`:
 ```
@@ -605,7 +605,7 @@ Each of the three Self-at-login Contributions is hybrid-signed over `JCS(envelop
  bilateral_pair_id:<shared pair id>, // §8.1.11.4 binding mechanism
  signed_at: <rfc3339_canonical> }
 ```
-> **Version segment pinned.** The dimension carries the `:v1` version segment — `consent:partnership_grant:v1` / `consent:partnership_accept:v1` — to satisfy the [CC 4.1.3](13_anti_patterns.md) `scores` version-segment gate. The `:v1` is the partnership-ceremony schema version (bump to `:v2` only if the bilateral shape changes); the shared `bilateral_pair_id` remains the §8.1.11.4 binding mechanism.
+> **Version segment pinned.** The dimension carries the `:v1` version segment — `consent:partnership_grant:v1` / `consent:partnership_accept:v1` — to satisfy the [CC 4.1.3](13_anti_patterns.md) `scores` version-segment gate. The `:v1` is the partnership-ceremony schema version (bump to `:v2` only if the bilateral shape changes); the shared `bilateral_pair_id` remains the CC 4.4.3.5.3 binding mechanism.
 
 **Canonical signed member set for the two `:v1` envelopes.** Both impls MUST canonicalize (and thus hybrid-sign) **exactly** this member set, or the JCS bytes — and the signatures — diverge. The set is the [CC 3.3.1](05_namespace.md) bare-`scores` shape; these seven members are **REQUIRED** (present in the JCS for both `grant` and `accept`):
 
@@ -653,7 +653,7 @@ Each of the three Self-at-login Contributions is hybrid-signed over `JCS(envelop
 
 Registry owns these member sets (this section); Verify computes `JCS(...)` + the hybrid Ed25519+ML-DSA-65 signature over each via `jcs::canonicalize`; the promotion signature ([CC 5.3.2.4.2](10_endpoints.md) OQ-4) is the identical JCS bytes.
 
-**`encryption_pubkeys` joins member set (c).** When the occurrence carries the [CC 3.3.6.1](05_namespace.md) `encryption_pubkeys` field-set, both halves are **inside the signed JCS bytes** as opaque base64 strings (RFC 4648 STANDARD, padded — the [CC 2.6.1.1.1](00_conformance.md) rule-2 pin). Optional presence rides the §0.9.2 omit rule (absent unless the producer sets it; the signer MUST NOT re-default). They are payload, never verification material — neither half may be fed to a signature-verify path (the §5.6.8.8.2 key-separation rule, type-enforced in Verify).
+**`encryption_pubkeys` joins member set (c).** When the occurrence carries the [CC 3.3.6.1](05_namespace.md) `encryption_pubkeys` field-set, both halves are **inside the signed JCS bytes** as opaque base64 strings (RFC 4648 STANDARD, padded — the [CC 2.6.1.1.1](00_conformance.md) rule-2 pin). Optional presence rides the CC 2.6.1.1 omit rule (absent unless the producer sets it; the signer MUST NOT re-default). They are payload, never verification material — neither half may be fed to a signature-verify path (the CC 3.3.6.1 key-separation rule, type-enforced in Verify).
 
 ##### 4.4.3.4.4 `family-membership` — Family membership resolution
 
@@ -704,7 +704,7 @@ The root `I` itself is implicitly a member (the identity_key is always an admiss
 
 `identity_occurrence` + `family` (membership / visibility scoping) compose cleanly with `subject_key_ids[]` (revocation authority):
 
-- A `cohort_scope: family` Contribution naming `subject_key_ids: [user_canonical_hash]` is admitted at family visibility AND the named subject retains independent revocation authority per §8.1.11.
+- A `cohort_scope: family` Contribution naming `subject_key_ids: [user_canonical_hash]` is admitted at family visibility AND the named subject retains independent revocation authority per CC 4.4.3.5.
 - A `cohort_scope: self` Contribution that Alice writes about Bob (Bob in `subject_key_ids`) stays in Alice's self-collective (Bob does NOT receive a key_grant unless Bob's identity is in Alice's self — which it isn't). Bob's subject-side revocation authority still composes: Bob CAN issue `withdraws` against Alice's Contribution; admission emits `hard_case:consent_sla_breach` clock-start if Alice committed `consent:deletion_sla`.
 
 The orthogonality holds: **`cohort_scope` is producer-side visibility scoping**; **`identity_occurrence` + `family` are substrate-side membership primitives that gate at-rest DEK wrapping**; **`subject_key_ids` is subject-side revocation authority**. Three independent envelope-level concerns that compose without overlap.
@@ -771,7 +771,7 @@ ratified_pair(pair_id):
 
 ##### 4.4.3.5.4 `multi-subject` — Multi-subject revocation (any-subject-binding)
 
-When `len(T.subject_key_ids) > 1`, each subject is an **independent** revocation authority. A `withdraws` admitted under [CC 2.4.1.1 rule 2 or 3](03_primitives.md) from ANY single subject in `T.subject_key_ids` evicts the Contribution. Consumer policy MUST treat `T` as revoked from the perspective of all subjects (no "majority-rules" or "all-subjects-must-agree" softening) — this is the subject-as-individual principle from MISSION.md §1.5 applied at the subject-authority layer.
+When `len(T.subject_key_ids) > 1`, each subject is an **independent** revocation authority. A `withdraws` admitted under [CC 2.4.1.1 rule 2 or 3](03_primitives.md) from ANY single subject in `T.subject_key_ids` evicts the Contribution. Consumer policy MUST treat `T` as revoked from the perspective of all subjects (no "majority-rules" or "all-subjects-must-agree" softening) — this is the subject-as-individual principle from MISSION.md CC 1.13.2 applied at the subject-authority layer.
 
 Concrete cases:
 - Group photo with three subjects: any one subject revokes → the photo is evicted from federation propagation.
@@ -807,10 +807,10 @@ Substrate MAY cache the resolution per `(T, s)` keyed on the latest `asserted_at
 | CIRISAgent CEM stream | Policy K composition |
 |---|---|
 | **TEMPORARY** (14d default) | `consent:state:granted` + envelope `valid_until = asserted_at + 14d` + auto-renew dimension on interaction (consumer-policy concern) |
-| **PARTNERED** | Bilateral pair per §8.1.11.4: subject `consent:partnership_grant` + producer `consent:partnership_accept` under same `bilateral_pair_id`; no `valid_until` |
-| **ANONYMOUS** | Revocation + decay-protocol per §8.1.11.5: substrate emits stage milestones; agent honors stage-appropriate processing constraints |
+| **PARTNERED** | Bilateral pair per CC 4.4.3.5.3: subject `consent:partnership_grant` + producer `consent:partnership_accept` under same `bilateral_pair_id`; no `valid_until` |
+| **ANONYMOUS** | Revocation + decay-protocol per CC 4.4.3.5.1: substrate emits stage milestones; agent honors stage-appropriate processing constraints |
 
-Per CEG's [§3.4 MISSION.md](../../MISSION.md) layering: CIRISAgent's three streams are a **named bundle** at the consumer-policy layer. Other agents MAY compose other streams over the same wire primitives. CEG documents the canonical bundle for ecosystem coordination; CEG does not lock the bundle.
+Per CEG's [CC 2.4 MISSION.md](../../MISSION.md) layering: CIRISAgent's three streams are a **named bundle** at the consumer-policy layer. Other agents MAY compose other streams over the same wire primitives. CEG documents the canonical bundle for ecosystem coordination; CEG does not lock the bundle.
 
 #### 4.4.3.6 `policy-attestation` — Policy I — Attestation-Ladder Composition
 
@@ -884,7 +884,7 @@ The composition has three layers (analogous to [CC 4.4.3.7](#816-policy-f--agent
 
 **Layer 1 — Distributor attestation chain**: an `external_content` Contribution with `sub_kind: film` (or any media sub_kind) carries a distributor attestation that chains to a federation_key with `identity_type: distributor`. Distributor identity is established via [CC 3.1.1](05_namespace.md) Registry partner_role machinery + an out-of-band distributor-onboarding flow (operator's choice — CIRIS L3C maintains a default trust set; community-run substrates maintain their own).
 
-**Layer 2 — Content-class + content-rating composition**: consumer gates by combining `content_class:{class}` + `content_rating:{scheme}:{rating}` per §5.6.8.3:
+**Layer 2 — Content-class + content-rating composition**: consumer gates by combining `content_class:{class}` + `content_rating:{scheme}:{rating}` per CC 3.3.12:
 
 ```
 gate_decision(content) = match (content.content_class, content.content_rating, consumer.preferences):
@@ -897,7 +897,7 @@ gate_decision(content) = match (content.content_class, content.content_rating, c
 
 Layered with [CC 4.4.1](#83-frickerian-discipline--consumer-policy-norms) — `cw_class:*` declarations from low-attestation-density cohorts MUST NOT be downweighted; they ride alongside the gate decision as informational.
 
-**Layer 3 — Age-assurance gating**: for content where `content_rating:*` rises above an age threshold (e.g. PEGI 18, MPAA NC-17), consumer gates via `age_assurance:{level}` per §5.6.8.3:
+**Layer 3 — Age-assurance gating**: for content where `content_rating:*` rises above an age threshold (e.g. PEGI 18, MPAA NC-17), consumer gates via `age_assurance:{level}` per CC 3.3.12:
 
 ```
 age_gate(content, consumer):
@@ -908,13 +908,13 @@ age_gate(content, consumer):
 
 Where the `age_assurance:{level}` ordering is: `self < provider:{verifier_key}:adult < government:{credential_class}:adult`. Consumer SHOULD accept the strongest assurance the user has provided; substrate MUST NOT issue `slashing:*` on age-assurance misdeclaration alone — `moderation:age_assurance_misdeclaration` is the adjudication path per [CC 3.1.9.2](05_namespace.md).
 
-**Anti-tricking guarantee parallel to §8.1.6**: the canonical-distributor Layer 1 rule MUST apply regardless of vote accumulation. No amount of NodeCore P4 vote weight elevates an unverified distributor into Layer 1; the only path is the operator-set trust list. Binds CIRIS L3C: cannot exempt itself from this rule for its own content distribution.
+**Anti-tricking guarantee parallel to CC 4.4.3.7**: the canonical-distributor Layer 1 rule MUST apply regardless of vote accumulation. No amount of NodeCore P4 vote weight elevates an unverified distributor into Layer 1; the only path is the operator-set trust list. Binds CIRIS L3C: cannot exempt itself from this rule for its own content distribution.
 
 #### 4.4.3.11 `policy-trust` — Policy G — Trust-Fresh / Lighthouse
 
 Composition pattern recognized in stories — `cert_validity:{authority} + transparency_log:inclusion + (attestation:registry_consensus OR attestation:license_validity)` recurred organically across ~20 substrate stories as the "freshness + attested + verified" idiom.
 
-Reads as: the consumer wants confirmation that (a) the cert chain is currently valid; (b) the attestation appears in a transparency log; (c) either `attestation:registry_consensus` (the ladder's L3 position per §8.1.9 Policy I) or `attestation:license_validity` (L4) is satisfied. The combination is the consumer-side recipe for "this attestation is fresh AND verified AND multi-source-consensus-backed."
+Reads as: the consumer wants confirmation that (a) the cert chain is currently valid; (b) the attestation appears in a transparency log; (c) either `attestation:registry_consensus` (the ladder's L3 position per CC 4.4.3.6 Policy I) or `attestation:license_validity` (L4) is satisfied. The combination is the consumer-side recipe for "this attestation is fresh AND verified AND multi-source-consensus-backed."
 
 Not a wire primitive; a recognized composition pattern that consumer libraries SHOULD expose as a named one-call helper.
 
@@ -930,7 +930,7 @@ Consumer applies transitive-trust propagation across the full attestation graph,
 
 A Sovereign agent scoring `licensure:CA_medical_board: +1.0` is wire-format identical to a Registry-steward scoring the same. Consumer policy weights by attester source; the substrate is source-neutral. M-1's symmetry is structural, not bolted on.
 
-Per [`../MISSION.md`](../../MISSION.md) §1.1: both paths produce federation membership; neither is a gate. What differs is the *attestation surface* — the kind of claim the federation can compose about why a participant is trustworthy.
+Per [`../MISSION.md`](../../MISSION.md) CC 1.13.4: both paths produce federation membership; neither is a gate. What differs is the *attestation surface* — the kind of claim the federation can compose about why a participant is trustworthy.
 
 ## 4.5 `discipline` — Governance discipline
 
@@ -1008,7 +1008,7 @@ Per [CC 2.3.1](04_envelope.md). Dimensions whose namespace pattern names a subje
 | **FERPA 34 CFR Part 99** (educational records) | `subject_key_ids: [student_key]` + `delegates_to(parent_key → student_canonical_hash, scope: [consent_revocation])` for minors | Parental authority composes via the existing `delegates_to` primitive; no new shape needed |
 | **CCPA §1798.105** (right to delete) | Same composition as GDPR Article 17 | Substrate-watched SLA + `consent:deletion_complete` |
 | **EU AI Act Article 50** (training data transparency + opt-out) | `consent:scope:train` + `is_ai_generated` field at content publish + subject's `consent:state:revoked` against the training-datum Contribution | Subject can withdraw training-set consent; producer's deletion-SLA fires on the training-corpus Contribution |
-| **CIRIS Accord M-1** (sustainable adaptive coherence — consent revocability) | The entire subject-authority surface | The constitutional anchor — "consent (M-1's load-bearing property) requires revocability, and revocability requires a halt-authority that lives outside the system being halted" ([CC 4.2](09_humanity_accord.md) + MISSION.md §1.5). This recognition extends from accord-carriers (federation-as-a-whole halt) to all subject-authorities (per-Contribution halt) at scale. |
+| **CIRIS Accord M-1** (sustainable adaptive coherence — consent revocability) | The entire subject-authority surface | The constitutional anchor — "consent (M-1's load-bearing property) requires revocability, and revocability requires a halt-authority that lives outside the system being halted" ([CC 4.2](09_humanity_accord.md) + MISSION.md CC 1.13.2). This recognition extends from accord-carriers (federation-as-a-whole halt) to all subject-authorities (per-Contribution halt) at scale. |
 
 CEG does NOT prescribe which regulatory framework an operator MUST comply with; the wire primitives compose to ANY of them based on operator policy. Operators in regulated verticals (medical / legal / financial / educational) SHOULD pin compliance mappings as configuration above the wire primitives, not as new wire shapes.
 
@@ -1148,8 +1148,8 @@ Set membership grants the wire-level *right* to emit per held role, but two role
 | Surface | Representation |
 |---|---|
 | `federation_keys.identity_type` representation | set of role strings (legacy scalar = singleton set) |
-| §7 emitter-rule evaluation | `X ∈ identity_type` ([CC 3.4.7.1](07_reserved.md)) |
-| §5 dimension namespace | unchanged |
+| CC 3.4 emitter-rule evaluation | `X ∈ identity_type` ([CC 3.4.7.1](07_reserved.md)) |
+| CC 3.1 dimension namespace | unchanged |
 | Envelope ([CC 2.1](04_envelope.md)) | unchanged |
 | 1+4 structural primitives ([CC 2.4](03_primitives.md)) | unchanged |
 | subject_kinds ([CC 3.3](05_namespace.md)) | unchanged |
@@ -1164,13 +1164,13 @@ This is a wire-break at the `federation_keys` row representation only. It is **s
 
 #### 4.5.8.4 `documents-what-6` — What this documents
 
-- The set-membership reading of every §7 reserved-prefix emitter rule ([CC 3.4.7.1](07_reserved.md))
+- The set-membership reading of every CC 3.4 reserved-prefix emitter rule ([CC 3.4.7.1](07_reserved.md))
 - The canonical-bytes encoding for the set (sorted-ascending, deduplicated, comma-joined; single-role keys encode identically to their scalar form)
 - The LensCore-fold worked example ([CC 3.4.8](07_reserved.md))
 - The cohabitation discipline for constitutional + substrate roles (CC 4.5.8.1)
 
 What it does NOT do:
-- Expand the §5 dimension namespace, the §4 envelope, the §3 structural-primitive set, or the §5.6.8 subject_kinds (zero new wire surface beyond the `identity_type` representation)
+- Expand the CC 3.1 dimension namespace, the CC 2.1 envelope, the CC 2.4 structural-primitive set, or the CC 3.3 subject_kinds (zero new wire surface beyond the `identity_type` representation)
 - Enumerate a closed set of role values — `identity_type` members remain an open vocabulary owned per [CC 3.4](07_reserved.md) reservations + sibling-component vocabulary extensions
 - Forbid any cohabitation at the wire layer (substrate enforces gates by membership; constitutional/substrate cohabitation discipline is consumer/operator policy per CC 4.5.8.1)
 - Address `affiliations` (the fourth `cohort_scope` tier; remains deferred to a later candidate round)
@@ -1290,7 +1290,7 @@ A new `identity_occurrence` is admitted on a signature from EITHER the root `ide
 
 **Rationale**: matches user-intuition for self-membership ("my phone unlocks my laptop's trust posture for new devices"); avoids the operational overhead of multi-vouch for routine onboarding; the security gradient lives in the optional `hardware_attestation` field, not in the admission rule.
 
-#### 4.5.12.4 `reservation-reserved` — Reserved-prefix substrate emissions — locked in §7.7
+#### 4.5.12.4 `reservation-reserved` — Reserved-prefix substrate emissions — locked in CC 3.4.4
 
 Per [CC 3.4.4](07_reserved.md). The four substrate-emitted membership-event prefixes (`hard_case:identity_occurrence_added:*`, `hard_case:family_membership_change:*`, `hard_case:family_consensus_protocol_change:*`, `hard_case:family_consensus_protocol_violation:*`) are reserved to `identity_type="substrate_persist"` emitters. Same discipline as the existing `system:*` substrate-self-report family.
 

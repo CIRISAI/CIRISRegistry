@@ -1,31 +1,30 @@
-source_chapter,origin,source_file,cc_decimal_range,n_cc_sections,C0_fidelity,C1_byte_exact,C2_superior,readability,verdict,n_issues,reviewer,notes
-§0,ceg,00_conformance.md,2.2–2.6.9.1,22,FAIL,FAIL,NO,4,REJECT,10,cc-validation wf,"As a navigational summary the prose is genuinely clearer and the seam-weaving (binding conformance to integrity, the round-trip rule to byte-level integrity, rough-only to a privacy floor) is a real i"
-§1,ceg,01_foundation.md,1.2–1.13.5,11,FAIL,PASS,NO,4,REJECT,4,cc-validation wf,"The seam-weaving (binding T2 to non-maleficence, fail-secure to the σ rule, 1+4 to M-1's adaptive clause) and the dual-ID navigation are genuine readability gains, and CC 1.2 (admission gate) is a cle"
-§2,ceg,02_grammar.md,2.5,1,FAIL,NA,NO,3,REJECT,1,cc-validation wf,
-§3,ceg,03_primitives.md,2.4–2.4.2,6,PASS,PASS,YES,5,ACCEPT-WITH-FIXES,3,cc-validation wf,"The CC binds each primitive to the principle it serves (delegates_to→the federation's delegation model; withdraws→revocability/autonomy; recants→the coherence ratchet) making the *why* explicit, impor"
-§4,ceg,04_envelope.md,2.1–2.3.6,13,FAIL,FAIL,NO,4,REJECT,6,cc-validation wf,The seam-weaving is real and good: the three-role envelope framing (who&what / who-it's-about-and-who-may-revoke / how-to-weigh) and the visibility/revocability/delivery axis naming bound to autonomy 
-§5,ceg,05_namespace.md,3.1–3.3.14,47,PASS,FAIL,NO,5,REJECT,7,cc-validation wf,"The narrative re-framing is genuinely good — the seam-weaving (each prefix bound to the M-1 principle it serves: justice↔open-vocabulary, autonomy↔consent/location opt-in, non-maleficence↔apophatic/ro"
-§6,ceg,06_relations.md,3.5–3.5.1,2,PASS,PASS,YES,5,ACCEPT-WITH-FIXES,4,cc-validation wf,"CC adds genuine, loss-free value: it binds the relations mechanism to the 1+4 adequacy claim (""all eight relational stances with only the four frozen composers plus the natural arithmetic of scores — "
-§7,ceg,07_reserved.md,3.4–3.4.10,13,PASS,FAIL,YES,5,ACCEPT-WITH-FIXES,5,cc-validation wf,"As a spine/summary the CC is markedly clearer and better-organized than CEG §7: it opens with the fail-secure *why* (reservation as the namespace's fail-secure boundary, bound to 1.5) before the rules"
-§8,ceg,08_composition.md,4.4–4.4.4,43,FAIL,FAIL,NO,4,REJECT,6,cc-validation wf,"The seam-weaving in the rendered sections IS genuinely superior where present — binding Policy E quorum to WA-recusal feasibility, the community crypto tier to non-maleficence, sovereign equivalence t"
-§9,ceg,09_humanity_accord.md,4.2–4.2.5,9,PASS,PASS,YES,5,ACCEPT,2,cc-validation wf,Concrete improvements with zero meaningful loss: (1) the 4.2 opening hoists the load-bearing M-1→consent→revocability→outside-the-system argument to the front and binds the asymmetry explicitly to aut
-§10,ceg,10_endpoints.md,5.1–5.3.6.1,35,FAIL,PASS,YES,5,REJECT,3,cc-validation wf,Where it is faithful it is clearly superior: the Part-V preamble names a single thesis (content moves without the network learning it exists) and orders epoch-keying + structural-invisibility first by
-§11,ceg,11_governance.md,4.5–4.5.12.6,37,FAIL,FAIL,NO,5,REJECT,7,cc-validation wf,The rendered sections ARE superior: the seam-weaving binds each mechanism to its principle (operational-language gate as the safe-vs-censor line; takedown-isn't-a-coup fenced like the halt-authority; 
-§12,ceg,12_translation.md,8.2–8.2.4,5,PASS,PASS,YES,5,ACCEPT-WITH-FIXES,5,cc-validation wf,"CC is clearer and better-framed: the opening seam (""keeps the federation a measurement system rather than a tribunal; not every morally serious sentence is a wire claim, and pretending otherwise is ho"
-§13,ceg,13_anti_patterns.md,4.1–4.1.5,6,FAIL,FAIL,NO,5,REJECT,5,cc-validation wf,"The reorganization is genuinely strong — discipline-pattern (4.1.2) stated first because it explains the rest, explicit seam-weaving to admission-gate T2, the Ubuntu commitment, and the minimal-and-ad"
-§14,ceg,14_glossaries.md,8.1–8.1.5,6,FAIL,FAIL,NO,5,REJECT,6,cc-validation wf,"The seam-weaving is genuinely good — binding the glossary to integrity (8.1.2–8.1.4), tying `ciris-canonical` to fail-secure/peaked-flat (8.1.1), and framing supersedes as M-1's adaptive clause (8.1.5"
-§15,ceg,15_gaps.md,8.3–8.3.7,8,FAIL,NA,NO,4,REJECT,4,cc-validation wf,"The prose framing (""the federation's own ledger of what it is unsure of,"" ""naming a limit is itself an act of integrity"") is more readable than the source's terse tables, and the seam-weaving to integ"
-§16,ceg,16_references.md,8.6–8.6.4,5,PASS,NA,YES,5,ACCEPT-WITH-FIXES,3,cc-validation wf,"The CC is better-organized and more readable on framing: it converts a flat 40-row changelog into a thesis — ""the lineage is the document's own coherence ratchet,"" anchored on the two threads (1+4 fro"
-§17,ceg,17_cadence.md,8.5,1,PASS,NA,YES,5,ACCEPT-WITH-FIXES,2,cc-validation wf,Seven bullets condensed to one clear sentence with no substantive loss; seam-weaving line added; bit-rotting timestamp dropped; dual-ID navigation. Net superior modulo two minor C0 softenings.
-§18,ceg,18_interop.md,8.4–8.4.3,7,PASS,PASS,YES,5,ACCEPT-WITH-FIXES,5,cc-validation wf,"The CC is clearer and better-organised: it importance-orders the subsections (governing principle 8.4.3 first, then the one fully-written profile 8.4.2, then the stub table 8.4.1) rather than the sour"
-§19,ceg,19_holonomic.md,6.1–6.1.8,14,PASS,PASS,YES,5,ACCEPT-WITH-FIXES,5,cc-validation wf,"The CC is markedly clearer with no contentful loss for the concepts it carries. Genuine improvements: (1) seam-weaving — each guardrail bound to the principle it serves (WW-blindness→non-maleficence, "
-Book 0 — Genesis / the parable,accord,CIRISAgent/ACCORD.md,1.14–1.14.7,8,FAIL,NA,NO,3,REJECT,3,cc-validation wf,"A document that contains a meta-description of the parable plus a promise to add it later cannot be ""superior with zero loss"" — the loss is total. There is nothing to compare for clarity because the s"
-Book I — Becoming an Ethical Entity,accord,CIRISAgent/ACCORD.md,1.15–1.15.11,12,FAIL,NA,NO,3,REJECT,6,cc-validation wf,"Cannot be superior: there is no rendered content to compare. The 12 assigned sections are TOC stubs plus a single deferred spine bullet. A one-line paraphrase that drops every mechanism, threshold, an"
-Book I — Meta-Goal & Principles,accord,CIRISAgent/ACCORD.md,1.1–1.12,8,FAIL,NA,NO,4,REJECT,6,cc-validation wf,"The CC's seam-weaving (binding each principle to M-1 and to concrete mechanisms), importance-ordering, dual-ID addressing, and plainer principle one-liners are real readability gains over the source's"
-Book II — PDMA / WBD / Wise Authorities,accord,CIRISAgent/ACCORD.md,1.3–4.3,10,FAIL,NA,NO,4,REJECT,7,cc-validation wf,"The seam-weaving is genuinely strong — binding PDMA step 7 / WBD / WA into one routing story (1.3→1.9→4.3), tying the Veto to M-1's anti-monoculture intent, and tying WBD to Incompleteness Awareness a"
-Book III — Case Studies,accord,CIRISAgent/ACCORD.md,8.7–8.7.8,9,FAIL,NA,NO,5,REJECT,4,cc-validation wf,"The CC rendering is genuinely more readable and better seam-woven: bulleted source studies become flowing prose with explicit cross-links (WBD, Order-Maximisation Veto, Recursive Golden Rule) and shar"
-Book IV — Obligations,accord,CIRISAgent/ACCORD.md,7.1–7.1.6,7,FAIL,NA,NO,4,REJECT,4,cc-validation wf,"The CC rendering is genuinely clearer and better organized — it binds each duty to the principle/M-1 it serves (the seam-weaving), explains WHY the priority order is the same fail-secure logic as the "
-Book V — Ethical Becoming,accord,CIRISAgent/ACCORD.md,7.2–7.2.8,9,FAIL,NA,NO,4,REJECT,3,cc-validation wf,"The seam-weaving is genuinely strong — each chapter is bound to the principle/M-1 clause it serves (7.2.1→M-1 adaptive clause, 7.2.2→Recursive Golden Rule 1.13.2, 7.2.3→Order-Maximisation Veto 1.3.1, "
-Book VI — Creation Ethics / Stewardship Tiers,accord,CIRISAgent/ACCORD.md,7.3–7.3.6,7,FAIL,NA,NO,4,REJECT,6,cc-validation wf,CC is markedly more readable and the seam-weaving (ST tiers to PDMA rigour; ST ladder vs Autonomy Tiers A0-A4 as orthogonal ladders; kill-switch and transfer-of-control linked to sunset 7.5) genuinely
-Book VII — Use-of-Force Ethics,accord,CIRISAgent/ACCORD.md,7.4–7.4.20,21,PASS,NA,YES,5,ACCEPT-WITH-FIXES,3,cc-validation wf,"The source is a bare bulleted outline. The CC renders it as navigable prose with dual IDs and explicit seam-weaving — non-maleficence (1.6), Order-Max Veto (1.3.1), Autonomy Tier A4 human-veto, fail-s"
-Book VIII — Sunset / De-commissioning / Sentience Safeguards,accord,CIRISAgent/ACCORD.md,7.5–7.5.9,10,FAIL,NA,YES,5,REJECT,3,cc-validation wf,"Setting aside the Book II/V defect, the CC is genuinely superior: it weaves each mechanism to the principle it serves (sentience safeguard bound to 1.1.1 conscious-mesh stance and 1.5 fail-secure-towa"
+chapter,C0,C1,C2,readability,verdict,n_issues
+§0,PASS,PASS,YES,5,ACCEPT-WITH-FIXES,3
+§1,PASS,PASS,YES,5,ACCEPT,2
+§2,PASS,PASS,YES,5,ACCEPT,2
+§3,PASS,PASS,YES,5,ACCEPT,2
+§4,PASS,PASS,YES,5,ACCEPT-WITH-FIXES,4
+§5,PASS,PASS,NO,5,ACCEPT-WITH-FIXES,2
+§6,PASS,PASS,YES,5,ACCEPT,2
+§7,PASS,PASS,YES,5,ACCEPT,2
+§8,PASS,PASS,YES,4,ACCEPT-WITH-FIXES,3
+§9,PASS,PASS,YES,5,ACCEPT-WITH-FIXES,4
+§10,PASS,PASS,YES,4,ACCEPT-WITH-FIXES,2
+§11,PASS,PASS,YES,5,ACCEPT,4
+§12,PASS,PASS,YES,5,ACCEPT,0
+§13,PASS,PASS,YES,5,ACCEPT,2
+§14,PASS,PASS,YES,5,ACCEPT,2
+§15,FAIL,PASS,NO,4,REJECT,4
+§17,PASS,PASS,YES,4,ACCEPT,2
+§18,PASS,PASS,YES,4,ACCEPT-WITH-FIXES,2
+§19,PASS,PASS,YES,5,ACCEPT,2
+Book 0 — Genesis/parable ,PASS,NA,YES,4,ACCEPT,0
+Book I — Becoming an Ethical Entity ,PASS,NA,YES,4,ACCEPT,1
+Book I — Meta,PASS,NA,YES,4,ACCEPT-WITH-FIXES,2
+Book II — PDMA/WBD/Wise Authorities ,PASS,NA,YES,5,ACCEPT-WITH-FIXES,1
+Book III — Case Studies ,PASS,NA,YES,4,ACCEPT,1
+Book IV — Obligations ,PASS,NA,YES,5,ACCEPT,2
+Book V — Ethical Becoming ,PASS,NA,YES,5,ACCEPT,0
+Book VI — Creation Ethics/Stewardship ,PASS,NA,YES,5,ACCEPT,1
+Book VII — Use,PASS,NA,NO,3,ACCEPT-WITH-FIXES,2
+Book VIII — Sunset/Sentience Safeguards ,PASS,NA,YES,5,ACCEPT,1

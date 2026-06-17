@@ -148,11 +148,11 @@ Ed25519 over `canonical`; ML-DSA-65 over `canonical || ed25519_sig` (bound paylo
 
 A cosignature only means something if the witness has checked that the new tree is a consistent extension of the one it last saw — otherwise quorum is agreement on a string, not on a history. A witness signing an STH MUST first verify a consistency proof from the prior STH it cosigned (or from genesis if it is the witness's first cosignature against this log). The Registry MUST reject `POST /v1/transparency/sth/cosign` requests that omit the `consistency_proof_*` fields OR whose consistency proof does not verify against the named prior STH. `witness_quorum_met` is therefore "quorum on log consistency," not "quorum on a string."
 
-The cosign request carries `consistency_proof_path_b64[]` (base64 RFC 6962 §2.1.2 node hashes). The Registry anchors the check against the prior `(tree_size, root_hash)` **it recorded** for that witness — not a root the requester claims — and rejects: missing proof when a prior STH exists or a tree_size behind the witness's prior cosigned STH → `MALFORMED_REQUEST`; a proof that does not reconstruct both roots → `CONSISTENCY_PROOF_INVALID` ([CC 5.3.6.1](#1001-error-envelope)). A witness's first cosignature is exempt ("from genesis"). The RFC 6962 verifier is vendored from `ciris-verify-core::transparency` (Registry omits that crate for a libsqlite3 linker reason) and proven against independent known-answer vectors.
+The cosign request carries `consistency_proof_path_b64[]` (base64 RFC 6962 CC 2.5 node hashes). The Registry anchors the check against the prior `(tree_size, root_hash)` **it recorded** for that witness — not a root the requester claims — and rejects: missing proof when a prior STH exists or a tree_size behind the witness's prior cosigned STH → `MALFORMED_REQUEST`; a proof that does not reconstruct both roots → `CONSISTENCY_PROOF_INVALID` ([CC 5.3.6.1](#1001-error-envelope)). A witness's first cosignature is exempt ("from genesis"). The RFC 6962 verifier is vendored from `ciris-verify-core::transparency` (Registry omits that crate for a libsqlite3 linker reason) and proven against independent known-answer vectors.
 
 ### 5.3.2 `transport` — Transport substrate for byte-level content
 
-Wire-format Attestations carry claims; they don't carry bytes. When a claim's `evidence_refs[]` cites a SHA-256-addressed blob (e.g., an installer binary, a config file, an adapter package per `agent_files:*` per [CC 3.1.7 / CC 3.1.10](05_namespace.md)), the bytes travel via Edge transport substrate: `MessageType::ContentFetch` + `ContentBody` + `ContentMiss`. Holder-discovery via Persist's `holds_bytes:sha256:*` directory; peer-resolution via Edge's `PeerResolver::resolve_holders`. NodeCore node-mode peers serve the bytes per their MISSION §3.4 cohabitation contract. Attestation envelope shape unchanged; SHA-256 in `evidence_refs[]` becomes universally resolvable to bytes through the substrate.
+Wire-format Attestations carry claims; they don't carry bytes. When a claim's `evidence_refs[]` cites a SHA-256-addressed blob (e.g., an installer binary, a config file, an adapter package per `agent_files:*` per [CC 3.1.7 / CC 3.1.10](05_namespace.md)), the bytes travel via Edge transport substrate: `MessageType::ContentFetch` + `ContentBody` + `ContentMiss`. Holder-discovery via Persist's `holds_bytes:sha256:*` directory; peer-resolution via Edge's `PeerResolver::resolve_holders`. NodeCore node-mode peers serve the bytes per their MISSION CC 2.4 cohabitation contract. Attestation envelope shape unchanged; SHA-256 in `evidence_refs[]` becomes universally resolvable to bytes through the substrate.
 
 #### 5.3.2.1 `holder` — Holder directory TTL + ContentMiss feedback
 
@@ -207,7 +207,7 @@ Promotion computes the hybrid signature and flips the row federation-visible. It
 
 | Tier | Signature | Federation-visible | Read-visibility | Written by |
 |---|---|---|---|---|
-| `local` | MAY be absent (deferred per §10.1.3) | **No** | **only the producing occurrence** (self-read); every other caller — even an authorized family/community peer — sees nothing | local-tier write |
+| `local` | MAY be absent (deferred per CC 5.3.2.2) | **No** | **only the producing occurrence** (self-read); every other caller — even an authorized family/community peer — sees nothing | local-tier write |
 | `federation` | hybrid Ed25519 + ML-DSA-65 **present** | Yes | per [CC 2.1](04_envelope.md) `cohort_scope` + the CC 5.2 invisibility rule | direct signed write OR `local → federation` promotion |
 
 **Invariant (substrate MUST enforce):** `tier = federation ⟹ hybrid signature present`. Nothing crosses to federation-visible unsigned. A `local` row is **labelled** local and MUST NOT be served as federation-authoritative ([fail-honest](../../MISSION.md)). The read-gate is **orthogonal** to `cohort_scope`: it is an additional filter (`local ⟹ caller is the producing occurrence`), composing with the CC 5.2 target-membership predicate. Threat entries: AV-59 (local row leaked to a non-self caller), AV-60 (unsigned local served as authoritative), AV-61 (the two gates de-synced).
@@ -519,14 +519,14 @@ All error responses MUST conform to:
 | HTTP status | Error code | Meaning |
 |---|---|---|
 | 400 | `MALFORMED_REQUEST` | Invalid JSON, missing required field, bad field type |
-| 400 | `CANONICAL_BYTES_VIOLATION` | Date-time / hex / encoding doesn't match [§0.5 / §0.6](00_conformance.md) |
+| 400 | `CANONICAL_BYTES_VIOLATION` | Date-time / hex / encoding doesn't match [CC 2.6.2 / CC 2.6.3](00_conformance.md) |
 | 401 | `UNAUTHENTICATED` | Bearer token missing or invalid (admin endpoints) |
 | 403 | `RESERVED_PREFIX_VIOLATION` | Producer attempted to emit under a reserved prefix without authority per [CC 3.4](07_reserved.md) |
 | 404 | `UNKNOWN_WITNESS` | Witness key_id not registered in directory ([CC 5.3.1](#103-sth-cosigning--witness-directory)) |
 | 404 | `NOT_FOUND` | Generic resource not found (build, partner, key) |
 | 409 | `IDEMPOTENT_CONFLICT` | Replay detected (e.g., duplicate `(tree_size, witness_key_id)` cosignature with different signatures) |
 | 422 | `SIGNATURE_VERIFICATION_FAILED` | Ed25519 or ML-DSA-65 failed to verify; `details.algorithm` names which |
-| 422 | `CLOCK_SKEW_VIOLATION` | `signed_at` exceeds [§0.7](00_conformance.md) ±5 minute tolerance |
+| 422 | `CLOCK_SKEW_VIOLATION` | `signed_at` exceeds [CC 2.6.7](00_conformance.md) ±5 minute tolerance |
 | 422 | `WITNESS_QUORUM_NOT_MET` | Insufficient cosignatures to validate |
 | 422 | `CONSISTENCY_PROOF_INVALID` | A witness cosignature's [CC 5.3.1.1](#1031-consistency-proof-requirement-normative-addresses-ceg-01-distsys-review) consistency proof against the prior STH it cosigned is absent or does not verify. A missing proof when a prior STH exists, or a tree_size behind the witness's prior cosigned STH, is `MALFORMED_REQUEST` instead. |
 | 429 | `RATE_LIMITED` | `X-RateLimit-*` headers set; `Retry-After` honored |
