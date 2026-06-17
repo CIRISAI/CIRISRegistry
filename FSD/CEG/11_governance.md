@@ -300,6 +300,27 @@ What CEG 0.9 does NOT do:
 - Forbid any cohabitation at the wire layer (substrate enforces gates by membership; constitutional/substrate cohabitation discipline is consumer/operator policy per §11.9.3)
 - Address `affiliations` (the fourth `cohort_scope` tier; remains deferred to a later candidate round)
 
+## §11.10 Moderation scopes — delegated, enforced authority (1.0-RC18 addition; per [CIRISRegistry#90](https://github.com/CIRISAI/CIRISRegistry/issues/90))
+
+Moderation — flag, takedown, age-gate, hash-match, child-safety, appeal-review — is the wire foundation the [CIRISServer#15](https://github.com/CIRISAI/CIRISServer/issues/15) child-safety / takedown / accord UX sits on. CEG **names** the moderation capabilities and **enforces** that they are exercised only under granted authority — **1+4-preserving, no new structural primitive**: the *actions* already exist (`takedown_notice` [§5.6.8.4](05_namespace.md), `content_class:*` / `age_assurance:*` [§5.6.8.4](05_namespace.md), `hard_case:*` [§7](07_reserved.md), `scores`), and the *authority* to perform them is a **scoped `delegates_to`** — the `mod:*` class of [§8.1.12.7.1](08_composition.md), a third scope class alongside `infra:*` / `agency:*`.
+
+**The `mod:*` scope vocabulary** (open-vocab named kinds per [§11.2.1](#1121-axis-vocabulary-discipline)):
+
+| scope | grants the holder |
+|---|---|
+| `mod:flag` | emit moderation `scores` flagging content (advisory; never an action on its own) |
+| `mod:takedown` | issue / coordinate a `takedown_notice` ([§11.4](#114-fast-path-takedown-coordination-ceg-03-addition-per-cirisregistry37--38)) |
+| `mod:child_safety` | the §11.4 **immediate-removal** CSAM/NCMEC/TVEC fast-path — strongest discipline, narrowest grant |
+| `mod:age_gate` | apply `age_assurance:*` / `content_class:*` gates ([§8.1.10](08_composition.md) Policy J) |
+| `mod:hash_operate` | run the [§11.5](#115-hash-database-operator-policy-ceg-03-addition-per-cirisregistry39) hash-DB matching |
+| `mod:appeal_review` | review reconsiderations / appeals (the P11 `reconsideration:*` path) |
+
+**Enforcement (normative — this is the "enforces" half).** A moderation **action** is admitted/honored only if its `attesting_key_id` holds a **live `delegates_to(authority → actor, scope: mod:X)`** where `authority` is the founder-quorum or `consensus_protocol` of the community whose content is moderated ([§5.6.8.10](05_namespace.md)). A verifier MUST **reject** (treat as non-authoritative) a `takedown_notice` or moderation `scores` from an actor lacking the matching `mod:*` delegation — moderation authority is **granted, never assumed**. The grant chains + depth-caps per [§13.3](13_anti_patterns.md) and is itself revocable (`withdraws` against the `delegates_to`), so a captured/abusive moderator is removed by the granting community without touching the content layer.
+
+**This makes the [§11.4](#114-fast-path-takedown-coordination-ceg-03-addition-per-cirisregistry37--38) "takedown-isn't-a-coup" property wire-checkable.** A takedown now requires (a) a `mod:takedown` / `mod:child_safety` grant from an accountable authority, (b) the owner-binding behind that actor ([§5.6.8.10](05_namespace.md) — authority roots in a human), and (c) the §11.4 audit trail. A unilateral takedown — an actor with no grant, or a state actor demanding removal of `federation_keys` for whole classes of dissenters — fails the enforcement gate and escalates to the [§9](09_humanity_accord.md) HUMANITY_ACCORD per §11.4. `mod:child_safety` carries the strongest discipline and the narrowest, most-audited grant; the §11.4 immediate-removal timeline is unchanged (speed at the action layer; authority checked at the grant layer).
+
+**1+4 preserved.** No new structural primitive, subject_kind, or envelope field — `mod:*` is named `delegated_scope` vocabulary ([§8.1.12.7.1](08_composition.md)) over the existing `delegates_to`, and the actions ride existing `takedown_notice` / `scores` / `*:gate` shapes. CEG names the capability + enforces the authority; the [CIRISServer#15](https://github.com/CIRISAI/CIRISServer/issues/15) UX renders it as first-class mesh items.
+
 ---
 
 [← §10 Endpoints](10_endpoints.md) | **§11 Governance** | [Next: §12 Translation →](12_translation.md)

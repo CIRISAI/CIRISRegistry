@@ -474,6 +474,7 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 |---|---|---|
 | `infra:*` | server-class (allowed for a `node`-role delegate) | `infra:network_presence`, `infra:join_communities`, `infra:serve`, `infra:store`, `infra:attest`, `infra:transport` |
 | `agency:*` | brain-only (forbidden for a pure `node`-role delegate) | `agency:act_on_behalf`, `agency:message_io`, `agency:reason`, `agency:decide` |
+| `mod:*` | moderation authority (community/quorum-granted; see [§11.10](11_governance.md)) | `mod:flag`, `mod:takedown`, `mod:child_safety`, `mod:age_gate`, `mod:hash_operate`, `mod:appeal_review` |
 
 **Conformance:** a `delegates_to` whose `attested_key_id` resolves to an identity whose `identity_type` ([§7.0.1](07_reserved.md)) is `node`-only (no `agent`/brain) MUST carry **only** `infra:*` scopes; a verifier MUST **reject** (treat as non-conformant, never grant) an `infra`-only key presenting any `agency:*` scope. This makes §1.3 a wire-checkable invariant: a user-owned fabric node can serve + hold group-membership *standing* under the user's authority, but the delegation **literally cannot carry agency**. The legacy unprefixed kinds above remain valid for `agent`-role delegates (the Self-at-login agency profile) and are the `agency:*` / `infra:network_presence` equivalents; new **infra** delegations SHOULD use the explicit `infra:*` prefixes.
 
