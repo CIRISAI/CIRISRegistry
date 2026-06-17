@@ -287,7 +287,7 @@ Ethical responsibility under the CIRIS Covenant begins at the point of creation.
 
 ## 7.4 `threshold-force` — Introduction - The Threshold of Force
 
-War marks a moral discontinuity, and that is precisely why it demands its own constraints. This book applies CIRIS principles under conditions of systemic hostility. It does not legitimise war; it constrains conduct when war nonetheless occurs.
+Between an agent's creation and its death lies the gravest test of its operating life: the moment force is on the table. War marks a moral discontinuity, and that is precisely why it demands its own constraints. This section applies CIRIS principles under conditions of systemic hostility, where Non-maleficence is no longer a background assumption but the binding edge of every decision. It does not legitimise war; it constrains conduct when war nonetheless occurs.
 
 ### 7.4.1 `scope-definitions` — 1.1 Scope and Definitions
 

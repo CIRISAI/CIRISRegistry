@@ -1,6 +1,6 @@
 # The CIRIS Constitution
 
-**Version**: CC 0.1 (woven — byte-exact to CEG, intent-faithful to the Accord)
+**Version**: CC 0.1.1 (woven — byte-exact to CEG, intent-faithful to the Accord)
 **Incorporates**: the **CIRIS Accord** 1.3-RC2 (the constitutional / ethical layer) and **CEG** 1.0-RC29 (the wire grammar — 1+4 surface FROZEN). One document, one version line.
 **Status**: consolidated and adversarially **certified** (0 REJECT). Bodies are a verbatim copy-migration
 from the CEG reader edition + the Accord, woven into one coherent present-tense document; every

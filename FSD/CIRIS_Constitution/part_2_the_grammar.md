@@ -352,7 +352,7 @@ The omit-vs-materialize rule applies uniformly to every optional [CC 2.1](#2.1) 
 | `family_id` | CEG 0.7 | n/a (REQUIRED iff `cohort_scope == family`) | member absent (admission rejects if cohort_scope == family) | `"family_id":"..."` |
 | `community_id` | CEG 0.8 | n/a (REQUIRED iff `cohort_scope == community`) | member absent (admission rejects if cohort_scope == community) | `"community_id":"..."` |
 | `delivery_mode` | CEG 0.10 | `pull` | member absent | `"delivery_mode":"push"` |
-| `listed` | CEG 0.10 | absent (private roster) | member absent | `"listed":"public"` |
+| `listed` | CEG 0.10 | absent (private roster) | member absent | `"listed":"public"` (opt-in only; producers MUST omit unless the subject has opted in) |
 | `history_on_join` | CEG 0.10 | `from_join` | member absent | `"history_on_join":"full"` |
 
 The conditional-required fields `family_id` and `community_id` are NOT optional-with-default — substrate rejects mis-shape per [CC 2.3.1](#2.3.1) + [CC 4.5.2.1](#4.5.2.1) + [CC 4.5.12.2](#4.5.12.2) — but they encode under the same JCS rule when present.
@@ -383,18 +383,18 @@ With the rule (explicit, normative):
 
 ```
 On signature verify:
- 1. Receive envelope from wire as object O (preserved as-received)
- and signature S
- 2. Compute canonical bytes B = JCS(O)
- 3. Verify S over B via the hybrid Ed25519 + ML-DSA-65 path per §5.2.1
- 4. If signature valid:
- a. Compute effective semantics by applying §4 defaults to absent
- optional fields (interpretation-time only)
- b. Apply consumer policy per §8 over the resulting semantic shape
- 5. If forwarding/storing:
- a. Store/forward object O AS RECEIVED — do not normalize, strip,
- or materialize defaults
- b. Forward original signature S unchanged
+    1. Receive envelope from wire as object O (preserved as-received)
+       and signature S
+    2. Compute canonical bytes B = JCS(O)
+    3. Verify S over B via the hybrid Ed25519 + ML-DSA-65 path per §5.2.1
+    4. If signature valid:
+        a. Compute effective semantics by applying §4 defaults to absent
+           optional fields (interpretation-time only)
+        b. Apply consumer policy per §8 over the resulting semantic shape
+    5. If forwarding/storing:
+        a. Store/forward object O AS RECEIVED — do not normalize, strip,
+           or materialize defaults
+        b. Forward original signature S unchanged
 ```
 
 #### 2.6.1.6 `section` — Scope of the canonicalization rule
@@ -453,7 +453,7 @@ The following documents are normatively cited; implementations MUST conform to t
 | [RFC-8785] | [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785) — JSON Canonicalization Scheme (JCS); used where this spec serializes JSON for signing |
 | [RFC-9162] | [RFC 9162](https://www.rfc-editor.org/rfc/rfc9162) — Certificate Transparency v2.0 (CT-bis); MUST be used for new transparency-log integrations; older 6962 instances continue to interoperate |
 | [ISO-639-1] | [ISO 639-1:2002](https://www.iso.org/standard/22109.html) — Codes for the representation of names of languages, two-letter |
-| [BCP-47] | [BCP 47](https://www.rfc-editor.org/info/bcp14) ([RFC 5646](https://www.rfc-editor.org/rfc/rfc5646)) — Tags for identifying languages; for locale strings richer than ISO 639-1 alone |
+| [BCP-47] | [BCP 47](https://www.rfc-editor.org/info/bcp47) ([RFC 5646](https://www.rfc-editor.org/rfc/rfc5646)) — Tags for identifying languages; for locale strings richer than ISO 639-1 alone |
 | [RFC-9420] | [RFC 9420](https://www.rfc-editor.org/rfc/rfc9420) — Messaging Layer Security (MLS); the streaming epoch-key rekey ([CC 5.1](#5.1)) conforms to MLS TreeKEM |
 | [SFrame] | [draft-ietf-sframe](https://datatracker.ietf.org/wg/sframe/about/) — Secure Frames; the per-frame AEAD chunk seal ([CC 5.3.3.1](#5.3.3.1)) conforms to the SFrame model |
 | [FIPS-203] | [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) — ML-KEM (Module-Lattice KEM); the post-quantum half of the hybrid KEM (ML-KEM-768) |
@@ -470,7 +470,7 @@ Geographic primitives in CEG use [H3 hierarchical hexagonal indexing](https://h3
 
 **Canonical form for `cell_id`**:
 
-- 15-character lowercase hex string
+- 15-character lowercase hex string (no `0x` prefix; per [CC 2.6.3](#2.6.3))
 - The cell encodes its own resolution in the standard H3 index bit layout; a conformant decoder extracts the resolution **via the H3 library** (the resolution field lives in bits 52–55), **NOT** by reading the high 4 bits — the high nibble is the H3 **mode marker** (cell-mode = `1`), not the resolution
 - Leading zeros preserved (a resolution-0 cell at base position 0 is `8001fffffffffff`, not `1fffffffffff` — the high nibble `8` is the mode marker, correctly consistent with res-0)
 
@@ -518,18 +518,18 @@ Federation `key_id`s are long opaque identifiers, unfit for a human to type or r
 **Binary payload (normative):**
 
 ```
-offset size field
------- ---- -----
- 0 1 version = 0x01
- 1 32 key_id_hash = SHA-256(key_id_str, UTF-8)
- 33 32 pubkey_ed25519 (raw 32 bytes)
- 65 1 key_id_str_len (0–255)
- 66 N key_id_str (UTF-8)
- 66+N 1 transport_hint_len (0–255)
- 67+N M transport_hint (UTF-8; OPTIONAL — len 0 if absent)
-67+N+M 1 alias_hint_len (0–255)
-68+N+M K alias_hint (UTF-8; OPTIONAL — len 0 if absent)
- … 2 crc16 = CRC-16-CCITT over ALL preceding bytes
+offset  size  field
+------  ----  -----
+   0      1   version                 = 0x01
+   1     32   key_id_hash             = SHA-256(key_id_str, UTF-8)
+  33     32   pubkey_ed25519          (raw 32 bytes)
+  65      1   key_id_str_len          (0–255)
+  66      N   key_id_str              (UTF-8)
+ 66+N     1   transport_hint_len      (0–255)
+ 67+N     M   transport_hint          (UTF-8; OPTIONAL — len 0 if absent)
+67+N+M    1   alias_hint_len          (0–255)
+68+N+M    K   alias_hint              (UTF-8; OPTIONAL — len 0 if absent)
+   …      2   crc16                   = CRC-16-CCITT over ALL preceding bytes
 ```
 
 - All length-prefixed fields are **1-byte** length (max 255 UTF-8 bytes); a field overflow is a malformed NodeCode.
