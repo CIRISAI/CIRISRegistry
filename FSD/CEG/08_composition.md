@@ -468,13 +468,22 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 | `network_presence` | announce/resolve the user's `transport_destination` ([§5.6.8.8.1](05_namespace.md)) — be reachable AS the user |
 | `sub_delegation` | issue further `delegates_to` within the granted scope (depth-capped) |
 
+**Moderation duties — `moderate` / `takedown` / `review` (canonical, ENFORCED admission; 1.0-RC19, resolves [CIRISRegistry#90](https://github.com/CIRISAI/CIRISRegistry/issues/90)).** Moderation is a **delegable *duty*, not a platform/fabric-assigned role**: a participant exercises it *as themselves*, or delegates it — to **their agent** (AI on-behalf-of) or to **any trusted party** (a human, a community moderator) — via `delegates_to`. These three kinds carry **enforced admission** (unlike the *recommended* act-on-behalf kinds above), mirroring `consent_revocation` ([§3.2.3 rule 3](03_primitives.md)):
+
+| scope | authorizes the delegate to emit, on the delegator's behalf | shipped primitive |
+|---|---|---|
+| `moderate` | a `moderation:{allegation_type}` ModerationEvent + the report→`scores` path + `age_assurance:*`/`content_class:*` gates | [§5.6.4](05_namespace.md) / [§8.1.10](08_composition.md) |
+| `takedown` | a `takedown_notice` (incl. the §11.4 immediate-removal fast-path) | [§5.6.8.4](05_namespace.md) / [§11.4](11_governance.md) |
+| `review` | a `reconsideration:{grounds}` appeal / review | [§5.6.4](05_namespace.md) |
+
+**Enforced-admission rule (normative):** a moderation action above is admitted **iff** its `attesting_key_id` is the delegator itself **or** sits on a live `delegates_to` chain bearing the matching scope from the delegator (the entity holding the duty over the target content/scope) — exactly the §3.2.3 rule-(3) proxy shape (`scope ⊇ {moderate|takedown|review}`), depth-capped per [§13.3](13_anti_patterns.md), revocable by `withdraws` against the `delegates_to`. **Reject otherwise.** Every action is therefore delegate-signed, delegator-traceable up the chain, and revocable — the [§11.4](11_governance.md) **"takedown-isn't-a-coup"** property made *structural* (coordinated + attributable + revocable, never a unilateral seizure). See [§11.10](11_governance.md). **1+4 preserved** — a `delegated_scope` vocabulary + enforcement addition over the existing `delegates_to`; the action primitives already ship; no new structural primitive.
+
 **Partnership WITHOUT agency — the infrastructure delegation profile (normative, 1.0-RC7 — resolves [CIRISRegistry#83](https://github.com/CIRISAI/CIRISRegistry/issues/83) §3).** The flow above binds an **agent** (a key with a brain) to a user as partnership **+ agency** — the scope includes `act_on_behalf` / `message_io`, so the agent reasons and acts AS the user. A **fabric/infrastructure node** ([§7.0.1](07_reserved.md); CIRISServer) needs the *partnership* (identity + the [§5.6.8.10](05_namespace.md) owner-binding that lets it hold non-infra membership standing under the user's authority) but MUST NOT receive agency — [§1.3](01_foundation.md) "infrastructure must not have agency." CEG pins a **reserved two-prefix scope split** so a verifier can enforce this cryptographically:
 
 | prefix | class | scopes |
 |---|---|---|
 | `infra:*` | server-class (allowed for a `node`-role delegate) | `infra:network_presence`, `infra:join_communities`, `infra:serve`, `infra:store`, `infra:attest`, `infra:transport` |
 | `agency:*` | brain-only (forbidden for a pure `node`-role delegate) | `agency:act_on_behalf`, `agency:message_io`, `agency:reason`, `agency:decide` |
-| `mod:*` | moderation authority (community/quorum-granted; see [§11.10](11_governance.md)) | `mod:flag`, `mod:takedown`, `mod:child_safety`, `mod:age_gate`, `mod:hash_operate`, `mod:appeal_review` |
 
 **Conformance:** a `delegates_to` whose `attested_key_id` resolves to an identity whose `identity_type` ([§7.0.1](07_reserved.md)) is `node`-only (no `agent`/brain) MUST carry **only** `infra:*` scopes; a verifier MUST **reject** (treat as non-conformant, never grant) an `infra`-only key presenting any `agency:*` scope. This makes §1.3 a wire-checkable invariant: a user-owned fabric node can serve + hold group-membership *standing* under the user's authority, but the delegation **literally cannot carry agency**. The legacy unprefixed kinds above remain valid for `agent`-role delegates (the Self-at-login agency profile) and are the `agency:*` / `infra:network_presence` equivalents; new **infra** delegations SHOULD use the explicit `infra:*` prefixes.
 

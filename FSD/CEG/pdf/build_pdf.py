@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble an exhaustively-complete CEG 1.0-RC18 PDF from the markdown spec.
+"""Assemble an exhaustively-complete CEG 1.0-RC19 PDF from the markdown spec.
 No pandoc available -> a focused markdown->LaTeX converter for this spec's
 subset (headings, pipe tables, code fences, lists, inline bold/italic/code/links,
 blockquotes), pdflatex + newunicodechar for the 42 special glyphs.
@@ -162,13 +162,13 @@ PREAMBLE = r'''\documentclass[10pt]{article}
 \setlength{\parindent}{0pt}\setlength{\parskip}{4pt}
 \renewcommand{\arraystretch}{1.15}
 ''' + nuc_lines + r'''
-\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 1.0-RC18 (Release Candidate --- wire surface frozen) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
+\title{\textbf{CEG --- The CIRIS Epistemic Grammar}\\[4pt]\large Version 1.0-RC19 (Release Candidate --- wire surface frozen) --- Exhaustively Complete Reference\\[2pt]\normalsize with the PQC Streaming Bandwidth/Lag Model}
 \author{CIRIS Federation --- generated from \texttt{FSD/CEG/}}
 \date{2026-06-15}
 \begin{document}
 \maketitle
 \begin{abstract}\noindent
-This document is the complete CEG 1.0-RC18 wire-format specification (the 1+4
+This document is the complete CEG 1.0-RC19 wire-format specification (the 1+4
 minimal-and-adequate attestation grammar), assembled from the 18-section source
 plus the version-history overview. It opens with a quantitative model of
 PQC-native streaming video --- bandwidth and lag --- under CEG \S10.5, isolating
@@ -389,5 +389,5 @@ if __name__ == "__main__":
         body.append(convert(md))
         body.append(r'\clearpage')
     body.append(r'\end{document}')
-    (D/'ceg-1.0-rc18.tex').write_text('\n'.join(body), encoding='utf-8')
-    print('wrote ceg-1.0-rc18.tex (%d files)' % len(FILES))
+    (D/'ceg-1.0-rc19.tex').write_text('\n'.join(body), encoding='utf-8')
+    print('wrote ceg-1.0-rc19.tex (%d files)' % len(FILES))
