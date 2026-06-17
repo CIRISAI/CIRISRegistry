@@ -44,7 +44,7 @@ The Edge transport surfaces its own friendly leaves. Each resolves to the aggreg
 | `transport:tls_handshake_success_rate` | `transport:{kind}` (kind from Reticulum link types) |
 | `delivery:retry_count_p99` | `delivery:{class}` (class from Reticulum delivery semantics) |
 | `peer_reachability:{peer_id}` per-peer | `peer_reachability:{network}` (aggregate) |
-| `key_boundary:{scope}` per-tenant | `key_boundary:{scope}` (scope from CC 2.4 D26 ext) |
+| `key_boundary:{scope}` per-tenant | `key_boundary:{scope}` (scope from §3.4 D26 ext) |
 
 ### 8.1.4 `envelope-reach` — Envelope-reach table (what the story wanted → how to express in existing wire)
 
