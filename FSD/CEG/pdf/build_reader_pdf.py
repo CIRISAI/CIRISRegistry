@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 r"""
-Human-first reader edition of the CEG spec -> ceg-1.0-rc27-reader.pdf.
+Human-first reader edition of the CEG spec -> ceg-1.0-rc28-reader.pdf.
 
 Reuses the markdown->LaTeX converter from build_pdf.py, but applies a
 DE-EDITORIALIZATION prefilter (strip version history, per-path narrative,
@@ -9,7 +9,7 @@ lineage tables) and a cleaner, human-reading preamble. Deduplicates by
 dropping the README changelog wall and the §16 lineage file.
 
 Goal: more humans than machines. The canonical working draft (with full
-lineage) stays in the source tree and in pdf/ceg-1.0-rc27.pdf.
+lineage) stays in the source tree and in pdf/ceg-1.0-rc28.pdf.
 """
 import re
 from pathlib import Path
@@ -17,7 +17,7 @@ import build_pdf as B   # convert(), inline(), esc(), code_ascii(), NUC
 
 D = Path(__file__).parent
 SPEC = D.parent
-VERSION = "1.0-RC27"
+VERSION = "1.0-RC28"
 
 # ---- which files, in reading order. Drop §16 (references+lineage: mostly history). ----
 FILES = ["README.md"] + sorted(f.name for f in SPEC.glob("[0-9][0-9]_*.md") if not f.name.startswith("16_"))
@@ -104,7 +104,7 @@ membership, consent, governance, addressing, and settlement across a decentraliz
 \maketitle\thispagestyle{empty}
 \begin{quote}\itshape This is the human-reading edition: version history, per-path narrative, and
 provenance cross-references are omitted for readability. The canonical working draft
-(with full lineage) is the markdown source and \texttt{ceg-1.0-rc27.pdf}. Conformance is
+(with full lineage) is the markdown source and \texttt{ceg-1.0-rc28.pdf}. Conformance is
 judged against the normative wire surface only (\S0.1.1).\end{quote}
 \clearpage
 \tableofcontents
@@ -118,5 +118,5 @@ if __name__ == "__main__":
         body.append(B.convert(prefilter(md, fn)))
         body.append(r"\clearpage")
     body.append(r"\end{document}")
-    (D/"ceg-1.0-rc27-reader.tex").write_text("\n".join(body), encoding="utf-8")
-    print(f"wrote ceg-1.0-rc27-reader.tex ({len(FILES)} files, §16 + RC1 register + changelog wall stripped)")
+    (D/"ceg-1.0-rc28-reader.tex").write_text("\n".join(body), encoding="utf-8")
+    print(f"wrote ceg-1.0-rc28-reader.tex ({len(FILES)} files, §16 + RC1 register + changelog wall stripped)")

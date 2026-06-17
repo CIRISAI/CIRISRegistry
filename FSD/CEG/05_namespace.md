@@ -418,6 +418,7 @@ Per [CIRISRegistry#45](https://github.com/CIRISAI/CIRISRegistry/issues/45) + [CI
 | `consent:partnership_grant` | Subject side of a bilateral grant; pairs with producer's `consent:partnership_accept` via `topical_relation:bilateral_pair`. | positive-only | subject_key_id |
 | `consent:partnership_accept` | Producer side of a bilateral grant. | positive-only | attesting_key_id (producer) |
 | `consent:scope:{kind}` | Scope qualifier on a `consent:state:granted` — names what the grant covers. Canonical kinds: `retain` (keep the bytes), `share` (propagate across federation), `analyze` (derive features / scores / classifications), `train` (use as training input), `publish` (publish to external systems). Open vocab with sub-scoping: `retain:90d`, `share:cohort:family`, etc. | enumerated | subject_key_id |
+| `consent:replication:{version}` | **Directed node→peer replication grant** — a fabric node's standing, auditable consent to replicate a named attestation-prefix set to a specific federation **peer** named in `subject_key_ids[]`. The out-of-group peering consent (see [§5.6.8.15](#56815-consentreplication--directed-federation-peer-replication-consent-ceg-10-rc28-addition)). Standing (not bound to a single target Contribution); revoked via `withdraws`/`recants`. Federation-tier. | signed | attesting_key_id (granting node) |
 
 **Composition pattern (the common case)**:
 
@@ -1168,6 +1169,33 @@ scores {
 **Admission consequence (normative).** After an admitted `identity:canonical_binding` from `K` → `H`, the substrate widens `withdraws` admission ([§3.2.3](03_primitives.md)): a `withdraws` from `K` against any target `T` where `H ∈ T.subject_key_ids[]` is now admitted (K has inherited the canonical-hash subject's revocation authority). **This is what unblocks [§3.2.3 rule 3](03_primitives.md)** — a proxy `delegates_to` to a canonical-hash subject presumes that subject can hold a `delegates_to.attested_key_id`; a never-rebound canonical subject acquires it here.
 
 **Authorization is consumer-policy, not wire (normative honesty).** CEG pins the binding *shape*, NOT proof that K legitimately controls H's preimage. A binding is a *self-assertion*; a consumer weights it by whatever proof-of-control it trusts (OAuth/IdP verification of the `discord:user_id`, an out-of-band attestation, TOFU). The substrate admits the binding and records it; **the trust that K==H is composed by the consumer**, exactly as the [§5.6.8.8.1](#5688-1-transport_destination--the-authenticated-identityaddress-binding-ceg-012-addition) announce is advisory until rooted. A second key claiming the same `H` is admitted too (competing claims surface to consumer policy / RATCHET, not a substrate verdict). **1+4 preserved** — `identity:canonical_binding:{H}` is a reserved `scores` dimension, not a new primitive.
+
+#### §5.6.8.15 `consent:replication` — directed federation-peer replication consent (CEG 1.0-RC28 addition)
+
+Per [CIRISRegistry#97](https://github.com/CIRISAI/CIRISRegistry/issues/97). An **open-vocabulary member of the [§5.6.8.6](#5686-consent-namespace-family-ceg-06-addition) `consent:*` family** ([§11.2.1](11_governance.md) discipline) — **not a new structural primitive** (the 1+4 surface is frozen since RC1; this rides the existing `scores` attestation_type, adds no envelope field). It names the one consent shape the prior family did not: a fabric **node's** standing grant to replicate a class of its own attestations to a **named peer node**, as distinct from a **subject's** consent over a target Contribution.
+
+**The problem it solves.** Cross-node propagation is governed by [§8.1.13.3 / §10.1.4](10_endpoints.md) `cohort_scope`. A node **inside** a community (e.g. the [§5.6.8.10](#56810-community-subject_kind-ceg-08-addition) / [§14](14_glossaries.md) `ciris-canonical` infrastructure community) shares with co-members by community-cohort membership — no per-peer object needed. A node **outside** that group has no membership edge to ride, so an out-of-group peering needs an **explicit, auditable, revocable** consent object. Concrete case: an in-group lens node (CIRISServer) replicating `capacity:*` to an out-of-group monitoring node (CIRISStatus), which replicates [`health:liveness:v1`](#566-canonical-leaf-glossary) (RC20 / [#91](https://github.com/CIRISAI/CIRISRegistry/issues/91)) back. `consent:replication` is that object.
+
+**Shape.** A bare `scores` Contribution on the dimension **`consent:replication:{version}`** (canonical `consent:replication:v1`) — `attesting_key_id = G` (the granting node), the recipient peer named in `subject_key_ids[] = [P]`. Standing (not bound to a target Contribution). Hybrid-signed; admitted **federation-tier** (it authorizes cross-node flow — not local-tier-eligible, [§10.1.3](10_endpoints.md) discipline). `cohort_scope: federation` (the grant itself is a public governance record).
+
+```
+scores {
+    attesting_key_id: G,                          // the granting (sending) node
+    dimension:        "consent:replication:v1",
+    score:            <positive>,
+    subject_key_ids:  [P],                         // the peer authorized to receive
+    grants:           "replication",
+    attestation_prefixes: ["capacity:", ...],      // the prefix set G consents to replicate to P
+    cohort_scope:     "federation",
+    asserted_at:      rfc3339_canonical,
+}
+```
+
+**Admission is by key registration; consent is the governance record (normative honesty).** The substrate gate that lets P's corpus *admit* G's replicated rows is **G's key existing in P's `federation_keys`** (registration), plus the [§7](07_reserved.md) reserved-prefix identity rules. `consent:replication` does **not** add a substrate admission check — by design, exactly as [§5.6.8.14](#56814-identitycanonical_binding--claiming-a-canonical-hash-subject) authorization is consumer-policy, not wire. What it provides is the **auditable, revocable, bilateral record of intent**: the wire-format answer to "did G consent to send this to P, and for which prefixes?" Each direction is an independent unilateral grant (G→P and P→G are two separate `consent:replication` Contributions); a bilateral peering is ratified iff both are present.
+
+**Revocation (normative).** A `withdraws`/`recants` ([§3.2.3](03_primitives.md)) from G against its own `consent:replication` grant retracts the consent. Because admission is key-rooted (above), revocation has teeth only if honored: on revoke, **the granting node MUST cease replicating the named prefixes to P and SHOULD deregister/expire P's directory authorization for them**, and **a consumer MUST treat rows replicated from G under a withdrawn grant as non-conformant** (the [§11](11_governance.md) location-proof precedent — the wire cannot un-send bytes a peer already holds; it can mark forward-only and oblige cessation). A grant carries optional `valid_until` ([§5.6.8.7](#5687-consent_record-subject_kind) semantics) for time-boxed peering.
+
+**1+4 preserved** — `consent:replication:{version}` is an open-vocabulary `consent:*` dimension on the existing `scores` type ([§11.2.1](11_governance.md)); no new attestation_type, no new envelope field, no new replication `EnvelopeKind` (it replicates as an ordinary `Attestation`). The frozen wire surface is untouched.
 
 ## §5.7 RATCHET — anti-Sybil / Counter-RII flags
 
