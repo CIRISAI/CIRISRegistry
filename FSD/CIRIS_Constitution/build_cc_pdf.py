@@ -1,29 +1,46 @@
 #!/usr/bin/env python3
 """
-Build the CIRIS Constitution as a PDF: README + Part I–VIII -> LaTeX -> pdflatex.
-Reuses the markdown->LaTeX converter from FSD/CEG/pdf/build_pdf.py (convert/inline/
-esc/code_ascii/NUC). Run: python3 build_cc_pdf.py  (then pdflatex x3 over the .tex).
+Build the CIRIS Constitution as a PDF: Foreword + an explicit chapter-level Contents +
+Part I-VIII -> LaTeX -> pdflatex. Front matter is deliberately minimal: title, the
+Accord foreword (which sets the tone), and the table of contents -- nothing else.
+Reuses the markdown->LaTeX converter from FSD/CEG/pdf/build_pdf.py.
 """
-import re, sys
+import re, csv, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "CEG" / "pdf"))
-import build_pdf as B   # convert(), inline(), esc(), code_ascii(), NUC, nuc_lines  (guarded; import is safe)
+import build_pdf as B   # convert(), inline(), esc(), code_ascii(), NUC  (guarded; import is safe)
 
-# extend the unicode map for glyphs the CC uses that CEG's map lacked
 B.NUC.update({"é": r"\'e", "↑": r"$\uparrow$", "↓": r"$\downarrow$"})
 nuc_lines = "\n".join(r"\newunicodechar{%s}{%s}" % (k, v) for k, v in B.NUC.items())
 
-VERSION = "0.1.1"
-FILES = [HERE / "README.md"] + sorted(HERE.glob("part_*.md"), key=lambda p: int(re.match(r"part_(\d+)_", p.name).group(1)))
+VERSION = "0.1.2"
+PARTS = sorted(HERE.glob("part_*.md"), key=lambda p: int(re.match(r"part_(\d+)_", p.name).group(1)))
+PART_TITLE = {1: "Foundation", 2: "The Grammar", 3: "The Namespace", 4: "Composition & Governance",
+              5: "Transport & Substrate", 6: "The Coherence Mathematics", 7: "Lifecycle & Stewardship",
+              8: "Appendices"}
 
 def prefilter(md):
-    md = re.sub(r"</?(sub|sup)>", "", md)            # drop inline HTML the converter doesn't handle
+    md = re.sub(r"</?(sub|sup)>", "", md)
     md = re.sub(r"<br\s*/?>", "  ", md)
-    md = (md.replace("“", '"').replace("”", '"')   # curly quotes -> straight (also fixes code)
-            .replace("‘", "'").replace("’", "'"))
+    md = (md.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'"))
     return md
+
+def contents_md():
+    """Explicit chapter-level TOC (decimal + semantic + title), grouped by Part."""
+    rows = list(csv.DictReader(open(HERE / "toc.tsv"), delimiter="\t"))
+    rows.sort(key=lambda r: [int(x) for x in r["decimal_id"].split(".")])
+    out, cur = ["# Contents\n"], None
+    for r in rows:
+        dec = r["decimal_id"]; part = int(dec.split(".")[0])
+        if dec == "1.14" or dec.startswith("1.14."):  # the parable is now the Foreword
+            continue
+        if part != cur:
+            cur = part; out.append(f"\n## Part {part} — {PART_TITLE[part]}\n")
+        if dec.count(".") == 1:                      # chapter level only
+            out.append(f"- **{dec}** `{r['semantic_id']}` — {r['title'].strip()}")
+    return "\n".join(out)
 
 PREAMBLE = r"""\documentclass[11pt]{article}
 \usepackage[a4paper,margin=2.4cm]{geometry}
@@ -49,29 +66,22 @@ PREAMBLE = r"""\documentclass[11pt]{article}
 \renewcommand{\arraystretch}{1.25}
 """ + nuc_lines + r"""
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}The CIRIS Constitution\\[10pt]
-\normalsize\mdseries Version """ + VERSION + r""" --- Reader Edition\\[10pt]
-\itshape a unified constitution for the CIRIS epistemic web: the meta-goal M-1 and the
-federation that serves it --- woven from the CIRIS Accord and the CIRIS Epistemic Grammar,\\
-byte-exact to the wire, faithful to the ethics}
+\normalsize\mdseries Version """ + VERSION + r"""}
 \author{}\date{}
 \begin{document}
 \maketitle\thispagestyle{empty}
-\begin{abstract}\noindent
-One document unifying the ethical constitution (the CIRIS Accord) and the wire grammar (CEG).
-Structure is importance-derived --- M-1 at the apex; every section carries a decimal address and a
-semantic name. Every wire-normative element (canonical encodings, signing preimages, the 1+4
-attestation surface) is preserved byte-for-byte; every ethical principle keeps its force. Built by
-faithful copy-migration and adversarially-validated consolidation (0 REJECT; byte-exact; judged
-clearer than either source).
-\end{abstract}
-\tableofcontents\newpage
 """
 
 body = [PREAMBLE]
-for p in FILES:
+body.append(B.convert(prefilter((HERE / "FOREWORD.md").read_text(encoding="utf-8"))))   # foreword sets the tone
+body.append(r"\clearpage")
+body.append(B.convert(contents_md()))                                                   # explicit contents
+body.append(r"\clearpage")
+for p in PARTS:
     body.append(B.convert(prefilter(p.read_text(encoding="utf-8"))))
     body.append(r"\clearpage")
 body.append(r"\end{document}")
+
 out = HERE / f"ciris-constitution-{VERSION}.tex"
 out.write_text("\n".join(body), encoding="utf-8")
-print(f"wrote {out.name} ({len(FILES)} files)")
+print(f"wrote {out.name} (foreword + contents + {len(PARTS)} parts)")
