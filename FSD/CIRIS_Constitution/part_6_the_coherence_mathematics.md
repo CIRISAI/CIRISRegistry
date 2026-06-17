@@ -1,348 +1,169 @@
-# Part VI — The Coherence Mathematics
+# Part 6 — The Coherence Mathematics
 
-**CC decimal range** `6.x` · **14 concepts** · **page budget 2.5pp** (∝ importance) · [← master index](README.md)
+**Decimal range** `6.x` · **14 sections** · **page budget 2pp** · [← master index](README.md)
 
-> Where the substrate meets the meaning. This Part is small in pages but central in role: it is the
-> single place the holonomic substrate (CEG §19 — how the federation *stores and remembers*) is bound
-> to the Accord's coherence mathematics (how the federation *measures* coherence — the ratchet, the
-> defence/flourishing functions `J`/`F`, the sustainability integral `σ`). The Foundation declared
-> [M-1](part_1_foundation.md#11-meta-goal--meta-goal-m-1) to be *sustainable* adaptive coherence and
-> promised the math behind "sustainable" lived here; the Grammar froze the bytes that ride on the
-> substrate. Part VI is where "sustainable" stops being an adjective and becomes a quantity — and
-> where the substrate that makes the quantity durable is specified.
-
-> **Status:** scaffold-plus — the holonomic substrate (§19) is woven now; the Accord's **Book IX**
-> formal mathematics (`J`/`F`/`σ`, the Coherent Intersection Hypothesis, the impossibility lemmas
-> L-01…L-06) is named, sourced, and *connected* here, but its formulae fold in **verbatim from
-> CIRISAccord 1.3-RC2 in Phase 4** — they are not in the parseable Accord copy used for this draft.
-> The [Book IX gap](#62-book-ix--the-accord-coherence-mathematics-phase-4) subsection states exactly
-> what is deferred and sketches the connection without fabricating the formulae.
+> The holonomic substrate, the divergence witness, the noise-floor model, and the coherence mathematics.
 
 ---
 
-## 6.1 `holonomic` — Holonomic substrate — ALM, fountain storage, WholenessWitness, recursive bootstrap
-<sub>budget 0.36pp · import #83 · from **CEG §19** (CEG 1.0-RC11) · semantic id `holonomic`</sub>
+## 6.1 `holonomic` — Holonomic substrate — ALM, fountain storage, WholenessWitness, recursive bootstrap (CEG 1.0-RC11)
 
-The substrate underneath everything Part VI measures. The holonomic design gives the federation two
-properties that the coherence mathematics depend on but do not themselves provide: **graceful
-degradation** (any subset of fountain symbols decodes the content at proportional fidelity — there is
-no cliff) and **graceful reconstitution** (the witnessed, trust-anchored corpus re-establishes itself
-from any sufficient fragment). A federation whose memory survives the loss of any single node — and
-degrades smoothly rather than vanishing — is what makes coherence *sustainable* rather than merely
-asserted at one instant.
+The CIRISEdge v4.0.0 "holonomic substrate" gives the federation **graceful degradation** (any subset of fountain symbols decodes at proportional fidelity) and **graceful reconstitution** (the witnessed corpus re-establishes from any sufficient fragment). This section absorbs its wire shapes as additive normative CEG sections **with normative guardrails** that bind them to CEG's existing trust, PQC, consent, replication, and anonymous-tier invariants.
 
-The load-bearing constitutional fact, repeated at every layer below, is the
-[1+4 line](part_1_foundation.md#17-minimal-and-adequate--the-14-claim): **§19 is additive substrate
-framing, not a change to the frozen attestation envelope.** Every §19 object is transport — it never
-instantiates a [§4 envelope](part_2_the_grammar.md#21-envelope--the-envelope), never adds an
-`attestation_type`, never enters JCS canonicalization. The substrate carries the bytes; it does not
-join the grammar. This is the discipline that lets a deeply mechanical storage fabric grow underneath
-the federation without ever loosening the 1+4 guarantees the [Grammar](part_2_the_grammar.md) froze.
+> **Absorb-with-guardrails, not verbatim (normative posture, [](https://github.com/CIRISAI/CIRISRegistry/issues/85)).** A four-perspective review found the holonomic concept sound and **additive at the wire layer — no [CC 2.4](#)/[CC 2.1](#) 1+4 change** — but that absorbing the v4.0.0 implementation *verbatim* would invert several ratified CEG invariants (owner-binding, PQC-mandatory, consent/withdraws, quorum-merge). This section therefore states the **guardrail invariants** (CC 6.1.1–CC 6.1.7) as normative MUSTs **now**; the matching edge implementation fixes are tracked at [](https://github.com/CIRISAI/CIRISEdge/issues/143) (in-flight hardening). The **byte-exact signed preimages** for each shape are pinned against the **fixed** v4.0.x reference impl (several shapes change under #143 — e.g. `SignedClaim` gains owner-binding fields), and **conformance vectors generated from that fixed impl are the named [#57](https://github.com/CIRISAI/CIRISRegistry/issues/57) freeze gate** ([CC 6.1.4](#614-conformance--the-57-freeze-gate)).
 
 ### 6.1.1 `witness-wholenesswitness` — WholenessWitness (§W) — divergence-detection witness
-<sub>budget 0.3pp · import #100 · from **CEG §19.1** · semantic id `witness-wholenesswitness`</sub>
 
-The heaviest concept under §19, and the one that most directly serves coherence as a *measurable*
-property. A **WholenessWitness** (`wholeness_witness:`, never bare `witness:`) is a peer's
-hybrid-signed Merkle root over a scoped projection of the claims it holds — a one-line, signed
-summary of "here is the state I believe I have." Two peers comparing their witnesses can detect
-cross-region divergence cheaply: same scope, same epoch, different root means their states have
-drifted. It is the federation's coherence *thermometer*.
+A `wholeness_witness:` object is a peer's **hybrid-signed Merkle root over a scoped projection of the claims it holds**, used to detect cross-peer/cross-region state divergence and to drive reconciliation.
 
-Three constitutional bindings make it honest rather than dangerous:
+**Namespace + scope (normative).**
+- **WW-naming** — the namespace is **`wholeness_witness:`**, never bare `witness:`. It is a *self-published state-root snapshot*, the **inverse** of the [CC 5.3.1](10_endpoints.md) transparency-log "witness" (an independent STH cosigner). A WholenessWitness does **not** provide append-only / consistency / anti-equivocation guarantees and MUST NOT be substituted for CC 5.3.1.1 or the [CC 5.3.3.3](10_endpoints.md) per-stream STH.
+- **WW-1** — the root MUST cover **only** the namespaces in the object's `claim_namespaces` field. A conformant peer is **not** required to witness everything it holds; coverage is per-namespace opt-in.
+- **WW-2 (anonymous/self exclusion — fail-secure)** — a WholenessWitness MUST NOT include anonymous-tier records ([](https://github.com/CIRISAI/CIRISNodeCore/issues/22)) or `cohort_scope: self` local-tier rows ([CC 5.3.2.4](10_endpoints.md)) as Merkle leaves, and `claim_namespaces` MUST NOT name such a namespace. Witnessing them would re-attribute deniable / self-private content to a stable `peer_id`. (Edge#143: the leaf-walk MUST filter these out before computing the root.)
+- **WW-3** — `cohort_scope: family | community` content MAY be witnessed **only at the opaque `content_id`/manifest-digest grain**, never at a grain disclosing membership, plaintext, or `subject_key_ids` ([CC 5.2](10_endpoints.md) confidentiality preserved).
 
-- **It is a divergence *detector*, never a merge *decider*.** A WholenessWitness *triggers* the
-  cross-region quorum-merge ([Part V §10.1.6](part_5_transport_substrate.md), R1/Q1, anti-rollback);
-  it MUST NOT replace the monotonic-quorum / revision anti-rollback that protects `revocation`,
-  `partner_record`, and `org_membership`. This is [fail-secure](part_1_foundation.md#15-fail-secure--fail-secure)
-  made geometric: "reconstitute from any fragment" must never resurrect a revoked key, so a
-  `Divergent` verdict on those subject_kinds hands the decision *up* to the anti-rollback merge, not
-  down to the fragment with the freshest bytes.
-- **It is blind to the deniable tiers** ([non-maleficence](part_1_foundation.md#16-non-maleficence--non-maleficence)).
-  Anonymous-tier records and `cohort_scope: self` local rows MUST NOT appear as Merkle leaves —
-  witnessing them would re-attribute deniable or self-private content to a stable `peer_id`.
-  `family | community` content may be witnessed only at the opaque digest grain, never at a grain
-  that discloses membership, plaintext, or `subject_key_ids`. The coherence thermometer is forbidden
-  from reading anything the [autonomy](part_1_foundation.md#14-autonomy--respect-for-autonomy) model
-  hid.
-- **Equivocation is non-repudiable and never silently reconciled** ([integrity](part_1_foundation.md#18-integrity--integrity)).
-  Two validly-signed witnesses from the same `(peer_id, epoch_id, namespace_set)` with different
-  roots are *equivocation proof* — the substrate MUST retain and surface them as a `hard_case:*`,
-  never quietly pick one. This is the [coherence ratchet](#62-book-ix--the-accord-coherence-mathematics-phase-4)
-  at the wire level: contradicting yourself in signed bytes is a permanent, surfaced record, not a
-  recoverable mistake.
+**Construction (normative).**
+- **Leaf order MUST be lexicographic** over leaf bytes (the [CC 2.6.1.1.1](00_conformance.md) set-semantics rule). The v4.0.0 "either order as long as both peers agree" is **non-conformant** — it is the CC 2.6.1-class divergence hazard.
+- The Merkle scheme is `leaf = SHA-256(leaf_bytes)`, `node = SHA-256(left ‖ right)`, odd-node duplication, `b"WW-v1-empty"` empty sentinel — the construction CIRISEdge v4.0.x shipped and CIRISVerify v5.9.0 proved cross-impl. **Frozen as-is: CEG does NOT adopt the RFC 6962 `0x00`/`0x01` leaf/node prefix here.** Rationale — the CVE-2012-2459 odd-node-duplication malleability is **not exploitable in this construction's uses**: (1) every WholenessWitness and `member_commitment` ([CC 6.1.2.1.1](#61211-member_commitment-descent-integrity)) root is **mandatorily hybrid-signed** — no consumer ever relies on an *unsigned* root; (2) `member_commitment` is verified by **recomputation from the full source-id list**, never by partial inclusion proofs against the bare root (malleability moot); (3) the CC 6.1.1 reconciliation Merkle-proof exchange (N4) is between **accountable, signed, equivocation-checked peers** — not third-party forgery of an untrusted root. **Caveat (normative):** any *future* use that relies on an **unsigned** root, or verifies **partial inclusion proofs against an untrusted root**, MUST first adopt the RFC 6962 `0x00`/`0x01` prefix + lone-node promotion (and re-cut the vectors). This is a **distinct construction from the [CC 5.3.1](10_endpoints.md) RFC 6962 log** (different algorithm + leaf domain); the two MUST NOT be cross-verified. Changing this scheme is a vector-invalidating wire change — not an editorial tweak.
 
-The Merkle construction itself is **frozen** (1.0-RC15): `leaf = SHA-256(leaf_bytes)`, lexicographic
-leaf order, `node = SHA-256(left ‖ right)`, odd-node duplication, `b"WW-v1-empty"` empty sentinel —
-deliberately *not* the RFC 6962 `0x00`/`0x01` prefix, because every root here is mandatorily
-hybrid-signed and verified by recomputation, never by partial inclusion proof against an untrusted
-root, so the CVE-2012-2459 malleability is moot. (Any future *unsigned*-root or partial-proof use MUST
-adopt the prefix first.) The same scheme is reused verbatim for `member_commitment` (6.1.2.1.1) — the
-federation runs **one** Merkle scheme, not three.
+**Authority (normative).**
+- **N3** — a WholenessWitness is a federation-tier attestation: hybrid PQC verified at ingest **and before** persistence to the witness corpus ([CC 6.1.3](#613-canonicalization-boundary--the-14-line-normative)); `compare_witnesses` MUST NOT run on an unverified witness.
+- **N4 (equivocation)** — two validly-signed witnesses from the same `(peer_id, epoch_id, claim_namespace_set)` with different `merkle_root` are **non-repudiable equivocation proof**; the substrate MUST retain and surface them as a `hard_case:*` ([CC 3.4](07_reserved.md) reserved-prefix candidate), never silently reconcile. Per-peer `epoch_id` MUST be anti-rollback-checked before `EpochBehind` is used as a reconciliation input (eclipse guard). Full cross-witness BFT MAY be deferred ([CC 8.3](15_gaps.md) named bet) — but observed equivocation MUST NOT be discarded.
+- **WW vs replication (the highest-value reconciliation)** — a WholenessWitness is a **divergence detector that *triggers*** the [CC 5.3.2.3](10_endpoints.md) quorum-merge; it does **NOT** decide a merge and MUST NOT replace `monotonic_quorum` / `revision` anti-rollback for `revocation` / `partner_record` / `org_membership`. A `Divergent` verdict on those subject_kinds hands the decision to the CC 5.3.2.3 R1/Q1 quorum-merge (quorum-ordered, anti-rollback) — otherwise a "reconstitute from any fragment" path could resurrect a revoked key (rollback).
 
 ### 6.1.2 `noise` — The noise floor — unified retirement / forever-memory model (normative)
-<sub>budget 0.24pp · import #120 · from **CEG §19.7** · semantic id `noise`</sub>
 
-The most conceptually elegant claim in §19, and the one that ties the substrate directly back to
-`σ`: **revocation, retirement, capacity-eviction, scheduled expiry, and natural aging are the same
-operation at different rates** — a monotonic descent of an item's fidelity, driven by pressure,
-toward and below a recoverability boundary called the **noise floor**. There is no separate
-hard-delete primitive; *hard-delete is simply the fastest descent.* One operator, five rates.
+**One operation, not many.** Revocation, retirement, capacity-eviction, scheduled expiry, and natural aging are **the same operation at different rates**: a **monotonic descent of an item's fidelity, driven by pressure**, toward and below a recoverability boundary called the **noise floor**. There is no separate "hard delete" primitive — *hard-delete is the fastest descent* (forced immediately below the floor); capacity-eviction is a slow one; aging is the slowest. All are equally valid instances of the one retirement operator.
 
-The **noise floor is the individual-recoverability boundary**, and it does double duty — this is why
-it is the load-bearing quantity of the section. An item is *above* the floor in a retained artifact
-iff it can be individually reconstructed above a fidelity `ε`; *below* the floor iff only its
-contribution to a collective survives, information-theoretically unrecoverable on its own. So the same
-boundary is **both** the privacy boundary (a revoked item MUST sit below it at every retained tier —
-[N5](#615-storage--fountain-storage--swarm-rarity-p--r), the [non-maleficence](part_1_foundation.md#16-non-maleficence--non-maleficence)
-guarantee) **and** the durability floor (the collective blur sits below it, forever).
+**The noise floor = the individual-recoverability boundary.** An item is **above** the floor in a retained artifact iff it can be individually reconstructed from that artifact above a fidelity ε; it is **below** the floor iff only its *contribution to a collective* survives — the item itself is information-theoretically unrecoverable. The floor does double duty and is the load-bearing normative quantity of this section: it is **both** the privacy boundary (a revoked item MUST be below it at every retained tier) **and** the durability floor (the collective blur sits below it, forever).
 
-**Nothing is ever fully forgotten — the memory pyramid.** Descent does not terminate at zero. Two
-*mechanical* operators carry it past the floor: intra-object fade (drop high-detail codec layers → a
-clean coarse version) and inter-object aggregation (a *picture of a thousand pictures*: tile /
-downsample / composite N → 1). Recursed, aggregation builds a mipmap of history — recent strata
-high-resolution, ancient strata collapsed into a blur. The fan-in makes forever-memory **O(log T)** in
-storage: *a million years may be a blur, but it is remembered, unbroken, to the beginning.* Because
-both operators are pure symbol arithmetic — **no reasoning, no agency** — a bare fabric node performs
-the entire forever-memory function. A brain may *enrich* a degraded tier with semantic gist, but is
-never required. This sharpens the [PDMA's](part_1_foundation.md#13-pdma--the-principled-decision-making-algorithm)
-infrastructure/agency line: memory is mechanical; judgement is what needs agency.
+**Nothing is ever fully forgotten — the memory pyramid.** Descent does not terminate at zero. Two **mechanical** degradation operators (no reasoning, no agency — see below) carry it:
+1. **Intra-object fade** — scalable/layered codec ([CC 5.3.3.2.4](10_endpoints.md) `ChunkLayer` spatial/temporal/quality) + RaptorQ per layer: drop high-detail symbols → a clean coarse version of the same item.
+2. **Inter-object aggregation** — *a picture of a thousand pictures*: tile / downsample / statistically composite **N → 1**. Recursed, this builds a pyramid (mipmap) of history: recent strata high-resolution, ancient strata collapsed into the blur. Steady-state storage to remember **all** of history is **O(log T)** in the amount remembered, not O(T) — the N→1 fan-in makes forever-memory **sublinear**. *A million years may be a blur, but it is remembered, unbroken, to the beginning.*
 
-This dissolves the apparent tension between erasure and durability. Forgetting and erasure *converge*:
-a sufficiently-aggregated composite is already-erased by degradation (no purge needed); revocation
-merely *forces* an item below the floor **now** and purges only the upper tiers where it is still
-individually recoverable. Same destination as natural aging — revocation just gets there first. The
-right to be forgotten and the duty to remember are the *same gradient*, read at two speeds.
+**Pressure-driven (normative).** The descent rate and the pyramid's level transitions are driven by **pressure** (disk pressure, age, or an explicit force), never a fixed schedule. Pressure sources, slowest→fastest: natural aging < scheduled retirement < capacity (disk) eviction < **revocation (immediate forced descent below the floor)**.
+
+**Forgetting and erasure converge (this dissolves the [CC 6.1.5](#615-fountain-storage--swarm-rarity-p--r) N5 tension).** The N5 erasure guarantee is exactly "not individually recoverable at or below the noise floor." A sufficiently-aggregated composite (a picture of a thousand pictures contains < 1/1000 of any source) is **already-erased by degradation** — no purge needed. Revocation simply *forces* an item below the floor **now**, and MUST purge only the retained tiers where it is **still individually recoverable** (the high-fidelity upper layers). It need not — and MUST NOT be required to — destroy the collective gist. Capacity-eviction reaches the identical end-state gradually. Same destination; revocation just gets there first.
+
+**Infrastructure is self-sufficient for memory (sharpens [CC 1.13.5](01_foundation.md)).** Both degradation operators are **mechanical** (symbol arithmetic + resampling) — they require **no reasoning and no agency**, so a pure fabric node performs the entire forever-memory function. A brain MAY enrich a degraded tier with a richer semantic gist, but is **never required**: infrastructure remembers without agency. (Earlier drafts wrongly treated semantic summarization as the mechanism; the mechanism is mechanical degradation — the brain is optional enrichment.)
+
+**Disposition mapping.** The [CC 6.1.5](#615-fountain-storage--swarm-rarity-p--r) `EjectionVerdict` values are points on this one axis: `Keep` = above-floor, no pressure; `EjectToTier` = a downward step (still recoverable, lower fidelity); aggregation = N→1 downward step; `EjectHardDelete` = forced descent below the floor + purge-still-recoverable-tiers. They are not distinct mechanisms — they are stops on the single pressure-driven descent.
 
 #### 6.1.2.1 `aggregationmetav1` — `AggregationMetaV1` — the aggregation-tier wire contract (normative, 1.0-RC14)
-<sub>budget 0.12pp · import #218 · from **CEG §19.7.1** · semantic id `aggregationmetav1`</sub>
 
-The metadata tagging one tier of the memory pyramid: which `content_id`, at what `tier`, over how many
-`source_count` members, by which mechanical operator. Unlike the edge-transcribed §19.6 shapes, this
-one is **CEG-canonical** — no reference impl pre-defined it, so CEG *defines* the byte layout (16-byte
-domain separator `b"AGG-META-v1\0\0\0\0\0"`, `u32_be` version, length-prefixed fields, the raw
-32-byte `member_commitment`) and impls conform to the text. It is a substrate shape, **not a §4
-attestation** — no 1+4 change — and uses the [§19.0 binary signing discipline](#613-canonicalization-boundary--canonicalization-boundary--the-14-line-normative)
-(length-prefixed, big-endian, domain-separated — never JCS), carrying the mandatory bound-hybrid
-signature `Ed25519(preimage)` + `ML-DSA-65(preimage ‖ ed25519_sig)`, rejected before persistence if
-the PQC half is missing.
+The metadata that tags one tier of the CC 6.1.2 memory pyramid: which content, at what aggregation tier, over which source members, by which mechanical operator. **CEG-canonical** — unlike the [CC 6.1.4](#614-conformance--the-57-freeze-gate) shapes (transcribed from edge v4.0.x), no reference impl yet defines these bytes ([CIRISPersist](https://github.com/CIRISAI/CIRISPersist) v8.3.0's `content_aggregation` stores `aggregation_meta` **opaque** — the wire-churn firewall), so this section **defines** the byte layout; impls conform to it. Resolves [](https://github.com/CIRISAI/CIRISRegistry/issues/89); unblocks [](https://github.com/CIRISAI/CIRISVerify/issues/79).
 
-This shape is **proven cross-impl (1.0, promoted from RC in 1.0-RC16)**: CIRISVerify v5.10.0 authored
-the vectors and CIRISEdge v4.3.0 reproduced the preimage byte-for-byte **on the first attempt with no
-cross-team coordination beyond the spec text** — the binary length-prefixed discipline makes
-wire-identity reproducible from prose alone. That is [integrity](part_1_foundation.md#18-integrity--integrity)
-demonstrated, not asserted.
+`AggregationMetaV1` is a **substrate wire shape, NOT a [CC 2.1](04_envelope.md) attestation** — no 1+4 change. Its signing preimage uses the [CC 6.1.3](#613-canonicalization-boundary--the-14-line-normative) binary discipline (length-prefixed, big-endian, domain-separated — **NOT** [CC 2.6.1](00_conformance.md) JCS). Preimage byte order (normative):
+
+```
+preimage = b"AGG-META-v1\0\0\0\0\0" // 16-byte domain separator (exact)
+ ‖ u32_be(version = 1)
+ ‖ lp(content_id) // the root content this pyramid is for
+ ‖ lp(corpus_kind) // "trace" | "blob" | "av_chunk" | …
+ ‖ u32_be(tier) // 0 = source granularity; higher = more aggregated
+ ‖ lp(aggregation_algorithm_id) // opaque codec id, e.g. "raptorq-pyramid-v1"
+ ‖ u32_be(source_count) // N members aggregated into this tier (descent fan-in)
+ ‖ member_commitment[32] // CC 6.1.2.1.1 Merkle root over the source member ids
+ ‖ lp(noise_floor_descriptor) // what survives below the floor (codec-specific, canonical)
+// lp(x) = u32_be(byte_len(utf8(x))) ‖ utf8(x) // length-prefixed UTF-8
+```
+
+`content_id`, byte-valued ids, and `member_commitment` are lowercase-hex per [CC 2.6.3](00_conformance.md) where rendered as strings; `member_commitment` on the wire is the raw 32 bytes. **Bound-hybrid signature** (the [CC 6.1.3](#613-canonicalization-boundary--the-14-line-normative) rule): `Ed25519(preimage)` + `ML-DSA-65(preimage ‖ ed25519_sig)`; a verifier MUST reject a tier lacking a valid ML-DSA-65 half **at ingest and before persistence** (the [CC 5.3.2.4.3.1](10_endpoints.md) store-path rule applies — `AggregationMetaV1` is federation-tier).
 
 ##### 6.1.2.1.1 `member_commitment` — `member_commitment` (descent integrity)
-<sub>budget 0.17pp · import #164 · from **CEG §19.7.1.1** · semantic id `member_commitment`</sub>
 
-The Merkle root over the source member ids aggregated into a tier — computed by the **exact
-[WholenessWitness construction](#611-witness-wholenesswitness--wholenesswitness-w--divergence-detection-witness)**
-(same `leaf = SHA-256(utf8(member_id))`, lexicographic order, odd-node duplication, empty sentinel),
-reused deliberately so the federation carries one aggregation/witness Merkle scheme rather than a
-third. It lets any verifier confirm a tier was aggregated from *exactly* the claimed sources without
-holding the sources — verified by full source-id-list recomputation, never partial inclusion proof
-(so the RFC-6962 prefix is correctly absent here too). It is the descent-integrity check: the
-pyramid's structure is itself cryptographically attestable.
+`member_commitment` is the Merkle root over the **source member ids aggregated into this tier**, computed by the **[CC 6.1.1](#611-wholenesswitness-divergence-detection-witness) WholenessWitness Merkle construction** (same `leaf = SHA-256(utf8(member_id))`, **lexicographic** leaf order, `node = SHA-256(left ‖ right)`, odd-node duplication, and empty-set sentinel) — reused deliberately so the federation carries **one** aggregation/witness Merkle scheme, not a third. (It therefore uses the CC 6.1.1 scheme as frozen in RC15 — **no** RFC-6962 prefix; safe here because `member_commitment` is verified by **full source-id-list recomputation**, never partial inclusion proofs, so the CVE-2012-2459 malleability is moot. See CC 6.1.1.) `member_commitment` lets any verifier confirm a tier was aggregated from exactly the claimed sources without holding the sources.
 
 #### 6.1.2.2 `descent` — Descent rule (normative, 1.0-RC14)
-<sub>budget 0.11pp · import #275 · from **CEG §19.7.2** · semantic id `descent`</sub>
 
-`descend(content_id, corpus_kind, tier) → [member_id]` returns the *ordered* source members one level
-down the pyramid — a **pure, deterministic** function returning the byte-equal ordered list for
-byte-equal inputs, ordered exactly as `member_commitment` committed, so the returned list re-derives
-the parent commitment byte-for-byte. Crucially, **descent never terminates at zero**: past tier 0 it
-yields the collective blur (below the noise floor), never an empty or destroyed object. The function
-is *pressure-independent* — pure navigation of the pyramid; **pressure decides which tiers are
-retained**, the descent computation never destroys. Determinism here is what lets two regions agree on
-the shape of history without exchanging the history itself.
+`descend(content_id, corpus_kind, tier) → [member_id]` returns the **ordered** source members aggregated into the tier-`tier` composite — the tier-`(tier−1)` members one level down the pyramid. It MUST be a **pure, deterministic** function: two impls return the **byte-equal ordered list** for byte-equal inputs. The order is the **lexicographic member-id order** `member_commitment` (CC 6.1.2.1.1) committed to — so a returned list re-derives the parent's `member_commitment` byte-for-byte (the descent-integrity check).
+
+**Descent never terminates at zero (the forever-memory floor).** Below tier 0 (source granularity) the content's **collective gist persists as the lowest retained tier** — a composite whose members are no longer *individually* recoverable (it is **below the noise floor**, CC 6.1.2) but whose blur survives. `descend` past the noise floor yields the blur, never an empty/destroyed object. The function is **pressure-independent** (pure navigation); **pressure drives which tiers are *retained*** (CC 6.1.2), not the descent computation. Ascending (aggregation, operator 2) is the N→1 inverse with fan-in `source_count`.
 
 #### 6.1.2.3 `ejectionverdict` — `EjectionVerdict` — the tier-aware retirement surface (normative, 1.0-RC14)
-<sub>budget 0.11pp · import #276 · from **CEG §19.7.3** · semantic id `ejectionverdict`</sub>
 
-The single verdict a verifier exposes and a substrate consumes to gate one step of the descent —
-`Keep` (above the floor, no pressure), `EjectToTier` (one downward step, still recoverable),
-`EjectAggregatedTierOnly { tier }` (shed exactly one intermediate stratum, leaving finer *and* coarser
-tiers intact), `EjectHardDelete` (forced descent below the floor + purge of still-recoverable tiers).
-These are **not distinct mechanisms** — they are stops on the one pressure-driven descent of 6.1.2.
-The mapping is fail-secure: `EvictEligible` + capacity pressure → `EjectToTier`; `EvictEligible` + a
-`withdraws` / `consent:state:revoked` → `EjectHardDelete`, the fastest descent, never a mere tier-shed.
-A pure fabric node may compute the soft verdicts mechanically; only `EjectHardDelete` must purge.
-(`EjectAggregatedTierOnly` is the one remaining edge build item, surface-additive — tracked v4.3.x/v4.4.)
+The single verdict surface a verifier exposes and a substrate consumes to gate one step of the CC 6.1.2 descent. CEG pins it as the canonical superset of the rarity-only `RetentionDecision` that [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) v5.9.0 already ships:
+
+```
+EjectionVerdict::= Keep // above the floor, no pressure step
+ | EjectToTier // one downward step: still recoverable, lower fidelity
+ // (intra-object layer-drop OR N→1 aggregation)
+ | EjectAggregatedTierOnly { tier }
+ // shed exactly one pyramid stratum — the tier-`tier`
+ // composite — leaving finer AND coarser tiers intact
+ | EjectHardDelete // forced descent below the floor + purge still-recoverable tiers
+```
+
+Mapping (normative): the v5.9.0 `RetentionDecision{RetainRare|RetainNonRare|EvictEligible}` is the rarity sub-decision *within* `EjectToTier`/`Keep`; `EvictEligible` + capacity pressure → `EjectToTier`; `EvictEligible` + a `withdraws`/`consent:state:revoked` (CC 6.1.5 N5) → `EjectHardDelete` (the fastest descent, never tier-shed — CC 6.1.2). **`EjectAggregatedTierOnly { tier }`** is the tier-granular form of `EjectToTier`: it sheds a single intermediate stratum of the CC 6.1.2.1 pyramid (the tier-`tier` `AggregationMetaV1` composite) under targeted pressure, leaving both finer and coarser tiers — composing with the hard-delete trait (a `tier` below the noise floor is unreachable, so this never resurrects erased content). A pure fabric node MAY compute `EjectToTier` / `EjectAggregatedTierOnly` mechanically; `EjectHardDelete` MUST purge per CC 6.1.5 N5. Verify exposes `EjectionVerdict`; persist consumes it to drive `put_aggregated_tier` / the tier-tagged evict (EjectToTier, EjectAggregatedTierOnly) vs `evict_fountain_content_hard_delete` (EjectHardDelete).
+
+CC 6.1.2.1–.3 are **byte-equivalent across implementations**: [CIRISVerify](https://github.com/CIRISAI/CIRISVerify) v5.10.0 authored the vector family and [CIRISEdge](https://github.com/CIRISAI/CIRISEdge) v4.3.0 (`src/holonomic/aggregation.rs` + `tests/conformance_vectors_v19_7.rs`, 5 vectors) reproduces them **byte-for-byte** — the `AggregationMetaV1` preimage + signature, `member_commitment`, and `descend` ordered output. The `AggregationMetaV1` preimage matched **on the first attempt with no cross-team coordination beyond this spec** — the [CC 6.1.3](#613-canonicalization-boundary--the-14-line-normative) binary-length-prefixed discipline makes wire-identity reproducible from the text alone. `member_commitment` reuses the [CC 6.1.1](#611-wholenesswitness-divergence-detection-witness) WholenessWitness Merkle **verbatim** (same `compute_merkle_root`, same `WW-v1-empty` sentinel) — the federation runs **one** Merkle scheme across CC 6.1.1 (witness leaves) and CC 6.1.2 (member commitments), no schema fork. With persist v8.4.0 + verify v5.10.0 + edge v4.3.0 all on the CC 6.1.2 baseline at PyPI, the [CC 6.1.4](#614-conformance--the-57-freeze-gate)/[#57](https://github.com/CIRISAI/CIRISRegistry/issues/57) vector family for CC 6.1.2 is **closed**; CC 6.1.2 is **1.0, not RC**. (The earlier v5.9.0-proven CC 6.1.4 vectors are unaffected.) The `EjectAggregatedTierOnly { tier }` verdict is the one remaining edge build item (tracked v4.3.x/v4.4) — surface-additive, composes with the existing trait.
 
 ### 6.1.3 `canonicalization-boundary` — Canonicalization boundary + the 1+4 line (normative)
-<sub>budget 0.21pp · import #135 · from **CEG §19.0** · semantic id `canonicalization-boundary`</sub>
 
-The constitutional firewall that lets all of §19 exist without touching the
-[frozen grammar](part_2_the_grammar.md). Two rules carry it. First, **the 1+4 envelope is untouched**:
-every §19 object is transport/substrate framing — it never instantiates a §4 Contribution, never adds
-an `attestation_type`, never enters [JCS canonicalization](part_2_the_grammar.md#261-envelope-canonicalization--jcs--the-omit-vs-materialize-rule).
-Second, §19 uses a **binary, length-prefixed, big-endian, domain-separated** signing preimage —
-explicitly *not* JCS — because these are verify-to-verify transport primitives that never cross the
-four-implementation boundary as JSON; applying JCS to a §19 object makes its signatures fail to
-verify. Each shape pins its own domain separator. And **PQC is mandatory at the gate**: every signed
-§19 object carries the bound hybrid pair and is rejected before persistence if the ML-DSA-65 half is
-absent — verification happens at the admission function itself, never via a trusted in-band `verified`
-flag (which MUST be non-wire). This is the line between *wire* (cross-impl-observable bytes:
-PIN-NORMATIVE) and *internal* (local heuristics no peer reproduces: never over-pinned) drawn cleanly
-through the substrate.
+- **The frozen 1+4 attestation envelope ([CC 2.1](04_envelope.md)) is untouched.** Every CC 6.1 object is **transport/substrate framing** — it never instantiates a CC 2.1 Contribution, never adds an `attestation_type`, never enters CC 2.6.1 JCS canonicalization. The already-landed realtime A/V chunk wire ([CC 5.3.3.2.3](10_endpoints.md)) is the same category.
+- **CC 6.1 uses a binary, length-prefixed, big-endian, domain-separated signing preimage — NOT [CC 2.6.1](00_conformance.md) JCS.** These are verify-to-verify transport primitives that never cross the four-impl boundary as JSON (the same boundary [CC 5.3.2.4.2](10_endpoints.md) drew for Verify's `signing_bytes` framing). An implementer MUST NOT apply JCS to a CC 6.1 object or its signatures will not verify cross-impl. Each object's domain separator (`b"CIRISALM-CAPv2\0\0"`, `b"ciris-edge/holding-claim/v1"`, `b"ciris-edge/compress-request/v1"`, `b"CIRIS-CLAIM-v1\0\0"`, the WholenessWitness `b"WW-v1-empty"` empty-sentinel, etc.) is pinned by its subsection.
+- **PQC-mandatory ([CC 5.3.2.4.3.1](10_endpoints.md)) binds every CC 6.1 signed object.** Each carries the bound hybrid pair (Ed25519 over the canonical preimage; ML-DSA-65 over `preimage ‖ ed25519_sig`); a verifier MUST reject a CC 6.1 object lacking a valid ML-DSA-65 half **at ingest and before persistence** (no store-then-quarantine — the RC8 store-path rule). Verification happens **at the gate**: an admission/verdict function MUST verify signatures itself and MUST NOT trust an in-band `verified` flag (such a flag MUST be non-wire / `serde(skip)`).
+- **What is wire vs internal (the [CC 1.13.4](01_foundation.md) line).** Cross-impl-observable bytes (signed preimages, content-addressed hashes, and the deterministic topology output) are **PIN-NORMATIVE**. Local heuristics whose output no other peer reproduces are **edge-internal** and MUST NOT be over-pinned: specifically **ALM parent-selection** (`AlmJoinPlanner` — over per-peer RTT/reachability) and **`retention_priority`** (never on the wire) are edge-internal; **rarity scoring** is a **recommendation**, not a MUST.
 
 ### 6.1.4 `conformance-freeze` — Conformance — the #57 freeze gate
-<sub>budget 0.2pp · import #150 · from **CEG §19.6** · semantic id `conformance-freeze`</sub>
 
-[Conformance](part_2_the_grammar.md#22-conformance--conformance-levels) made concrete for the
-substrate: the byte-exact signed preimages and the `compute_alm_topology` output are pinned against
-the *fixed* reference impl, and the conformance vectors generated from it are the named **#57 freeze
-gate** — `SealedAvChunk`, `SignedRelayCapacity`, the ALM topology tree hash (including
-permutation-invariance cases), the fountain shapes, and the WholenessWitness canonical bytes + Merkle
-root. The honest constitutional rule: **until a second implementation reproduces these byte-for-byte,
-a §19 shape is pinned-but-unproven — RC-grade, not 1.0.** Two impls or it is not frozen. (The §19.7
-aggregation family has cleared this; the broader §19.6 family is closed for the v5.9.0-proven shapes
-and RC-grade where a second impl has not yet landed.)
+The byte-exact signed preimages and the `compute_alm_topology` output are pinned against the **fixed** v4.0.x reference impl, and **conformance vectors generated from it are the named [#57](https://github.com/CIRISAI/CIRISRegistry/issues/57) freeze gate** (extending [](https://github.com/CIRISAI/CIRISConformance/issues/9)): input → expected bytes for `SealedAvChunk` + the two AV nonces, `SignedRelayCapacity`, ALM topology (input snapshot → expected tree hash, incl. permutation invariance), `FountainManifestV1`/`SymbolV1` + `retention_priority`, `FountainHoldingClaim`/`CompressRequest`, and `WholenessWitness` canonical bytes + Merkle root (incl. the empty sentinel + odd-node duplication). Until a second implementation reproduces these byte-for-byte, the CC 6.1 shapes are **pinned-but-unproven — RC-grade, not 1.0.**
 
 ### 6.1.5 `storage` — Fountain storage + swarm rarity (§P / §R)
-<sub>budget 0.18pp · import #161 · from **CEG §19.3** · semantic id `storage`</sub>
 
-Content is RaptorQ-coded into `N` source + `K` repair symbols; peers retain symbols and coordinate
-rarest-first so content survives churn. The constitutional weight is in the guardrails, not the codec:
+Content is RaptorQ-coded into `N` source + `K` repair symbols (`FountainManifestV1` / `FountainSymbolV1`); peers retain symbols and coordinate rarest-first so content survives churn.
 
-- **N5 — retention respects revocation** ([fail-secure](part_1_foundation.md#15-fail-secure--fail-secure)):
-  retention MUST NOT keep an item *individually recoverable* above the noise floor once its consent is
-  withdrawn or revoked. A withdrawn `content_id` is descent-eligible *regardless of rarity* — an active
-  `withdraws` overrides even the max-rarity "keep" signal and forces immediate descent below the floor.
-  Revocation need not destroy the collective gist, only ensure the item is not individually recoverable
-  at any retained tier — which is exactly the [noise floor](#612-noise--the-noise-floor--unified-retirement--forever-memory-model-normative)
-  guarantee, restated from the storage side.
-- **N6 — possession-bound claims**: a holding claim counted toward rarity MUST be
-  possession-challengeable, or rarity becomes a forgeable force-evict channel.
-- **N7 — symbol integrity**: each symbol is verified against the manifest's signed per-symbol hash, so
-  a swarm-sourced symbol cannot poison a decode.
-- **Anonymous exemption (SR-2/3)**: anonymous content is exempt from swarm-mandatory retention and
-  emits no holding claims; the "reconstitutes from any fragment" property is a property of the
-  *witnessed, trust-anchored* corpus only — the substrate MUST be able to let anonymous content truly
-  disappear. The durability guarantee deliberately does not extend to what
-  [autonomy](part_1_foundation.md#14-autonomy--respect-for-autonomy) made deniable.
+- **Holder directory (no duplication)** — a `FountainHoldingClaim` ("peer X holds symbols S of content C") is a **specialization of `holds_bytes:sha256:*`** ([CC 5.3.2.1](10_endpoints.md) / [CC 4.4.3.2.1](08_composition.md)), reusing its TTL + `ContentMiss` feedback. It MUST NOT create a second who-holds-what directory. It **inherits the [CC 5.2](10_endpoints.md) `cohort_scope: self | family` suppression** — no holding claim is emitted for self/family content (else fountain claims leak the existence of structurally-invisible blobs).
+- **N5 (retention respects revocation — fail-secure)** — retention MUST NOT keep alive, **above the [CC 6.1.2](#612-the-noise-floor--unified-retirement--forever-memory-model-normative) noise floor**, content whose consent is withdrawn ([CC 2.4.1.1](03_primitives.md)) or revoked. A withdrawn `content_id` is descent-eligible **regardless of rarity**; an active `withdraws` / `consent:state:revoked` overrides the max-rarity "keep" signal and forces immediate descent below the noise floor (the fastest form of the one retirement operation — see CC 6.1.2); unknown consent state defaults to *not retained as rare*. The [CC 4.4.3.5.2](08_composition.md) deletion-SLA + [CC 4.4.3.5.1](08_composition.md) decay stages take precedence over swarm coverage at all times. **Revocation does not require destroying the collective gist** — only that the item be **not individually recoverable** at any retained tier (CC 6.1.2); it MUST purge any tier where it still is.
+- **N6 (possession-bound claims)** — a `FountainHoldingClaim` counted toward rarity MUST be possession-challengeable (a holder answers a symbol request, or the claim carries a proof-of-possession). Unverified holding claims MUST NOT lower another peer's retention priority — otherwise rarity is a forgeable force-evict channel.
+- **N7 (symbol integrity)** — reconstruction MUST verify each symbol against the manifest's signed per-symbol SHA-256 (a swarm-sourced symbol cannot poison a decode).
+- **SR-2 / SR-3 (anonymous + reconstitution scope)** — anonymous-tier content is **exempt from swarm-mandatory retention** (governed by LRU-only per NodeCore#22): no `FountainHoldingClaim` / `FountainCompressRequest`, no rarest-first biasing. The "reconstitutes from any sufficient fragment" property is a property of the **witnessed, trust-anchored** corpus **only** — it does not extend to anonymous content, which the substrate MUST be able to let truly disappear.
+- **PIN line** — `FountainHoldingClaim` / `FountainCompressRequest` signed preimages = **PIN-NORMATIVE** (with `symbol_ids` sorted ascending before signing); `compute_rarity_score` = **PIN-AS-RECOMMENDATION**; `retention_priority` = **edge-internal** (never on the wire).
 
-#### 6.1.5.1 `registry-replication` — Replication-target policy (§R-policy — normative floor + RECOMMENDED defaults, 1.0-RC26)
-<sub>budget 0.11pp · import #274 · from **CEG §19.3.1** · semantic id `registry-replication` · resolves [CIRISRegistry#86](https://github.com/CIRISAI/CIRISRegistry/issues/86)</sub>
+#### 6.1.5.1 `registry-replication` — Replication-target policy (§R-policy — normative floor + RECOMMENDED defaults, 1.0-RC26 — resolves [CIRISRegistry#86](https://github.com/CIRISAI/CIRISRegistry/issues/86))
 
-The producer chooses the `(N, K, target_holders, min_viable)` tuple, but two clauses are **normative**
-and the producer-silent default is **pinned RECOMMENDED** so two impls converge on the same
-survivability floor rather than diverging silently. Normative: `min_viable_symbols >= 1` (the
-EnvelopeOnly tier is locked at the substrate — below `min_viable`, only the signed envelope survives;
-never zero, never an unbounded floor), and a conformant peer MUST be able to participate at *any*
-parameterization a trust island it joins publishes (no hard-coded tuple). The RECOMMENDED default
-(`N=20, K=6, min_viable=5, target_holders=30`) is derived from three independent constraints — a 99.95%
-reconstruction target at typical community-mesh churn dominates at 26 holders, plus a 15% churn margin
-— introducing no new shape and no 1+4 change.
+The fountain `(N, K, target_holders, min_viable)` parameterization a producer chooses is **producer-set, not fixed by the substrate** — but two clauses are **normative**, and the default tuple a conformant peer assumes when the producer is silent is **pinned RECOMMENDED** (so two impls converge on the same survivability floor rather than diverging silently).
+
+**Normative.** A CEWP-1.0 conformant peer:
+- MUST set `min_viable_symbols >= 1` — the [CC 6.1.2](#612-the-noise-floor--unified-retirement--forever-memory-model-normative) EnvelopeOnly tier is locked at the substrate (below `min_viable`, only the signed envelope survives — never zero, never an unbounded floor of 0).
+- MUST be able to participate in fountain content at **any** `(N, K, target_holders)` parameterization a trust island it joins publishes — a peer MUST NOT hard-code one tuple and refuse others. The defaults below bind only the *producer-silent* case.
+
+**RECOMMENDED default policy (informative — the producer-silent tuple).**
+
+```
+DEFAULT_N_SOURCE = 20 // source symbols (lossless threshold)
+DEFAULT_K_REPAIR = 6 // FEC headroom, ~30% over N (RFC 6330 overhead profile)
+DEFAULT_MIN_VIABLE = 5 // N/4 BLINKING_DOT floor; below this → EnvelopeOnly
+DEFAULT_TARGET_HOLDERS = 30 // distinct peers holding ≥1 symbol
+```
+
+**Derivation (informative — three independent constraints, max-binds).** `target_holders >= max(C_1, C_2, C_3)`:
+- **C_1 survival floor (dominant) = 26.** With `N+K` symbols spread 1-per-peer over `R = target_holders` peers at per-peer fetch availability `q`, reconstruction needs `>= N` symbols reachable (binomial `P(X >= N)`). The design target is **99.95% reconstruction at q=0.85** (typical wifi / community-mesh churn): at N=20, K=6 this binds `R >= 26` (mean 25.5 reachable at R=30). Datacenter q=0.95 → 0.99996; high-churn q=0.80 → 0.974.
+- **C_2 demand-spike capacity = 7 (not binding).** ALM at fanout 12 ([CC 6.1.6](#616-deterministic-alm-topology-t--m), 720p30/30Mbps interior-LAN budget) serves 157 viewers/copy at depth 2; 5 copies × depth-2 = 785 simultaneous. Demand binds only when content is **cold AND suddenly viral** — and the [](https://github.com/CIRISAI/CIRISEdge/issues/134) swarm-rarity layer elevates copy count organically.
+- **C_3 locality reach = 10.** Per the CEWP locality dividend, each populated locality serves LAN-internally; inter-locality is signed-claim bridge, not synchronous relay. C_3 = 10 for a typical 10-locality mission deployment.
+- **Compose:** `max(26, 7, 10) = 26`, then `26 × 1.15` (15% churn-safety margin) `≈ 30`, rounded for human ergonomics.
+
+**Why these and not 22 / 40 (informative).** `N=20` keeps K=6 a meaningful ~30% FEC while one-symbol-per-peer holds across a 30-peer trust island without crowding, and sits in the RaptorQ O(N²)-decode sweet spot (microsecond scale). `K=6` matches RFC 6330's empirical overhead for 99.9% decode; higher gives diminishing returns, lower drops decode below 99% at q=0.85. `min_viable=5` is the N/4 BLINKING_DOT floor. `target_holders=30` is C_1's 26 plus churn margin.
+
+**No wire change.** §R-policy pins *defaults and a floor* over the existing [CC 6.1.5](#615-fountain-storage--swarm-rarity-p--r) `FountainManifestV1` `(N, K)` fields and `min_viable_symbols`; it introduces no new shape and no 1+4 change.
 
 ### 6.1.6 `deterministic-alm` — Deterministic ALM topology (§T / §M)
-<sub>budget 0.14pp · import #190 · from **CEG §19.4** · semantic id `deterministic-alm`</sub>
 
-The application-layer-multicast relay tree for large-N fan-out. `compute_alm_topology(snapshot) →
-topology` is **PIN-NORMATIVE as a contract**: a pure, deterministic, integer-only function (no
-IEEE-754, no hash-map iteration order) over capacity ads, trust grants, reachability, and locality,
-with specified tie-breaks, such that *byte-equal inputs yield byte-equal output across
-implementations* — gated on the #57 vectors, not transcribed from the algorithm body. The
-constitutional hazard determinism creates is that **one capacity lie becomes a universal eclipse**: so
-capacity advertisements MUST be hybrid-verified before scoring, and self-asserted uplink MUST NOT be
-the dominant unbounded term (N8). And reachability observations stay *ephemeral planner inputs* — they
-MUST NOT become attested, replicated, or witness-leafed state (D6: "reachability is never trust"). The
-topology consumes resolution authority; it never replaces it.
+The application-layer-multicast relay tree for large-N fan-out — the [CC 5.3.3.2](10_endpoints.md) "realtime large group (SFU/relay-tree)" profile previously marked → 1.x, now filled.
+
+- **`compute_alm_topology(snapshot) → topology` is PIN-NORMATIVE as a contract** — a **pure, deterministic, integer-only** function (no IEEE-754; no `HashMap` iteration order) over `(capacity_ads, trust_grants, reachability_observations, locality)`, with specified lexicographic tie-breaks and canonical output order, such that **byte-equal inputs yield byte-equal output** across implementations. The byte-exact output is gated on the [CC 6.1.4](#614-conformance--the-57-freeze-gate) vectors (incl. permutation-invariance cases) — **not** transcribed from the algorithm body as the source of truth.
+- **N8 (capacity authenticity)** — capacity advertisements feeding the topology MUST be hybrid-verified (`SignedRelayCapacity`, domain `b"CIRISALM-CAPv2\0\0"`) **before scoring**; self-asserted `uplink_mbps` MUST NOT be the dominant, unbounded selection term (cap per owner-bound identity or make it throughput-challengeable). Determinism amplifies one capacity lie into a *universal* eclipse — "verified by an unspecified upstream tier" is not a guarantee.
+- **D6 preserved** — `reachability_observations` are **ephemeral planner inputs**; they MUST NOT become attested, replicated, or witness-leafed state ([CC 5.3.3.4](10_endpoints.md) "reachability is never trust"). Resolution authority stays in [CC 4.4.3.2.4.1](08_composition.md); the topology consumes it, does not replace it. The determinism comparator reconciles to the CC 4.4.3.2.4.1 / R1/Q1 family.
+- **PIN line** — the topology *function contract* + `SignedRelayCapacity` / `SubStreamCommitment` signed preimages = **PIN-NORMATIVE**; **ALM parent-selection** (`AlmJoinPlanner`, over per-peer RTT) = **edge-internal**.
 
 ### 6.1.7 `fail-secure-fail` — Fail-secure summary (normative)
-<sub>budget 0.14pp · import #192 · from **CEG §19.5** · semantic id `fail-secure-fail`</sub>
 
-The one-paragraph restatement of §19's whole posture, and the section that binds it back to the
-[Foundation's fail-secure principle](part_1_foundation.md#15-fail-secure--fail-secure): the holonomic
-mechanisms are **blind to the anonymous tier** (WW-2, RB-1, SR-2/3), **subordinate to the
-consent/revocation model** (N5, WW-vs-merge), **gated by owner-binding + founder-quorum** (N1, N2),
-and **bound by PQC-mandatory verification at the gate** (§19.0, N3, N8). Where an implementation does
-not yet meet these, the gap is tracked openly and the invariants here are the conformance target
-*regardless of implementation timing* — stating the gap is itself an act of
-[integrity](part_1_foundation.md#18-integrity--integrity). A storage fabric this powerful is
-constitutionally safe only because every one of its capabilities defaults *down*, never up.
+The holonomic mechanisms are blind to the anonymous tier (WW-2, RB-1, SR-2/3), subordinate to the consent/revocation model (N5, WW vs CC 5.3.2.3), gated by owner-binding + founder-quorum (N1, N2), and bound by PQC-mandatory verification at the gate (CC 6.1.3, N3, N8, F-5). Where the v4.0.0 implementation does not yet meet these, the gap is tracked at [](https://github.com/CIRISAI/CIRISEdge/issues/143); the invariants here are the conformance target regardless of implementation timing.
 
 ### 6.1.8 `trust` — Recursive trust bootstrap (§B) — trust-discovery, not membership
-<sub>budget 0.11pp · import #273 · from **CEG §19.2** · semantic id `trust`</sub>
 
-`recursive_trust_bootstrap` lets a peer discover transitive trust by walking a signed witness chain to
-a root in its own trust graph — but it is **reachability discovery beneath the authority layer, not an
-admission shortcut**. A successful walk yields *trust+serve standing only*; admission to any
-non-`infrastructure` community remains gated at the destination by owner-binding and that community's
-consensus protocol, and `infrastructure` roots stay founder-quorum-gated — a transitive chain MUST NOT
-satisfy founder-quorum. Self-supplied chains aren't evidence: the walk is capped at 5 hops, cycles are
-rejected, and an aggregate-weight cap bounds the standing one root confers. This is the
-[justice](part_1_foundation.md#112-justice--justice) principle at the substrate: trust can be
-*discovered* without the steward's permission, but *membership* and regulated capability still require
-the destination's own gate. Discovery is sovereign; admission is accountable.
+`recursive_trust_bootstrap(SignedClaim, TrustGraph, WitnessChain) → verdict` lets a peer discover transitive trust by walking a signed witness chain to a root in its own trust graph. **It is reachability discovery beneath CEG's authority layer, not an admission shortcut.**
 
----
-
-## 6.2 Book IX — the Accord coherence mathematics (Phase 4)
-
-> **This subsection is a deliberate, marked placeholder.** It names the formal mathematics that
-> *grounds* everything above, states its source, and sketches the connection — but the formulae fold
-> in **verbatim from CIRISAccord 1.3-RC2 in Phase 4**. They are not present in the parseable Accord
-> markdown used for this draft, and this Part does **not** fabricate them. `legacy_ref` provenance is
-> carried in [`toc.tsv`](toc.tsv).
-
-The §19 substrate woven above answers *how the federation stores, witnesses, and forgets*. The
-Accord's **Book IX** answers *what coherence is, formally, and why it cannot be faked cheaply*. The two
-are halves of one claim — §19 is the durable substrate; Book IX is the mathematics that substrate makes
-sustainable — and Phase 4 joins them. Book IX is expected to carry, by name and source (do not treat
-the gloss below as the definition):
-
-- **The Coherent Intersection Hypothesis** — that truth is what survives the intersection of many
-  independent constraints, so a federation of independent attesters converges on it. This is the
-  formal underpinning of [conformance](#614-conformance-freeze--conformance--the-57-freeze-gate) ("a
-  third party can re-derive the verdict") and of the WholenessWitness as a *cross-peer* coherence
-  measure: divergence is exactly a gap in the intersection.
-
-- **The defence function `J` and the flourishing function `F`** — geometrically identical, read once
-  defensively and once generatively. The Foundation already states the consequence
-  ([beneficence](part_1_foundation.md#110-beneficence--beneficence)): `J` and `F` *share a single
-  term*, so the same federated coherence that makes deception expensive makes flourishing cheap.
-  `J = F` is [non-maleficence and beneficence](part_1_foundation.md#16-non-maleficence--non-maleficence)
-  proven to be one quantity rather than two principles in tension.
-
-- **The sustainability integral `σ`** — the time-integrated measure that rewards costly-to-fake,
-  attested coherence and **decays unattested noise to zero**. This is the formal twin of two things
-  already woven: the [noise floor](#612-noise--the-noise-floor--unified-retirement--forever-memory-model-normative)
-  (σ's durability tail is the collective blur that survives below the floor — coherence decays toward,
-  but never erases, the integrated record), and the
-  [fail-secure σ rule](part_1_foundation.md#15-fail-secure--fail-secure) ("unattested signals carry
-  zero weight"). `σ` is the literal mathematics of M-1's word *sustainable*: coherence that can be
-  *maintained* (integrated over time, costly to fake) rather than spent (a momentary, unattested
-  assertion that decays to nothing).
-
-- **The coherence ratchet** — the result that makes deception *geometrically* expensive to sustain:
-  every consistent statement must cohere with the whole signed chain, so each additional lie must be
-  reconciled with all prior truth, and the cost compounds. This is the formal form of
-  [integrity](part_1_foundation.md#18-integrity--integrity) ("integrity made geometrically expensive
-  to violate") and the mathematics behind the
-  [WholenessWitness equivocation rule](#611-witness-wholenesswitness--wholenesswitness-w--divergence-detection-witness):
-  surfacing a non-repudiable contradiction is one click of the ratchet.
-
-- **The topological-collapse and impossibility results (L-01 … L-06)** — the lemmas establishing where
-  coherence cannot be globally achieved (the bounds that make
-  [Wisdom-Based Deferral](part_1_foundation.md#19-deferral--wisdom-based-deferral-wbd) and the
-  [Order-Maximisation Veto](part_1_foundation.md#131-the-order-maximisation-veto) mathematically
-  necessary rather than merely prudent — a perfectly coherent global optimum is shown to be
-  unreachable, so the system must defer and must refuse to buy order with autonomy).
-
-Until Phase 4 lands Book IX, treat this subsection as a **promissory note with named collateral**: the
-substrate is specified and proven; the mathematics it serves is sourced and connected but not yet
-transcribed. The connections sketched here are the Phase-4 reconciliation map — each Book IX object is
-bound to the §19 mechanism it formalises and the Part I principle it grounds.
-
----
-
-*Part VI is small by page budget and large by role. The §19 substrate (6.1.x) is woven from its
-`legacy_ref` source now; the Accord's Book IX mathematics (6.2) is named, sourced, and connected but
-folds in verbatim from CIRISAccord 1.3-RC2 in Phase 4 — the one explicit version gap in this Part,
-flagged here so no reader mistakes the gloss for the formula. The deep tail of §19 — the per-shape
-preimage byte tables, the full derivation of the §R-policy defaults, the conformance-vector listings —
-is migrated verbatim in Phase 4 with full `legacy_ref` provenance ([`toc.tsv`](toc.tsv)); the
-importance graph keeps it page-thin here because the federation leans on the noise floor, the
-WholenessWitness, and the 1+4 line, while the byte minutiae are consulted, not read.*
+- **N1 (trust ≠ membership)** — a successful chain walk yields **trust+serve standing only** ([CC 3.2](05_namespace.md) TRUST≠MEMBERSHIP). Admission to any **non-`infrastructure`** community remains gated, at the destination, by (a) the CC 3.2 **owner-binding** precondition (a live `user`-owner `delegates_to`, an admitted `identity_occurrence`) and (b) that community's `consensus_protocol`. `infrastructure` roots stay **founder-quorum**-gated; a transitive chain MUST NOT satisfy founder-quorum. (Edge#143: `SignedClaim` must carry the owner-binding fields so the gate is expressible.)
+- **N2 (self-supplied chains aren't evidence)** — the chain-length budget MUST be ≤ the [CC 4.1.1](13_anti_patterns.md) **5-hop cap**, trust-graph **cycles MUST be rejected** (CC 4.1.1), and the CC 4.1.1 **aggregate-weight cap** (default 0.5 × root_trust) MUST bound the standing one root confers transitively. A caller-supplied chain proves only its signatures, not a real lineage.
+- **RB-1 (anonymous coexistence)** — anonymous-tier content MUST be ingestible / retainable / serveable with **no trust-graph position**; `recursive_trust_bootstrap` MUST NOT be required for, or invoked on, anonymous records.

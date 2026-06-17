@@ -1,0 +1,9 @@
+[
+  {
+    "decimal_id": "8.5",
+    "semantic_id": "update",
+    "title": "Update cadence",
+    "legacy_ref": "§17",
+    "body": "CEG is updated:\n\n- On every prefix admission to [CC 3.1](#3.1) (per [CC 4.5](#4.5) amendment process)\n- On every envelope field addition to [CC 2.1](#2.1)\n- On every endpoint shape addition to [CC 5.3](#5.3)\n- On every anti-pattern admission to [CC 4.1](#4.1) (with citation to the stress test or methodology that surfaced it)\n- On every gap state transition in [CC 8.3](#8.3)\n- On every CIRISAccord revision affecting the federation surface\n- On every conformance-language or normative-reference change in [CC 2.6](#2.6) (MAJOR per [CC 2.6.4](#2.6.4))\n\nEach update lands as a single commit touching the relevant file(s) + a lineage row in [CC 8.6.2](#8.6.2). The version number bumps per the [CC 2.6.4](#2.6.4) SemVer rules.\n\nLast updated: 2026-06-16 (CEG 1.0-RC12 — unified retirement / forever-memory model in [CC 6.1.2](#6.1.2); no 1+4 change, no wire break). Full version-by-version history in [CC 8.6.2](#8.6.2)."
+  }
+]
