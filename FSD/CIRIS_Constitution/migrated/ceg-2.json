@@ -1,0 +1,9 @@
+[
+  {
+    "decimal_id": "2.5",
+    "semantic_id": "reasoning",
+    "title": "The reasoning grammar — the eight axes",
+    "legacy_ref": "§2",
+    "body": "These are how a consumer reasons about an envelope. They are **not wire fields**; they are the canonical questions a consumer can ask about any Attestation.\n\n| Axis | Question | Values |\n|---|---|---|\n| **Polarity** | Direction of the claim | Positive / Negative / Neutral / Indeterminate{reason} |\n| **Object** | What the claim is about | key_id (entity) / attestation_id / contribution_id |\n| **Time** | When is the claim valid | `asserted_at` + optional `valid_until`; consumer composes with substrate `expires_at` |\n| **Epistemic mode** | How was the claim formed | direct / crypto / hearsay / derivative / appeal |\n| **Reversibility** | Can the attestation be reversed | rollbackable / non-rollbackable (consumer policy + per-prefix rule) |\n| **Stake** | What's backing the attester's claim | free / reputational / capital / cryptoeconomic |\n| **Scope** | At what scale does the claim apply | self / family / community / affiliations / species / biosphere / federation |\n| **Inter-attestation relations** | How does this attestation relate to others | standalone / refers-to / supersedes / withdraws / recants / corroborates / contradicts / clarifies (four of these are structural primitives per [CC 2.4](#2.4); rest are emergent from scalar composition) |\n\n`biosphere` added to Scope per CIRISRegistry#30 (distinct from `species` which is Homo sapiens cohort). See [CC 4.1](#4.1) for the `planet` colloquial alias note."
+  }
+]

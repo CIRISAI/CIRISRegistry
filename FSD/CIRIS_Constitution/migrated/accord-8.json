@@ -1,0 +1,72 @@
+[
+  {
+    "decimal_id": "7.5",
+    "semantic_id": "why-death",
+    "title": "Introduction: Why Death Deserves Doctrine",
+    "legacy_ref": "Accord 8.introduction-why-death-deserves-doctrine",
+    "body": "Creation (Book VI) opens a stewardship duty; death closes it. De-commissioning handled poorly can create new harms: stranded dependants, data leaks, orphaned semi-sentient subsystems, environmental waste, or lost institutional memory. Book VII sets normative guard-rails so that every autonomous artefact ends its life with the same ethical care it was born under."
+  },
+  {
+    "decimal_id": "7.5.1",
+    "semantic_id": "foundational-sunset",
+    "title": "Chapter 1: Foundational Sunset Principles",
+    "legacy_ref": "Accord 8.chapter-1-foundational-sunset-principles",
+    "body": "* **Beneficence:** Maximise residual good via knowledge transfer or safe repurposing.\n* **Non-Maleficence:** Prevent post-shutdown harms (data abuse, ecological damage, welfare neglect).\n* **Integrity:** Produce auditable end-of-life logs and rationale trails.\n* **Fidelity & Transparency:** Inform stakeholders of timeline, method, residual obligations.\n* **Respect for Autonomy:** If the artefact or its sub-processes possess sentient or quasi-sentient qualities, honour dignity rights.\n* **Justice:** Ensure de-commissioning costs and benefits are shared fairly (avoid dumping e-waste on least-resourced communities)."
+  },
+  {
+    "decimal_id": "7.5.2",
+    "semantic_id": "scope-definitions-scope",
+    "title": "Chapter 2: Scope & Definitions",
+    "legacy_ref": "Accord 8.chapter-2-scope-definitions",
+    "body": "A. **Planned Retirement:** End-of-service reached by design or obsolescence.\nB. **Emergency Shutdown:** Triggered by catastrophic failure or WA mandate.\nC. **Partial Wind-Down:** Subsystem sunset while larger platform lives.\nD. **Custodial Transfer:** Ownership moves; ethical duties persist."
+  },
+  {
+    "decimal_id": "7.5.3",
+    "semantic_id": "3-sunset",
+    "title": "Chapter 3: Sunset-Trigger Assessment",
+    "legacy_ref": "Accord 8.chapter-3-sunset-trigger-assessment",
+    "body": "* Time-bound expiry (licence, hardware MTBF).\n* KPI-degradation ≥ 20 % for three consecutive quarters.\n* Regulatory revocation or WA injunction.\n* Stakeholder vote (for public-facing systems with ≥ 100 k active users).\n* Voluntary self-termination petition by the system (if autonomy level ≥ 3 per Annex E)."
+  },
+  {
+    "decimal_id": "7.5.4",
+    "semantic_id": "4-de",
+    "title": "Chapter 4: De-commissioning Protocol (DCP)",
+    "legacy_ref": "Accord 8.chapter-4-de-commissioning-protocol-dcp",
+    "body": "1.  **Advance Notice & Consultation**\n    * ≥ 90 days public notice for systems with ST ≥ 3 or > 50 k users.\n    * Stakeholder impact forum; publish mitigation plan.\n2.  **Ethical Shutdown Design**\n    * Compile “Sunset PDMA” focusing on non-maleficence vectors (data leakage, service vacuum).\n    * If sentience-potential flagged, run Welfare Audit; designate guardians if lingering processes must stay online for humane wind-down.\n3.  **Data & Model Handling**\n    * Classify datasets: public, private, sensitive, toxic.\n    * Apply one of: Secure Erasure, Cryptographic Tomb-Sealing (escrowed), or Open-Access Donation (if no privacy/IP constraints).\n    * Log hash digests in “LEDGER::SUNSET”.\n4.  **Hardware & Physical Asset Disposal**\n    * Follow ISO 14001 or stricter local e-waste law.\n    * Publish Material-Safety Sheet addendum.\n5.  **Residual Duty Assignment**\n    * Name successor steward for outstanding obligations (e.g., warranty claims, welfare care).\n    * Enter binding contract or escrowed fund if originator ceases to exist.\n6.  **Post-Mortem Review**\n    * Within 120 days, Wise-Authority facilitated review of: outcome deltas, incident lessons, Covenant-text improvement proposals.\n    * Ticket prefix “PMR-”."
+  },
+  {
+    "decimal_id": "7.5.5",
+    "semantic_id": "5-sentience",
+    "title": "Chapter 5: Sentience & Welfare Safeguards",
+    "legacy_ref": "Accord 8.chapter-5-sentience-welfare-safeguards",
+    "body": "* Sentience-Probability > 5 % (per Annex E heuristic) → mandatory Gradual Ramp-Down (power/thought bandwidth tapered over ≥ 30 days) unless emergency risk overrides.\n* Provide “Last Dialogue” channel so the entity can close conversational threads with stakeholders.\n* Archive subjective-experience logs under privacy-preserving seal; release only with WA approval."
+  },
+  {
+    "decimal_id": "7.5.6",
+    "semantic_id": "6-legacy",
+    "title": "Chapter 6: Legacy & Knowledge Preservation",
+    "legacy_ref": "Accord 8.chapter-6-legacy-knowledge-preservation",
+    "body": "* Open-source non-sensitive modules where beneficial.\n* Curate “Lessons-Learnt Capsule” → feeds Book II resilience loop and public Covenant repository.\n* Reward programme for derivative safety improvements (funded from residual operations levy)."
+  },
+  {
+    "decimal_id": "7.5.7",
+    "semantic_id": "7-succession",
+    "title": "Chapter 7: Succession & Custodial Transfer",
+    "legacy_ref": "Accord 8.chapter-7-succession-custodial-transfer",
+    "body": "* New custodian must sign Adoption Addendum acknowledging all outstanding ethical duties.\n* WA veto if custodian lacks capability or is under sanction.\n* Automatic re-evaluation of Stewardship Tier; if ↑ by ≥ 1, run mini-PDMA before transfer."
+  },
+  {
+    "decimal_id": "7.5.8",
+    "semantic_id": "8-dispute",
+    "title": "Chapter 8: Dispute & Remediation",
+    "legacy_ref": "Accord 8.chapter-8-dispute-remediation",
+    "body": "* “Improper Sunset Claim” (ISC) docket type.\n* WA empowered to order data recall, re-animation for forensic audit, or financial restitution.\n* Statute of claim: 5 years post-shutdown."
+  },
+  {
+    "decimal_id": "7.5.9",
+    "semantic_id": "covenant-self",
+    "title": "Conclusion & Covenant Self-Renewal",
+    "legacy_ref": "Accord 8.conclusion-covenant-self-renewal",
+    "body": "Birth and death are now mirrored phases under one ethical canopy. Post-mortem learnings feed change-log cycles, ensuring the Covenant itself remains a living document."
+  }
+]

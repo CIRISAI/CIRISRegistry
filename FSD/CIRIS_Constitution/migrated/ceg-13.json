@@ -1,0 +1,44 @@
+[
+  {
+    "decimal_id": "4.1",
+    "semantic_id": "anti-pattern",
+    "title": "Anti-patterns",
+    "legacy_ref": "§13",
+    "body": "These are wire-format reaches that fail the [CC 1.2](#1.2) operational-language gate or import Cartesian-individualist defaults. Recorded so the next generation of authors finds the discipline before the wire format does. A CEG-Conforming Producer (CCP) SHOULD NOT emit attestations matching the anti-patterns below."
+  },
+  {
+    "decimal_id": "4.1.1",
+    "semantic_id": "anti-pattern-delegation",
+    "title": "Delegation-laundering anti-pattern",
+    "legacy_ref": "§13.3",
+    "body": "`delegates_to → delegates_to → delegates_to → ... → attacker` chains, where each hop is individually well-formed but the aggregate routes trust to a terminal attester the original delegator would not have approved.\n\n| What's wrong | Correct expression |\n|---|---|\n| Unbounded depth `delegates_to` chains | Consumer policy MUST cap traversal depth at **5 hops** by default (configurable); chains longer than the cap are treated as `attestation:self_verify` only (no transitive trust) |\n| Cycles (A → B → A) | Substrate MUST detect cycles on the `delegates_to` graph and reject the cycle-closing emission |\n| Aggregate-weight concentration | Consumer policy SHOULD cap the trust weight any single terminal delegate can accumulate from a given root attester at **0.5 × root_trust** by default |"
+  },
+  {
+    "decimal_id": "4.1.2",
+    "semantic_id": "pattern",
+    "title": "Discipline pattern",
+    "legacy_ref": "§13.5",
+    "body": "The recurring shape across most anti-patterns: **extending the wire format so single attesters can pre-declare their own state more richly**. Each one is reachable, none is necessary.\n\nThe Ubuntu-primary discipline cuts cleanly: standing is constituted relationally through attestation by others, not through self-declaration. The wire format should **resist** primitives that let a single key announce its own state without external composition. The substrate is austere by design so consumers compose verdicts; richer narrative expression belongs in `context:`, `evidence_refs[]`, and downstream witness attestations, not in new envelope enum members or new self-attestation prefix families."
+  },
+  {
+    "decimal_id": "4.1.3",
+    "semantic_id": "already-rejected",
+    "title": "Already-rejected wire additions",
+    "legacy_ref": "§13.1",
+    "body": "| Anti-pattern | What it would smuggle | Correct expression |\n|---|---|---|\n| `detection:emergent_deception:{axis}` (renamed v1.2) | Moral verdict (\"deception\") in prefix name | `detection:correlated_action:{axis}` — mechanism-descriptive |\n| `attestation:l{N}:*` (renamed CEG 0.2) | Ladder-position (verdict-shape) in wire prefix — same shape as `score:trustworthiness:*` smuggling meta-judgment as wire | `attestation:{mechanism}` bare mechanism (`self_verify` / `hardware_rooted` / `registry_consensus` / `license_validity` / `agent_integrity`); consumer composes L1-L5 ladder via [CC 4.4.3.6](#4.4.3.6) Policy I |\n| `score:trustworthiness:{entity}` | Meta-judgment as separate prefix | Compose downstream from `licensure:*` / `capacity:*` / `provenance:*` attestations |\n| `flag:bad_actor:{axis}` | Pejorative wire vocabulary | Surface as low-confidence scores on `provenance:*` and `coherence_standing:*`; adjudicate via NodeCore P8 quorum |\n| `grounding:{tradition}:{principle}` | \"Tradition\" claims are interpretive, not mechanism | Reuse `delegates_to` structural primitive per [CC 2.4.1.2](#2.4.1.2) |"
+  },
+  {
+    "decimal_id": "4.1.4",
+    "semantic_id": "withdraws-arbitrage",
+    "title": "`withdraws` arbitrage",
+    "legacy_ref": "§13.4",
+    "body": "Per [CC 2.4.1.3](#2.4.1.3): a misattester can `withdraws` instead of `recants` to dodge the trust penalty consumers apply to acknowledged-error chains.\n\n| What's wrong | Mitigation |\n|---|---|\n| Asymmetric attester incentive | Consumer policy MUST track per-attester `withdraws:recants` ratio over a rolling window; attesters whose ratio exceeds a configured threshold (default 5:1) SHOULD be downweighted regardless of which structural primitive they use. The `recants` distinction matters [CC 2.4.1.3](#2.4.1.3), but the practical anti-arbitrage countermeasure is consumer-policy behavioral analysis, not a wire-format change. |"
+  },
+  {
+    "decimal_id": "4.1.5",
+    "semantic_id": "registry-rejections",
+    "title": "CEG 0.1 rejections (from CIRISRegistry#30 stress test)",
+    "legacy_ref": "§13.2",
+    "body": "| Anti-pattern | Stories reached for | Why reject | Correct expression |\n|---|---|---|---|\n| `epistemic_mode: introspection` | 7 stories | Cartesian shortcut — lone subject pre-declaring inner state as if that constitutes standing | `witness_relation: self` + `confidence < 1.0` + pending external composition. The wire makes introspection awkward to express, because the framework's claim is that self-knowledge does not constitute standing without external witness. |\n| `epistemic_mode: testimony` | (same set) | Reducible to existing values | `epistemic_mode: external` + `witness_relation: external` |\n| `transparency:{kind}` standalone prefix | 12 stories | Disclosure is constituted by reception, not announcement. Cartesian self-claim shape. | `evidence_refs[]` carries the reasoning-chain hash; downstream `transparency_log:inclusion` from a witness who actually retrieved it. |\n| `stake: civic` / `epistemic` / `dignitary` | 10 stories | `civic` = `stake: reputational + cohort_scope: community`. `epistemic` = `confidence + stake: reputational` (same axis as confidence; not separate). `dignitary` lives on wrong axis (stake names what the attester loses; dignity harm is what the attested loses → belongs in `harm_class:dignity_harm`). | Compose existing values with cohort/harm-class. |\n| `oversight_mode: deferred` / `active` / `advisory` | 6 stories | All map to existing HITL/HOTL/HOOTL | `deferred` = HITL pre-decision; `active` = HITL with substrate monitoring; `advisory` = HOTL |\n| `provenance_walk` as wire primitive | (1 reviewer) | UX concern smuggled into wire format | Consumer-side composition (Portal / Verify dashboards / agent introspection); the chain already walks via `references_attestation_id` + `topical_relation:*` + `valid_until` |\n| Renaming canonical capacity factors and HE-300 categories to \"kid-friendly\" names | 8 stories | Canonical names map to a worked-out epistemic/ethical lattice that loses precision under accessibility renames | Translation glossary in [`LANGUAGE_PRIMER.md`](../LANGUAGE_PRIMER.md) (spec name ↔ narrative name) + version pinning in worked examples |"
+  }
+]

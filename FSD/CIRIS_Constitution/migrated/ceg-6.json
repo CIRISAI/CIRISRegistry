@@ -1,0 +1,16 @@
+[
+  {
+    "decimal_id": "3.5",
+    "semantic_id": "structure-inter",
+    "title": "Inter-attestation relations — the structural composition graph",
+    "legacy_ref": "§6",
+    "body": "Per [CC 2.5](#2.5) Inter-attestation-relations axis, attestations relate to each other in eight ways. Four are structural primitives ([CC 2.4.1](#2.4.1)); the other four are emergent from scalar composition:\n\n| Relation | Realization |\n|---|---|\n| **Standalone** | Self-contained attestation; no `references_attestation_id`. |\n| **Refers-to-prior** | Points to another attestation via `evidence_refs[]` or `context`; doesn't modify it. Emergent from independent positive scores on the same dimension+object. |\n| **Supersedes-prior** | `supersedes` structural primitive ([CC 2.4.1](#2.4.1)). |\n| **Contradicts-prior** | Emergent from negative score on a dimension where a prior positive exists. |\n| **Withdraws-prior** | `withdraws` structural primitive ([CC 2.4.1](#2.4.1)). |\n| **Recants-prior** | `recants` structural primitive ([CC 2.4.1](#2.4.1)). |\n| **Clarifies-prior** | Emergent from updated score with refined context on the same dimension+object. |\n| **Delegated** | `delegates_to` structural primitive ([CC 2.4.1](#2.4.1)). |"
+  },
+  {
+    "decimal_id": "3.5.1",
+    "semantic_id": "concurrent-write",
+    "title": "Concurrent-write precedence (0.1 scaffold)",
+    "legacy_ref": "§6.1",
+    "body": "> **0.1 SCAFFOLD NOTE**: The precedence rule below addresses the concurrent-write hole identified by CEG 0.1 distributed-systems review. Production deployments should treat as authoritative; 0.2 may refine the lexicographic tie-break per implementation feedback.\n\nWhen two structural composers race on the same `references_attestation_id`, consumers MUST compute a deterministic verdict using the following precedence:\n\n1. **`recants` outranks `withdraws` outranks `supersedes`** at the structural level. If the same attester emits multiple composers against the same prior attestation, `recants` wins regardless of `signed_at` (a falsity admission cannot be subsumed by a retraction or replacement).\n2. **For same-type concurrent emissions by the same attester**: the composer with the largest `signed_at` per [CC 2.6.2](#2.6.2) wins.\n3. **For same-`signed_at` ties**: the composer whose attestation row's substrate-assigned key (Persist's `federation_attestations.attestation_id`) sorts lexicographically smallest wins.\n4. **For cross-attester emissions on the same `references_attestation_id`**: each attester's chain is evaluated independently; the consumer sees N parallel chains and applies [CC 4.4](#4.4) policy.\n\nStructural composers are **idempotent on `(references_attestation_id, attestation_type, attesting_key_id)`**: replaying the same composer is a no-op. The substrate MUST dedup on this triple."
+  }
+]
