@@ -332,6 +332,26 @@ Three normative rules:
 
 **1+4 preserved.** `moderation_track_record` rides `scores` ([§5.6.4](05_namespace.md)); the existence invariant + auto-promotion are admission/composition rules over the existing `delegates_to` (#90 `moderate` scope) + the reputation corpus. **No new structural primitive.** Chain: #90 (scopes, ✅ RC19) + this (RC21) → persist `admission.rs` enforcement (#232) → CIRISServer `src/safety/*` wiring (#15). Further safety asks from the CIRISServer `wt/safety` deep-dive complete CEG 1.0's moderation surface.
 
+## §11.12 Watchlist auto-detection — opt-in, per-group, separation-of-powers (1.0-RC23; per [CIRISRegistry#94](https://github.com/CIRISAI/CIRISRegistry/issues/94))
+
+Content-watchlist auto-detection (design: CIRISServer `FSD/WATCHLIST_DETECTION.md`): a [§11.10](#1110-moderation-as-a-delegable-duty--moderate--takedown--review-10-rc19-per-cirisregistry90) `moderate`-scope holder **optionally** enables a watchlist (`watchlist:{id}`, [§5.6.6](05_namespace.md)) for a group they moderate; the fabric auto-fires the matcher at the **publish/share seam** and auto-fires the action — CSAM → `takedown_notice{PerceptualHashCsam}` ([§11.4](#114-fast-path-takedown-coordination-ceg-03-addition-per-cirisregistry37--38)); other → `detection:*` + a `moderation:*` ModerationEvent to the named moderator. Rides shipped primitives — **no new structural primitive.**
+
+**Opt-in, per-group, NEVER global (normative).** A watchlist is enabled per-group by its `moderate`/`takedown` authority; a global "scan everything" config is **non-conformant** — that is the bulk-surveillance posture the framework refuses. Enable/disable is **signed by the authority and revocable** (`withdraws`).
+
+**Separation of powers (the responsible-design invariant).** No single party does all three:
+
+| Party | Holds | Cannot |
+|---|---|---|
+| **Fabric** (the node) | the *mechanism* — the matcher at the publish/share seam | provision the hash-DB; choose to enable |
+| **Operator** | the *licensed hash-DB* (IWF/NCMEC/PDQ, [§11.5.1](#1151-hash-database-access-landscape), operator-provisioned + unshippable) + the NCMEC report obligation | turn it on for a group; act without the authority's opt-in |
+| **Authority** (`moderate`-holder) | the *opt-in* (per-group enable) | run the match itself; access the licensed list |
+
+**Audit — never silent (normative).** Enabling a watchlist emits `hard_case:watchlist_enabled:{group}` ([§5.6.6](05_namespace.md)) — who turned it on + which list; **every match** emits `hard_case:watchlist_match:{group}`. Enablement and matches are on the record, always.
+
+**CSAM-disable non-silent floor (normative).** Disabling a **CSAM** watchlist MUST be an audited act — a `withdraws` signed by the authority that **emits `hard_case:watchlist_enabled` (disable variant)**; **silent removal of a CSAM list is barred** (a predator-operator cannot turn off CSAM detection without leaving a trace). Ordinary (non-CSAM) lists may be freely toggled. This is the floor that keeps the opt-in honest.
+
+**Honest scope (per [§15.7](15_gaps.md)).** Detection runs **only at the publish/share seam of enabled groups** — it **cannot** reach [§10.1.4](10_endpoints.md) self/family private content (the universal E2EE limit; not claimed solved), and CEG does **not** mandate client-side scanning. **1+4 preserved** — `watchlist:{id}` rides `scores`/config over `delegates_to`; the audit reasons ride the existing `hard_case:*` prefix; the actions ride `takedown_notice` / `detection:*` / `moderation:*`. Chain to the media/chat gate: this (CEG) → persist `admission.rs` (#232) → CIRISServer `src/safety/*` + the watchlist Phase 1.5 + the operator-provisioned PDQ adapter (#15).
+
 ---
 
 [← §10 Endpoints](10_endpoints.md) | **§11 Governance** | [Next: §12 Translation →](12_translation.md)
