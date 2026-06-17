@@ -15,7 +15,7 @@ import build_pdf as B   # convert(), inline(), esc(), code_ascii(), NUC  (guarde
 B.NUC.update({"é": r"\'e", "↑": r"$\uparrow$", "↓": r"$\downarrow$"})
 nuc_lines = "\n".join(r"\newunicodechar{%s}{%s}" % (k, v) for k, v in B.NUC.items())
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 PARTS = sorted(HERE.glob("part_*.md"), key=lambda p: int(re.match(r"part_(\d+)_", p.name).group(1)))
 PART_TITLE = {1: "Foundation", 2: "The Grammar", 3: "The Namespace", 4: "Composition & Governance",
               5: "Transport & Substrate", 6: "The Coherence Mathematics", 7: "Lifecycle & Stewardship",
@@ -66,7 +66,7 @@ PREAMBLE = r"""\documentclass[11pt]{article}
 \renewcommand{\arraystretch}{1.25}
 """ + nuc_lines + r"""
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}The CIRIS Constitution\\[10pt]
-\normalsize\mdseries Version """ + VERSION + r"""}
+\normalsize\mdseries Version """ + VERSION + r"""\\[6pt]\itshape Stewarded by Eric Moore}
 \author{}\date{}
 \begin{document}
 \maketitle\thispagestyle{empty}
@@ -80,6 +80,7 @@ body.append(r"\clearpage")
 for p in PARTS:
     body.append(B.convert(prefilter(p.read_text(encoding="utf-8"))))
     body.append(r"\clearpage")
+body.append(B.convert(prefilter((HERE / "STEWARDSHIP.md").read_text(encoding="utf-8"))))
 body.append(r"\end{document}")
 
 out = HERE / f"ciris-constitution-{VERSION}.tex"
