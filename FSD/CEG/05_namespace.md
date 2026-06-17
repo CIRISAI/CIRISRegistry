@@ -199,6 +199,7 @@ Canonical leaves: `transport:{kind}`, `delivery:{class}`, `peer_reachability:{ne
 | `slashing:{outcome}` | `PROVEN_ROGUE` / `NOT_PROVEN`. **Decoupled from disagreement** at every decision-hierarchy level. Only fires on documented Method-execution spoofing or original P8 allegation types. | boolean-via-score |
 | `reconsideration:{grounds}` | `new_evidence` / `procedural_error` / `quorum_compromise`. Outcome `reversed` / `partial` / `upheld`. | signed |
 | `commitment_fulfillment:{prior_contribution_id}` | Track-record of follow-through. | signed |
+| `moderation_track_record:{community_key_id}` | **Moderation merit** (1.0-RC21; per [CIRISRegistry#93](https://github.com/CIRISAI/CIRISRegistry/issues/93)). A participant's moderation reputation in a community, **composed** from the existing corpus — prior moderation actions' outcomes (`truth_grounding:{subject}` = outcome-supported), concurrence (`witness_diversity` / co-attestation), follow-through (`commitment_fulfillment`), and `hard_case:moderation_filed` history. Drives the [§11.11](11_governance.md) merit auto-promotion selection rule (highest wins the lapsed `moderate` duty). Rides `scores`; a *named composition*, not a new structural primitive. | signed |
 
 ### §5.6.5 Decision-locality prefixes
 
