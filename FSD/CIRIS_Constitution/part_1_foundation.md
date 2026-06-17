@@ -148,7 +148,7 @@ The principles above are the federation's *why*. The sections that follow are th
 
 ### 1.13.1 `ubuntu` — The Ubuntu commitment — relational-anthropology substrate *(informative)*
 
-Per `CIRISAgent/ContemplativeTraditions/Ubuntu.lean::F_ubuntu_primary_tradition_commitment` and [`../MISSION.md`](../../MISSION.md) CC 1.13.2:
+Per `CIRISAgent/ContemplativeTraditions/Ubuntu.lean::F_ubuntu_primary_tradition_commitment` and [`../MISSION.md`](../../MISSION.md) §1.5:
 
 > *Umuntu ngumuntu ngabantu* — a person is a person through other persons. Persons are not atomic; the relation IS the person.
 

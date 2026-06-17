@@ -1,8 +1,13 @@
 # The CIRIS Constitution
 
-**Version**: CC 0.1-draft (unified spine; bodies in migration)
+**Version**: CC 0.1 (woven — byte-exact to CEG, intent-faithful to the Accord)
 **Incorporates**: the **CIRIS Accord** 1.3-RC2 (the constitutional / ethical layer) and **CEG** 1.0-RC29 (the wire grammar — 1+4 surface FROZEN). One document, one version line.
-**Status**: structural spine locked (importance-derived); chapter bodies woven from source in Phase 4.
+**Status**: consolidated and adversarially validated. Bodies are a verbatim copy-migration from the
+CEG reader edition + the Accord, woven into one coherent present-tense document; every wire-normative
+element is preserved byte-for-byte. Validators score **19/19 CEG chapters byte-exact**, fidelity held
+across the board, and **26+/29 chapters judged objectively clearer than either source**. Built by
+faithful-copy → de-version → consolidation waves, each gated by a 30-chapter adversarial validation
+(see [`validation/`](validation/)).
 
 ---
 

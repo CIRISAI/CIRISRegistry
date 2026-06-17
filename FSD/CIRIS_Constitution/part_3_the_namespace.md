@@ -14,7 +14,7 @@ This section catalogs every prefix family, organized by owning component, each c
 
 ### 3.1.1 `registry` — CIRISRegistry — identity / build / license / partner
 
-**Owner**: this Registry. Cited from [`../MISSION.md`](../../MISSION.md) CC 2.4 + FSD-001 + protocol/ciris_registry.proto.
+**Owner**: this Registry. Cited from [`../MISSION.md`](../../MISSION.md) §3 + FSD-001 + protocol/ciris_registry.proto.
 
 | Prefix | Description | Polarity | Reserved? |
 |---|---|---|---|
@@ -399,7 +399,7 @@ The 1+4 lockdown holds across this entire surface — confirming that the wire f
 
 ##### Canonical `cohort_subkind: infrastructure`
 
-The second codified community subkind: a **governed trust-root collective of canonical/bootstrap service installs** — the shape the CIRIS canonical services (Registry / Lens / Node) adopt instead of a `family` (rationale: `CIRISRegistry/MISSION.md` CC 2.5 — public content model, decentralization ramp, legitimacy). Where `geographic` answers "who is physically here," `infrastructure` answers "who is a recognized operator of this public service."
+The second codified community subkind: a **governed trust-root collective of canonical/bootstrap service installs** — the shape the CIRIS canonical services (Registry / Lens / Node) adopt instead of a `family` (rationale: `CIRISRegistry/MISSION.md` §2 — public content model, decentralization ramp, legitimacy). Where `geographic` answers "who is physically here," `infrastructure` answers "who is a recognized operator of this public service."
 
 It differs from `geographic` in two load-bearing ways:
 
@@ -523,7 +523,7 @@ Two Contribution subject_kinds for governance over multimedia content: `takedown
 
 ##### `takedown_notice`
 
-A signed wire artifact carrying a legal takedown request. Payload per CIRISNodeCore FSD/MEDIA_SHARING.md CC 3.1.5; the field shape is locked here.
+A signed wire artifact carrying a legal takedown request. Payload per CIRISNodeCore FSD/MEDIA_SHARING.md §5.1; the field shape is locked here.
 
 ```
 takedown_notice {
@@ -561,7 +561,7 @@ Where `LegalBasis` is the closed-set enum:
 
 ##### `key_grant`
 
-Wrapped Data-Encryption-Key (DEK) delivery for restricted / subscription content. Payload per CIRISNodeCore FSD/MEDIA_SHARING.md CC 3.5; field shape locked here.
+Wrapped Data-Encryption-Key (DEK) delivery for restricted / subscription content. Payload per CIRISNodeCore FSD/MEDIA_SHARING.md §6; field shape locked here.
 
 ```
 key_grant {
@@ -730,7 +730,7 @@ changes the `consensus_protocol` field is admitted ONLY IF:
 If consensus_protocol_entrenched == true, the substrate REJECTS the
 amendment. Protocol replacement requires an out-of-band ceremony
 (documented per family; for HUMANITY_ACCORD see CC 4.2.1 / FEDERATION_ANNOUNCEMENT.md
-CC 2.1).
+§4).
 ```
 
 **Substrate emissions on family events**:
@@ -1210,7 +1210,7 @@ Time-bound state-bearing sub_kinds:
 |---|---|
 | `event_listing` | Time-bound state-bearing content — Eventbrite / Meetup / Lu.ma / calendar invites / RSVPs / ticketing. Source struct carries `platform`, `event_id`, `title`, `starts_at` / `ends_at`, `venue` (Physical / Virtual / Hybrid per NodeCore `EventVenue` enum), `capacity`, `ticket_grant_policy` (Open / ApprovalRequired / InvitationOnly / Paid). **Lifecycle composes from existing structural primitives** — no new wire shape: RSVPs ride `scores` from attendee `key_id` on the event's `entity_key_id`; cancellation rides `withdraws` against the event Contribution; reschedule rides `supersedes` with `differs_in: ["start_time", "venue"]`; ticket transfer rides `delegates_to` against the ticket-grant Contribution. State-transition signal rides the `event:lifecycle:{state}` dimension family ([CC 3.3.8](#5685-event-lifecycle-dimension-families-ceg-04-addition)). |
 
-Each Source struct conforms to a sub_kind-specific schema documented at CIRISNodeCore FSD/MEDIA_SHARING.md CC 2.1 (multimedia) or SCHEMA.md CC 2.1 (chat / blog / event_listing); CEG documents the slot, NodeCore documents the per-sub_kind field shapes.
+Each Source struct conforms to a sub_kind-specific schema documented at CIRISNodeCore FSD/MEDIA_SHARING.md §4 (multimedia) or SCHEMA.md §4 (chat / blog / event_listing); CEG documents the slot, NodeCore documents the per-sub_kind field shapes.
 
 ### 3.3.14 `identity-claiming` — `identity:canonical_binding` — claiming a canonical-hash subject
 
