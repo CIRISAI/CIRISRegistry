@@ -273,7 +273,7 @@ This tier binds every operational act back to M-1: a Goal carries its multi-scal
 
 ## 3.2 `community` — `community` subject_kind
 
-A `community` is a **larger node-collective with explicit admission semantics** — a sibling subject_kind to `family`, but with different defaults. Content scoped `cohort_scope: community` **federates within the cohort** (emitting `holds_bytes:sha256:*`); there is no at-rest DEK cascade; [CC 5.2](10_endpoints.md) structural-invisibility applies to self/family only. The contrast with `family` is deliberate: families protect intimate trust circles with encryption; communities serve openness at scale, which is the justice the larger-collective form is built for.
+A `community` is a **larger node-collective with explicit admission semantics** — a sibling subject_kind to `family`, but with different defaults. Content scoped `cohort_scope: community` **federates within the cohort**, emitting `holds_bytes:sha256:*` so non-member holders can route and reason about the content; [CC 5.2](10_endpoints.md) structural-invisibility — the family discipline of suppressing those emissions entirely — applies to self/family only. A community is not therefore plaintext-by-default: its content is encrypted at rest under a per-community DEK (the cascade detailed below), and what federates with each `holds_bytes` emission is **cleartext provenance**, not cleartext bytes. The contrast with `family` is one of disclosure shape, not of whether encryption exists: families protect intimate trust circles by hiding even the existence of their content from outsiders; communities keep their bytes confidential to members while letting their *presence* federate at scale — provenance-visible discovery, which is the justice the larger-collective form is built for.
 
 Communities differ from families along three axes:
 
@@ -1297,7 +1297,7 @@ Composes with [CC 3.4.3](#72-substrate-self-report-reservations-system) — thes
 
 ### 3.4.5 `capacity-score` — Capacity-Score self-emission rejection
 
-`capacity:*` ([CC 3.1.8.1](05_namespace.md)) rejects self-emission: `attesting_key_id` MUST NOT equal `attested_key_id`. The agent's own capacity score is never fed back into the agent's own context — anti-Goodhart per CIRISAgent §5.2.
+`capacity:*` ([CC 3.1.8.1](05_namespace.md)) rejects self-emission: `attesting_key_id` MUST NOT equal `attested_key_id`. The agent's own capacity score is never fed back into the agent's own context — anti-Goodhart per CIRISAgent CC 3.1.2.
 
 ### 3.4.6 `reservation-delivery` — Delivery-receipt reservation (CEG 0.10 addition)
 

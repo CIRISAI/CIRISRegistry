@@ -171,11 +171,26 @@ Each of these is a known weakness the federation has chosen to carry rather than
 
 ### 8.3.2 `child-safety` — Child-safety — fails-secure governance vs the shared detection limit (the honest line)
 
-This section is reserved for the child-safety honest line — the candid statement of where fail-secure governance ends and the shared detection limit begins. Its body is authored against the canonical source and is not yet present in this snapshot; it must be carried in verbatim rather than paraphrased.
+From the safety deep-dive comparing 9 networks — Nostr, Matrix, Mastodon, Bluesky, IPFS, Signal, Briar, Session, SimpleX — two axes yield two honest verdicts, recorded here so the spec **carries its own honesty** and the detection limit can never be misrepresented as solved.
+
+- **Governance — categorically stronger (a genuine first).** All 9 surveyed networks permit unmoderated multi-party spaces and **fail open**. CEG is the only model that **fails secure**: the [CC 4.5.4](#) named-moderator existence invariant (a group cannot exist without an accountable moderator; merit auto-promotion so there is never a gap; `hard_case:community_unmoderated` quiesces it if none can be named), composed with the [CC 4.5.5](#) delegable-accountable-signed-revocable duty, trust-propagation, and the [CC 4.5.6](#) operational-language anti-censorship gate (public/voted/mechanically-checkable rules, deterministic verdicts, recused appeals). This is the categorical advance.
+- **Detection — the same wall as everyone, and CEG says so.** CSAM in *truly-private* content (self/family, [CC 5.2](#) E2EE-equivalent) is **unsolved across all E2EE systems** — Apple abandoned NeuralHash, the EU CSAR retreated, US §2258A carries no scanning mandate. CEG **narrows** the surface to the share/publish seam + the still-visible metadata/coordination layer, and **declines client-side scanning** — which would itself be the censorship machinery [CC 1.13.3](#) / `ciris.ai/safety-vs-censorship` warns against. **CEG does NOT claim to solve private-content detection.** That honesty is load-bearing: the positioning is *"fails-secure governance + accountable, censorship-resistant moderation,"* never *"we detect CSAM in private content."*
+
+This is an **acknowledged inherent limit, not a spec gap** — no CEG mechanism closes it without becoming the surveillance backdoor the framework exists to refuse. The moderation surface is **complete**; the remaining child-safety work is implementation (admission enforcement → safety subsystem), not spec.
 
 ### 8.3.3 `observer-share` — Observer-share + streaming multicast (normative-landed; streaming half substrate-pending)
 
-This section is reserved for the observer-share and streaming-multicast decision register, including the still-open streaming-half caveats RC1-1b / RC1-1c / RC1-7 referenced from the closed-gaps table. Its body is authored against the canonical source and is not yet present in this snapshot; it must be carried in verbatim rather than paraphrased.
+The delivery axis is normatively landed: the delivery-axis decisions are ratified into normative spec text ([CC 2.1](#) / [CC 3.4.6](#) / [CC 4.4.3.2.6](#) / [CC 5.3.3](#)). The `KEY_GRANT_V1_INFO` versioned-context HKDF pattern is confirmed (`KEY_GRANT_V1_INFO` in `key_grant.rs` as `b"cewp-key-grant/v1"`). The coupling caveat RC1-1c (the parallel-CHECK migration) is flagged in [CC 5.1](#) normative text. RC1-7 (operational constants) is flagged in [CC 5.3.3.3](#) — operator-tunable; not blocking the normative ship.
+
+The delivery axis bifurcates into an **observer-share half** (N=1; subscriber-set = `community` per [CC 4.4.3.2](#) Policy M + per-subscriber `key_grant`; **ZERO remaining blockers, normative-ready**) and a **streaming-multicast half** (N>1; per-`(stream_id, epoch)` keys; **spec-now, impl substrate-pending** on the streaming substrate step — unowned/unscheduled — with the accountable tier additionally pending). All cross-team decisions (Persist P1–P4, Verify V1–V3, Edge E1–E4, router RC1-2) are **✅ resolved/ratified** and folded into normative spec text ([CC 2.1](#) / [CC 3.4.6](#) / [CC 4.4.3.2.6](#) / [CC 5.3.3](#)). The `rotation_chain` hygiene corrections (it is the content-addressed grant-supersession lineage per [CC 3.3.2](#), NOT a key-rotation primitive; epoch rotation is greenfield per `stream_id`) are folded into [CC 3.3.2](#) / [CC 1.7](#) path-8 / [CC 4.5.12.1](#) / [CC 3.3.4](#).
+
+**Remaining streaming-half items** (operator-tunable / substrate-coupled, not blocking the observer-share normative ship):
+
+| OQ | Open item | Owner | Gating |
+|---|---|---|---|
+| **RC1-1b** | Confirm the `KEY_GRANT_V1_INFO` versioned-context HKDF pattern exists in `key_grant.rs` (the [CC 5.3.3.1](#) V2 nonce-prefix derivation reuses it). Unverifiable from Edge. *(Still owed.)* | Persist | 🔴 V2 |
+| **RC1-1c** | ⚠️ **Coupling caveat** — the V054 cross-column CHECK requires content-addressed `key_grant`s; the [CC 5.1](#) epoch axis needs a **parallel CHECK arm** (content- OR stream/epoch-addressed) — a bounded constraint migration, **not a pure index-add**. Recorded so the spec doesn't claim "purely additive" at the Persist constraint layer. | Persist | flagged |
+| **RC1-7** | Ratify constants (K=64 / T=2s / cosign per-epoch / `MAX_CHUNKS_PER_EPOCH=2²⁴`) + accountable-stream quorum = Policy E ([CC 4.4.3.1](#) locality-scaled, not fixed N). | router | — |
 
 ### 8.3.4 `closed` — Closed gaps
 
@@ -183,7 +198,7 @@ These are settled. Each row names the gap, its terminal status, and the section 
 
 | Gap | Status | Resolution |
 |---|---|---|
-| G1 — Revocation privacy | **RETRACTED** | Wrong threat model. The Registered path's thesis is public verifiability per [`../MISSION.md`](../../MISSION.md) §1.1. |
+| G1 — Revocation privacy | **RETRACTED** | Wrong threat model. The Registered path's thesis is public verifiability per [`../MISSION.md`](../../MISSION.md) CC 1.13.4. |
 | G2 — Rules-layer Sybil | **MITIGATED** | [CC 4.5.1](#) step 5 1-of-6 accord/steward sign-off + CC 4.5.1.2 meta-amendment entrenchment. |
 | G3 — Narrow-cell fresh-quorum recusal | **MITIGATED** | [CC 4.4.3.1](#) locality-scaled quorum + CC 4.4.3.1.1 sub-quorum fallback. |
 | v1.4 T-3 #1 testimonial_witness:{kind} | **CLOSED** via [CC 3.1.9.3](#) new prefix; opened to open vocabulary. |
@@ -253,28 +268,28 @@ Some concept pairs sit close enough to look redundant. Each was examined and del
 
 ## 8.4 `interoperability` — Interoperability profiles (informative)
 
-> **This whole section is informative ([§2.6.9.1](00_conformance.md)).** Nothing here touches the frozen normative interior. These are **boundary** profiles — how a CEG node reads and emits the encodings, envelopes, and verification primitives the rest of the world shares, **without** adopting anyone else's *semantics*. The 1+4 grammar, the namespaces, the consent architecture, and the JCS signing interior are unchanged. Conformance is still judged against the normative surface only.
+> **This whole section is informative ([CC 2.5](00_conformance.md)).** Nothing here touches the frozen normative interior. These are **boundary** profiles — how a CEG node reads and emits the encodings, envelopes, and verification primitives the rest of the world shares, **without** adopting anyone else's *semantics*. The 1+4 grammar, the namespaces, the consent architecture, and the JCS signing interior are unchanged. Conformance is still judged against the normative surface only.
 
 The federation has to live in a world full of other standards — media-provenance formats, HTTP signing schemes, credential wallets, transparency logs. The discipline that keeps it from dissolving into that world is simple and load-bearing: **speak CEG inside, standards at the edge.** What follows is the governing principle, then the one boundary profile written in full (C2PA), then the committed stubs for the rest. None of it changes a single interior byte.
 
 ### 8.4.1 `edge` — The governing principle — speak CEG inside, standards at the edge
 
-CEG's moat is its **semantics**: the 1+4 grammar, the consent architecture, founder-quorum trust, who-vouches-for-what-revocable-by-whom. We never adopt anyone's semantics. We adopt the **envelopes, encodings, and verification primitives** everyone shares — **at the boundary only**. A second *interior* canonicalization or claim family would recreate the cross-impl divergence hazard the [§2.6.1](00_conformance.md) JCS freeze exists to close ([§3.1.2.1](05_namespace.md) records this decision); so the interior stays one family, frozen, and every standard below is reached at an edge.
+CEG's moat is its **semantics**: the 1+4 grammar, the consent architecture, founder-quorum trust, who-vouches-for-what-revocable-by-whom. We never adopt anyone's semantics. We adopt the **envelopes, encodings, and verification primitives** everyone shares — **at the boundary only**. A second *interior* canonicalization or claim family would recreate the cross-impl divergence hazard the [CC 2.5](00_conformance.md) JCS freeze exists to close ([CC 2.4](05_namespace.md) records this decision); so the interior stays one family, frozen, and every standard below is reached at an edge.
 
 Four boundary modes:
 
 | Mode | Meaning | Standards |
 |---|---|---|
 | **Export profile** | re-sign / re-encode a CEG attestation so a standard verifier reads it without knowing CEG | COSE Sign1, RFC 9421 (HTTP Message Signatures / Web Bot Auth), SD-JWT VC presentation |
-| **Import bridge** | a foreign signed artifact is **cited** via [`evidence_refs`](04_envelope.md) (deliberately lossy) | **C2PA manifests** (§18.1), eIDAS / W3C VC credentials, Sigstore/Rekor bundles |
-| **Already interior** | the standard *is* a primitive CEG builds on | MLS / TreeKEM ([§5.1](10_endpoints.md)), RFC 6962 / 9162 transparency logs ([§5.3.1](10_endpoints.md)), SLSA (`provenance:slsa:{level}`, [§3.1.2](05_namespace.md)) |
-| **Explicitly NOT adopted** | vendor rails / competing semantic layers | DIDs *as a resolution stack* (export syntax only), AP2 / Visa TAP / Mastercard Agent Pay (bridge via [§3.3.10](05_namespace.md) `settlement`), SPIFFE (datacenter-tier mapping only) |
+| **Import bridge** | a foreign signed artifact is **cited** via [`evidence_refs`](04_envelope.md) (deliberately lossy) | **C2PA manifests** (CC 8.4.2), eIDAS / W3C VC credentials, Sigstore/Rekor bundles |
+| **Already interior** | the standard *is* a primitive CEG builds on | MLS / TreeKEM ([CC 3.1.5](10_endpoints.md)), RFC 6962 / 9162 transparency logs ([CC 3.1](10_endpoints.md)), SLSA (`provenance:slsa:{level}`, [CC 2.4](05_namespace.md)) |
+| **Explicitly NOT adopted** | vendor rails / competing semantic layers | DIDs *as a resolution stack* (export syntax only), AP2 / Visa TAP / Mastercard Agent Pay (bridge via [CC 2.4](05_namespace.md) `settlement`), SPIFFE (datacenter-tier mapping only) |
 
 **The universal "absorb anywhere" surface is [`evidence_refs[]`](04_envelope.md).** Any Contribution may cite an external signed artifact as evidence with **zero wire change**. That is how foreign provenance enters CEG — not by replacing the interior encoding, but by reference, with CEG layering the epistemic claims (who vouches, under what consent, with what confidence) on top. The composition is the differentiated story: **provenance says where the bytes came from; CEG says what a community of signers makes of them.**
 
 ### 8.4.2 `credentials` — C2PA Content Credentials — media-provenance import/emit profile
 
-**Disposition: ADOPT at the media boundary (import bridge + emit), zero interior wire change.** [C2PA](https://c2pa.org/) (Coalition for Content Provenance and Authenticity) Content Credentials are the industry standard (Adobe / Microsoft / Google / BBC …) for cryptographically signed media provenance — origin, edit history, and generator (incl. AI-generation) assertions embedded in or sidecar'd to images / video / audio. **Deadline driver:** EU AI Act Art. 50 machine-readable marking of AI-generated content applies from **2026-08** in the federation's primary jurisdiction, so this profile is calendar-bound, not optional. Owners: NodeCore / LensCore media ingest (the [§3.3](05_namespace.md) `multimedia` / `federation_blobs` boundary).
+**Disposition: ADOPT at the media boundary (import bridge + emit), zero interior wire change.** [C2PA](https://c2pa.org/) (Coalition for Content Provenance and Authenticity) Content Credentials are the industry standard (Adobe / Microsoft / Google / BBC …) for cryptographically signed media provenance — origin, edit history, and generator (incl. AI-generation) assertions embedded in or sidecar'd to images / video / audio. **Deadline driver:** EU AI Act Art. 50 machine-readable marking of AI-generated content applies from **2026-08** in the federation's primary jurisdiction, so this profile is calendar-bound, not optional. Owners: NodeCore / LensCore media ingest (the [CC 2.4](05_namespace.md) `multimedia` / `federation_blobs` boundary).
 
 C2PA is **provenance**; CEG is **judgment**. They do not compete — they compose. C2PA answers *"what process produced these bytes, signed by whom?"*; CEG answers *"what does a community of signers, under what consent, make of them — and who can revoke that?"* Neither does the other's job; C2PA has no consent architecture, no revocation, no 1+4.
 
@@ -292,13 +307,13 @@ evidence_refs: [
 ]
 ```
 
-- The C2PA signature is verified **by a C2PA verifier** (trust-list / cert-chain per C2PA), NOT by a CEG signature path — the two trust models stay separate. The `validation` field carries that result as **advisory** evidence; it is never fed to a CEG hybrid-verify path (the [§3.3.6.1](05_namespace.md) key-separation discipline generalizes: foreign-trust-root material is payload, never CEG verification material).
+- The C2PA signature is verified **by a C2PA verifier** (trust-list / cert-chain per C2PA), NOT by a CEG signature path — the two trust models stay separate. The `validation` field carries that result as **advisory** evidence; it is never fed to a CEG hybrid-verify path (the [CC 2.4](05_namespace.md) key-separation discipline generalizes: foreign-trust-root material is payload, never CEG verification material).
 - A CEG `scores` attestation may then assert a judgment **about** the provenanced bytes (e.g. `detection:multimedia:ai_generated` from LensCore, or a community `scores` endorsement), linking the C2PA evidence via `evidence_refs` and the media via `subject_key_ids` / the blob SHA. The CEG claim is signed CEG; the provenance it cites is signed C2PA; the reader sees both lineages without either standard absorbing the other.
 - **Absent / invalid C2PA is not fail-secure-fatal** — it is itself a recordable observation (`validation: "invalid"` / no manifest). CEG records the gap; consumer/RATCHET policy weights it. The substrate is not a C2PA gatekeeper.
 
 #### 8.4.2.2 `emit` — Emit — CEG judgment as a C2PA assertion (egress)
 
-At a media-publish boundary a node MAY emit a C2PA assertion carrying a CEG attestation reference (a CAWG-identity-assertion-shaped custom assertion), so a pure-C2PA consumer downstream sees "this media is vouched-for in CEWP" without speaking CEG. This is an **export** at the edge (re-expressing an existing CEG attestation in C2PA's assertion envelope), parallel to the §18.2 COSE export profile — it adds no CEG wire field and re-signs nothing in the interior.
+At a media-publish boundary a node MAY emit a C2PA assertion carrying a CEG attestation reference (a CAWG-identity-assertion-shaped custom assertion), so a pure-C2PA consumer downstream sees "this media is vouched-for in CEWP" without speaking CEG. This is an **export** at the edge (re-expressing an existing CEG attestation in C2PA's assertion envelope), parallel to the CC 8.4.1 COSE export profile — it adds no CEG wire field and re-signs nothing in the interior.
 
 #### 8.4.2.3 `profile` — What this profile does NOT do
 
@@ -315,7 +330,7 @@ These are committed dispositions whose detailed profiles are written as each lan
 | **RFC 9421 + Web Bot Auth** | export | CIRIS agents sign outbound HTTP with their existing Ed25519 keys; JWKS published at `/.well-known/http-message-signatures-directory` → legible to the existing web. Cheapest win; keys already in `identity_occurrence` / `federation_keys`. |
 | **COSE Sign1 / deterministic CBOR** | export | Re-sign profile so any IETF JOSE/COSE verifier (where the ML-DSA registrations land) checks a CEG attestation. Interior stays JCS; if JCS keeps producing cross-impl bite post-1.0, 2.0 is the re-encoding moment, not before. |
 | **SD-JWT VC / W3C VC 2.0 + OpenID4VP** | export + import bridge | eIDAS-forced (EUDI wallets); CEG attestation → SD-JWT VC presentation on export, eIDAS credential → `evidence_refs` on import. Never rebuild on VCs. |
-| **Tiled/static logs + IETF KEYTRANS** | already-interior + watch | Keep the [§5.3.1](10_endpoints.md) RFC 6962 abstraction; adopt tiled-log (Sunlight-lineage) serialization for log ops. KEYTRANS is what `resolve_encryption_keys` already *is* — express it there when KEYTRANS stabilizes. |
+| **Tiled/static logs + IETF KEYTRANS** | already-interior + watch | Keep the [CC 3.1](10_endpoints.md) RFC 6962 abstraction; adopt tiled-log (Sunlight-lineage) serialization for log ops. KEYTRANS is what `resolve_encryption_keys` already *is* — express it there when KEYTRANS stabilizes. |
 
 ## 8.5 `update` — Update cadence
 
