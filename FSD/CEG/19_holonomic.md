@@ -53,6 +53,33 @@ Content is RaptorQ-coded into `N` source + `K` repair symbols (`FountainManifest
 - **SR-2 / SR-3 (anonymous + reconstitution scope)** — anonymous-tier content is **exempt from swarm-mandatory retention** (governed by LRU-only per NodeCore#22): no `FountainHoldingClaim` / `FountainCompressRequest`, no rarest-first biasing. The "reconstitutes from any sufficient fragment" property is a property of the **witnessed, trust-anchored** corpus **only** — it does not extend to anonymous content, which the substrate MUST be able to let truly disappear.
 - **PIN line** — `FountainHoldingClaim` / `FountainCompressRequest` signed preimages = **PIN-NORMATIVE** (with `symbol_ids` sorted ascending before signing); `compute_rarity_score` = **PIN-AS-RECOMMENDATION**; `retention_priority` = **edge-internal** (never on the wire).
 
+### §19.3.1 Replication-target policy (§R-policy — normative floor + RECOMMENDED defaults, 1.0-RC26 — resolves [CIRISRegistry#86](https://github.com/CIRISAI/CIRISRegistry/issues/86))
+
+The fountain `(N, K, target_holders, min_viable)` parameterization a producer chooses is **producer-set, not fixed by the substrate** — but two clauses are **normative**, and the default tuple a conformant peer assumes when the producer is silent is **pinned RECOMMENDED** (so two impls converge on the same survivability floor rather than diverging silently).
+
+**Normative.** A CEWP-1.0 conformant peer:
+- MUST set `min_viable_symbols >= 1` — the [§19.7](#197-the-noise-floor--unified-retirement--forever-memory-model-normative) EnvelopeOnly tier is locked at the substrate (below `min_viable`, only the signed envelope survives — never zero, never an unbounded floor of 0).
+- MUST be able to participate in fountain content at **any** `(N, K, target_holders)` parameterization a trust island it joins publishes — a peer MUST NOT hard-code one tuple and refuse others. The defaults below bind only the *producer-silent* case.
+
+**RECOMMENDED default policy (informative — the producer-silent tuple).**
+
+```
+DEFAULT_N_SOURCE       = 20   // source symbols (lossless threshold)
+DEFAULT_K_REPAIR       =  6   // FEC headroom, ~30% over N (RFC 6330 overhead profile)
+DEFAULT_MIN_VIABLE     =  5   // N/4 BLINKING_DOT floor; below this → EnvelopeOnly
+DEFAULT_TARGET_HOLDERS = 30   // distinct peers holding ≥1 symbol
+```
+
+**Derivation (informative — three independent constraints, max-binds).** `target_holders >= max(C_1, C_2, C_3)`:
+- **C_1 survival floor (dominant) = 26.** With `N+K` symbols spread 1-per-peer over `R = target_holders` peers at per-peer fetch availability `q`, reconstruction needs `>= N` symbols reachable (binomial `P(X >= N)`). The design target is **99.95% reconstruction at q=0.85** (typical wifi / community-mesh churn): at N=20, K=6 this binds `R >= 26` (mean 25.5 reachable at R=30). Datacenter q=0.95 → 0.99996; high-churn q=0.80 → 0.974.
+- **C_2 demand-spike capacity = 7 (not binding).** ALM at fanout 12 ([§19.4](#194-deterministic-alm-topology-t--m), 720p30/30Mbps interior-LAN budget) serves 157 viewers/copy at depth 2; 5 copies × depth-2 = 785 simultaneous. Demand binds only when content is **cold AND suddenly viral** — and the [CIRISEdge#134](https://github.com/CIRISAI/CIRISEdge/issues/134) swarm-rarity layer elevates copy count organically.
+- **C_3 locality reach = 10.** Per the CEWP locality dividend, each populated locality serves LAN-internally; inter-locality is signed-claim bridge, not synchronous relay. C_3 = 10 for a typical 10-locality mission deployment.
+- **Compose:** `max(26, 7, 10) = 26`, then `26 × 1.15` (15% churn-safety margin) `≈ 30`, rounded for human ergonomics.
+
+**Why these and not 22 / 40 (informative).** `N=20` keeps K=6 a meaningful ~30% FEC while one-symbol-per-peer holds across a 30-peer trust island without crowding, and sits in the RaptorQ O(N²)-decode sweet spot (microsecond scale). `K=6` matches RFC 6330's empirical overhead for 99.9% decode; higher gives diminishing returns, lower drops decode below 99% at q=0.85. `min_viable=5` is the N/4 BLINKING_DOT floor. `target_holders=30` is C_1's 26 plus churn margin.
+
+**No wire change.** §R-policy pins *defaults and a floor* over the existing [§19.3](#193-fountain-storage--swarm-rarity-p--r) `FountainManifestV1` `(N, K)` fields and `min_viable_symbols`; it introduces no new shape and no 1+4 change.
+
 ## §19.4 Deterministic ALM topology (§T / §M)
 
 The application-layer-multicast relay tree for large-N fan-out — the [§10.5.8](10_endpoints.md) "realtime large group (SFU/relay-tree)" profile previously marked → 1.x, now filled.
