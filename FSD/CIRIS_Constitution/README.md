@@ -2,12 +2,14 @@
 
 **Version**: CC 0.1 (woven — byte-exact to CEG, intent-faithful to the Accord)
 **Incorporates**: the **CIRIS Accord** 1.3-RC2 (the constitutional / ethical layer) and **CEG** 1.0-RC29 (the wire grammar — 1+4 surface FROZEN). One document, one version line.
-**Status**: consolidated and adversarially validated. Bodies are a verbatim copy-migration from the
-CEG reader edition + the Accord, woven into one coherent present-tense document; every wire-normative
-element is preserved byte-for-byte. Validators score **19/19 CEG chapters byte-exact**, fidelity held
-across the board, and **26+/29 chapters judged objectively clearer than either source**. Built by
-faithful-copy → de-version → consolidation waves, each gated by a 30-chapter adversarial validation
-(see [`validation/`](validation/)).
+**Status**: consolidated and adversarially **certified** (0 REJECT). Bodies are a verbatim copy-migration
+from the CEG reader edition + the Accord, woven into one coherent present-tense document; every
+wire-normative element is preserved byte-for-byte. Final 29-chapter validation: **C0 fidelity preserved
+on all chapters · C1 byte-exact 18/18 CEG chapters · C2 judged objectively clearer than either source
+on 28/29** (the lone holdout is bounded polish, not loss). Built by faithful-copy → de-version →
+consolidation waves, each gated by an adversarial validation against both sources — see
+[`validation/MANIFEST.md`](validation/MANIFEST.md). Remaining items are cosmetic minors (code-fence
+alignment, a couple of local cross-ref parentheticals).
 
 ---
 
