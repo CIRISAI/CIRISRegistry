@@ -15,7 +15,7 @@ import build_pdf as B   # convert(), inline(), esc(), code_ascii(), NUC  (guarde
 B.NUC.update({"é": r"\'e", "↑": r"$\uparrow$", "↓": r"$\downarrow$"})
 nuc_lines = "\n".join(r"\newunicodechar{%s}{%s}" % (k, v) for k, v in B.NUC.items())
 
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 PARTS = sorted(HERE.glob("part_*.md"), key=lambda p: int(re.match(r"part_(\d+)_", p.name).group(1)))
 PART_TITLE = {1: "Foundation", 2: "The Grammar", 3: "The Namespace", 4: "Composition & Governance",
               5: "Transport & Substrate", 6: "The Coherence Mathematics", 7: "Lifecycle & Stewardship",
