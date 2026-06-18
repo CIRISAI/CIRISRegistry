@@ -15,7 +15,7 @@ import build_pdf as B   # convert(), inline(), esc(), code_ascii(), NUC  (guarde
 B.NUC.update({"é": r"\'e", "↑": r"$\uparrow$", "↓": r"$\downarrow$"})
 nuc_lines = "\n".join(r"\newunicodechar{%s}{%s}" % (k, v) for k, v in B.NUC.items())
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 PARTS = sorted(HERE.glob("part_*.md"), key=lambda p: int(re.match(r"part_(\d+)_", p.name).group(1)))
 PART_TITLE = {1: "Foundation", 2: "The Grammar", 3: "The Namespace", 4: "Composition & Governance",
               5: "Transport & Substrate", 6: "The Coherence Mathematics", 7: "Lifecycle & Stewardship",
@@ -74,6 +74,8 @@ PREAMBLE = r"""\documentclass[11pt]{article}
 
 body = [PREAMBLE]
 body.append(B.convert(prefilter((HERE / "FOREWORD.md").read_text(encoding="utf-8"))))   # foreword sets the tone
+body.append(r"\clearpage")
+body.append(B.convert(prefilter((HERE / "SCOPE_AND_DISCLAIMERS.md").read_text(encoding="utf-8"))))  # scope + disclaimers
 body.append(r"\clearpage")
 body.append(B.convert(contents_md()))                                                   # explicit contents
 body.append(r"\clearpage")
