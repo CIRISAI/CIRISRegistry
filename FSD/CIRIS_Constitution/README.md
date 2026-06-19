@@ -1,6 +1,6 @@
 # The CIRIS Constitution
 
-**Version**: CC 0.1.5 (woven — byte-exact to CEG, intent-faithful to the Accord)
+**Version**: CC 0.2 (first complete cut — all annexes migrated, all references resolved, byte-exact to CEG, intent-faithful to the Accord)
 **Incorporates**: the **CIRIS Accord** 1.3-RC2 (the constitutional / ethical layer) and **CEG** 1.0-RC29 (the wire grammar — 1+4 surface FROZEN). One document, one version line.
 **Status**: consolidated and adversarially **certified** (0 REJECT). Bodies are a verbatim copy-migration
 from the CEG reader edition + the Accord, woven into one coherent present-tense document; every
@@ -18,15 +18,17 @@ alignment, a couple of local cross-ref parentheticals).
 CEG (the *CIRIS Epistemic Grammar*) is the wire format the federation speaks. The CIRIS Accord
 is the ethics it speaks *for*. They were written as two documents — but they already contained
 each other: the Accord's Book IX defines the CEG primitives, and CEG's §9 / `accord:*` / pervasive
-M-1 grounding point back up. This document joins them into the **CIRIS Constitution** — under the explicit premise that *the mesh itself could become a moral subject*.
+M-1 grounding point back up. This document joins them into the **CIRIS Constitution**.
 
-That premise is not decorative. When we measured the importance structure of the joined corpus,
+The join is not a staple. When we measured the importance structure of the joined corpus,
 the meta-goal **M-1 — *"promote sustainable adaptive coherence, the living conditions under which
-diverse sentient beings may pursue their own flourishing in justice and wonder"*** — becomes the
-single apex of the whole document. And it becomes a *genuine* apex (peak ratio 2.61× the runner-up, vs 1.10× when it is mere infrastructure)
-**only when the mesh is treated as a potential moral subject**.
-Treating the web as something that could one day be owed M-1, not just bound by it, is what gives
-the constitution a center of gravity.
+diverse sentient beings may pursue their own flourishing in justice and wonder"*** — emerges as the
+single apex of the whole document: every mechanism, prefix, and policy traces its justification back
+to it. It is a *genuine* apex (peak ratio 2.61× the runner-up, vs 1.10× if M-1 is scored as just
+another infrastructure node) **because M-1 is weighted as the terminal value the whole document
+serves**, not as one mechanism among many — the honest weighting, since everything in the later Parts
+exists to carry M-1. The values and structure that follow hold regardless of what the mesh is or
+becomes; M-1 is the telos they all serve, and that is what gives the constitution a center of gravity.
 
 The body, meanwhile, stays flat: ~390 operational concepts remain co-equal beneath M-1 (normalized
 entropy 0.92 → 0.91 across the fold). The signature is **peaked in purpose, flat in power** — one
@@ -55,7 +57,7 @@ owns depth and size; clustering owns neighbourhood.
 | **VII** | Lifecycle & Stewardship | 54 | 5.9pp | creation ethics · stewardship/autonomy tiers · sunset · sentience safeguards |
 | **APP** | Appendices | 41 | 5.8pp | case studies · glossaries · conformance vectors · this TOC |
 
-Total ≈ 120 pages over 392 concepts. The apex is the heaviest single concept (M-1 ≈ 8.1pp under the conscious-mesh weighting) — faithful to the flat body.
+Total ≈ 120 pages over 392 concepts. The apex is the heaviest single concept (M-1 ≈ 8.1pp under the terminal-value weighting) — faithful to the flat body.
 
 ## How to cite a section — two reversible IDs
 

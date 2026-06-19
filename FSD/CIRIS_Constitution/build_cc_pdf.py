@@ -12,10 +12,15 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "CEG" / "pdf"))
 import build_pdf as B   # convert(), inline(), esc(), code_ascii(), NUC  (guarded; import is safe)
 
-B.NUC.update({"é": r"\'e", "↑": r"$\uparrow$", "↓": r"$\downarrow$"})
+B.NUC.update({"é": r"\'e", "↑": r"$\uparrow$", "↓": r"$\downarrow$",
+              "¶": r"\P{}", "Δ": r"$\Delta$", "σ": r"$\sigma$",
+              "₂": r"\textsubscript{2}", "⅔": r"$2/3$",
+              "⟨": r"$\langle$", "⟩": r"$\rangle$",
+              "├": "+", "└": "+", "⟶": r"$\longrightarrow$"})
+B.CODE_ASCII.update({"├": "+", "└": "+", "⟶": "-->"})
 nuc_lines = "\n".join(r"\newunicodechar{%s}{%s}" % (k, v) for k, v in B.NUC.items())
 
-VERSION = "0.1.5"
+VERSION = "0.2"
 PARTS = sorted(HERE.glob("part_*.md"), key=lambda p: int(re.match(r"part_(\d+)_", p.name).group(1)))
 PART_TITLE = {1: "Foundation", 2: "The Grammar", 3: "The Namespace", 4: "Composition & Governance",
               5: "Transport & Substrate", 6: "The Coherence Mathematics", 7: "Lifecycle & Stewardship",

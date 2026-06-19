@@ -404,7 +404,7 @@ autonomy:<tier>:<action>          # e.g., autonomy:A2:moderate
 
 ### Billing & Activation (CIRISPortal)
 
-Identity activation uses a two-part cost per agent identity for Sybil resistance:
+The issuance fee and bond are a **Sybil-resistance deposit, not a price of admission**: the bond is refundable on good standing and exists only to make identity-minting marginally costly. Capital is **one** of several accepted Sybil-resistance proofs — the Sovereign path (sustained observed coherence, ~30 days, no capital) earns equivalent standing without payment. Per-key two-part cost by tier:
 
 | Tier | Issuance Fee/Key | Bond/Key | Monthly/Agent | Max Keys |
 |------|-----------------|----------|---------------|----------|
@@ -413,6 +413,7 @@ Identity activation uses a two-part cost per agent identity for Sybil resistance
 | Enterprise | $25.00 | $100.00 | $100/mo | 500 |
 | Safety-Critical | $250.00 | $1,000.00 | Custom | Unlimited |
 
+- Community-tier issuance MAY be sponsored by an existing participant, or waived on non-capital Sybil proof (vouching by ≥1 bonded participant, or completion of the Sovereign coherence window) — no participant is excluded from holding an identity solely for inability to access payment rails
 - Bond forfeited on revocation by default; admin can manually refund via Stripe dashboard
 - Community tier provided AS-IS without warranty or guarantees
 - Paid tiers (Professional+) not yet available for self-service — contact sales@ciris.ai

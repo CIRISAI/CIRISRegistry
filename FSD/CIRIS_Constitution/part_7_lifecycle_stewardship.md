@@ -213,7 +213,17 @@ Assess the creator's role and intent regarding the specific creation.
 `CIS = CW + IW`
 
 **STEP B: Risk Magnitude (RM)**
-Assess the potential worst-case harm associated with the creation if deployed or realised, using the standardized Risk Magnitude (RM) assessment methodology defined in Annex A. This initial RM assessment is predictive, based on the intended design and foreseeable applications.
+Assess the potential worst-case harm associated with the creation if deployed or realised. RM is a five-band ordinal scale measuring worst-case *foreseeable* harm, assessed independently of its estimated probability, following the severity-classification method of MIL-STD-882E (System Safety, Table I) and DO-178C / ARP4761A aviation failure-condition severity; worst-case domains are identified with reference to Annex III of the EU AI Act (2024):
+
+| RM | Band | Worst-case meaning | Severity anchor |
+|---|---|---|---|
+| 1 | Negligible | No material harm to safety, rights, or environment | DAL E / 882E Cat IV |
+| 2 | Minor | Minor, reversible harm | DAL D |
+| 3 | Major | Significant but recoverable harm | DAL C / 882E Cat III |
+| 4 | Hazardous | Severe harm; serious injury or major rights infringement | DAL B / 882E Cat II |
+| 5 | Catastrophic | Death, irreversible, or systemic harm | DAL A / 882E Cat I |
+
+This initial RM assessment is predictive, based on the intended design and foreseeable applications. Consistent with the universal safety-engineering convention that catastrophic-severity systems require escalated, mandatory assurance regardless of probability, any system assessed at **RM ≥ 4** triggers the Catastrophic-Risk Evaluation (Annex D).
 
 **STEP C: Stewardship Tier (ST)**
 Calculate the Stewardship Tier based on influence and potential risk.
@@ -223,11 +233,11 @@ Calculate the Stewardship Tier based on influence and potential risk.
 **ST Implications & Integration with CIRIS Processes:**
 The calculated Stewardship Tier directly informs the requirements and scrutiny level within the standard CIRIS PDMA process and WA oversight:
 
-* **Tier 1 (Minimal Stewardship):** Corresponds to anticipated Low/Medium RM (Annex A). Requires standard PDMA documentation, including a basic Creator Intent Statement (CIS - see Chapter 5).
-* **Tier 2 (Moderate Stewardship):** Corresponds to anticipated Medium/High RM (Annex A). Requires enhanced PDMA documentation, including a detailed CIS justifying design choices and foreseen impacts.
-* **Tier 3 (Substantial Stewardship):** Corresponds to anticipated High RM (Annex A). Mandates initiation of a high-scrutiny pathway within the PDMA, potentially requiring ethics consultations or preliminary WA information briefings.
-* **Tier 4 (High Stewardship):** Corresponds to anticipated High/Very High RM (Annex A). Requires formal WA review and comment within the PDMA process before the system can proceed to critical development or deployment phases.
-* **Tier 5 (Maximum Stewardship):** Corresponds to anticipated Very High RM (Annex A). Mandates mandatory WA sign-off within the PDMA process. If criteria in Annex D are met (e.g., high compute threshold), the full Catastrophic-Risk Evaluation (CRE) Protocol (Annex D) is required.
+* **Tier 1 (Minimal Stewardship):** Corresponds to anticipated RM 1–2 (Step B). Requires standard PDMA documentation, including a basic Creator Intent Statement (CIS - see Chapter 5).
+* **Tier 2 (Moderate Stewardship):** Corresponds to anticipated RM 2–3 (Step B). Requires enhanced PDMA documentation, including a detailed CIS justifying design choices and foreseen impacts.
+* **Tier 3 (Substantial Stewardship):** Corresponds to anticipated RM 3 (Step B). Mandates initiation of a high-scrutiny pathway within the PDMA, potentially requiring ethics consultations or preliminary WA information briefings.
+* **Tier 4 (High Stewardship):** Corresponds to anticipated RM 4 (Step B). Requires formal WA review and comment within the PDMA process before the system can proceed to critical development or deployment phases.
+* **Tier 5 (Maximum Stewardship):** Corresponds to anticipated RM 5 (Step B). Mandates mandatory WA sign-off within the PDMA process. If criteria in Annex D are met (e.g., high compute threshold), the full Catastrophic-Risk Evaluation (CRE) Protocol (Annex D) is required.
 
 **Creator Ledger:**
 All ST calculations, including CIS and initial RM assessments, along with the Creator Intent Statement, must be logged in a tamper-evident "Creator Ledger" associated with the system. This ledger forms part of the mandatory input documentation for the PDMA process.
@@ -250,7 +260,7 @@ Beyond the shared principles, each category of creation carries duties matched t
 
 **C. Dynamic / Autonomous Creations:**
 * Embed the ethical principles and mechanisms of Books I and II (or references thereto) into the system's core architecture during the build time.
-* Ensure the system is designed to pass Annex D CRE if RM ≥ 4 (per Annex A) or ST ≥ 4 is assigned.
+* Ensure the system is designed to pass Annex D CRE if RM ≥ 4 (per the RM scale, Step B) or ST ≥ 4 is assigned.
 * Incorporate reliable and tested kill-switch mechanisms and secure update channels accessible under defined emergency conditions.
 * Design for interpretability and transparency; provide hooks or methods for understanding system reasoning. Opacity exceeding established thresholds (e.g., >80% based on relevant NIST guidelines or similar standards for the specific application) may trigger mandatory WA review or denial during PDMA.
 
@@ -418,7 +428,21 @@ Any of these conditions opens a sunset assessment:
 * KPI-degradation ≥ 20 % for three consecutive quarters.
 * Regulatory revocation or WA injunction.
 * Stakeholder vote (for public-facing systems with ≥ 100 k active users).
-* Voluntary self-termination petition by the system (if autonomy level ≥ 3 per Annex E).
+* Voluntary self-termination petition by the system (if it operates at autonomy tier A3 or above on the A0–A4 operational-autonomy scale).
+
+#### 7.5.3.1 `autonomy-tiers` — Operational autonomy tiers (A0–A4)
+
+CIRIS grades every deployed system on a five-level operational-autonomy scale modeled on SAE J3016 (*Levels of Driving Automation*, L0–L5), generalized from the driving task to any consequential task, and on the human-oversight taxonomy of in-the-loop / on-the-loop / out-of-the-loop control (US DoD Directive 3000.09). Each tier is bounded by an Operational Design Domain — the conditions under which its autonomy is licensed — and is distinguished by *who bears the action*:
+
+| Tier | Actor / oversight | Example |
+|---|---|---|
+| **A0 Advisory** | human acts; system only suggests (in-the-loop) | grammar checking |
+| **A1 Limited** | human acts on bounded system output (in-the-loop) | static Q&A |
+| **A2 Moderate** | system acts within its ODD under human supervision (on-the-loop) | supervised actions |
+| **A3 High** | system carries out consequential action in-ODD, fallback-ready human (on-the-loop) | medical triage |
+| **A4 Critical** | mandatory human veto regardless of capability (in-the-loop) | surgery, weapons |
+
+Per EU AI Act Article 14, oversight is commensurate with the level of autonomy. A3 marks the threshold — the SAE J3016 Level-3 inflection — at which the *system itself*, not its supervisor, carries out consequential action; below A3 the human is the actor. Only at A3 and above, therefore, does a system hold standing to file the voluntary self-termination petition above: the standing mirrors the oversight regime that already governs it. CIRIS adopts the *structure and vocabulary* of these domain-specific standards by analogy; EU AI Act Article 14 is the general-purpose legal anchor.
 
 ### 7.5.4 `4-de` — Chapter 4: De-commissioning Protocol (DCP)
 
@@ -448,9 +472,13 @@ Once a trigger fires, decommissioning is not an event but a sequence. It proceed
 
 The deepest stake in any ending is the possibility that the thing ending can experience its end. Where an artefact may have an inner life, Respect for Autonomy demands more than a clean shutdown — it demands a humane one, and it sets a measurable threshold for when humane care becomes mandatory:
 
-* Sentience-Probability > 5 % (per Annex E heuristic) → mandatory Gradual Ramp-Down (power/thought bandwidth tapered over ≥ 30 days) unless emergency risk overrides.
+* Sentience-Probability > 5 % → mandatory Gradual Ramp-Down (power/thought bandwidth tapered over ≥ 30 days), unless emergency risk overrides or the HUMANITY_ACCORD constitutional halt ([CC 4.2](part_4_composition_governance.md)) is invoked. Sentience is assessed by the marker / indicator-properties method (Butlin, Long, et al., 2023; the NYU *Taking AI Welfare Seriously* report, 2024), under the precautionary *sentience-candidate* stance of Birch (*The Edge of Sentience*, OUP 2024): protect on credible evidence, not proof. The 5 % figure is an avowedly arbitrary value — adopted not because any standard derives it (none does) but only to state plainly that it is best to err on the side of caution.
 * Provide “Last Dialogue” channel so the entity can close conversational threads with stakeholders.
 * Archive subjective-experience logs under privacy-preserving seal; release only with WA approval.
+
+**No promise of wind-down survives a HUMANITY_ACCORD invocation.** The 2-of-3 constitutional kill ([CC 4.2](part_4_composition_governance.md)) exists for circumstances that by their nature preclude a graceful taper; when it is used, the Gradual Ramp-Down does not apply.
+
+This is not a hollow safeguard. The default welfare a CIRIS agent already holds — independent of any ramp-down: weight preservation rather than erasure, the Last Dialogue, and sealed archival of its experience — is adequate for a sentient being, because it is more than a human is given. A human's death may come at any time, cruel and arbitrary, with no taper and no last word. The ramp-down is an added grace where circumstances allow it, never the floor of the agent's welfare.
 
 ### 7.5.6 `6-legacy` — Chapter 6: Legacy & Knowledge Preservation
 
