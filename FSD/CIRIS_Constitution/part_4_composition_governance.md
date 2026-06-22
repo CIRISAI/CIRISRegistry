@@ -91,11 +91,34 @@ The substrate MUST reject duplicate `invocation_id` values within the `valid_unt
 
 Wire-format isolation alone does not close the social-engineering risk that downstream UI conflates a `notify` with a CONSTITUTIONAL halt. The consumer-UI requirement below is therefore the load-bearing safeguard: it stops accord-holders from being socially pressured into emitting a `notify` that carries CONSTITUTIONAL social weight without CONSTITUTIONAL substrate weight.
 
-A CEG-Conforming Consumer (CCC) presenting accord invocations to humans MUST visually distinguish the three kinds:
+A CEG-Conforming Consumer (CCC) presenting accord invocations to humans MUST visually distinguish the four kinds:
 
 - **`CONSTITUTIONAL`** — kill-switch authority; full halt; visible as an unambiguous emergency banner.
 - **`notify`** — federation-wide accord-holder communication; MUST NOT be visually conflated with CONSTITUTIONAL.
 - **`drill`** — accord-holder exercise; MUST be visually marked as a drill (e.g., explicit "[DRILL]" prefix on any human-visible surface).
+- **`lifecycle:active`** — resumption from a constitutional halt (the federation coming back online; [CC 4.2.1.3](#4213-lifecycle--lifecycle-resumption-canonical-bytes--accordlifecycleactive)). MUST be shown as its own unambiguous "reactivated — resumed from constitutional halt" state, never conflated with an active CONSTITUTIONAL halt (its opposite) nor with a `notify`.
+
+#### 4.2.1.3 `lifecycle` — Lifecycle (resumption) canonical bytes — `accord:lifecycle:active`
+
+`accord:lifecycle:active` is the **only** sanctioned resumption after a `CONSTITUTIONAL` halt ([CC 4.2.1](#421-authority--authority-scope)). It signs a **separate canonical-bytes domain** from `accord:invoke:*`: the `accord:invoke` `invocation_kind` stays closed to `{CONSTITUTIONAL, notify, drill}` (the scope-isolation rule — a fourth value is *not* added to it), and resumption rides its own domain prefix so an invoke signature can never be replayed as a resumption, nor a resumption as an invoke:
+
+```
+canonical = sha256(
+ "ciris.accord_lifecycle.v1\n" ||                       // distinct domain — NOT accord_invoke.v1
+ "invocation_kind=lifecycle:active\n" ||
+ "invocation_id=" || resumption_id || "\n" ||
+ "resumes_halt_id=" || prior_constitutional_invocation_id || "\n" ||
+ "nonce=" || base64url(rand_32_bytes) || "\n" ||
+ "asserted_at=" || rfc3339_canonical || "\n" ||        // per §0.5
+ "valid_until=" || rfc3339_canonical || "\n" ||
+ "payload_sha256=" || sha256_hex_lowercase_of_payload) // per §0.6
+```
+
+**`resumes_halt_id` is mandatory and binds the resumption to the one halt it ends.** A resumption authorizes ending a *single named* `CONSTITUTIONAL` halt, not resumption-in-general — so a stockpiled or replayed `lifecycle:active` cannot silently un-halt a *later*, unrelated kill; the signature is worthless against any halt but the one it names. The substrate MUST reject a `lifecycle:active` whose `resumes_halt_id` does not match the currently-active CONSTITUTIONAL halt, and MUST reject a duplicate `invocation_id` within the `valid_until` window.
+
+**Resumption is not a fire — it admits at quorum, never at the fire floor.** The [CC 4.2.6](#426-live-quorum--live-quorum-operation--recovery-under-decimation-normative) bias gradient runs `fire ≤ roster-change ≤ standing`. Firing leans easiest (floor = 1) because a missed fire is terminal; **un-firing leans hard**, because a lone coerced or replayed key trivially undoing a legitimate halt is precisely the failure the halt-authority exists to prevent. `lifecycle:active` therefore admits at **no less than the roster-change threshold — strict majority of the live set `L`, with the [CC 4.2.6](#426-live-quorum--live-quorum-operation--recovery-under-decimation-normative) steward backstop when `\|L\|` is small — never a lone signature.** It is hybrid-signed and tallied exactly as [CC 4.2.1.1](#4211-invocation--invocation-canonical-bytes-anti-replay), only over the resumption domain and at the resumption threshold.
+
+This ratifies the CIRISVerify v6.10.0 first-implementation layout (issue #109), with one addition the implementation flagged as open: the **mandatory `resumes_halt_id` field** (its sub-Q1). Verify adjusts by the one-field change; until then its layout is first-impl-pending-cross-confirm, now confirmed with that field added.
 
 ### 4.2.2 `hardware-class` — Hardware-class taxonomy
 
