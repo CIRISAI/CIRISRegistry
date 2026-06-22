@@ -83,7 +83,7 @@
 \newunicodechar{└}{+}
 \newunicodechar{⟶}{$\longrightarrow$}
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}The CIRIS Constitution\\[10pt]
-\normalsize\mdseries Version 0.2\\[6pt]\itshape Stewarded by Eric Moore}
+\normalsize\mdseries Version 0.3\\[6pt]\itshape Stewarded by Eric Moore}
 \author{}\date{}
 \begin{document}
 \maketitle\thispagestyle{empty}
@@ -3894,7 +3894,7 @@ Three named human key holders. Initial state at federation genesis:
 \end{longtable}}
 
 
-Hardware-attested. Permanent: no automatic decay; replacement requires out-of-band CIRIS L3C process per FEDERATION\_ANNOUNCEMENT.md §4.
+Hardware-attested. Permanent: no automatic decay; replacement requires out-of-band CIRIS L3C process per FEDERATION\_ANNOUNCEMENT.md §4. This triple is the \textbf{seed} of a growable M-of-N roster; how the quorum is computed — and how the kill-switch stays operable — as holders are added, lost to decimation, and regained is specified in CC 4.2.6.
 
 
 \textbf{Correlated-failure geometry:} two of the three holders share a household, so the 2-of-3 quorum is physically achievable from one street address — a correlated compromise/coercion surface that entrenchment makes harder to correct later. The authority at stake is the \textbf{full constitutional kill} (\texttt{EmergencyShutdown CONSTITUTIONAL} — not a recoverable pause), so the exposure is real and is not softened here; what scope isolation (CC 4.2.1) does guarantee is that compromise cannot escalate \textit{beyond} the kill — accord keys cannot sign grants, licenses, or amendments. \textbf{The mitigant is diversifying the holder set: finding new holders} (via the out-of-band replacement process, FEDERATION\_ANNOUNCEMENT.md §4) so that no household — and ultimately no single jurisdiction — can assemble the quorum. This is an active obligation on CIRIS L3C, not a deferred nice-to-have.
@@ -3933,6 +3933,51 @@ The 2-of-3 multi-sig verifier at CC 4.2.1.1 is the \texttt{quorum:2/3} consensus
 
 
 Per CC 1.13.2: the Recursive Golden Rule binds \textit{participants in the federation} to each other. Humanity-as-such occupies a position outside the federation's participant set, by design. The three named human key holders hold \texttt{AccordCarrier} authority that no federation-side authority class (including \texttt{SYSTEM\_ADMIN} / \texttt{WISE\_AUTHORITY} / per-install stewards) can grant itself, revoke, override, or decay. This is not a Golden-Rule exemption; it is the recognition that consent (M-1's load-bearing property) requires revocability, and revocability requires a halt-authority that lives outside the system being halted. The federation cannot deny humans the right to halt it, because no federation-internal protocol path to that signature exists.
+
+
+\subsubsection*{4.2.6 \texttt{live-quorum} — Live-quorum operation \& recovery under decimation (normative)}
+
+
+The genesis triple (CC 4.2.3) is the \textbf{seed} of a \textbf{growable M-of-N accord family}: holders are added, removed, or swapped through the same family membership-change \texttt{supersedes} machinery as any other \texttt{family} (CC 4.4.3.4.2). At any size, the question this section settles is \textbf{how the quorum is computed} — and the answer is what keeps the kill-switch operable in the one scenario it exists for.
+
+
+\textbf{The deadlock it removes.} A quorum taken over the \textbf{standing roster} (M-of-N of every enrolled holder) \textbf{deadlocks under catastrophic loss}: if most holders are dead, incapacitated, or censored, the standing quorum is unreachable — the switch goes inoperable exactly when it is needed. The design target is the worst case: a misaligned superintelligence executing a \textbf{first strike against its own off-switch}, reducing the reachable, key-capable holders of a grown roster (e.g. 21) to one or two, with communications censored as the \textit{expected} condition.
+
+
+\textbf{The rule — one live quorum.} There is \textbf{no separate recovery protocol}; "decimation" is simply the case where the live set is small. Every accord decision (fire, roster change, or both) opens a bounded \textbf{participation window} \texttt{W}. Within \texttt{W} a holder participates by signing a fresh \textbf{proof-of-life bundled with a vote} over the proposal's server-issued nonce. When \texttt{W} closes, the **live set \texttt{L}\textbf{ is the holders who proved life within it (always a subset of the pinned standing roster — only real, key-holding members count), and the decision is tallied }over \texttt{L}**. Absence is self-correcting (a holder who does not respond is simply \textit{not in the denominator} — they cannot block by being gone); presence is self-asserting (showing up enters \texttt{L} with a vote). This is the inactivity-leak dynamic (Casper FFG) made the accord's standing rule, not an emergency exception.
+
+
+**Proof-of-life modifies the quorum and carries a vote — it is \textit{not} a veto.** A holder's signature both enters them into \texttt{L} (floating the live denominator, and thus the strict-majority threshold, \textit{up} to include them) and records their yes/no. A presumed-dead holder who resurfaces therefore does \textbf{not} unilaterally defeat a proposal — they rejoin and are counted, and the proposal still succeeds on the live majority. The protection bought is the correct one: \textit{a living, reachable holder cannot be erased from a decision without being counted and given a vote}, yet the family is never hostage to a single absent signature. A server-issued freshness nonce stops a replayed signature from manufacturing a phantom participant.
+
+
+**Per-action thresholds, all taken over \texttt{L}:**
+
+
+{\footnotesize
+\begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
+\textbf{Action} & \textbf{Threshold over \texttt{L}} & \textbf{Window} \\ \hline\endhead
+\textbf{Fire} (\texttt{CONSTITUTIONAL} kill, CC 4.2.1.1) & \textbf{floor = 1} — a single reachable survivor may fire & \textbf{none} — immediate on a fresh survivor signature \\ \hline
+\textbf{Roster change} (add / remove / swap) & **strict majority of \texttt{L}** (`2·M > \textbackslash{} & L\textbackslash{} \\ \hline
+\textbf{Standing acts} (non-emergency) & strict majority of the standing roster (unchanged) & normal cadence \\ \hline
+\end{longtable}}
+
+
+When \texttt{\textbackslash{}|L\textbackslash{}|} falls below \texttt{L\_floor} (\texttt{3}, and certainly \texttt{1}), a \textbf{roster change} additionally requires a \textbf{2-of-3 quorum of the regional stewards} (us/eu/apac — the cross-attestation root the accord is already upstream-rooted in) to co-sign, removing the pure self-attestation of the most capturable case. \textbf{Firing is never gated this way.} A holder who proves life \textit{after} a decision missed that vote is re-enrolled going forward (the Enoch Arden rebuttable-presumption pattern): past actions validly decided by the then-live set stand; the returnee simply rejoins.
+
+
+\textbf{The single optimization direction — minimize the missed fire.} A \textbf{missed fire} (the adversary decapitated everyone who could pull the plug) is \textbf{terminal and unrecoverable}; a \textbf{false fire} (an agent halted in error) is a \textbf{recoverable} governance nuisance — the agent is re-licensed; humanity cannot be un-extincted. Every lever therefore leans toward firing, with no countervailing brake: the bias gradient is \textbf{fire ≤ roster-change ≤ (former) standing quorum}, all over the live set, never over the absent roster. The firing floor sitting \textit{below} the roster-change threshold is the whole point — even a partially-captured live set's honest minority, down to one, can still fire.
+
+
+\textbf{Why this restores the accord and cannot seize it (the entrenchment proof).} The adversary cannot \textbf{forge} a holder — every proof-of-life is a hybrid signature over a pinned key — so it can only \textbf{remove} (kill/censor) or \textbf{coerce} existing ones. Against that: \textit{firing} survives all but \textbf{total, sustained censorship of every honest holder on every channel} (a publishable signature, not a network round-trip, suffices to fire); a \textit{false reconstitution} requires the adversary to capture a \textbf{live majority} \textit{and} subvert the \textbf{independent steward floor} on separate channels, and every \texttt{accord\_decision} is append-only logged, leaving an immutable trail for post-hoc governance reversal. The irreducible residual is \textbf{coercion/duress} — proof-of-life proves presence, not willingness — which is \textbf{bounded, not solved}, by the steward floor, the live majority, and transparency; it is named here as an open problem, not papered over. The live quorum is thus strictly a \textbf{restoration} of the accord's operability under loss; it grants no path to \textit{weaken} or \textit{seize} the halt-authority beyond this stated residual.
+
+
+\textbf{Wire shape — additive, no 1+4 change.} The mechanism rides three hybrid-signed (Ed25519 + ML-DSA-65, JCS-canonical) objects — \texttt{accord\_proposal} (the action, nonce, and \texttt{window\_until}), \texttt{accord\_participation} (proof-of-life \textbf{+} vote in one signed object — entering \texttt{L} and voting are the same act), and \texttt{accord\_decision} (the proposal + the participation bundle collected in \texttt{W} + the tally + any membership \texttt{supersedes} + the steward attestations when \texttt{\textbackslash{}|L\textbackslash{}| < L\_floor}). **\texttt{DECIMATION} is a quorum-computation rule over the existing \texttt{CONSTITUTIONAL} kind — not a new invocation verb.\textbf{ Verify-side obligations are }fail-closed**: each participation resolves to a current roster member in the pinned directory and verifies over the proposal nonce; the authoritative tally is CIRISServer recomputing over pinned \texttt{federation\_keys}, the local objects advisory.
+
+
+\textbf{Physical assumption (deployment, not constitution).} The model rests only on a survivor getting a few-hundred-byte signed proof-of-life to a relaying node with \textbf{no standing infrastructure} — satisfiable over HF/shortwave skywave + NVIS store-and-forward (JS8Call) bridged into the mesh by EMP-hardened, geographically-distributed HF↔Reticulum gateways co-located with the steward sites. The signature is the trust, not the path, so any number of untrusted RF hops is safe. The relay/gateway backbone is itself adversary-targeted infrastructure and belongs in a deployment spec.
+
+
+\textbf{Ratification status.} This section amends the \textbf{entrenched} CC 4.2 surface (CC 4.5.1.2) — it changes how the §9 kill-switch quorum is computed (standing roster → live set). It is ratified by the \textbf{founder under the CC 4.5.1 maturity gate} (pre-maturity founder/accord-holder authority over entrenched surfaces); post-maturity, a change to this surface requires the dedicated 2-of-3 entrenched accord ratification. The verify-side construction is staged in CIRISVerify FSD-004; the constitutional grounding it required (its Q5) is this section.
 
 
 \subsection*{4.3 \texttt{wise-authority} — Designated Wise Authorities}
