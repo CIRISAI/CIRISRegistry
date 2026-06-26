@@ -1,6 +1,6 @@
 # The CIRIS Constitution
 
-**Version**: CC 0.4 (adds the `accord:lifecycle:active` resumption canonical-bytes preimage at §4.2.1.3, completing the accord halt/resume surface; builds on the 0.3 live-quorum ratification)
+**Version**: CC 0.5 (mesh-safe seed cut — ownership→stewardship reframe + minor stewardship, age-assurance canonicalized, reverse-quorum moderation, the §11 scope-native-privacy wire absorption, and the 0.4 governance residue resolved)
 **Incorporates**: the **CIRIS Accord** 1.3-RC2 (the constitutional / ethical layer) and **CEG** 1.0-RC29 (the wire grammar — 1+4 surface FROZEN). One document, one version line.
 **Status**: consolidated and adversarially **certified** (0 REJECT). Bodies are a verbatim copy-migration
 from the CEG reader edition + the Accord, woven into one coherent present-tense document; every

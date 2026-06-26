@@ -170,6 +170,10 @@ A user's withdrawal of consent is the one signal federation peers rely on to sto
 
 **Composition with the self-attestation pattern**: the CEG-native agent's `consent:partnered:{user_key}` self-attestation (producer-side stance) MAY ride local-tier; the user's `consent:state:revoked` against the agent's stance Contribution (subject-side) MUST NOT. This preserves the cardinality win of deferral while closing the leak window.
 
+**Ratification — AV-61 consent-tail: transit-not-rest reconciliation (resolves CIRISRegistry#110(b) / CIRISPersist#238, ref CIRISPersist#146 §10.1.3).** CIRISPersist's "no local subject-revocations" rule and the consent-SLA promotion gate above are the **same invariant viewed from the two gates**, not a contradiction. A subject-side consent revocation — a subject-emitted `consent:state:revoked`, or a `withdraws` admitted under [CC 2.4.1.1 rule 2/3](part_2_the_grammar.md) from a subject named in the target's `subject_key_ids` — is **federation-tier by classification**. It MAY *transit* the local-tier write path while in flight (the producing occurrence's substrate accepts the unsigned envelope before promotion), but it MUST NOT *rest* there: a subject revocation is **never a durable local row**. Its only conformant terminal states are *promoted* (federation-tier, hybrid-signed per CC 5.3.2.4.3) or *overdue-flagged* — never *settled local*. The substrate MUST drive it to federation-tier promotion within the 24-hour SLA defined above; the local tier is a momentary staging buffer for it, not a resting place.
+
+**The overdue emission IS the SLA enforcement.** When the 24-hour window lapses without federation promotion, the substrate MUST emit `hard_case:consent_revocation_promotion_overdue` (as required above). This emission is not merely observability — it is the signal the consent-promotion path keys off: the consent-promotion gate and the CC 5.3.2.4.3 `local ⟹ caller is the producing occurrence` read-gate read the **same** overdue state. Because both gates key off one shared signal, a subject revocation can never be simultaneously (a) invisible to federation peers under the local read-gate and (b) un-flagged by the consent-promotion gate. Keeping the two gates reading one state is exactly what closes **AV-61** (the two gates de-synced, CC 5.3.2.4.3): there is no window in which a subject revocation persists as an authoritative-looking local row while federation peers continue propagating the subject's data.
+
 #### 5.3.2.3 `merge` — Cross-region merge intents — CEG-declared per subject_kind (normative)
 
 With operational data joining the CEG-native replication stream ([CC 3.3.9](part_3_the_namespace.md)), the substrate runs **more than one merge policy**. The policy is a **normative property of the subject_kind, declared here** — the substrate reads and dispatches on the declaration; it MUST NOT infer policy per record type (the substrate enforces declared merges; it does not invent policy).
@@ -183,7 +187,7 @@ With operational data joining the CEG-native replication stream ([CC 3.3.9](part
 
 **Skew-bounded admission (normative — the LWW front-running fix).** For every subject_kind merging by `lww_skew_bounded`, the substrate MUST reject at admission any envelope with `asserted_at > now + tolerance`, where `tolerance` is the [CC 2.6.7](part_2_the_grammar.md) clock-skew bound (±5 minutes; the existing `CLOCK_SKEW_VIOLATION` error class). Without this, a signer with a forward-skewed clock future-dates `asserted_at` and wins LWW indefinitely; with it, a forward-dated write can win for at most the skew window. This matters precisely because `org_membership` carries `role: OrgAdmin` — unbounded LWW on authz data is a role-escalation surface.
 
-**The two quorums (restated from [CC 3.3.9](part_3_the_namespace.md) — different layers, different owners):** the **steward-signature admission quorum** (M-of-N signature set over identical JCS bytes; the [CC 3.2](part_3_the_namespace.md) founder-quorum machinery at admit — Verify's layer) is NOT the **region merge quorum** (`quorum_weight`, the `MergeBallot` tier-1 ordering above — the substrate's layer). The substrate's merge logic never counts steward signatures; Verify's admission check never orders merges.
+**The two quorums (restated from [CC 3.3.9](part_3_the_namespace.md) — different layers, different stewards):** the **steward-signature admission quorum** (M-of-N signature set over identical JCS bytes; the [CC 3.2](part_3_the_namespace.md) founder-quorum machinery at admit — Verify's layer) is NOT the **region merge quorum** (`quorum_weight`, the `MergeBallot` tier-1 ordering above — the substrate's layer). The substrate's merge logic never counts steward signatures; Verify's admission check never orders merges.
 
 #### 5.3.2.4 `attestation-tier` — The attestation tier model — local-tier write, query, promotion (normative)
 
@@ -534,3 +538,201 @@ All error responses MUST conform to:
 | 503 | `WITNESS_DIRECTORY_UNAVAILABLE` | Substrate replication lag exceeds liveness bound |
 
 Rate-limit headers on every response: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` (seconds-until-reset epoch).
+
+## 5.4 `scope-privacy-wire` — Scope-Native Privacy wire profile
+
+The wire-format absorption of the Scope-Native Privacy construction (the CEWP `SCOPE_PRIVACY.md` FSD; CIRISRegistry#107). These are the deterministic, byte-pinned primitives a conformant substrate uses to make real and cover traffic indistinguishable below the cohort boundary — record addressing, per-symbol AEAD, uniform fragmentation, the MLS Welcome wrap, the witness-chain discipline, and announce suppression. They are additive to the wire layer; the 1+4 surface is unchanged. Reference implementation: CIRISEdge `scope_privacy` (`derive_record_id` / `derive_symbol_key`).
+
+### 5.4.1 `record-id` — Deterministic `record_id` (CBOR profile, normative)
+
+Scope-native distribution addresses each record by an HMAC-opaque `record_id` rather than any plaintext key. The `record_id` is a deterministic, group-keyed commitment to the record's identity: every member of the MLS group derives the identical `record_id` for a given record, while non-members observe an unlinkable 32-byte tag. This is the addressing argument of the deterministic ALM "directory" — a pure function, never a queryable authority ([CC 4.4.3.2.1](part_4_composition_governance.md) cohort-scope lattice).
+
+The preimage `record_id_input` is the Core Deterministic Encoding of a fixed four-entry map; `record_id` is its HMAC under the per-epoch key `K_record_id`. The preimage, the key derivation, and the resulting tag MUST be byte-identical across producer, substrate, and every consumer — any disagreement on CBOR byte order, integer minimal-encoding, major-type selection, or HKDF/HMAC suite yields a different `record_id`, silently partitioning holders of the same record. This is the same byte-exactness hazard class the STREAM nonce derivation guards ([CC 5.3.3.1](part_5_transport_substrate.md)).
+
+**Per-epoch key.** `K_record_id` is a bare HKDF-Expand (no Extract, no MLS KDF-label framing) over the raw group `exporter_secret`:
+
+```
+K_record_id = HKDF-SHA256-Expand(
+    PRK  = raw group exporter_secret,
+    info = "ciris-edge/scope-privacy/record-id/v1"  (ASCII),
+    L    = 32
+)
+```
+
+The HKDF hash here is **SHA-256** (matching openmls ciphersuite 0x004D's key-schedule hash). Implementations MUST pass the raw `exporter_secret` to the `ciris-crypto` `scope_privacy::k_record_id` helper and MUST NOT route this label through openmls's `export_secret()` / RFC 9420 `MLS_Exporter()`.
+
+**Preimage and commitment.** Each record:
+
+```
+record_id_input = CBOR_dCE({
+    "v":   1,
+    "epc": mls_group_epoch,
+    "iid": internal_id,
+    "typ": record_type,    // integer per RecordType table below
+})
+record_id       = HMAC-SHA3-256(K_record_id, record_id_input)
+```
+
+`CBOR_dCE` is RFC 8949 §4.2.1 Core Deterministic Encoding (shortest-form integer encoding, definite lengths only, no floating-point unless required), with map keys ordered **by encoded-length first, then lexicographically by encoded key bytes**. The four-entry map at `v=1` therefore serializes keys in the canonical order `v, epc, iid, typ`.
+
+**Major types are pinned.** Within the map the four keys (`v`, `epc`, `iid`, `typ`) are CBOR text strings (major type 3). The values of `v`, `epc`, and `typ` are unsigned integers (major type 0). The value of `iid` is a **CBOR byte string (major type 2)** — `internal_id` is committed as its raw bytes, never as a text string, even when those bytes are human-readable (e.g. `record-0001`). Encoding `iid` as a text string (major type 3) produces a different preimage and a different `record_id`; the byte-string header is why the vectors below carry `0x4b`/`0x41` (major-2) and not `0x6b`/`0x61` (major-3) at the `iid` value position.
+
+**`RecordType` integer encoding** (pinned for cross-impl conformance; CIRISConformance asserts byte-for-byte reproducibility):
+
+| Type             | int |
+|------------------|-----|
+| reserved         | 0   |
+| SelfRecord       | 1   |
+| FamilyRecord     | 2   |
+| CommunityRecord  | 3   |
+| FederationRecord | 4   |
+
+Additional record types extend this table via CEG §11.
+
+**Conformance vectors (normative).** With `K_record_id = 0x11` repeated 32 times, conforming implementations MUST reproduce these exact CBOR preimage bytes and `record_id` tags (hex):
+
+```
+// Vector 1 — CommunityRecord (typ=3), epc=7, iid="record-0001"
+record_id_input = a46176016365706307636969644b7265636f72642d303030316374797003
+record_id       = 5428ddb514a8f8692cc4f254f3550ea75790f5069673e42afb6ef318517a0b21
+
+// Vector 2 — FederationRecord (typ=4), epc=300, iid="record-0002"
+//   (forces 0x19 u16 epc header: bytes[8..11] == 0x19 0x01 0x2c)
+record_id_input = a46176016365706319012c636969644b7265636f72642d303030326374797004
+record_id       = 04eebeee4d5b83f2fdd0012a205781e6c05fe9a587377e6161b347629a189ff2
+
+// Vector 3 — SelfRecord (typ=1), epc=16909060 (0x01020304), iid="x"
+//   (forces 0x1a u32 epc header: bytes[8..13] == 0x1a 0x01 0x02 0x03 0x04)
+record_id_input = a4617601636570631a010203046369696441786374797001
+record_id       = 79bee8b3f1e815a1df03ca9d83427dc5ab474e184f34e3876d3ef3c36559d6a3
+```
+
+The byte-exact source of truth is `ciris-crypto` `scope_privacy::derive_record_id` (CIRISEdge#193); the deterministic CBOR profile is normatively absorbed here per the CEG §11 record-type registry.
+
+### 5.4.2 `symbol` — Uniform symbol AEAD framing for fountain-coded fragments (normative)
+
+Within both encrypted crypto tiers — the self/family **InvisibleEncrypted** tier and the community/affiliations **CommunityDek** tier ([CC 4.4.3.2.1](part_4_composition_governance.md), resolved through `crypto_tier(cohort_scope, cohort_subkind)` with non-`infrastructure` subkind) — record bytes are fountain-coded (RaptorQ) and each emitted symbol is sealed under its **own** AEAD key, so a holder lacking the keys holds indistinguishable-from-random ciphertext. The two tiers differ in *discoverability*, not in fragment confidentiality: self/family content emits **no** `holds_bytes:sha256:*` holder-directory attestation at all ([CC 5.2](#52-family--structural-invisibility--holds_bytessha256-suppression-for-cohort_scope-self--family) structural invisibility) — outsiders cannot even discover the bytes exist; community/affiliations content **does** emit `holds_bytes:sha256:*` carrying cleartext provenance ([CC 4.4.3.2.1](part_4_composition_governance.md) holder-inspectability principle) so non-member holders can make an informed keep/evict decision — but the fragment bytes they hold remain sealed under the symbol AEAD below and unreadable without `K_symbol` and `record_id`. The substrate MUST seal every RaptorQ symbol with the framing below; a holder lacking both `K_symbol` and `record_id` MUST be unable to distinguish a real symbol envelope from a cover symbol envelope.
+
+`record_id` is the per-record HMAC-opaque addressing tag for the CEG §19.3 group-keyed fountain-coding construction — `record_id = HMAC-SHA3-256(K_record_id, CBOR_dCE({v, epc, iid, typ}))`. `K_symbol` and `K_record_id` are the MLS-exporter-derived per-scope subkeys (`HKDF-SHA256-Expand` over the group's raw `exporter_secret`); both rebind on MLS Add/Remove.
+
+For each RaptorQ symbol the wire framing is byte-exact:
+
+```
+For each RaptorQ symbol:
+
+    symbol_key = HKDF-SHA3-256(salt=record_id, ikm=K_symbol,
+                               info="ciris-edge/scope-privacy/symbol/v1"
+                                    || u16_be(symbol_index), len=32)
+    symbol_envelope = (record_id, u16_be(symbol_index), nonce,
+                       XChaCha20-Poly1305(symbol_key, nonce, fragment), tag)
+```
+
+Normative constraints:
+
+- **`symbol_key` derivation is byte-identical across every implementation.** `salt = record_id` (the 32-byte HMAC tag), `ikm = K_symbol` (the 32-byte exporter subkey), and `info` is the **exact** concatenation of the UTF-8 bytes of the ASCII label `ciris-edge/scope-privacy/symbol/v1` followed by `u16_be(symbol_index)` (the symbol index as a 2-byte big-endian unsigned integer), with `len = 32`. The same ASCII label is used both to derive `K_symbol` from the MLS exporter and as this info-prefix; producer, substrate, and every consumer MUST recompute this exact value. Any BE/LE disagreement on `symbol_index`, or any drift in the label bytes, yields a different `symbol_key` → AEAD authentication failure (silent decryption failure). This matches `ciris_crypto::scope_privacy::derive_symbol_key` and the pinned `LABEL_SYMBOL` constant; CIRISConformance asserts byte-for-byte reproducibility.
+- **The AEAD is XChaCha20-Poly1305 with a 24-byte `nonce` and the Poly1305 `tag`** carried in the envelope. The same suite seals **both** real fragments and cover fragments — there is no separate cover cipher, no cover marker, and no length distinguisher. A holder lacking `K_symbol` and `record_id` holds indistinguishable-from-random bytes (Tahoe-LAFS least-authority, by reduction to XChaCha20-Poly1305 IND-CCA + HKDF-SHA3 extract-then-expand); cover and real envelopes are observationally identical.
+- **The fragment-set rebinds on MLS Add/Remove.** Because `symbol_key` chains from `K_symbol` and `record_id`, both of which rotate with the group epoch, a removed member's symbol keys do not open post-epoch fragments. Past-epoch `K_record_id` / `K_symbol` are deleted by honest holders per the community's archive policy.
+- **`symbol_envelope` field order is fixed: `(record_id, u16_be(symbol_index), nonce, ciphertext, tag)`.** The cleartext `record_id` and `symbol_index` are the addressing argument to the HMAC-opaque directory function (the CEG §19.4 deterministic ALM topology) and are NOT authority-bearing — they reveal nothing to a non-member, who cannot derive the corresponding `symbol_key`.
+
+This framing is the byte-level analogue of the [CC 5.3.3.1](#5331-stream--chunk-seal--stream-nonce-normative--v2-lock) per-chunk stream seal: the costly key agreement is amortized into the MLS exporter, and the hot path is a per-symbol symmetric AEAD with a deterministically derived key. It composes with — and never substitutes for — the at-rest DEK cascade ([CC 4.4.3.4.1](part_4_composition_governance.md)); the symbol AEAD protects fragments in transit and at holders, the DEK cascade protects the record at rest.
+
+### 5.4.3 `fragmentation` — Uniform-envelope fragmentation & reassembly (normative)
+
+A claim's bytes rarely fit one packet, and the split is where privacy is most easily lost: a naive fragmenter leaks payload size, count, and cadence to anyone on the path. The discipline here is that every fragment on the wire — a real publication symbol or a synthetic cover envelope — is the **same size** and the **same AEAD shape**, so an on-path observer cannot distinguish a large publication from idle substrate maintenance. This composes with the chunk-seal of [CC 5.3.3.1](#1052-chunk-seal--stream-nonce-normative--v2-lock) (a *different* axis: streaming media chunks) — fragmentation is the substrate-emission layer beneath every Edge `send`, not the streaming codec.
+
+**Fixed envelope size (normative).** All outbound substrate traffic MUST conform to a fixed envelope size of **1.4 KB**, one MTU. A payload larger than one envelope MUST be chunked per this section; a payload smaller MUST be padded to the fixed size before emission. The fixed size is not a tuning knob — a variable envelope re-exposes the size channel the cover budget exists to close (the companion Poisson-cover emission discipline; budget anchor is the substrate-maintenance throughput, ~10–60 KB/s/peer).
+
+**Uniform AEAD framing across real + cover (normative).** Every envelope — real publication AND synthetic cover alike — MUST use uniform **XChaCha20-Poly1305** AEAD framing. A synthetic cover envelope MUST be marked `type=cover` in the **AEAD-protected** header; the `type` discriminator MUST live inside the AEAD envelope so an on-path observer cannot separate real from cover by inspecting cleartext. This XChaCha20-Poly1305 envelope/symbol framing is distinct from the streaming chunk-seal AES-256-GCM of [CC 5.3.3.1](#1052-chunk-seal--stream-nonce-normative--v2-lock) and from the HPKE-layer AES-256-GCM of the MLS Welcome wrap; they are different layers and MUST NOT be conflated.
+
+**Fragment unit — the RaptorQ symbol envelope (normative — wire-exact).** A chunked record is fountain-coded with RaptorQ defaults `(N=20, K=6, target_holders=30)`. Each symbol is sealed independently, with a per-symbol key diversified from the group `K_symbol` (MLS exporter-derived per the [CC 5.1](#1053-epoch-keying--cascade-normative--d2--d3-substrate-pending-142) epoch key schedule) and the record's `record_id` (the deterministic-CBOR `record_id` profile):
+
+```
+symbol_key = HKDF-SHA3-256(salt=record_id, ikm=K_symbol,
+                           info="ciris-edge/scope-privacy/symbol/v1"
+                                || u16_be(symbol_index), len=32)
+symbol_envelope = (record_id, u16_be(symbol_index), nonce,
+                   XChaCha20-Poly1305(symbol_key, nonce, fragment), tag)
+```
+
+The per-symbol KDF is **HKDF-SHA3-256** — harvest-now-decrypt-later (HNDL) discipline at the per-symbol layer, deliberately distinct from the SHA-256 key-schedule hash used one layer up. The `info` string `"ciris-edge/scope-privacy/symbol/v1"` (ASCII) concatenated with `u16_be(symbol_index)` is normative and MUST be byte-identical across producer, substrate, and every consumer; a `u16_be` / `u16_le` disagreement on `symbol_index` yields a different `symbol_key` → AEAD verify failure on reassembly. Without `K_symbol` and `record_id`, a holder possesses bytes indistinguishable from random (Tahoe-LAFS least-authority, by reduction to XChaCha20-Poly1305 IND-CCA + HKDF-SHA3 extract-then-expand) — the structural basis for a holder's truthful cold-state-ignorance claim.
+
+**Fragment-set rebinds on MLS Add/Remove (normative).** `K_symbol` and `K_record_id` are bound to the MLS group epoch (derived from the group `exporter_secret`). On any MLS **Add** or **Remove** the group epoch advances, so the fragment set MUST rebind: `record_id` and `symbol_key` are recomputed under the new epoch, and subsequent symbols seal under the new keying. This carries the forward-secrecy guarantee of [CC 5.1](#1053-epoch-keying--cascade-normative--d2--d3-substrate-pending-142) onto the fragment layer — a removed member cannot derive the post-removal fragment set, and a newly-added member receives forward keying without retroactive symbol access except as the archive policy permits (the companion per-community archive-policy section; default `rotate-forward`, 30-day window).
+
+**Reassembly (fail-honest).** A consumer holding `K_symbol` + `record_id` collects symbol envelopes from holders ([CC 5.3.2.1](#1012-holder-directory-ttl--contentmiss-feedback) holder discovery), opens each `symbol_envelope` under its recomputed `symbol_key` (XChaCha20-Poly1305 verify; a failed tag MUST discard that symbol, never accept partial plaintext), and RaptorQ-decodes once `≥ K` valid symbols are recovered. Insufficient surviving symbols MUST resolve to a `ContentMiss` — an honest miss, never a silent gap or a downgrade to unverified bytes ([fail-honest](../../MISSION.md)).
+
+### 5.4.4 `welcome-wrap` — MLS Welcome HPKE wrap under invitee static X-Wing key (normative)
+
+MLS Welcome messages MUST be wrapped by **HPKE `mode_base`** ([RFC 9180](https://www.rfc-editor.org/rfc/rfc9180) §5.1.1) encrypted to the invitee's **static X-Wing KEM** public key (ML-KEM-768 + X25519; [draft-connolly-cfrg-xwing-kem](https://datatracker.ietf.org/doc/draft-connolly-cfrg-xwing-kem/); confirmed in [draft-ietf-hpke-pq](https://datatracker.ietf.org/doc/draft-ietf-hpke-pq/) §7.2). This is the admission-ceremony half of the MLS construction whose epoch rekey is specified in [CC 5.1](part_5_transport_substrate.md) — the same hybrid KEM (X25519 + ML-KEM-768) the MLS ciphersuite uses as its HPKE KEM.
+
+**`mode_auth` is structurally unavailable.** X-Wing has no `AuthEncap` (per draft-connolly-cfrg-xwing-kem; confirmed in draft-ietf-hpke-pq §7.2), so HPKE `mode_auth` cannot be used. Sender authentication therefore MUST NOT be claimed at the HPKE layer; it is provided out-of-band by an **ML-DSA-65 signature from the inviter** over the encapsulation bytes (below). Both halves of MLS ciphersuite `0x004D` are used.
+
+**HPKE parameters (cross-impl pinned; private-use suite-id, since X-Wing has no IANA KEM-id):**
+
+```
+HPKE_SUITE_ID = b"HPKE-xwing-hkdf-sha256-aes256gcm-v1"
+KDF           = HKDF-SHA256
+AEAD          = AES-256-GCM
+```
+
+The `HPKE_SUITE_ID` string MUST be used, byte-for-byte identically on both sides, in every RFC 9180 `LabeledExtract` / `LabeledExpand` call. The HPKE-layer AEAD is **AES-256-GCM** — distinct from the XChaCha20-Poly1305 the CEWP substrate uses to protect fountain symbols and envelope fragments at its lower layers.
+
+**Inviter signature.** The inviter MUST sign the encapsulation bytes with ML-DSA-65 over the following length-delimited encoding (no `algorithm` field):
+
+```
+encap_signing_bytes
+    = x25519_ephemeral_pub      (32 bytes)
+    || u32_be(len(mlkem768_ct))
+    || mlkem768_ciphertext
+```
+
+Signature verification is a **precondition** to unwrapping the Welcome. An implementation that omits it forfeits sender authentication, and the [CC 5.2](part_5_transport_substrate.md) forwarder-side membership-opacity guarantee no longer holds.
+
+### 5.4.5 `witness-content` — Witness-chain content discipline (privacy witness, normative)
+
+A witness chain that names *what* a peer holds leaks the existence of its records as surely as a holder-discovery attestation does ([CC 5.2](#1014-structural-invisibility--holds_bytessha256-suppression-for-cohort_scope-self--family-ceg-07-addition)). The content a witness chain may commit to is therefore scoped by tier, and the federation tier additionally **hides its own rate** so that the *amount* of non-federation activity cannot be read off the chain.
+
+> **Distinction (normative — do NOT conflate).** This is the **privacy witness chain** — a content-and-rate discipline on what a peer's witness commitments may reveal. It is NOT the [CC 6.1.1](part_6_the_coherence_mathematics.md) **WholenessWitness** (`wholeness_witness:`, the self-published divergence-detection state-root that triggers [CC 5.3.2.3](#1016-cross-region-merge-intents--ceg-declared-per-subject_kind-normative-ceg-10-rc2-addition) quorum-merge), and it is NOT the [CC 5.3.1](#103-sth-cosigning--witness-directory) **transparency-log witness** (an independent STH cosigner providing append-only / consistency / anti-equivocation guarantees). The three "witness" surfaces are distinct constructions, MUST NOT be cross-verified, and MUST NOT be substituted for one another.
+
+**Federation witness chain — commits to federation-scope `record_id`s + a single rate-smoothed constant-tick counter.** A federation witness chain MUST commit only to federation-scope `record_id`s plus a single rate-smoothed counter for all non-federation activity. The counter ticks on a federation-wide **constant** schedule — **1 tick / federation epoch** ([CC 5.1](#1053-epoch-keying--cascade-normative--d2--d3-substrate-pending-142)) — independent of how much real activity occurred. At each tick the witness commits to a target-relative count, padding below-target ticks with cover leaves and back-pressuring above-target leaves into the next tick:
+
+```
+At each federation epoch tick the witness commits to `count mod target_rate`:
+real leaves below target are padded by cover leaves to the target;
+real leaves above target back-pressure into the next tick.
+Cover leaves commit to
+`HMAC-SHA3(witness_signing_key, leaf_position || epoch_id)`
+— cryptographically indistinguishable from real Merkle roots
+under the IND of HMAC-SHA3.
+```
+
+Because the tick is constant and the per-tick commitment is `count mod target_rate` smoothed by IND-indistinguishable cover leaves, an observer of the chain learns neither the true non-federation activity rate nor which leaves are real. **The signal is the deviation, not the count**: a witness that fails to tick on the constant schedule has emitted the only observable signal the chain carries, and **deviation from the constant tick is a federation-tier slashing condition**.
+
+**Per-community witness chain — member-only visibility, signed inside the group.** A per-community ([CC 3.2](part_3_the_namespace.md)) witness chain MUST commit to the community's `record_id` set with **member-only visibility**, and MUST be **signed inside the community's MLS encryption** ([CC 5.1](#1053-epoch-keying--cascade-normative--d2--d3-substrate-pending-142) epoch keying / [RFC 9420](https://www.rfc-editor.org/rfc/rfc9420) TreeKEM). The chain — like the in-group trust graph, attestation, and eviction machinery — runs *inside* the same encryption boundary that delivers outsider opacity: a non-member cannot read the community's `record_id` set off the chain, because the chain never federates beyond the group's encryption. There is no constant-tick rate counter at the community tier; rate-hiding is a federation-tier concern (the federation chain already smooths *all* non-federation activity, of which per-community activity is a part).
+
+This codifies CEWP `SCOPE_PRIVACY` §3.4 ([#107](https://github.com/CIRISAI/CIRISRegistry/issues/107)) as a normative substrate discipline, composing with the [CC 5.2](#1014-structural-invisibility--holds_bytessha256-suppression-for-cohort_scope-self--family-ceg-07-addition) structural-invisibility promise: structural invisibility keeps self/family content off the discovery surface; the witness-content discipline keeps the *witness* surface from re-leaking, at federation scope, what the discovery surface withholds.
+
+### 5.4.6 `announce-suppress` — Announce suppression for group-scoped destinations (normative)
+
+A Reticulum **announce** is the broadcast that tells the whole network a destination exists and is reachable. Announcing a *group-scoped* destination therefore leaks the one fact the cohort tiers exist to withhold: that the group exists at all. The discovery discipline closes that leak — group destinations are resolved from a **cached directory + per-group HKDF**, never from an announce. This is the transport-layer realization of [CC 5.2](part_5_transport_substrate.md) structural invisibility on the *addressing* plane: bytes are already suppressed from the holder directory ([CC 5.3.2.1](part_5_transport_substrate.md)) by the [CC 5.2](part_5_transport_substrate.md) `holds_bytes:sha256:*` suppression rule; here the **destination itself** is suppressed at the announce plane.
+
+**No announce for group-scoped destinations (normative).** A destination whose `cohort_scope` is below federation (the InvisibleEncrypted and CommunityDek tiers — `self`, `family`, `community`, `affiliations`) MUST NOT emit a Reticulum announce. The substrate MUST suppress the announce that would reveal a group-scoped destination's existence. Only federation/Commons-scope destinations (`species`, `biosphere`, `federation`, and the `infrastructure` opt-out) MAY announce normally — they carry no anonymity claim.
+
+**Discovery is directory-cached, not announced (normative).** Group members resolve each other's destinations from a locally cached directory plus a deterministic per-group derivation — no announce, no per-resolution query:
+
+```
+- Every participating L1 peer maintains a COMPLETE local copy of the
+  federation directory's X-Wing public keys, refreshed via the existing
+  `federation_keys` anti-entropy. The directory remains federation-public.
+- A group destination is resolved DETERMINISTICALLY from
+  (cached directory entry + per-group HKDF) — every member derives the
+  same destination; outsiders, lacking the group key, cannot.
+- NO per-invitation / per-resolution directory query is emitted.
+- Phone-class peers that cannot hold the full directory resolve through
+  their L1-relay parent over a relay-blinded path.
+```
+
+The per-group HKDF derivation is the same group-and-epoch-bound key schedule the substrate already uses to diversify record-ids and symbols; destination resolution reuses it, so the addressing argument is HMAC-opaque to non-members and no new key material is introduced.
+
+**The anonymity target is outsiders, not in-group members (normative framing).** Trust-enforceability to insiders and anonymity to outsiders are the same property viewed from opposite sides of the cohort encryption boundary ([CC 1.13.3.4](part_1_foundation.md)). In-group members already hold the per-group key and resolve every peer's destination from the cache — they see the group fully. The construction hides the group's existence, membership, and `querier → invitee` edges from **outsiders only**, including a subpoena against the federation-public directory: because no announce is broadcast and no resolution query is emitted, the directory exposes no edge linking a resolver to the resolved destination.
+
+**Fail-secure.** A peer with a stale or incomplete directory cache resolves *fewer* destinations and reports an honest miss; it MUST NOT fall back to emitting a group-scoped announce or a per-destination query to recover reachability. Per-destination announce control is a small Leviculum substrate extension (informative); its absence MUST fail toward suppression, never toward announce.

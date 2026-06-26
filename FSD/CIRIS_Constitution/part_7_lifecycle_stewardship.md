@@ -418,7 +418,7 @@ Sunset takes several forms, and the duties below apply to each:
 A. **Planned Retirement:** End-of-service reached by design or obsolescence.
 B. **Emergency Shutdown:** Triggered by catastrophic failure or WA mandate.
 C. **Partial Wind-Down:** Subsystem sunset while larger platform lives.
-D. **Custodial Transfer:** Ownership moves; ethical duties persist.
+D. **Custodial Transfer:** Stewardship moves; ethical duties persist.
 
 ### 7.5.3 `3-sunset` — Chapter 3: Sunset-Trigger Assessment
 

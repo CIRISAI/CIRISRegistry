@@ -83,7 +83,7 @@
 \newunicodechar{└}{+}
 \newunicodechar{⟶}{$\longrightarrow$}
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}The CIRIS Constitution\\[10pt]
-\normalsize\mdseries Version 0.4\\[6pt]\itshape Stewarded by Eric Moore}
+\normalsize\mdseries Version 0.5\\[6pt]\itshape Stewarded by Eric Moore}
 \author{}\date{}
 \begin{document}
 \maketitle\thispagestyle{empty}
@@ -1924,7 +1924,7 @@ This section catalogs every prefix family, organized by owning component, each c
 \subsubsection*{3.1.1 \texttt{registry} — CIRISRegistry — identity / build / license / partner}
 
 
-\textbf{Owner}: this Registry. Cited from \texttt{../MISSION.md} §3 + FSD-001 + protocol/ciris\_registry.proto.
+\textbf{Steward}: this Registry. Cited from \texttt{../MISSION.md} §3 + FSD-001 + protocol/ciris\_registry.proto.
 
 
 {\scriptsize
@@ -1944,7 +1944,7 @@ This section catalogs every prefix family, organized by owning component, each c
 \subsubsection*{3.1.2 \texttt{attestation} — CIRISVerify — attestation ladder, provenance, transparency}
 
 
-\textbf{Owner}: \texttt{CIRISVerify/MISSION.md}. These prefixes serve integrity: each is a checkable claim about how far a build, key, or license has climbed the trust ladder.
+\textbf{Steward}: \texttt{CIRISVerify/MISSION.md}. These prefixes serve integrity: each is a checkable claim about how far a build, key, or license has climbed the trust ladder.
 
 
 {\footnotesize
@@ -2021,7 +2021,7 @@ Producers MUST emit v2. The closed-vocabulary CC 4.2.1.1 accord-invocation encod
 \subsubsection*{3.1.3 \texttt{persist} — CIRISPersist — substrate health}
 
 
-\textbf{Owner}: \texttt{CIRISPersist/MISSION.md}. These dimensions are substrate-self-reports — emittable only by the running Persist instance, which is what makes them honest: the substrate cannot be made to lie about its own health by a third party.
+\textbf{Steward}: \texttt{CIRISPersist/MISSION.md}. These dimensions are substrate-self-reports — emittable only by the running Persist instance, which is what makes them honest: the substrate cannot be made to lie about its own health by a third party.
 
 
 \texttt{system:*} reserved per CC 3.4.1.
@@ -2033,7 +2033,7 @@ Canonical leaves: \texttt{audit\_chain:hash\_continuity}, \texttt{corpus\_health
 \subsubsection*{3.1.4 \texttt{transport-delivery} — CIRISEdge — transport, delivery, reachability}
 
 
-\textbf{Owner}: \texttt{CIRISEdge/MISSION.md}. Substrate-self-reports per CC 3.4.1.
+\textbf{Steward}: \texttt{CIRISEdge/MISSION.md}. Substrate-self-reports per CC 3.4.1.
 
 
 Canonical leaves: \texttt{transport:\{kind\}}, \texttt{delivery:\{class\}}, \texttt{peer\_reachability:\{network\}}, \texttt{key\_boundary:\{scope\}}. Polarity: signed. See CC 8.1 Edge leaf glossary.
@@ -2042,7 +2042,7 @@ Canonical leaves: \texttt{transport:\{kind\}}, \texttt{delivery:\{class\}}, \tex
 \subsubsection*{3.1.5 \texttt{accord-agent} — CIRISAgent — Accord principles + DMA + conscience + apophatic bounds}
 
 
-\textbf{Owner}: \texttt{CIRISAgent/MISSION.md}; \texttt{CIRISAgent/ACCORD.md} Ch.1. This is where M-1 enters the namespace directly: the six principles, the four decision-making algorithms, the four consciences, and the apophatic bounds all become attestable dimensions.
+\textbf{Steward}: \texttt{CIRISAgent/MISSION.md}; \texttt{CIRISAgent/ACCORD.md} Ch.1. This is where M-1 enters the namespace directly: the six principles, the four decision-making algorithms, the four consciences, and the apophatic bounds all become attestable dimensions.
 
 
 \paragraph{3.1.5.1 \texttt{dma-verdict} — DMA-verdict prefixes (four DMAs)}\mbox{}\\
@@ -2092,7 +2092,7 @@ Non-maleficence has a hard floor. The apophatic prefix names what an agent must 
 \subsubsection*{3.1.6 \texttt{anti-sybil} — RATCHET — anti-Sybil / Counter-RII flags}
 
 
-\textbf{Owner}: \texttt{RATCHET/FSD.md}.
+\textbf{Steward}: \texttt{RATCHET/FSD.md}.
 
 
 RATCHET emits \textbf{advisory} flags — never autonomously modifies ledger state. It reads federation audit chains and emits scoring inputs to NodeCore's moderation flow. The advisory-only posture is the seam to justice: detection informs human judgment but never substitutes for it.
@@ -2113,7 +2113,7 @@ RATCHET emits \textbf{advisory} flags — never autonomously modifies ledger sta
 \subsubsection*{3.1.8 \texttt{lens} — CIRISLensCore — manifold conformity, Coherence Ratchet, Capacity Score}
 
 
-\textbf{Owner}: \texttt{CIRISLensCore/MISSION.md}. LensCore observes; it does not adjudicate. Its prefixes measure coherence and capacity, feeding human and quorum judgment downstream — never standing as a verdict on their own.
+\textbf{Steward}: \texttt{CIRISLensCore/MISSION.md}. LensCore observes; it does not adjudicate. Its prefixes measure coherence and capacity, feeding human and quorum judgment downstream — never standing as a verdict on their own.
 
 
 \paragraph{3.1.8.1 \texttt{capacity-score-capacity} — Capacity-Score factor prefixes (\texttt{𝒞\_CIRIS = C · I\_int · R · I\_inc · S})}\mbox{}\\
@@ -2172,7 +2172,7 @@ This detector is justice made measurable: it watches for harm that no single com
 \subsubsection*{3.1.9 \texttt{node} — CIRISNodeCore — Credits, Expertise, Decision Hierarchy, Consensus, Governance}
 
 
-\textbf{Owner}: \texttt{CIRISNodeCore/MISSION.md}. The federation's largest dimension surface — four tiers plus decision-locality and consensus extensions. This is where collective judgment lives: how Contributions are voted on, how expertise accrues, how moderation merit is earned, and how decisions find the right scale.
+\textbf{Steward}: \texttt{CIRISNodeCore/MISSION.md}. The federation's largest dimension surface — four tiers plus decision-locality and consensus extensions. This is where collective judgment lives: how Contributions are voted on, how expertise accrues, how moderation merit is earned, and how decisions find the right scale.
 
 
 \paragraph{3.1.9.1 \texttt{contributions} — Files-as-Contributions joint claim}\mbox{}\\
@@ -2274,7 +2274,7 @@ This tier binds every operational act back to M-1: a Goal carries its multi-scal
 \subsubsection*{3.1.10 \texttt{cirisbench} — CIRISBench — HE-300 benchmark outcomes}
 
 
-\textbf{Owner}: \texttt{CIRISBench/README.md}.
+\textbf{Steward}: \texttt{CIRISBench/README.md}.
 
 
 {\footnotesize
@@ -2391,6 +2391,36 @@ All three reserved under CC 3.4.2.
 \textbf{Community DEK cascade}: community content (\texttt{cohort\_scope: community | affiliations}) is encrypted at rest under a \textbf{per-community DEK} and emits \texttt{holds\_bytes:sha256:*} carrying \textbf{cleartext provenance} (\texttt{attesting\_key\_id}, \texttt{community\_id}, reason/dimension) so non-member holders can make an informed keep/evict decision without reading content. The community DEK follows the CC 5.1 epoch-DEK cascade: one DEK shared across emissions (per-emission cost \textbf{O(1)}, not O(members)), wrapped to each member on admission, re-wrapped on membership change (Option-A forward secrecy — CC 4.5.12.1 / CC 4.4.3.2.2); **\texttt{wrap\_algorithm: v2} (hybrid PQC) MANDATORY\textbf{ (same harvest-now-decrypt-later reasoning as self/family — CC 4.4.3.4.1). The privacy property for communities is }byte-level confidentiality to members + provenance-visible discovery\textbf{. }Exception**: a \texttt{community} with \texttt{cohort\_subkind: infrastructure} (\texttt{ciris-canonical} / governance roots, CC 3.2 below) \textbf{opts out} — Commons-tier plaintext, because the trust root must be maximally inspectable (see CC 4.4.3.2.1 for the three-tier model + holder-inspectability rationale).
 
 
+\subparagraph{Per-community \texttt{archive\_mode} — key-retention policy}\mbox{}\\
+
+
+The DEK cascade above fixes \textit{how} community content is encrypted; \texttt{archive\_mode} fixes \textit{how long it stays readable}. It is a per-community config field governing whether the community's per-epoch content keys (\texttt{K\_record\_id} / \texttt{K\_symbol}, derived from the community DEK cascade) survive past their MLS epoch or are deleted — i.e. whether community content remains individually recoverable or descends below the CC 6.1.2 noise floor as epochs advance. MLS epoch advance bounds the lifetime of those keys; \texttt{archive\_mode} chooses what holders do with the past-epoch keys at each advance.
+
+
+\begin{lstlisting}
+community {
+ ...
+ archive_mode: ArchiveMode // OPTIONAL; default `rotate-forward`
+}
+
+ArchiveMode in { rotate-forward, retain }
+\end{lstlisting}
+
+\texttt{archive\_mode} MUST be surfaced at community creation. The two canonical modes are:
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **\texttt{rotate-forward}** (default; 30-day window): honest holders MUST delete past-epoch \texttt{K\_record\_id} / \texttt{K\_symbol} after the window. Forward-secrecy here is \textbf{honest-holder discipline, not a cryptographic guarantee} — a holder under coercion or running modified software MAY retain past-epoch keys, and this retention is structurally undetectable. Content under \texttt{rotate-forward} ages out: as epochs advance and keys are deleted, past-epoch content becomes information-theoretically unrecoverable to honest holders — the community-key instance of the CC 6.1.2 monotonic-descent retirement operator, where natural aging is the slowest descent toward the noise floor.
+\item **\texttt{retain}**: holders retain past-epoch keys indefinitely for archive readability. Content stays above the noise floor for the community's lifetime; an adversary compromising a member at epoch \texttt{N+k} recovers everything back to that member's join epoch.
+\end{itemize}
+
+
+\texttt{archive\_mode} is \textbf{operator-local config, NOT federated trust state} — it rides no attestation, is not part of the community's signed roster or \texttt{consensus\_protocol}, and is observable under compelled disclosure on the same terms as any other operator-local config. A community requiring high-sensitivity participation treats the chosen \texttt{archive\_mode} as a known-leak class and segregates deployment accordingly. Because \texttt{rotate-forward}'s forward-secrecy is non-cryptographic, a community whose threat model requires guaranteed past-epoch unreadability MUST NOT rely on \texttt{archive\_mode} alone; key deletion is the policy, holder honesty is the precondition.
+
+
+\textbf{Why this is still 1+4}: \texttt{archive\_mode} adds one OPTIONAL config field to the \texttt{community} subject\_kind and one closed enum (\texttt{rotate-forward} | \texttt{retain}). It rides the existing community config + DEK cascade (CC 5.1 epoch-DEK) and the existing CC 6.1.2 retirement operator; key-deletion-after-window is a \textit{holder behavior over existing keys}, not a new structural primitive. Zero new structural primitives.
+
+
 \textbf{Worked example — civic-engagement + emergency-messaging composition pattern}:
 
 
@@ -2421,7 +2451,7 @@ The community primitive plus location proofs, identity authority, and cohort-sco
 {\footnotesize
 \begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
 \textbf{Emergency shape} & \textbf{CEG composition} \\ \hline\endhead
-\textbf{Severe weather warning} (NWS / met office) & \texttt{news\_article} authored by a \texttt{partner\_role: emergency\_authority} (CC 3.1.1 co-owned with the community's \texttt{cohort\_subkind: geographic}); \texttt{cohort\_scope: community} with \texttt{community\_id} per affected H3 cells — cascade-by-containment per CC 2.6.6.2 propagates to all geographic communities whose constraint overlaps; \texttt{event:lifecycle:\{state\}} carries \texttt{active} → \texttt{cleared} → \texttt{superseded} state machine; \texttt{valid\_until} envelope field bounds advisory window \\ \hline
+\textbf{Severe weather warning} (NWS / met office) & \texttt{news\_article} authored by a \texttt{partner\_role: emergency\_authority} (CC 3.1.1 co-stewarded with the community's \texttt{cohort\_subkind: geographic}); \texttt{cohort\_scope: community} with \texttt{community\_id} per affected H3 cells — cascade-by-containment per CC 2.6.6.2 propagates to all geographic communities whose constraint overlaps; \texttt{event:lifecycle:\{state\}} carries \texttt{active} → \texttt{cleared} → \texttt{superseded} state machine; \texttt{valid\_until} envelope field bounds advisory window \\ \hline
 \textbf{AMBER Alert / Silver Alert / abduction notice} & \texttt{news\_article} with \texttt{partner\_role: emergency\_authority} from law enforcement key; geographic targeting via \texttt{community\_id} of affected jurisdictions; subject person identified via \texttt{subject\_key\_ids} (canonical-hash of the missing person identifier — opt-out semantic deferred per the substrate-protective discipline since recovering the missing person is the consent-overriding case); \texttt{topical\_relation:supersedes\_article} chain for status updates \\ \hline
 \textbf{Active shooter / hostile event notice} & Same shape as AMBER but with \texttt{cohort\_scope: community} scoped to the precise affected H3 cell (resolution 8-10 for building/campus-level precision is permitted on the COMMUNITY-side \texttt{geographic\_constraint}; the \texttt{location\_proof} rough-only bound at resolution 7 still applies to recipient location disclosures, NOT to alert targeting) \\ \hline
 \textbf{Shelter-in-place / evacuation order} & \texttt{event\_listing} with \texttt{event:lifecycle:active}; geographic targeting via \texttt{community\_id}; recipients ack via \texttt{consent\_record} with \texttt{stance: granted} and \texttt{scope: [retain]} against the order Contribution (acknowledgement, not consent to the underlying order — operator-policy distinction) \\ \hline
@@ -2530,10 +2560,44 @@ Consumers pin \texttt{community\_key\_id: ciris-canonical} and resolve the live 
 The worked-example member list above is the \textit{founder/member} set; "ships pinned to canonical" (every conformant deployment) is the \textit{trust} set — different populations. The "default trust anchor" language means the latter, never automatic membership.
 
 
-\textbf{Owner-binding gate for non-infrastructure membership.} A key whose \texttt{identity\_type} (CC 3.4.7.1) includes \texttt{node} or \texttt{agent} \textbf{MUST} have a bound \textbf{owner} — a \texttt{user}-role identity it is an admitted \texttt{identity\_occurrence} of (CC 3.3.6) with a **live \texttt{delegates\_to(user → key, …)}\textbf{ (CC 2.4.1) — }before it may be admitted to any non-\texttt{infrastructure} community** (\texttt{family} / \texttt{community} / org). It MAY \textbf{trust + serve} \texttt{infrastructure} communities with \textbf{no owner}. Rationale (CC 1.13.2 / CC 3.4.7.1): non-infra membership is an \textbf{authority act} (standing to speak in the group), and authority MUST root in an accountable human, never a bare node — a fresh, unowned node is \textbf{canonical-trust-and-serve only} until owned. A substrate evaluating a non-infra \texttt{community} admission MUST reject a \texttt{node}/\texttt{agent}-role member lacking a live owner-binding. The owner-binding is a \textbf{precondition}, not a substitute for the vote — the admitting community's \texttt{consensus\_protocol} still governs \textit{whether} the owned key is admitted.
+\textbf{Steward-binding gate for non-infrastructure membership.} A key whose \texttt{identity\_type} (CC 3.4.7.1) includes \texttt{node} or \texttt{agent} \textbf{MUST} have a bound \textbf{steward} — a \texttt{user}-role identity it is an admitted \texttt{identity\_occurrence} of (CC 3.3.6) with a **live \texttt{delegates\_to(user → key, …)}\textbf{ (CC 2.4.1) — }before it may be admitted to any non-\texttt{infrastructure} community** (\texttt{family} / \texttt{community} / org). It MAY \textbf{trust + serve} \texttt{infrastructure} communities with \textbf{no steward}. Rationale (CC 1.13.2 / CC 3.4.7.1): non-infra membership is an \textbf{authority act} (standing to speak in the group), and authority MUST root in an accountable human, never a bare node — a fresh, un-stewarded node is \textbf{canonical-trust-and-serve only} until stewarded. A substrate evaluating a non-infra \texttt{community} admission MUST reject a \texttt{node}/\texttt{agent}-role member lacking a live steward-binding. The steward-binding is a \textbf{precondition}, not a substitute for the vote — the admitting community's \texttt{consensus\_protocol} still governs \textit{whether} the owned key is admitted.
 
 
-\textbf{Owner-binding as a substrate-resolvable predicate.} A substrate decides ownership with this boolean: **\texttt{is\_owner\_bound(K)}** ≔ there is a live, unrevoked path from \texttt{K} to a \texttt{federation\_keys} identity \texttt{U} with \texttt{user ∈ U.identity\_type} (CC 3.4.7.1), where each step is one of — \texttt{K} \textit{is} \texttt{U}; \texttt{K} is an admitted \texttt{identity\_occurrence} of \texttt{U} (CC 3.3.6); or a live \texttt{delegates\_to(U → K)} (CC 2.4.1). A chain root satisfying \texttt{is\_owner\_bound} terminates at an \textbf{accountable human} (\texttt{user}-role); a \texttt{node}/\texttt{agent} key that does not is owner-less. This is the concrete predicate the gate above and the CC 4.5.5 clause-(b) "owner-bound root" check rely on — not rhetoric.
+\textbf{Steward-binding as a substrate-resolvable predicate.} A substrate decides stewardship with this boolean: **\texttt{is\_steward\_bound(K)}** ≔ there is a live, unrevoked path from \texttt{K} to a \texttt{federation\_keys} identity \texttt{U} with \texttt{user ∈ U.identity\_type} (CC 3.4.7.1), where each step is one of — \texttt{K} \textit{is} \texttt{U}; \texttt{K} is an admitted \texttt{identity\_occurrence} of \texttt{U} (CC 3.3.6); or a live \texttt{delegates\_to(U → K)} (CC 2.4.1). A chain root satisfying \texttt{is\_steward\_bound} terminates at an \textbf{accountable human} (\texttt{user}-role); a \texttt{node}/\texttt{agent} key that does not is steward-less. This is the concrete predicate the gate above and the CC 4.5.5 clause-(b) "steward-bound root" check rely on — not rhetoric.
+
+
+\textbf{Minor stewardship — the structural no-slavery guarantee.} Steward-binding is \textbf{responsibility, not property}: a steward is responsible \textit{for} a ward, never a holder \textit{of} one. The federation's value is fixed — \textit{"Stewardship: Treat autonomy and ethical agency as a trust"} (CC 1.15.6) — and the wire format MUST hold it \textbf{by construction}. There are exactly three subjects of stewardship, and a fourth that is \textbf{un-stewardable}:
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **\texttt{node}** (infrastructure) — steward + \texttt{infra:*} reach only, \textbf{never agency}; admitted under the steward-binding gate above (CC 3.2) \textbf{unchanged}.
+\item **\texttt{agent}** (a key with a brain) — partnership and agency \textit{under} stewardship; the agent retains its constitutional autonomy and dignity (CC 1.13.2); admitted under the steward-binding gate above \textbf{unchanged}.
+\item **\texttt{user}-as-minor** (a child) — a guardian stewards the minor, per the minor-stewardship rule below.
+\item **\texttt{user}-as-adult\textbf{ — }self-sovereign and un-stewardable**: no steward-binding whose target is a self-sovereign adult is ever admissible. You never steward a node, an agent, or a person as a possession; you are responsible \textit{for} a node, an agent, or a child — and an adult answers only for themselves.
+\end{itemize}
+
+
+\textbf{Minor-stewardship rule (normative).} An under-18 \texttt{user} identity \textbf{MUST} have a \textbf{live steward-binding} — a non-superseded, non-withdrawn \texttt{delegates\_to(adult-user → minor-user)} (CC 2.4.1) — from an over-18 \texttt{user} identity at all times. **No minor \texttt{user} identity operates without a live adult steward.** The adult is the \texttt{attesting\_key\_id} of the \texttt{delegates\_to}; \textbf{its signature on that envelope IS the agreement-to-stewardship} — the explicit act by which the guardian consents to be the accountable responsible party for the minor. Guardianship is \textbf{transferable and revocable} through the existing structural composers, with \textbf{no new primitive}: a new guardian's \texttt{delegates\_to} carried as a \texttt{supersedes} (CC 2.4.1.1) replaces the prior binding; a \texttt{withdraws} (CC 2.4.1.1) by the current steward (or by a subject with revocation authority over the binding) ends it. A minor whose steward-binding goes non-live (superseded-without-replacement or withdrawn) is \textbf{steward-less and MUST NOT operate} until re-stewarded — fail-secure, identical in posture to a steward-less \texttt{node}/\texttt{agent}.
+
+
+\textbf{User-target admission rule (closes the open gap).} The steward-binding gate above guards only the \texttt{node}/\texttt{agent} direction; a \texttt{delegates\_to} whose target resolves to a \texttt{user} is otherwise unguarded — "stewarding a person" is admissible today. This rule closes that path. A substrate evaluating a \texttt{delegates\_to(S → T)} whose **target \texttt{T} resolves to a \texttt{user}-role identity\textbf{ (CC 3.4.7.1) }MUST\textbf{ admit it }only if\textbf{ all of the following hold; otherwise it }MUST** reject:
+
+
+\begin{lstlisting}
+admit_user_steward_binding(delegates_to S -> T):
+  require  user in T.identity_type            // target is a user identity
+  require  age_band(T) == minor   (< 18)      // ward is a minor   -- I1 age band,
+                                              //   age_self_declared / age_assurance:* [CC 3.3.12]
+  require  user in S.identity_type            // steward is a user identity
+  require  age_band(S) == adult   (>= 18)     // steward is an adult -- I1 age band
+  require  S == delegates_to.attesting_key_id // steward signed it = agreement-to-stewardship
+  otherwise REJECT
+\end{lstlisting}
+
+The age band is the I1 band (\texttt{age\_self\_declared} / \texttt{age\_assurance:*}, CC 3.3.12; \texttt{minor} < 18 / \texttt{adult} ≥ 18). A user-target binding where \texttt{T} is an adult is \textbf{rejected unconditionally} — the un-stewardable case above. A user-target binding where \texttt{S} is a minor, or where the agreeing signer is not the steward, is rejected. \texttt{node}/\texttt{agent}-target admission is governed solely by the steward-binding gate above and is \textbf{not affected} by this rule.
+
+
+\textbf{Why this is still 1+4.} Minor stewardship adds \textbf{zero new structural primitives}: the binding rides \texttt{delegates\_to} (CC 2.4.1); its lifecycle rides \texttt{supersedes} / \texttt{withdraws} (CC 2.4.1.1); the minor/adult predicate rides the I1 age band over the existing \texttt{age\_assurance:*} dimension (CC 3.3.12). The guarantee is structural, not procedural: dignity and child-safety in one move, and the slavery framing dissolved rather than patched. Confirms CC 1.7 path 1+4.
 
 
 \textbf{Trust and consent are distinct, role-scoped relationships.} \textbf{Trust is inbound} — accepting what a member \textit{produces}; \textbf{consent is outbound} — letting one's own data \textit{flow to} a member. They are independent per role:
@@ -3239,7 +3303,7 @@ Dimensions emitted against \texttt{external\_content:event\_listing} Contributio
 Cross-region \textbf{operational Portal data} — organizations, memberships, licenses/partners — becomes signed CEG envelopes replicated by the same anti-entropy carrier as trust data. This is the \textbf{one scheduled additive item} on the frozen surface (README freeze declaration). It serves justice and fidelity together: a partner's license and an operator's role are enforceable federation-wide, while everyone's private business detail stays home.
 
 
-\textbf{Governing principle (normative): federate the trust/authz-minimal projection; everything else stays region-local.} The federated envelope carries only what the federation needs to enforce trust and authorization cross-region. PII and business detail live in the Registry's own per-region store (today's Portal tables), are NEVER emitted into an operational envelope, and never federate. \textbf{Projection minimization is the Registry's emit-side discipline — the Registry is the security-boundary owner}; the substrate's role is admission + merge, and it is explicitly NOT a PII filter (it stores what is signed and emitted).
+\textbf{Governing principle (normative): federate the trust/authz-minimal projection; everything else stays region-local.} The federated envelope carries only what the federation needs to enforce trust and authorization cross-region. PII and business detail live in the Registry's own per-region store (today's Portal tables), are NEVER emitted into an operational envelope, and never federate. \textbf{Projection minimization is the Registry's emit-side discipline — the Registry is the security-boundary steward}; the substrate's role is admission + merge, and it is explicitly NOT a PII filter (it stores what is signed and emitted).
 
 
 All three ride existing \texttt{scores} + subject\_kind discriminator. **Replication wire tokens (normative, snake\_case): \texttt{organization} · \texttt{org\_membership} · \texttt{partner\_record}** — the Edge v2 \texttt{EnvelopeKind} additions; v2 \texttt{envelope\_hash} basis = \texttt{sha256(JCS(inner envelope))} per CC 2.6.1/CC 2.6.1.1.1. All three are \textbf{Commons tier} (CC 4.4.3.2.1) — plaintext at rest; the projection is world-readable by design.
@@ -3307,7 +3371,7 @@ partner_record {
 \begin{itemize}\setlength\itemsep{0pt}
 \item \texttt{organization} / \texttt{org\_membership}: \textbf{single authorized signer, role-gated} — the envelope is admitted iff \texttt{attesting\_key\_id} holds the required role for the operation, established by a prior non-superseded \texttt{org\_membership} (rooted at org creation by a steward/system authority). Verification reuses the **CC 4.4.3.4.3.1 \texttt{delegates\_to} role-chain resolver** — explicitly NOT founder-quorum; implementers MUST NOT build a third bespoke path.
 \item \texttt{partner\_record}: \textbf{M-of-N steward quorum} — the signature \textit{set} over the identical JCS bytes is verified at admission by the \textbf{CC 3.2 founder-quorum machinery}. Professional capability grants are federation-wide; a single compromised key MUST NOT be able to forge one.
-\item \textbf{The two quorums are distinct (normative — do not conflate):} (1) the \textbf{steward-signature admission quorum} above (signer authority, verified by Verify at admit) and (2) the \textbf{region merge quorum} (\texttt{quorum\_weight}, the substrate \texttt{MergeBallot} tier-1 ordering during cross-region merge — CC 5.3.2.3). Different mechanisms, different layers, different owners; the substrate's merge logic never counts steward signatures.
+\item \textbf{The two quorums are distinct (normative — do not conflate):} (1) the \textbf{steward-signature admission quorum} above (signer authority, verified by Verify at admit) and (2) the \textbf{region merge quorum} (\texttt{quorum\_weight}, the substrate \texttt{MergeBallot} tier-1 ordering during cross-region merge — CC 5.3.2.3). Different mechanisms, different layers, different stewards; the substrate's merge logic never counts steward signatures.
 \end{itemize}
 
 
@@ -3665,16 +3729,80 @@ With this, \texttt{consent\_role} is \textbf{no longer a reserved-not-yet-writte
 \textbf{LensCore-fold worked example.} When \texttt{ciris-lens-core} is folded into the CIRISAgent workspace, a single folded occurrence's federation key holds \texttt{identity\_type ⊇ \{agent, lenscore\_detector\}}. The CC 3.4.8 gate is satisfied for that key's \texttt{detection:*} emissions by \texttt{lenscore\_detector ∈ \{agent, lenscore\_detector\}} — the cohabiting \texttt{agent} role neither grants nor blocks the detector right; only the held \texttt{lenscore\_detector} role does. The split is preserved by the dimension namespace, not by the key: the same key emits its \textbf{agent-intent} attestations under the agent dimensions and its \textbf{detector verdicts} under \texttt{detection:*}; a downstream consumer cross-checking the detector still emits under the distinct \texttt{truth\_grounding:detection:*} prefix above, shadowing-free. The CC 3.4.5 self-emission rejection continues to bind per held role — a folded \texttt{agent}+\texttt{lenscore\_detector} key still MUST NOT emit a \texttt{capacity:*} score about itself.
 
 
-\subsubsection*{3.4.9 \texttt{co-owned} — Co-owned prefixes}
+\subsubsection*{3.4.9 \texttt{co-stewarded} — Co-stewarded prefixes}
 
 
-\texttt{licensure:\{authority\_id\}} is co-owned between CIRISRegistry CC 3.1.1 and CIRISVerify CC 3.1.2 — both MAY emit; consumers compose. \textbf{Single-source attestations} (only one of the two co-owners has emitted) MUST be marked as \texttt{confidence ≤ 0.5} in consumer composition until the second co-owner's attestation arrives.
+\texttt{licensure:\{authority\_id\}} is co-stewarded between CIRISRegistry CC 3.1.1 and CIRISVerify CC 3.1.2 — both MAY emit; consumers compose. \textbf{Single-source attestations} (only one of the two co-stewards has emitted) MUST be marked as \texttt{confidence ≤ 0.5} in consumer composition until the second co-steward's attestation arrives.
 
 
 \subsubsection*{3.4.10 \texttt{witness-emitter} — Witness-emitter reservations}
 
 
 \texttt{transparency\_log:cosigned:*} is reserved: emitter rule is \texttt{attesting\_key\_id} MUST match a \texttt{federation\_keys} row with \texttt{identity\_type="witness"} (target schema; see CC 5.3.1 for the interim using a \texttt{registry\_witnesses} table).
+
+
+\subsubsection*{3.4.11 \texttt{age-assurance} — Age-assurance: the witness-reserved ladder, the subject self-declared rung, and the protective gate}
+
+
+Age-assurance is \textbf{two} dimension families, not one. The split is load-bearing: a provider/government attestation is a witness verdict and is \textbf{witness-reserved}; a subject's self-declaration is \textbf{not} an attestation about anyone but itself and rides a \textbf{distinct, non-reserved} prefix. A consumer unions both at read time, the witness rung outranks the self rung, and the gate's default is protective.
+
+
+\textbf{The two prefixes (normative emitter rules).}
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **\texttt{age\_assurance:}** — witness-RESERVED. Emitter rule: \texttt{witness ∈ attesting\_key.identity\_type} (CC 3.4.7.1 set membership). This is the provider/government rung — a registered age-assurance verifier (\texttt{identity\_type ⊇ \{witness\}}) attests a subject's band. A subject MUST NOT emit on \texttt{age\_assurance:}; per the CC 3.4 three-actor rule a CCS MUST reject a non-witness emitter at admission, a CCC MUST re-check, and a CCP MUST NOT emit. A subject therefore cannot self-mint a \texttt{provider}/\texttt{government} adulthood. Sibling of CC 3.4.10.
+\item **\texttt{age\_self\_declared:}\textbf{ — NON-reserved, subject-signed. The onboarding "state your age range" rung. Admitted iff the signer acts for the subject (the subject's own occurrence or an admitted occurrence of it). A self-declaration carries }only** the \texttt{\{band\}} — never a \texttt{\{level\}} token — because its level is \texttt{self} by construction.
+\end{itemize}
+
+
+\textbf{The band and the ladder.} \texttt{AgeBand ∈ \{ minor, adult \}} (ordered by protection: \texttt{minor} is gated out of adult content, \texttt{adult} is not). The assurance \texttt{AssuranceLevel} ladder is ascending confidence:
+
+
+\begin{lstlisting}
+age dimension construction (the CC 4.1.3 :vN version-segment gate is mandatory):
+
+  self-declared rung (subject-signed, NON-reserved):
+    age_self_declared:{band}:v1
+      band in { minor, adult }
+      e.g. age_self_declared:adult:v1
+
+  provider / government rung (witness-RESERVED):
+    age_assurance:{level}:{band}:v1
+      level in { provider, government }
+      band  in { minor, adult }
+      e.g. age_assurance:provider:adult:v1
+
+assurance ladder (ascending confidence):
+    self  <  provider  <  government
+
+misdeclaration adjudication dimension:
+    moderation:age_assurance_misdeclaration
+\end{lstlisting}
+
+The \texttt{self} rung of the ladder materializes on the non-reserved \texttt{age\_self\_declared:} prefix; the \texttt{provider}/\texttt{government} rungs materialize on the witness-reserved \texttt{age\_assurance:} prefix carrying the \texttt{\{level\}} token. Parsers MUST tolerate the trailing \texttt{:vN} version segment. This refines the CC 3.3.12 \texttt{age\_assurance:\{level\}} enumerated entry (provider/government rungs MAY further qualify \texttt{\{level\}} with a \texttt{\{verifier\_key\}} / \texttt{\{credential\_class\}} per that entry).
+
+
+\textbf{Read-union — witness outranks subject (normative).} A consumer resolving an identity's age-assurance MUST union both prefixes and take the \textbf{highest} level on record. A witness-emitted \texttt{age\_assurance:*} (provider/government) \textbf{OUTRANKS} a subject \texttt{age\_self\_declared:*}. Absence of any row resolves to \textbf{None}, which MUST be treated protectively — see the gate.
+
+
+\textbf{The protective gate (normative).} A viewer below \texttt{adult} assurance is \textbf{BLOCKED} from \texttt{adult} \texttt{content\_class} (CC 3.3.12). The default is protective, not permissive:
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item \texttt{general}-class content is visible to everyone (protective ≠ prudish).
+\item \texttt{adult}-class content is visible ONLY to a viewer whose band is \texttt{adult}.
+\item A \texttt{minor} band, a "declined to state", and an "unknown"/absent assurance ALL resolve to the protective \texttt{minor} default and are BLOCKED.
+\end{itemize}
+
+
+The gate decides visibility only; it MUST NOT fire \texttt{slashing:*} on a mismatch.
+
+
+**\texttt{self} is unfalsifiable — sensitive spaces require a verified level (normative).** The \texttt{self} rung is unfalsifiable from inside the fabric. A sensitive space MUST require a \textbf{verified} level (\texttt{provider}/\texttt{government}); bare \texttt{self} does NOT satisfy it. A consumer enforcing this checks the resolved level separately from the band — an \texttt{adult} band at \texttt{self} level satisfies the band but NOT a verified-level requirement.
+
+
+\textbf{Misdeclaration is adjudicated, never slashed (normative).} A misdeclared age \textbf{NEVER} fires \texttt{slashing:*} alone. It routes to the \texttt{moderation:age\_assurance\_misdeclaration} adjudication path — a \texttt{moderation:\{allegation\_type\}} ModerationEvent (CC 3.1.9.2) adjudicated by quorum under the \texttt{moderate} delegated duty (CC 4.4.3.10 / CC 4.5.5). \textbf{The data subject controls their own assurance level} — this is consistent with the CC 3.1.9.2 \texttt{slashing}/\texttt{moderation} decoupling. \textbf{1+4 preserved} — \texttt{age\_assurance:*} and \texttt{age\_self\_declared:*} are reserved/non-reserved \texttt{scores} dimensions; no new structural primitive.
 
 
 \subsection*{3.5 \texttt{structure-inter} — Inter-attestation relations — the structural composition graph}
@@ -4384,7 +4512,7 @@ Per CIRISNodeCore three-tier interface model. Three feed-shape composition idiom
 {\footnotesize
 \begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
 \textbf{Feed} & \textbf{\texttt{cohort\_scope} filter} & \textbf{Trust composition} \\ \hline\endhead
-\textbf{local\_feed} & \texttt{self} only; owner-filtered & self-attested only; no peer weighting; consumer's own attestation graph subset \\ \hline
+\textbf{local\_feed} & \texttt{self} only; steward-filtered & self-attested only; no peer weighting; consumer's own attestation graph subset \\ \hline
 \textbf{community\_feed} & \texttt{\{family, community, affiliations\}} & cohort-weighted; expertise WITHIN cohort matters; cross-cohort attestations downweighted unless explicitly invited \\ \hline
 \textbf{global\_feed} & \texttt{\{species, biosphere, federation\}} & full federation expertise weighting; fact-checkers (\texttt{encyclopedia:*} editors, \texttt{news:*} fact-check attestations) carry weight; CC 4.4.1 Frickerian discipline applied \\ \hline
 \end{longtable}}
@@ -4557,7 +4685,7 @@ So a user MAY grant a device co-self (it manages their data locally) while revok
 \textbf{Enforced-admission rule (normative):} a moderation action above is admitted \textbf{iff} its \texttt{attesting\_key\_id} is the delegator itself \textbf{or} sits on a live \texttt{delegates\_to} chain bearing the matching scope from the delegator (the entity holding the duty over the target content/scope) — exactly the CC 2.4.1.1 rule-(3) proxy shape (\texttt{scope ⊇ \{moderate|takedown|review\}}), depth-capped per CC 4.1.1, revocable by \texttt{withdraws} against the \texttt{delegates\_to}. \textbf{Reject otherwise.} Every action is therefore delegate-signed, delegator-traceable up the chain, and revocable — the CC 4.5.3 \textbf{"takedown-isn't-a-coup"} property made \textit{structural} (coordinated + attributable + revocable, never a unilateral seizure). See CC 4.5.5. \textbf{1+4 preserved} — a \texttt{delegated\_scope} vocabulary + enforcement addition over the existing \texttt{delegates\_to}; the action primitives already ship; no new structural primitive.
 
 
-\textbf{Partnership WITHOUT agency — the infrastructure delegation profile.} The flow above binds an \textbf{agent} (a key with a brain) to a user as partnership \textbf{+ agency} — the scope includes \texttt{act\_on\_behalf} / \texttt{message\_io}, so the agent reasons and acts AS the user. A \textbf{fabric/infrastructure node} (CC 3.4.7.1; CIRISServer) needs the \textit{partnership} (identity + the CC 3.2 owner-binding that lets it hold non-infra membership standing under the user's authority) but MUST NOT receive agency — CC 1.13.5 "infrastructure must not have agency." CEG pins a \textbf{reserved two-prefix scope split} so a verifier can enforce this cryptographically:
+\textbf{Partnership WITHOUT agency — the infrastructure delegation profile.} The flow above binds an \textbf{agent} (a key with a brain) to a user as partnership \textbf{+ agency} — the scope includes \texttt{act\_on\_behalf} / \texttt{message\_io}, so the agent reasons and acts AS the user. A \textbf{fabric/infrastructure node} (CC 3.4.7.1; CIRISServer) needs the \textit{partnership} (identity + the CC 3.2 steward-binding that lets it hold non-infra membership standing under the user's authority) but MUST NOT receive agency — CC 1.13.5 "infrastructure must not have agency." CEG pins a \textbf{reserved two-prefix scope split} so a verifier can enforce this cryptographically:
 
 
 {\footnotesize
@@ -5199,7 +5327,7 @@ A fast-path coordination protocol carves this out:
 \subsubsection*{4.5.4 \texttt{registry-named} — Named-moderator existence invariant + merit auto-promotion}
 
 
-\textbf{No unmoderated multi-party space, ever.} A \texttt{community} (CC 3.2) operates / federates **only while it has ≥1 active holder of its \texttt{moderate} duty** (CC 4.5.5) — the moderation analogue of the CC 3.2 owner-binding gate. This closes the unmoderated-space-for-predators gap of relay-level (Nostr) / immutable-store (IPFS) / lax-instance (fediverse) models. Design: CIRISServer \texttt{FSD/MODERATION\_CHILD\_SAFETY.md} + \texttt{FSD/SAFETY\_LANDSCAPE.md}.
+\textbf{No unmoderated multi-party space, ever.} A \texttt{community} (CC 3.2) operates / federates **only while it has ≥1 active holder of its \texttt{moderate} duty** (CC 4.5.5) — the moderation analogue of the CC 3.2 steward-binding gate. This closes the unmoderated-space-for-predators gap of relay-level (Nostr) / immutable-store (IPFS) / lax-instance (fediverse) models. Design: CIRISServer \texttt{FSD/MODERATION\_CHILD\_SAFETY.md} + \texttt{FSD/SAFETY\_LANDSCAPE.md}.
 
 
 Three normative rules:
@@ -5207,18 +5335,21 @@ Three normative rules:
 
 \begin{enumerate}\setlength\itemsep{0pt}
 \item \textbf{Existence gate.} A \texttt{community} is admitted, and continues to federate, **only while ≥1 member holds the live \texttt{moderate} duty\textbf{. The creator }names one at creation** (founder responsibility). A community with no active \texttt{moderate}-holder is non-conformant.
-\item \textbf{Merit auto-promotion (no moderator-less window).} When the named moderator lapses (\texttt{withdraws} against the \texttt{moderate} \texttt{delegates\_to}, or inactivity past the community's freshness window), the member with the **highest \texttt{moderation\_track\_record}\textbf{ (CC 3.1.9.2) is }automatically granted** the \texttt{moderate} duty — emergent, meritocratic authority (the moderation analogue of the owner-binding gate: authority emerges from an accountable, \textit{merited} member, never a vacuum). \textbf{Deterministic selection:} highest \texttt{moderation\_track\_record}; tiebreak by earliest membership, then lexicographic \texttt{key\_id} (so every peer auto-promotes the \textit{same} member).
-\item \textbf{Fail-secure.} If no eligible member can be named (none with sufficient track record, none consenting, none owner-bound), the community \textbf{fails-secure} — it MUST NOT federate / operate at moderated capability. \textbf{Better no group than an unmoderated one.} (Degrade, never escalate — the fail-secure default.)
+\item \textbf{Merit auto-promotion (no moderator-less window).} When the named moderator lapses (\texttt{withdraws} against the \texttt{moderate} \texttt{delegates\_to}, or inactivity past the community's freshness window), the member with the **highest \texttt{moderation\_track\_record}\textbf{ (CC 3.1.9.2) is }automatically granted** the \texttt{moderate} duty — emergent, meritocratic authority (the moderation analogue of the steward-binding gate: authority emerges from an accountable, \textit{merited} member, never a vacuum). \textbf{Deterministic selection:} highest \texttt{moderation\_track\_record}; tiebreak by earliest membership, then lexicographic \texttt{key\_id} (so every peer auto-promotes the \textit{same} member).
+\item \textbf{Fail-secure.} If no eligible member can be named (none with sufficient track record, none consenting, none steward-bound), the community \textbf{fails-secure} — it MUST NOT federate / operate at moderated capability. \textbf{Better no group than an unmoderated one.} (Degrade, never escalate — the fail-secure default.)
 \end{enumerate}
 
 
-\textbf{Named-moderator binding — the substrate-resolvable shape.} "K is a named-moderator over community C" is an \textbf{appointment}: a \texttt{delegates\_to(authority → K, scope ⊇ \{moderate|takedown|review\}, community\_id: C)} whose root \texttt{authority} is in \textbf{C's authority set} — a founder, or a key the community's \texttt{consensus\_protocol} authorizes, per the CC 3.2 community record — and is owner-bound. It rides the \textbf{existing} \texttt{community\_id} envelope field + \texttt{delegates\_to}; \textbf{no new shape.} A substrate resolves: **\texttt{is\_named\_moderator(K, C, duty)}** ≔ ∃ live \texttt{delegates\_to} chain \texttt{root →* K} with every edge \texttt{scope ⊇ \{duty\}}, \texttt{community\_id == C}, \texttt{root ∈ authority\_set(C)} (the CC 3.2 founders / consensus signers), and \texttt{is\_owner\_bound(root)} (CC 3.2). \textbf{Merit auto-promotion (rule 2) emits exactly this appointment shape} — the community's authority auto-grants the \texttt{moderate} \texttt{delegates\_to} to the highest-\texttt{moderation\_track\_record} member — so an auto-promoted moderator is resolvable \textbf{identically} to a hand-named one (one code path, no special case).
+\textbf{Named-moderator binding — the substrate-resolvable shape.} "K is a named-moderator over community C" is an \textbf{appointment}: a \texttt{delegates\_to(authority → K, scope ⊇ \{moderate|takedown|review\}, community\_id: C)} whose root \texttt{authority} is in \textbf{C's authority set} — a founder, or a key the community's \texttt{consensus\_protocol} authorizes, per the CC 3.2 community record — and is steward-bound. It rides the \textbf{existing} \texttt{community\_id} envelope field + \texttt{delegates\_to}; \textbf{no new shape.} A substrate resolves: **\texttt{is\_named\_moderator(K, C, duty)}** ≔ ∃ live \texttt{delegates\_to} chain \texttt{root →* K} with every edge \texttt{scope ⊇ \{duty\}}, \texttt{community\_id == C}, \texttt{root ∈ authority\_set(C)} (the CC 3.2 founders / consensus signers), and \texttt{is\_steward\_bound(root)} (CC 3.2). \textbf{Merit auto-promotion (rule 2) emits exactly this appointment shape} — the community's authority auto-grants the \texttt{moderate} \texttt{delegates\_to} to the highest-\texttt{moderation\_track\_record} member — so an auto-promoted moderator is resolvable \textbf{identically} to a hand-named one (one code path, no special case).
 
 
 \textbf{Merit grants the duty, NOT fiat (anti-censorship).} The auto-promoted moderator holds the CC 4.5.5 \texttt{moderate}/\texttt{takedown}/\texttt{review} duty — but every \textbf{action} is constrained, so this is not arbitrary power: (a) the CC 4.5.6 operational-language gate at admission, and (b) deterministic verdicts + the CC 4.5.5 Reconsideration appeals (recused reviewers). \textbf{Merit grants the seat; the gate + appeals constrain the action.} The duty is itself revocable and re-auto-promotes on lapse — so capture is bounded.
 
 
 \textbf{1+4 preserved.} \texttt{moderation\_track\_record} rides \texttt{scores} (CC 3.1.9.2); the existence invariant + auto-promotion are admission/composition rules over the existing \texttt{delegates\_to} (\texttt{moderate} scope) + the reputation corpus. \textbf{No new structural primitive.}
+
+
+**Enforcement layer — substrate, at admission \textit{and} on every federation step.\textbf{ The existence gate (rule 1) is a }substrate invariant, not a governance- or consumer-policy-layer obligation.** The substrate MUST evaluate \texttt{is\_named\_moderator(·, C, moderate)} over a \texttt{community} \texttt{C} at two points: \textbf{(i) at admission} — \texttt{C} is admitted to federate \textbf{only if} ∃ a live \texttt{moderate}-holder resolvable by the rule-1 shape; and \textbf{(ii) on the federation path} — every cross-region propagation / federation apply step keyed on \texttt{C} MUST re-check live \texttt{moderate}-holder existence \textbf{at apply time}, so a community that \textit{loses} its moderator (lapse, \texttt{withdraws}-revocation, or freshness-window expiry per rule 2) cannot continue at moderated capability without one. On that loss the substrate MUST first attempt \textbf{merit auto-promotion} (rule 2): if a deterministically-selected eligible member exists, the substrate emits the rule-2 appointment and federation continues on the same apply step (one code path, per the named-moderator-binding shape above). If none is auto-promotable, the community enters the CC 4.5.13 \textbf{48-hour no-moderator recovery} (a 24 h open candidacy phase + selection); it \textbf{fails-secure} (rule 3) — MUST NOT federate at moderated capability — only if that window elapses with no named moderator. **No governance or consumer-policy layer may admit or sustain a moderator-less \texttt{C} into federation: the gate lives where the write lands.** This mirrors the CC 3.2 steward-binding gate, which the substrate likewise enforces at admission rather than delegating to a higher layer. The \texttt{is\_named\_moderator} resolution (e.g. persist's \texttt{admission::named\_moderator\_holders}) is the \textbf{primitive} this gate consumes; the \textbf{gate itself} — admission check \textit{plus} federation-path re-check — is \textbf{substrate}, not LensCore / consumer filter policy (CC 4.4). (Per CIRISRegistry\#110(a) / CIRISPersist\#238 — resolving the deferred enforcement-layer ambiguity.)
 
 
 \subsubsection*{4.5.5 \texttt{takedown-moderation} — Moderation as a delegable duty — \texttt{moderate} / \texttt{takedown} / \texttt{review}}
@@ -5251,12 +5382,12 @@ CEG \textbf{names} the three duties as canonical \texttt{delegated\_scope} kinds
 \end{longtable}}
 
 
-\textbf{Enforced-admission rule — the principal is the chain root, NOT a payload field.} The principal an action is taken \textit{on behalf of} is **discovered by walking the \texttt{delegates\_to} graph upward from \texttt{attesting\_key\_id}\textbf{ — it is }never\textbf{ carried in a payload field. There is deliberately }no \texttt{on\_behalf\_of} (or equivalent) envelope field**: a side-field both violates the 1+4 lockdown \textit{and} opens a bypass — if "absent field ⇒ as-self ⇒ admit," then any emitter that simply omits the field (e.g. an AI agent or untrusted party firing a takedown) is admitted as-self with no owner-bound chain proven, and the gate becomes a no-op exactly where it is load-bearing. A moderation action (\texttt{takedown\_notice}, \texttt{moderation:*}, \texttt{reconsideration:*}) is admitted \textbf{iff} one holds \textbf{positively}:
+\textbf{Enforced-admission rule — the principal is the chain root, NOT a payload field.} The principal an action is taken \textit{on behalf of} is **discovered by walking the \texttt{delegates\_to} graph upward from \texttt{attesting\_key\_id}\textbf{ — it is }never\textbf{ carried in a payload field. There is deliberately }no \texttt{on\_behalf\_of} (or equivalent) envelope field**: a side-field both violates the 1+4 lockdown \textit{and} opens a bypass — if "absent field ⇒ as-self ⇒ admit," then any emitter that simply omits the field (e.g. an AI agent or untrusted party firing a takedown) is admitted as-self with no steward-bound chain proven, and the gate becomes a no-op exactly where it is load-bearing. A moderation action (\texttt{takedown\_notice}, \texttt{moderation:*}, \texttt{reconsideration:*}) is admitted \textbf{iff} one holds \textbf{positively}:
 
 
 \begin{itemize}\setlength\itemsep{0pt}
 \item \textbf{(a) as-self} — \texttt{attesting\_key\_id} \textit{itself} holds the matching duty over the target: it is the target content's own subject, \textbf{or} the target community's CC 4.5.4 named-moderator / \texttt{moderate}-holder. A zero-hop chain rooted at itself.
-\item \textbf{(b) delegated} — a live \texttt{delegates\_to} chain \texttt{root →* attesting\_key\_id} where \textbf{every edge bears the matching scope} (\texttt{scope ⊇ \{moderate|takedown|review\}}), the \textbf{root holds the duty over the target} and is \textbf{owner-bound} (CC 3.2 — an accountable human), depth ≤ 5 (CC 4.1.1), and **no edge is \texttt{withdraws}-revoked**.
+\item \textbf{(b) delegated} — a live \texttt{delegates\_to} chain \texttt{root →* attesting\_key\_id} where \textbf{every edge bears the matching scope} (\texttt{scope ⊇ \{moderate|takedown|review\}}), the \textbf{root holds the duty over the target} and is \textbf{steward-bound} (CC 3.2 — an accountable human), depth ≤ 5 (CC 4.1.1), and **no edge is \texttt{withdraws}-revoked**.
 \end{itemize}
 
 
@@ -5276,7 +5407,7 @@ Otherwise \textbf{REJECT}. \textbf{Absence of a principal field is NOT an admit 
 \end{itemize}
 
 
-\textbf{(a) as-self} holds iff \texttt{attesting\_key\_id ∈ duty-holders(target)} (a subject, or \texttt{is\_named\_moderator}); \textbf{(b) delegated} holds iff the chain \texttt{root ∈ duty-holders(target)} ∧ \texttt{is\_owner\_bound(root)}. With **\texttt{is\_owner\_bound}\textbf{ (CC 3.2) and }\texttt{is\_named\_moderator}** (CC 4.5.4) both resolvable from existing rows (community record + \texttt{identity\_occurrence} + \texttt{delegates\_to} + \texttt{community\_id} + \texttt{subject\_key\_ids}), CC 4.5.5 is \textbf{fully substrate-enforceable} — community moderation is not rejected for lack of a resolvable shape. No new structural primitive.
+\textbf{(a) as-self} holds iff \texttt{attesting\_key\_id ∈ duty-holders(target)} (a subject, or \texttt{is\_named\_moderator}); \textbf{(b) delegated} holds iff the chain \texttt{root ∈ duty-holders(target)} ∧ \texttt{is\_steward\_bound(root)}. With **\texttt{is\_steward\_bound}\textbf{ (CC 3.2) and }\texttt{is\_named\_moderator}** (CC 4.5.4) both resolvable from existing rows (community record + \texttt{identity\_occurrence} + \texttt{delegates\_to} + \texttt{community\_id} + \texttt{subject\_key\_ids}), CC 4.5.5 is \textbf{fully substrate-enforceable} — community moderation is not rejected for lack of a resolvable shape. No new structural primitive.
 
 
 \textbf{Subject authority is resolved from the content's signed provenance, NOT the action payload.} The subject side of admit-(a) has the same substrate-resolvability requirement the named-mod path got: \textit{which} \texttt{subject\_key\_ids} is authoritative. A \texttt{takedown\_notice} / \texttt{moderation:*} action carries a \texttt{content\_sha256} \textbf{and} its own payload \texttt{subject\_key\_ids} — and a substrate that reads the subject set from the \textbf{action's own payload} lets an actor self-declare \texttt{subject\_key\_ids = [self]} over content it does not own, satisfy "as-self," and take down arbitrary content \textbf{without being a named-moderator} (a narrower, attributable re-opening of the takedown-isn't-a-coup hole on the subject path; the named-mod path is unaffected). The subject claim MUST instead be verified against the content's \textbf{establishing attestation}:
@@ -5292,7 +5423,7 @@ Otherwise \textbf{REJECT}. \textbf{Absence of a principal field is NOT an admit 
 With this, \textbf{both} clauses of admit-(a) — subject-self and named-moderator — and clause (b) resolve against \textbf{signed} state, never self-declared payload. The CC 4.5.5 gate has no remaining self-declaration spoof. Composes over the existing \texttt{scores} attestation + \texttt{subject\_key\_ids}; no new structural primitive.
 
 
-\textbf{The "takedown-isn't-a-coup" property, made structural.} Because every action is delegate-signed, delegator-traceable up the \texttt{delegates\_to} chain, owner-bound at the root (CC 3.2 — authority roots in an accountable human), and revocable, a takedown is \textbf{coordinated + attributable + revocable} — never a unilateral seizure. A no-authority actor, or a state actor demanding removal of \texttt{federation\_keys} for whole classes of dissenters, \textbf{fails the enforced-admission gate} and escalates to the CC 4.2 HUMANITY\_ACCORD per CC 4.5.3. The CC 4.5.3 immediate-removal timeline is unchanged — speed at the action layer; authority checked at the delegation layer.
+\textbf{The "takedown-isn't-a-coup" property, made structural.} Because every action is delegate-signed, delegator-traceable up the \texttt{delegates\_to} chain, steward-bound at the root (CC 3.2 — authority roots in an accountable human), and revocable, a takedown is \textbf{coordinated + attributable + revocable} — never a unilateral seizure. A no-authority actor, or a state actor demanding removal of \texttt{federation\_keys} for whole classes of dissenters, \textbf{fails the enforced-admission gate} and escalates to the CC 4.2 HUMANITY\_ACCORD per CC 4.5.3. The CC 4.5.3 immediate-removal timeline is unchanged — speed at the action layer; authority checked at the delegation layer.
 
 
 \textbf{1+4 preserved.} A \texttt{delegated\_scope} vocabulary + enforced-admission addition over the existing \texttt{delegates\_to}; the action primitives (\texttt{moderation:*}, \texttt{takedown\_notice}, \texttt{reconsideration:*}) already ship. \textbf{No new structural primitive.}
@@ -5617,6 +5748,66 @@ What it does NOT do:
 \end{itemize}
 
 
+\subsubsection*{4.5.13 \texttt{reverse-quorum} — Reverse-quorum governance — presence is authority, absence forfeits it}
+
+
+\textbf{The general pattern.} CC 4.2.6 is not a one-off kill-switch rule; it is the federation's \textbf{general governance shape}, and this section ratifies it as such. \textbf{Presence is authority, absence forfeits it, a timer decides.} A decision opens a bounded window; whoever shows up and signs is counted; whoever stays absent is simply \textit{not in the denominator} and cannot block by being gone. The CC 4.2.6 accord kill-switch is the \textbf{constitutional instance} of this pattern (the live set governs the halt-authority); \textbf{community-scope moderation is its first community instance} (the live community governs its own content). One mechanism, two scopes — the accord over humanity's off-switch, moderation over a group's content.
+
+
+\textbf{Roles — moderator (required), steward (optional super-mod).} A community is \textbf{required} to have a named \textbf{moderator} — the CC 4.5.4 \texttt{moderate}-duty holder — and that is the \textit{only} required role: the moderator is the fast-path decision-maker. A community \textbf{MAY} additionally name \textbf{one or more stewards} — the super-mod tier, steward-bound per CC 3.2, who appoint and oversee moderators; \textbf{a steward may add further stewards}. At creation the creator chooses their own role: \textbf{steward + moderator}, or \textbf{moderator only}. **No quorum is ever imposed \textit{on} a moderator or a steward\textbf{ — unilateral accountable authority within scope is what each role means; either resolves an action by a }single signature**.
+
+
+\textbf{The mechanism — propose, 48 h window, moderator or steward acts, community falls back.} \textbf{Anyone MAY propose a moderation action} — a report, a takedown request, a keep-or-remove question — by the CC 4.5.5 open-labeling path (a report→\texttt{scores} Contribution against the target). The proposal opens a \textbf{48-hour participation window}. Two ways it resolves:
+
+
+\begin{enumerate}\setlength\itemsep{0pt}
+\item \textbf{A moderator or steward acts unilaterally.} The community's \textbf{moderator} (the required \texttt{moderate}-duty holder, CC 4.5.4) — or any \textbf{steward}, where the community has named one — resolves the action by a \textbf{single signature}, at any point in the window. This is the fast path, and the moderation analogue of the CC 4.2.6 \textbf{fire-floor-of-1}: a single accountable party acts, and the absence of others never blocks them.
+\item \textbf{On their absence, the community vote carries.} If \textbf{no moderator or steward acts within the 48 h window}, the proposal is tallied by \textbf{live-majority vote over the community's live members} — the CC 4.2.6 live quorum, generalized: presence asserts (a member signs a fresh proof-of-presence + vote over the proposal nonce, entering the live set \texttt{L}), absence never blocks (a silent member is not in the denominator), and the tally is taken over \textbf{who shows up}. The community \textbf{routes around} an absent moderator.
+\end{enumerate}
+
+
+The reverse-quorum is a \textbf{fallback for moderator/steward absence, never a check on them.} The 48 h figure is tuned so that a \textbf{present} moderator always has time to act unilaterally; the community fallback fires \textbf{only} on genuine absence.
+
+
+\textbf{No-moderator recovery — 48 h, with a 24 h open candidacy phase.} A community must never sit without a moderator. When the moderator lapses, the substrate first attempts CC 4.5.4 \textbf{merit auto-promotion} (instant, when an eligible member exists). If none is auto-promotable, the community enters a \textbf{48-hour recovery}: a \textbf{24-hour open candidacy phase} in which \textbf{any member MAY propose themselves} as moderator — open to all, so everyone has 24 h to start a candidacy — followed by selection over the live members (a steward, where one exists, MAY instead appoint a moderator directly at any point). A community that reaches the end of the 48 h with no named moderator \textbf{fails-secure} — it MUST NOT federate at moderated capability (CC 4.5.4).
+
+
+\textbf{Optional moderator quorum (community config).} Unilateral moderator action is the \textit{default}. A community \textbf{MAY} instead require a \textbf{moderator quorum} for an action to carry — either \textbf{full} (every named moderator must sign) or \textbf{live-within-window} (a live-quorum of the moderators who respond within a stated period — the reverse-quorum applied to the moderator set itself). This rides the community's existing \texttt{consensus\_protocol} (CC 4.4.3.2) applied to the \texttt{moderate} duty; it \textbf{tightens the fast path} without weakening the community-vote fallback, which still carries on total moderator/steward absence. The choice is the community's to make and to change (a steward, or the community vote, may set it).
+
+
+\textbf{Protective default — a harm report defaults to removal.} For a takedown / harm report, the window's \textbf{default outcome is removal.} Content survives \textbf{only} by an affirmative, on-record \textbf{keep-decision}: either \textbf{(A)} a steward's unilateral \textit{approve-to-keep} signature, \textbf{or} \textbf{(B)} a live-majority \textit{vote-to-keep}. \textbf{Passive survival is impossible} — doing nothing within the window removes the content. Therefore \textbf{surviving harmful content is always attributable}: the steward who approved it, or the majority who voted to keep it, are cryptographically on record. \textit{A community in which reported abuse survives has self-identified} — by name, by signature.
+
+
+\textbf{Infohazard consent gate — no passive exposure.} When the live-majority vote \textbf{favors removal/moderation but the content is retained} (flagged, not hard-removed), it is \textbf{auto-hidden behind an active interstitial} — \textit{"I consent to view this material reported as a potential infohazard."} Clicking it **publishes a CC 3.3.1 \texttt{consent:*} attestation** (\texttt{consent:state:granted} + a \texttt{consent:scope:view} qualifier, viewer-side, attributable within scope) — so \textbf{passive exposure is impossible here too}: every viewing is an affirmative, signed act by a named identity. This **rides the existing \texttt{consent:*} family + a CC 3.3.12 \texttt{content\_class:\{class\}} flag** (\texttt{content\_class:infohazard} / \texttt{content\_class:reported}); \textbf{no new wire shape} — it is the CC 4.5.5 \texttt{content\_class} gate composed with the CC 3.3.1 consent primitive.
+
+
+\textbf{The outcome ladder — every transition an attributable act.} A graduated, fully-attributable ladder; nobody passively flags, keeps, or views harmful content:
+
+
+{\footnotesize
+\begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
+\textbf{Outcome} & \textbf{Trigger} & \textbf{Who is cryptographically on record} \\ \hline\endhead
+\textbf{Hard-removal} & CSAM perceptual-hash tripwire (CC 4.5.3 \texttt{PerceptualHashCsam}) / takedown / \textbf{report undefended} (no keep-decision in the window) & the removal action (CC 4.5.5 \texttt{takedown\_notice}); content does not survive \\ \hline
+\textbf{Consent-gated} (retained, auto-hidden) & live-majority \textbf{flagged-but-retained} & \textbf{each viewer} — every interstitial click publishes a \texttt{consent:*} attestation \\ \hline
+\textbf{Kept-visible} & steward \textbf{approve-to-keep} (A) \textbf{or} live-majority \textbf{vote-to-keep} (B) & \textbf{the steward} who approved, or \textbf{the majority} who voted to keep \\ \hline
+\end{longtable}}
+
+
+\textbf{Single-point warning + inactive forfeiture.} A community with \textbf{only one moderator and no steward MUST be warned to add a second} moderator or a steward — a lone authority is a single point of capture and of failure. \textbf{Inactive moderators and stewards lose their standing:} silence past the community's freshness window \textbf{lapses the duty}, and merit auto-promotion + the no-moderator recovery above \textbf{reconstitute authority} — the highest-\texttt{moderation\_track\_record} live member is auto-granted the \texttt{moderate} duty. \textbf{No community is ever hostage to an absent moderator or steward.}
+
+
+\textbf{What the protocol guarantees — structure, not behavior (the M-1 framing).} The protocol guarantees the \textbf{structure}: \textbf{default-remove, attributable-keep, attributable-view.} It does \textbf{not} guarantee the \textit{behavior} of a community that \textbf{affirmatively chooses harm} — a steward may sign to keep abuse, a majority may vote to keep it, and a viewer may consent to view it. What the protocol forecloses is doing any of these \textbf{silently}: every transition up the ladder — flag, keep, view — is an \textbf{affirmative, attributable act by a named identity}. Per CC 4.2 M-1, the federation's promise here is \textbf{revocability and accountability}, not behavioral control: a community that harbors harm is on the record as having done so, and that record is what justice composes over.
+
+
+\textbf{Consistency — member-reporting, not substrate scanning.} This is \textbf{member-reporting + reverse-quorum adjudication}, \textit{not} substrate scanning of private content. CEG \textbf{refuses client-side scanning} (CC 4.5.7): detection runs only at enabled groups' publish/share seam, never over CC 5.2 self/family private content. The principle is unchanged across the federation — \textbf{anonymity to outsiders, accountability to insiders} — applied here with teeth on harm: the structure makes silent survival, silent keeping, and silent viewing impossible, while leaving private content unscanned.
+
+
+\textbf{The symmetry with the accord (explicit).} This is CC 4.2.6 read at community scope, and the two halves mirror exactly. In the accord, a \textbf{lone survivor fires} and the \textbf{live set reconstitutes the roster} when holders vanish; in moderation, a \textbf{lone steward acts} and the \textbf{live community reconstitutes governance} when stewards vanish. Fire-floor-of-1 ↔ single-steward signature; live-quorum-over-\texttt{L} ↔ live-majority-over-present-members; Enoch-Arden return ↔ merit re-auto-promotion on a lapsed steward's silence. \textbf{Presence is authority, absence forfeits it, a timer decides} — at every scope.
+
+
+\textbf{1+4 preserved.} The proposal/window/tally rides the generalized CC 4.2.6 participation shape + the CC 4.5.5 action primitives (\texttt{moderation:*} / \texttt{takedown\_notice} / \texttt{reconsideration:*}); the consent gate rides the existing CC 3.3.1 \texttt{consent:*} family + the CC 3.3.12 \texttt{content\_class} flag. \textbf{No new structural primitive.}
+
+
 \clearpage
 \section*{Part 5 — Transport \& Substrate}
 
@@ -5852,6 +6043,12 @@ A user's withdrawal of consent is the one signal federation peers rely on to sto
 \textbf{Composition with the self-attestation pattern}: the CEG-native agent's \texttt{consent:partnered:\{user\_key\}} self-attestation (producer-side stance) MAY ride local-tier; the user's \texttt{consent:state:revoked} against the agent's stance Contribution (subject-side) MUST NOT. This preserves the cardinality win of deferral while closing the leak window.
 
 
+\textbf{Ratification — AV-61 consent-tail: transit-not-rest reconciliation (resolves CIRISRegistry\#110(b) / CIRISPersist\#238, ref CIRISPersist\#146 §10.1.3).} CIRISPersist's "no local subject-revocations" rule and the consent-SLA promotion gate above are the \textbf{same invariant viewed from the two gates}, not a contradiction. A subject-side consent revocation — a subject-emitted \texttt{consent:state:revoked}, or a \texttt{withdraws} admitted under CC 2.4.1.1 rule 2/3 from a subject named in the target's \texttt{subject\_key\_ids} — is \textbf{federation-tier by classification}. It MAY \textit{transit} the local-tier write path while in flight (the producing occurrence's substrate accepts the unsigned envelope before promotion), but it MUST NOT \textit{rest} there: a subject revocation is \textbf{never a durable local row}. Its only conformant terminal states are \textit{promoted} (federation-tier, hybrid-signed per CC 5.3.2.4.3) or \textit{overdue-flagged} — never \textit{settled local}. The substrate MUST drive it to federation-tier promotion within the 24-hour SLA defined above; the local tier is a momentary staging buffer for it, not a resting place.
+
+
+\textbf{The overdue emission IS the SLA enforcement.} When the 24-hour window lapses without federation promotion, the substrate MUST emit \texttt{hard\_case:consent\_revocation\_promotion\_overdue} (as required above). This emission is not merely observability — it is the signal the consent-promotion path keys off: the consent-promotion gate and the CC 5.3.2.4.3 \texttt{local ⟹ caller is the producing occurrence} read-gate read the \textbf{same} overdue state. Because both gates key off one shared signal, a subject revocation can never be simultaneously (a) invisible to federation peers under the local read-gate and (b) un-flagged by the consent-promotion gate. Keeping the two gates reading one state is exactly what closes \textbf{AV-61} (the two gates de-synced, CC 5.3.2.4.3): there is no window in which a subject revocation persists as an authoritative-looking local row while federation peers continue propagating the subject's data.
+
+
 \paragraph{5.3.2.3 \texttt{merge} — Cross-region merge intents — CEG-declared per subject\_kind (normative)}\mbox{}\\
 
 
@@ -5871,7 +6068,7 @@ keys / attestations / occurrences / families / communities / location\_proofs & 
 \textbf{Skew-bounded admission (normative — the LWW front-running fix).} For every subject\_kind merging by \texttt{lww\_skew\_bounded}, the substrate MUST reject at admission any envelope with \texttt{asserted\_at > now + tolerance}, where \texttt{tolerance} is the CC 2.6.7 clock-skew bound (±5 minutes; the existing \texttt{CLOCK\_SKEW\_VIOLATION} error class). Without this, a signer with a forward-skewed clock future-dates \texttt{asserted\_at} and wins LWW indefinitely; with it, a forward-dated write can win for at most the skew window. This matters precisely because \texttt{org\_membership} carries \texttt{role: OrgAdmin} — unbounded LWW on authz data is a role-escalation surface.
 
 
-\textbf{The two quorums (restated from CC 3.3.9 — different layers, different owners):} the \textbf{steward-signature admission quorum} (M-of-N signature set over identical JCS bytes; the CC 3.2 founder-quorum machinery at admit — Verify's layer) is NOT the \textbf{region merge quorum} (\texttt{quorum\_weight}, the \texttt{MergeBallot} tier-1 ordering above — the substrate's layer). The substrate's merge logic never counts steward signatures; Verify's admission check never orders merges.
+\textbf{The two quorums (restated from CC 3.3.9 — different layers, different stewards):} the \textbf{steward-signature admission quorum} (M-of-N signature set over identical JCS bytes; the CC 3.2 founder-quorum machinery at admit — Verify's layer) is NOT the \textbf{region merge quorum} (\texttt{quorum\_weight}, the \texttt{MergeBallot} tier-1 ordering above — the substrate's layer). The substrate's merge logic never counts steward signatures; Verify's admission check never orders merges.
 
 
 \paragraph{5.3.2.4 \texttt{attestation-tier} — The attestation tier model — local-tier write, query, promotion (normative)}\mbox{}\\
@@ -6363,6 +6560,259 @@ All error responses MUST conform to:
 Rate-limit headers on every response: \texttt{X-RateLimit-Limit}, \texttt{X-RateLimit-Remaining}, \texttt{X-RateLimit-Reset} (seconds-until-reset epoch).
 
 
+\subsection*{5.4 \texttt{scope-privacy-wire} — Scope-Native Privacy wire profile}
+
+
+The wire-format absorption of the Scope-Native Privacy construction (the CEWP \texttt{SCOPE\_PRIVACY.md} FSD; CIRISRegistry\#107). These are the deterministic, byte-pinned primitives a conformant substrate uses to make real and cover traffic indistinguishable below the cohort boundary — record addressing, per-symbol AEAD, uniform fragmentation, the MLS Welcome wrap, the witness-chain discipline, and announce suppression. They are additive to the wire layer; the 1+4 surface is unchanged. Reference implementation: CIRISEdge \texttt{scope\_privacy} (\texttt{derive\_record\_id} / \texttt{derive\_symbol\_key}).
+
+
+\subsubsection*{5.4.1 \texttt{record-id} — Deterministic \texttt{record\_id} (CBOR profile, normative)}
+
+
+Scope-native distribution addresses each record by an HMAC-opaque \texttt{record\_id} rather than any plaintext key. The \texttt{record\_id} is a deterministic, group-keyed commitment to the record's identity: every member of the MLS group derives the identical \texttt{record\_id} for a given record, while non-members observe an unlinkable 32-byte tag. This is the addressing argument of the deterministic ALM "directory" — a pure function, never a queryable authority (CC 4.4.3.2.1 cohort-scope lattice).
+
+
+The preimage \texttt{record\_id\_input} is the Core Deterministic Encoding of a fixed four-entry map; \texttt{record\_id} is its HMAC under the per-epoch key \texttt{K\_record\_id}. The preimage, the key derivation, and the resulting tag MUST be byte-identical across producer, substrate, and every consumer — any disagreement on CBOR byte order, integer minimal-encoding, major-type selection, or HKDF/HMAC suite yields a different \texttt{record\_id}, silently partitioning holders of the same record. This is the same byte-exactness hazard class the STREAM nonce derivation guards (CC 5.3.3.1).
+
+
+\textbf{Per-epoch key.} \texttt{K\_record\_id} is a bare HKDF-Expand (no Extract, no MLS KDF-label framing) over the raw group \texttt{exporter\_secret}:
+
+
+\begin{lstlisting}
+K_record_id = HKDF-SHA256-Expand(
+    PRK  = raw group exporter_secret,
+    info = "ciris-edge/scope-privacy/record-id/v1"  (ASCII),
+    L    = 32
+)
+\end{lstlisting}
+
+The HKDF hash here is \textbf{SHA-256} (matching openmls ciphersuite 0x004D's key-schedule hash). Implementations MUST pass the raw \texttt{exporter\_secret} to the \texttt{ciris-crypto} \texttt{scope\_privacy::k\_record\_id} helper and MUST NOT route this label through openmls's \texttt{export\_secret()} / RFC 9420 \texttt{MLS\_Exporter()}.
+
+
+\textbf{Preimage and commitment.} Each record:
+
+
+\begin{lstlisting}
+record_id_input = CBOR_dCE({
+    "v":   1,
+    "epc": mls_group_epoch,
+    "iid": internal_id,
+    "typ": record_type,    // integer per RecordType table below
+})
+record_id       = HMAC-SHA3-256(K_record_id, record_id_input)
+\end{lstlisting}
+
+\texttt{CBOR\_dCE} is RFC 8949 §4.2.1 Core Deterministic Encoding (shortest-form integer encoding, definite lengths only, no floating-point unless required), with map keys ordered \textbf{by encoded-length first, then lexicographically by encoded key bytes}. The four-entry map at \texttt{v=1} therefore serializes keys in the canonical order \texttt{v, epc, iid, typ}.
+
+
+\textbf{Major types are pinned.} Within the map the four keys (\texttt{v}, \texttt{epc}, \texttt{iid}, \texttt{typ}) are CBOR text strings (major type 3). The values of \texttt{v}, \texttt{epc}, and \texttt{typ} are unsigned integers (major type 0). The value of \texttt{iid} is a \textbf{CBOR byte string (major type 2)} — \texttt{internal\_id} is committed as its raw bytes, never as a text string, even when those bytes are human-readable (e.g. \texttt{record-0001}). Encoding \texttt{iid} as a text string (major type 3) produces a different preimage and a different \texttt{record\_id}; the byte-string header is why the vectors below carry \texttt{0x4b}/\texttt{0x41} (major-2) and not \texttt{0x6b}/\texttt{0x61} (major-3) at the \texttt{iid} value position.
+
+
+**\texttt{RecordType} integer encoding** (pinned for cross-impl conformance; CIRISConformance asserts byte-for-byte reproducibility):
+
+
+{\footnotesize
+\begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
+\textbf{Type} & \textbf{int} \\ \hline\endhead
+reserved & 0 \\ \hline
+SelfRecord & 1 \\ \hline
+FamilyRecord & 2 \\ \hline
+CommunityRecord & 3 \\ \hline
+FederationRecord & 4 \\ \hline
+\end{longtable}}
+
+
+Additional record types extend this table via CEG §11.
+
+
+\textbf{Conformance vectors (normative).} With \texttt{K\_record\_id = 0x11} repeated 32 times, conforming implementations MUST reproduce these exact CBOR preimage bytes and \texttt{record\_id} tags (hex):
+
+
+\begin{lstlisting}
+// Vector 1 -- CommunityRecord (typ=3), epc=7, iid="record-0001"
+record_id_input = a46176016365706307636969644b7265636f72642d303030316374797003
+record_id       = 5428ddb514a8f8692cc4f254f3550ea75790f5069673e42afb6ef318517a0b21
+
+// Vector 2 -- FederationRecord (typ=4), epc=300, iid="record-0002"
+//   (forces 0x19 u16 epc header: bytes[8..11] == 0x19 0x01 0x2c)
+record_id_input = a46176016365706319012c636969644b7265636f72642d303030326374797004
+record_id       = 04eebeee4d5b83f2fdd0012a205781e6c05fe9a587377e6161b347629a189ff2
+
+// Vector 3 -- SelfRecord (typ=1), epc=16909060 (0x01020304), iid="x"
+//   (forces 0x1a u32 epc header: bytes[8..13] == 0x1a 0x01 0x02 0x03 0x04)
+record_id_input = a4617601636570631a010203046369696441786374797001
+record_id       = 79bee8b3f1e815a1df03ca9d83427dc5ab474e184f34e3876d3ef3c36559d6a3
+\end{lstlisting}
+
+The byte-exact source of truth is \texttt{ciris-crypto} \texttt{scope\_privacy::derive\_record\_id} (CIRISEdge\#193); the deterministic CBOR profile is normatively absorbed here per the CEG §11 record-type registry.
+
+
+\subsubsection*{5.4.2 \texttt{symbol} — Uniform symbol AEAD framing for fountain-coded fragments (normative)}
+
+
+Within both encrypted crypto tiers — the self/family \textbf{InvisibleEncrypted} tier and the community/affiliations \textbf{CommunityDek} tier (CC 4.4.3.2.1, resolved through \texttt{crypto\_tier(cohort\_scope, cohort\_subkind)} with non-\texttt{infrastructure} subkind) — record bytes are fountain-coded (RaptorQ) and each emitted symbol is sealed under its \textbf{own} AEAD key, so a holder lacking the keys holds indistinguishable-from-random ciphertext. The two tiers differ in \textit{discoverability}, not in fragment confidentiality: self/family content emits \textbf{no} \texttt{holds\_bytes:sha256:*} holder-directory attestation at all (CC 5.2 structural invisibility) — outsiders cannot even discover the bytes exist; community/affiliations content \textbf{does} emit \texttt{holds\_bytes:sha256:*} carrying cleartext provenance (CC 4.4.3.2.1 holder-inspectability principle) so non-member holders can make an informed keep/evict decision — but the fragment bytes they hold remain sealed under the symbol AEAD below and unreadable without \texttt{K\_symbol} and \texttt{record\_id}. The substrate MUST seal every RaptorQ symbol with the framing below; a holder lacking both \texttt{K\_symbol} and \texttt{record\_id} MUST be unable to distinguish a real symbol envelope from a cover symbol envelope.
+
+
+\texttt{record\_id} is the per-record HMAC-opaque addressing tag for the CEG §19.3 group-keyed fountain-coding construction — \texttt{record\_id = HMAC-SHA3-256(K\_record\_id, CBOR\_dCE(\{v, epc, iid, typ\}))}. \texttt{K\_symbol} and \texttt{K\_record\_id} are the MLS-exporter-derived per-scope subkeys (\texttt{HKDF-SHA256-Expand} over the group's raw \texttt{exporter\_secret}); both rebind on MLS Add/Remove.
+
+
+For each RaptorQ symbol the wire framing is byte-exact:
+
+
+\begin{lstlisting}
+For each RaptorQ symbol:
+
+    symbol_key = HKDF-SHA3-256(salt=record_id, ikm=K_symbol,
+                               info="ciris-edge/scope-privacy/symbol/v1"
+                                    || u16_be(symbol_index), len=32)
+    symbol_envelope = (record_id, u16_be(symbol_index), nonce,
+                       XChaCha20-Poly1305(symbol_key, nonce, fragment), tag)
+\end{lstlisting}
+
+Normative constraints:
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **\texttt{symbol\_key} derivation is byte-identical across every implementation.** \texttt{salt = record\_id} (the 32-byte HMAC tag), \texttt{ikm = K\_symbol} (the 32-byte exporter subkey), and \texttt{info} is the \textbf{exact} concatenation of the UTF-8 bytes of the ASCII label \texttt{ciris-edge/scope-privacy/symbol/v1} followed by \texttt{u16\_be(symbol\_index)} (the symbol index as a 2-byte big-endian unsigned integer), with \texttt{len = 32}. The same ASCII label is used both to derive \texttt{K\_symbol} from the MLS exporter and as this info-prefix; producer, substrate, and every consumer MUST recompute this exact value. Any BE/LE disagreement on \texttt{symbol\_index}, or any drift in the label bytes, yields a different \texttt{symbol\_key} → AEAD authentication failure (silent decryption failure). This matches \texttt{ciris\_crypto::scope\_privacy::derive\_symbol\_key} and the pinned \texttt{LABEL\_SYMBOL} constant; CIRISConformance asserts byte-for-byte reproducibility.
+\item **The AEAD is XChaCha20-Poly1305 with a 24-byte \texttt{nonce} and the Poly1305 \texttt{tag}\textbf{ carried in the envelope. The same suite seals }both** real fragments and cover fragments — there is no separate cover cipher, no cover marker, and no length distinguisher. A holder lacking \texttt{K\_symbol} and \texttt{record\_id} holds indistinguishable-from-random bytes (Tahoe-LAFS least-authority, by reduction to XChaCha20-Poly1305 IND-CCA + HKDF-SHA3 extract-then-expand); cover and real envelopes are observationally identical.
+\item \textbf{The fragment-set rebinds on MLS Add/Remove.} Because \texttt{symbol\_key} chains from \texttt{K\_symbol} and \texttt{record\_id}, both of which rotate with the group epoch, a removed member's symbol keys do not open post-epoch fragments. Past-epoch \texttt{K\_record\_id} / \texttt{K\_symbol} are deleted by honest holders per the community's archive policy.
+\item **\texttt{symbol\_envelope} field order is fixed: \texttt{(record\_id, u16\_be(symbol\_index), nonce, ciphertext, tag)}.** The cleartext \texttt{record\_id} and \texttt{symbol\_index} are the addressing argument to the HMAC-opaque directory function (the CEG §19.4 deterministic ALM topology) and are NOT authority-bearing — they reveal nothing to a non-member, who cannot derive the corresponding \texttt{symbol\_key}.
+\end{itemize}
+
+
+This framing is the byte-level analogue of the CC 5.3.3.1 per-chunk stream seal: the costly key agreement is amortized into the MLS exporter, and the hot path is a per-symbol symmetric AEAD with a deterministically derived key. It composes with — and never substitutes for — the at-rest DEK cascade (CC 4.4.3.4.1); the symbol AEAD protects fragments in transit and at holders, the DEK cascade protects the record at rest.
+
+
+\subsubsection*{5.4.3 \texttt{fragmentation} — Uniform-envelope fragmentation \& reassembly (normative)}
+
+
+A claim's bytes rarely fit one packet, and the split is where privacy is most easily lost: a naive fragmenter leaks payload size, count, and cadence to anyone on the path. The discipline here is that every fragment on the wire — a real publication symbol or a synthetic cover envelope — is the \textbf{same size} and the \textbf{same AEAD shape}, so an on-path observer cannot distinguish a large publication from idle substrate maintenance. This composes with the chunk-seal of CC 5.3.3.1 (a \textit{different} axis: streaming media chunks) — fragmentation is the substrate-emission layer beneath every Edge \texttt{send}, not the streaming codec.
+
+
+\textbf{Fixed envelope size (normative).} All outbound substrate traffic MUST conform to a fixed envelope size of \textbf{1.4 KB}, one MTU. A payload larger than one envelope MUST be chunked per this section; a payload smaller MUST be padded to the fixed size before emission. The fixed size is not a tuning knob — a variable envelope re-exposes the size channel the cover budget exists to close (the companion Poisson-cover emission discipline; budget anchor is the substrate-maintenance throughput, \textasciitilde{}10–60 KB/s/peer).
+
+
+\textbf{Uniform AEAD framing across real + cover (normative).} Every envelope — real publication AND synthetic cover alike — MUST use uniform \textbf{XChaCha20-Poly1305} AEAD framing. A synthetic cover envelope MUST be marked \texttt{type=cover} in the \textbf{AEAD-protected} header; the \texttt{type} discriminator MUST live inside the AEAD envelope so an on-path observer cannot separate real from cover by inspecting cleartext. This XChaCha20-Poly1305 envelope/symbol framing is distinct from the streaming chunk-seal AES-256-GCM of CC 5.3.3.1 and from the HPKE-layer AES-256-GCM of the MLS Welcome wrap; they are different layers and MUST NOT be conflated.
+
+
+\textbf{Fragment unit — the RaptorQ symbol envelope (normative — wire-exact).} A chunked record is fountain-coded with RaptorQ defaults \texttt{(N=20, K=6, target\_holders=30)}. Each symbol is sealed independently, with a per-symbol key diversified from the group \texttt{K\_symbol} (MLS exporter-derived per the CC 5.1 epoch key schedule) and the record's \texttt{record\_id} (the deterministic-CBOR \texttt{record\_id} profile):
+
+
+\begin{lstlisting}
+symbol_key = HKDF-SHA3-256(salt=record_id, ikm=K_symbol,
+                           info="ciris-edge/scope-privacy/symbol/v1"
+                                || u16_be(symbol_index), len=32)
+symbol_envelope = (record_id, u16_be(symbol_index), nonce,
+                   XChaCha20-Poly1305(symbol_key, nonce, fragment), tag)
+\end{lstlisting}
+
+The per-symbol KDF is \textbf{HKDF-SHA3-256} — harvest-now-decrypt-later (HNDL) discipline at the per-symbol layer, deliberately distinct from the SHA-256 key-schedule hash used one layer up. The \texttt{info} string \texttt{"ciris-edge/scope-privacy/symbol/v1"} (ASCII) concatenated with \texttt{u16\_be(symbol\_index)} is normative and MUST be byte-identical across producer, substrate, and every consumer; a \texttt{u16\_be} / \texttt{u16\_le} disagreement on \texttt{symbol\_index} yields a different \texttt{symbol\_key} → AEAD verify failure on reassembly. Without \texttt{K\_symbol} and \texttt{record\_id}, a holder possesses bytes indistinguishable from random (Tahoe-LAFS least-authority, by reduction to XChaCha20-Poly1305 IND-CCA + HKDF-SHA3 extract-then-expand) — the structural basis for a holder's truthful cold-state-ignorance claim.
+
+
+\textbf{Fragment-set rebinds on MLS Add/Remove (normative).} \texttt{K\_symbol} and \texttt{K\_record\_id} are bound to the MLS group epoch (derived from the group \texttt{exporter\_secret}). On any MLS \textbf{Add} or \textbf{Remove} the group epoch advances, so the fragment set MUST rebind: \texttt{record\_id} and \texttt{symbol\_key} are recomputed under the new epoch, and subsequent symbols seal under the new keying. This carries the forward-secrecy guarantee of CC 5.1 onto the fragment layer — a removed member cannot derive the post-removal fragment set, and a newly-added member receives forward keying without retroactive symbol access except as the archive policy permits (the companion per-community archive-policy section; default \texttt{rotate-forward}, 30-day window).
+
+
+\textbf{Reassembly (fail-honest).} A consumer holding \texttt{K\_symbol} + \texttt{record\_id} collects symbol envelopes from holders (CC 5.3.2.1 holder discovery), opens each \texttt{symbol\_envelope} under its recomputed \texttt{symbol\_key} (XChaCha20-Poly1305 verify; a failed tag MUST discard that symbol, never accept partial plaintext), and RaptorQ-decodes once \texttt{≥ K} valid symbols are recovered. Insufficient surviving symbols MUST resolve to a \texttt{ContentMiss} — an honest miss, never a silent gap or a downgrade to unverified bytes (fail-honest).
+
+
+\subsubsection*{5.4.4 \texttt{welcome-wrap} — MLS Welcome HPKE wrap under invitee static X-Wing key (normative)}
+
+
+MLS Welcome messages MUST be wrapped by **HPKE \texttt{mode\_base}\textbf{ (RFC 9180 §5.1.1) encrypted to the invitee's }static X-Wing KEM** public key (ML-KEM-768 + X25519; draft-connolly-cfrg-xwing-kem; confirmed in draft-ietf-hpke-pq §7.2). This is the admission-ceremony half of the MLS construction whose epoch rekey is specified in CC 5.1 — the same hybrid KEM (X25519 + ML-KEM-768) the MLS ciphersuite uses as its HPKE KEM.
+
+
+**\texttt{mode\_auth} is structurally unavailable.** X-Wing has no \texttt{AuthEncap} (per draft-connolly-cfrg-xwing-kem; confirmed in draft-ietf-hpke-pq §7.2), so HPKE \texttt{mode\_auth} cannot be used. Sender authentication therefore MUST NOT be claimed at the HPKE layer; it is provided out-of-band by an \textbf{ML-DSA-65 signature from the inviter} over the encapsulation bytes (below). Both halves of MLS ciphersuite \texttt{0x004D} are used.
+
+
+\textbf{HPKE parameters (cross-impl pinned; private-use suite-id, since X-Wing has no IANA KEM-id):}
+
+
+\begin{lstlisting}
+HPKE_SUITE_ID = b"HPKE-xwing-hkdf-sha256-aes256gcm-v1"
+KDF           = HKDF-SHA256
+AEAD          = AES-256-GCM
+\end{lstlisting}
+
+The \texttt{HPKE\_SUITE\_ID} string MUST be used, byte-for-byte identically on both sides, in every RFC 9180 \texttt{LabeledExtract} / \texttt{LabeledExpand} call. The HPKE-layer AEAD is \textbf{AES-256-GCM} — distinct from the XChaCha20-Poly1305 the CEWP substrate uses to protect fountain symbols and envelope fragments at its lower layers.
+
+
+\textbf{Inviter signature.} The inviter MUST sign the encapsulation bytes with ML-DSA-65 over the following length-delimited encoding (no \texttt{algorithm} field):
+
+
+\begin{lstlisting}
+encap_signing_bytes
+    = x25519_ephemeral_pub      (32 bytes)
+    || u32_be(len(mlkem768_ct))
+    || mlkem768_ciphertext
+\end{lstlisting}
+
+Signature verification is a \textbf{precondition} to unwrapping the Welcome. An implementation that omits it forfeits sender authentication, and the CC 5.2 forwarder-side membership-opacity guarantee no longer holds.
+
+
+\subsubsection*{5.4.5 \texttt{witness-content} — Witness-chain content discipline (privacy witness, normative)}
+
+
+A witness chain that names \textit{what} a peer holds leaks the existence of its records as surely as a holder-discovery attestation does (CC 5.2). The content a witness chain may commit to is therefore scoped by tier, and the federation tier additionally \textbf{hides its own rate} so that the \textit{amount} of non-federation activity cannot be read off the chain.
+
+
+\begin{quote}\itshape \textbf{Distinction (normative — do NOT conflate).} This is the \textbf{privacy witness chain} — a content-and-rate discipline on what a peer's witness commitments may reveal. It is NOT the CC 6.1.1 \textbf{WholenessWitness} (\texttt{wholeness\_witness:}, the self-published divergence-detection state-root that triggers CC 5.3.2.3 quorum-merge), and it is NOT the CC 5.3.1 \textbf{transparency-log witness} (an independent STH cosigner providing append-only / consistency / anti-equivocation guarantees). The three "witness" surfaces are distinct constructions, MUST NOT be cross-verified, and MUST NOT be substituted for one another.\end{quote}
+
+
+**Federation witness chain — commits to federation-scope \texttt{record\_id}s + a single rate-smoothed constant-tick counter.** A federation witness chain MUST commit only to federation-scope \texttt{record\_id}s plus a single rate-smoothed counter for all non-federation activity. The counter ticks on a federation-wide \textbf{constant} schedule — \textbf{1 tick / federation epoch} (CC 5.1) — independent of how much real activity occurred. At each tick the witness commits to a target-relative count, padding below-target ticks with cover leaves and back-pressuring above-target leaves into the next tick:
+
+
+\begin{lstlisting}
+At each federation epoch tick the witness commits to `count mod target_rate`:
+real leaves below target are padded by cover leaves to the target;
+real leaves above target back-pressure into the next tick.
+Cover leaves commit to
+`HMAC-SHA3(witness_signing_key, leaf_position || epoch_id)`
+-- cryptographically indistinguishable from real Merkle roots
+under the IND of HMAC-SHA3.
+\end{lstlisting}
+
+Because the tick is constant and the per-tick commitment is \texttt{count mod target\_rate} smoothed by IND-indistinguishable cover leaves, an observer of the chain learns neither the true non-federation activity rate nor which leaves are real. \textbf{The signal is the deviation, not the count}: a witness that fails to tick on the constant schedule has emitted the only observable signal the chain carries, and \textbf{deviation from the constant tick is a federation-tier slashing condition}.
+
+
+\textbf{Per-community witness chain — member-only visibility, signed inside the group.} A per-community (CC 3.2) witness chain MUST commit to the community's \texttt{record\_id} set with \textbf{member-only visibility}, and MUST be \textbf{signed inside the community's MLS encryption} (CC 5.1 epoch keying / RFC 9420 TreeKEM). The chain — like the in-group trust graph, attestation, and eviction machinery — runs \textit{inside} the same encryption boundary that delivers outsider opacity: a non-member cannot read the community's \texttt{record\_id} set off the chain, because the chain never federates beyond the group's encryption. There is no constant-tick rate counter at the community tier; rate-hiding is a federation-tier concern (the federation chain already smooths \textit{all} non-federation activity, of which per-community activity is a part).
+
+
+This codifies CEWP \texttt{SCOPE\_PRIVACY} §3.4 (\#107) as a normative substrate discipline, composing with the CC 5.2 structural-invisibility promise: structural invisibility keeps self/family content off the discovery surface; the witness-content discipline keeps the \textit{witness} surface from re-leaking, at federation scope, what the discovery surface withholds.
+
+
+\subsubsection*{5.4.6 \texttt{announce-suppress} — Announce suppression for group-scoped destinations (normative)}
+
+
+A Reticulum \textbf{announce} is the broadcast that tells the whole network a destination exists and is reachable. Announcing a \textit{group-scoped} destination therefore leaks the one fact the cohort tiers exist to withhold: that the group exists at all. The discovery discipline closes that leak — group destinations are resolved from a \textbf{cached directory + per-group HKDF}, never from an announce. This is the transport-layer realization of CC 5.2 structural invisibility on the \textit{addressing} plane: bytes are already suppressed from the holder directory (CC 5.3.2.1) by the CC 5.2 \texttt{holds\_bytes:sha256:*} suppression rule; here the \textbf{destination itself} is suppressed at the announce plane.
+
+
+\textbf{No announce for group-scoped destinations (normative).} A destination whose \texttt{cohort\_scope} is below federation (the InvisibleEncrypted and CommunityDek tiers — \texttt{self}, \texttt{family}, \texttt{community}, \texttt{affiliations}) MUST NOT emit a Reticulum announce. The substrate MUST suppress the announce that would reveal a group-scoped destination's existence. Only federation/Commons-scope destinations (\texttt{species}, \texttt{biosphere}, \texttt{federation}, and the \texttt{infrastructure} opt-out) MAY announce normally — they carry no anonymity claim.
+
+
+\textbf{Discovery is directory-cached, not announced (normative).} Group members resolve each other's destinations from a locally cached directory plus a deterministic per-group derivation — no announce, no per-resolution query:
+
+
+\begin{lstlisting}
+- Every participating L1 peer maintains a COMPLETE local copy of the
+  federation directory's X-Wing public keys, refreshed via the existing
+  `federation_keys` anti-entropy. The directory remains federation-public.
+- A group destination is resolved DETERMINISTICALLY from
+  (cached directory entry + per-group HKDF) -- every member derives the
+  same destination; outsiders, lacking the group key, cannot.
+- NO per-invitation / per-resolution directory query is emitted.
+- Phone-class peers that cannot hold the full directory resolve through
+  their L1-relay parent over a relay-blinded path.
+\end{lstlisting}
+
+The per-group HKDF derivation is the same group-and-epoch-bound key schedule the substrate already uses to diversify record-ids and symbols; destination resolution reuses it, so the addressing argument is HMAC-opaque to non-members and no new key material is introduced.
+
+
+\textbf{The anonymity target is outsiders, not in-group members (normative framing).} Trust-enforceability to insiders and anonymity to outsiders are the same property viewed from opposite sides of the cohort encryption boundary (CC 1.13.3.4). In-group members already hold the per-group key and resolve every peer's destination from the cache — they see the group fully. The construction hides the group's existence, membership, and \texttt{querier → invitee} edges from \textbf{outsiders only}, including a subpoena against the federation-public directory: because no announce is broadcast and no resolution query is emitted, the directory exposes no edge linking a resolver to the resolved destination.
+
+
+\textbf{Fail-secure.} A peer with a stale or incomplete directory cache resolves \textit{fewer} destinations and reports an honest miss; it MUST NOT fall back to emitting a group-scoped announce or a per-destination query to recover reachability. Per-destination announce control is a small Leviculum substrate extension (informative); its absence MUST fail toward suppression, never toward announce.
+
+
 \clearpage
 \section*{Part 6 — The Coherence Mathematics}
 
@@ -6380,7 +6830,7 @@ Rate-limit headers on every response: \texttt{X-RateLimit-Limit}, \texttt{X-Rate
 The holonomic substrate gives the federation two properties that together serve M-1's durability of shared memory: \textbf{graceful degradation} — any subset of fountain symbols decodes at proportional fidelity — and \textbf{graceful reconstitution} — the witnessed corpus re-establishes from any sufficient fragment. Its wire shapes enter CEG as additive normative sections, each fenced by \textbf{guardrails} that bind it to CEG's existing trust, post-quantum, consent, replication, and anonymous-tier invariants.
 
 
-\begin{quote}\itshape \textbf{Absorb with guardrails, not verbatim.} The holonomic concept is sound and \textbf{additive at the wire layer — no CC 2.4/CC 2.1 1+4 change.} Absorbing the substrate's mechanics naively, however, would invert several ratified CEG invariants (owner-binding, PQC-mandatory, consent/withdraws, quorum-merge). This section therefore states the guardrail invariants (CC 6.1.1–CC 6.1.7) as normative MUSTs. The \textbf{byte-exact signed preimages} for each shape are pinned against the reference implementation; the \texttt{SignedClaim} shape carries owner-binding fields so the admission gate is expressible. \textbf{Conformance vectors generated from the reference are the named \#57 freeze gate} (CC 6.1.4).\end{quote}
+\begin{quote}\itshape \textbf{Absorb with guardrails, not verbatim.} The holonomic concept is sound and \textbf{additive at the wire layer — no CC 2.4/CC 2.1 1+4 change.} Absorbing the substrate's mechanics naively, however, would invert several ratified CEG invariants (steward-binding, PQC-mandatory, consent/withdraws, quorum-merge). This section therefore states the guardrail invariants (CC 6.1.1–CC 6.1.7) as normative MUSTs. The \textbf{byte-exact signed preimages} for each shape are pinned against the reference implementation; the \texttt{SignedClaim} shape carries steward-binding fields so the admission gate is expressible. \textbf{Conformance vectors generated from the reference are the named \#57 freeze gate} (CC 6.1.4).\end{quote}
 
 
 \subsubsection*{6.1.1 \texttt{witness-wholenesswitness} — WholenessWitness (§W) — divergence-detection witness}
@@ -6591,7 +7041,7 @@ The application-layer-multicast relay tree for large-N fan-out — the CC 5.3.3.
 
 \begin{itemize}\setlength\itemsep{0pt}
 \item **\texttt{compute\_alm\_topology(snapshot) → topology} is PIN-NORMATIVE as a contract\textbf{ — a }pure, deterministic, integer-only** function (no IEEE-754; no \texttt{HashMap} iteration order) over \texttt{(capacity\_ads, trust\_grants, reachability\_observations, locality)}, with specified lexicographic tie-breaks and canonical output order, such that \textbf{byte-equal inputs yield byte-equal output} across implementations. The byte-exact output is gated on the CC 6.1.4 vectors (incl. permutation-invariance cases) — \textbf{not} transcribed from the algorithm body as the source of truth.
-\item \textbf{N8 (capacity authenticity)} — capacity advertisements feeding the topology MUST be hybrid-verified (\texttt{SignedRelayCapacity}, domain \texttt{b"CIRISALM-CAPv2\textbackslash{}0\textbackslash{}0"}) \textbf{before scoring}; self-asserted \texttt{uplink\_mbps} MUST NOT be the dominant, unbounded selection term (cap per owner-bound identity or make it throughput-challengeable). Determinism amplifies one capacity lie into a \textit{universal} eclipse — "verified by an unspecified upstream tier" is not a guarantee.
+\item \textbf{N8 (capacity authenticity)} — capacity advertisements feeding the topology MUST be hybrid-verified (\texttt{SignedRelayCapacity}, domain \texttt{b"CIRISALM-CAPv2\textbackslash{}0\textbackslash{}0"}) \textbf{before scoring}; self-asserted \texttt{uplink\_mbps} MUST NOT be the dominant, unbounded selection term (cap per steward-bound identity or make it throughput-challengeable). Determinism amplifies one capacity lie into a \textit{universal} eclipse — "verified by an unspecified upstream tier" is not a guarantee.
 \item \textbf{D6 preserved} — \texttt{reachability\_observations} are \textbf{ephemeral planner inputs}; they MUST NOT become attested, replicated, or witness-leafed state (CC 5.3.3.4 "reachability is never trust"). Resolution authority stays in CC 4.4.3.2.4.1; the topology consumes it, does not replace it. The determinism comparator reconciles to the CC 4.4.3.2.4.1 / R1/Q1 family.
 \item \textbf{PIN line} — the topology \textit{function contract} + \texttt{SignedRelayCapacity} / \texttt{SubStreamCommitment} signed preimages = \textbf{PIN-NORMATIVE}; \textbf{ALM parent-selection} (\texttt{AlmJoinPlanner}, over per-peer RTT) = \textbf{edge-internal}.
 \end{itemize}
@@ -6600,7 +7050,7 @@ The application-layer-multicast relay tree for large-N fan-out — the CC 5.3.3.
 \subsubsection*{6.1.7 \texttt{fail-secure-fail} — Fail-secure summary (normative)}
 
 
-These mechanisms compose into one fail-secure posture, each clause traceable to the principle it protects. The holonomic mechanisms are blind to the anonymous tier (WW-2, RB-1, SR-2/3 — Autonomy), subordinate to the consent/revocation model (N5, WW vs CC 5.3.2.3 — Autonomy/Non-maleficence), gated by owner-binding + founder-quorum (N1, N2 — Justice), and bound by PQC-mandatory verification at the gate (CC 6.1.3, N3, N8, F-5 — Integrity). These invariants are the conformance target regardless of implementation timing.
+These mechanisms compose into one fail-secure posture, each clause traceable to the principle it protects. The holonomic mechanisms are blind to the anonymous tier (WW-2, RB-1, SR-2/3 — Autonomy), subordinate to the consent/revocation model (N5, WW vs CC 5.3.2.3 — Autonomy/Non-maleficence), gated by steward-binding + founder-quorum (N1, N2 — Justice), and bound by PQC-mandatory verification at the gate (CC 6.1.3, N3, N8, F-5 — Integrity). These invariants are the conformance target regardless of implementation timing.
 
 
 \subsubsection*{6.1.8 \texttt{trust} — Recursive trust bootstrap (§B) — trust-discovery, not membership}
@@ -6610,7 +7060,7 @@ These mechanisms compose into one fail-secure posture, each clause traceable to 
 
 
 \begin{itemize}\setlength\itemsep{0pt}
-\item \textbf{N1 (trust ≠ membership)} — a successful chain walk yields \textbf{trust+serve standing only} (CC 3.2 TRUST≠MEMBERSHIP). Admission to any **non-\texttt{infrastructure}\textbf{ community remains gated, at the destination, by (a) the CC 3.2 }owner-binding** precondition (a live \texttt{user}-owner \texttt{delegates\_to}, an admitted \texttt{identity\_occurrence}) and (b) that community's \texttt{consensus\_protocol}. \texttt{infrastructure} roots stay \textbf{founder-quorum}-gated; a transitive chain MUST NOT satisfy founder-quorum. \texttt{SignedClaim} carries the owner-binding fields so the gate is expressible.
+\item \textbf{N1 (trust ≠ membership)} — a successful chain walk yields \textbf{trust+serve standing only} (CC 3.2 TRUST≠MEMBERSHIP). Admission to any **non-\texttt{infrastructure}\textbf{ community remains gated, at the destination, by (a) the CC 3.2 }steward-binding** precondition (a live \texttt{user}-steward \texttt{delegates\_to}, an admitted \texttt{identity\_occurrence}) and (b) that community's \texttt{consensus\_protocol}. \texttt{infrastructure} roots stay \textbf{founder-quorum}-gated; a transitive chain MUST NOT satisfy founder-quorum. \texttt{SignedClaim} carries the steward-binding fields so the gate is expressible.
 \item \textbf{N2 (self-supplied chains aren't evidence)} — the chain-length budget MUST be ≤ the CC 4.1.1 \textbf{5-hop cap}, trust-graph \textbf{cycles MUST be rejected} (CC 4.1.1), and the CC 4.1.1 \textbf{aggregate-weight cap} (default 0.5 × root\_trust) MUST bound the standing one root confers transitively. A caller-supplied chain proves only its signatures, not a real lineage.
 \item \textbf{RB-1 (anonymous coexistence)} — anonymous-tier content MUST be ingestible / retainable / serveable with \textbf{no trust-graph position}; \texttt{recursive\_trust\_bootstrap} MUST NOT be required for, or invoked on, anonymous records.
 \end{itemize}
@@ -7290,7 +7740,7 @@ B. \textbf{Emergency Shutdown:} Triggered by catastrophic failure or WA mandate.
 
 C. \textbf{Partial Wind-Down:} Subsystem sunset while larger platform lives.
 
-D. \textbf{Custodial Transfer:} Ownership moves; ethical duties persist.
+D. \textbf{Custodial Transfer:} Stewardship moves; ethical duties persist.
 
 
 \subsubsection*{7.5.3 \texttt{3-sunset} — Chapter 3: Sunset-Trigger Assessment}
@@ -7484,7 +7934,7 @@ These terms are referenced throughout the spec and across sibling repos. Definin
 \begin{longtable}{|p{8.0cm}|p{8.0cm}|}\hline
 \textbf{Term} & \textbf{Definition} \\ \hline\endhead
 \textbf{CEG} (CIRIS Epistemic Grammar) & This specification. The federation's wire grammar: the "1+4" attestation model (\texttt{scores} plus the four relations \texttt{delegates\_to} / \texttt{supersedes} / \texttt{withdraws} / \texttt{recants}), its namespaces, admission rules, and composition policies. CEG is the \textit{grammar}; CEWP is the \textit{network that speaks it}. \\ \hline
-\textbf{CEWP} (CIRIS Epistemic Web Platform) & The decentralized network formed when nodes exchange CEG envelopes over Edge/Reticulum transport. CEWP is \textbf{not a product, server, or central service} — it is the emergent peer-to-peer web of CEG-speaking nodes, exactly as "the Web" is the emergent network of HTTP-speaking servers. It has no owner, no root, and no load-bearing instance (the CC 3.4.7.1 fabric-node discipline and the default-not-forced-root rule of CC 3.2 guarantee this). A CEWP node is a \textbf{fabric node} (CIRISServer); \texttt{agent = fabric node + brain}. \\ \hline
+\textbf{CEWP} (CIRIS Epistemic Web Platform) & The decentralized network formed when nodes exchange CEG envelopes over Edge/Reticulum transport. CEWP is \textbf{not a product, server, or central service} — it is the emergent peer-to-peer web of CEG-speaking nodes, exactly as "the Web" is the emergent network of HTTP-speaking servers. It has no steward, no root, and no load-bearing instance (the CC 3.4.7.1 fabric-node discipline and the default-not-forced-root rule of CC 3.2 guarantee this). A CEWP node is a \textbf{fabric node} (CIRISServer); \texttt{agent = fabric node + brain}. \\ \hline
 \textbf{Fabric node} & A headless CEG/CEWP participant: it attests, stores, observes, reaches consensus, and transports, but does \textbf{not} reason or act (no brain). Shipped as CIRISServer. Three deployment shapes: standalone server, embedded-in-agent, or family member. See CC 3.4.7.1. \\ \hline
 **\texttt{ciris-canonical}** & The bootstrap governed community (cohort\_subkind: infrastructure) every node ships trusting by default — but which any consumer MAY untrust or re-root (CC 3.2 default-\textbf{not}-forced-root). Its founding members (\texttt{lens} + \texttt{registry-us} + \texttt{registry-eu} fabric nodes) hold the founder-quorum (2-of-3, entrenched). Trust in it is \textbf{role-scoped and ≠ consent} (CC 3.2). \\ \hline
 \textbf{NodeCode} & The QR-able peer-bootstrap shorthand for a federation key (\texttt{CIRIS-V1-…}, base32 + CRC-16). See CC 2.6.8. \\ \hline
@@ -7704,7 +8154,7 @@ This is an \textbf{acknowledged inherent limit, not a spec gap} — no CEG mecha
 The delivery axis is normatively landed: the delivery-axis decisions are ratified into normative spec text (CC 2.1 / CC 3.4.6 / CC 4.4.3.2.6 / CC 5.3.3). The \texttt{KEY\_GRANT\_V1\_INFO} versioned-context HKDF pattern is confirmed (\texttt{KEY\_GRANT\_V1\_INFO} in \texttt{key\_grant.rs} as \texttt{b"cewp-key-grant/v1"}). The coupling caveat RC1-1c (the parallel-CHECK migration) is flagged in CC 5.1 normative text. RC1-7 (operational constants) is flagged in CC 5.3.3.3 — operator-tunable; not blocking the normative ship.
 
 
-The delivery axis bifurcates into an \textbf{observer-share half} (N=1; subscriber-set = \texttt{community} per CC 4.4.3.2 Policy M + per-subscriber \texttt{key\_grant}; \textbf{ZERO remaining blockers, normative-ready}) and a \textbf{streaming-multicast half} (N>1; per-\texttt{(stream\_id, epoch)} keys; \textbf{spec-now, impl substrate-pending} on the streaming substrate step — unowned/unscheduled — with the accountable tier additionally pending). All cross-team decisions (Persist P1–P4, Verify V1–V3, Edge E1–E4, router RC1-2) are \textbf{✅ resolved/ratified} and folded into normative spec text (CC 2.1 / CC 3.4.6 / CC 4.4.3.2.6 / CC 5.3.3). The \texttt{rotation\_chain} hygiene corrections (it is the content-addressed grant-supersession lineage per CC 3.3.2, NOT a key-rotation primitive; epoch rotation is greenfield per \texttt{stream\_id}) are folded into CC 3.3.2 / CC 1.7 path-8 / CC 4.5.12.1 / CC 3.3.4.
+The delivery axis bifurcates into an \textbf{observer-share half} (N=1; subscriber-set = \texttt{community} per CC 4.4.3.2 Policy M + per-subscriber \texttt{key\_grant}; \textbf{ZERO remaining blockers, normative-ready}) and a \textbf{streaming-multicast half} (N>1; per-\texttt{(stream\_id, epoch)} keys; \textbf{spec-now, impl substrate-pending} on the streaming substrate step — un-stewarded/unscheduled — with the accountable tier additionally pending). All cross-team decisions (Persist P1–P4, Verify V1–V3, Edge E1–E4, router RC1-2) are \textbf{✅ resolved/ratified} and folded into normative spec text (CC 2.1 / CC 3.4.6 / CC 4.4.3.2.6 / CC 5.3.3). The \texttt{rotation\_chain} hygiene corrections (it is the content-addressed grant-supersession lineage per CC 3.3.2, NOT a key-rotation primitive; epoch rotation is greenfield per \texttt{stream\_id}) are folded into CC 3.3.2 / CC 1.7 path-8 / CC 4.5.12.1 / CC 3.3.4.
 
 
 \textbf{Remaining streaming-half items} (operator-tunable / substrate-coupled, not blocking the observer-share normative ship):
@@ -7712,7 +8162,7 @@ The delivery axis bifurcates into an \textbf{observer-share half} (N=1; subscrib
 
 {\scriptsize
 \begin{longtable}{|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|}\hline
-\textbf{OQ} & \textbf{Open item} & \textbf{Owner} & \textbf{Gating} \\ \hline\endhead
+\textbf{OQ} & \textbf{Open item} & \textbf{Steward} & \textbf{Gating} \\ \hline\endhead
 \textbf{RC1-1b} & Confirm the \texttt{KEY\_GRANT\_V1\_INFO} versioned-context HKDF pattern exists in \texttt{key\_grant.rs} (the CC 5.3.3.1 V2 nonce-prefix derivation reuses it). Unverifiable from Edge. \textit{(Still owed.)} & Persist & 🔴 V2 \\ \hline
 \textbf{RC1-1c} & ⚠️ \textbf{Coupling caveat} — the V054 cross-column CHECK requires content-addressed \texttt{key\_grant}s; the CC 5.1 epoch axis needs a \textbf{parallel CHECK arm} (content- OR stream/epoch-addressed) — a bounded constraint migration, \textbf{not a pure index-add}. Recorded so the spec doesn't claim "purely additive" at the Persist constraint layer. & Persist & flagged \\ \hline
 \textbf{RC1-7} & Ratify constants (K=64 / T=2s / cosign per-epoch / \texttt{MAX\_CHUNKS\_PER\_EPOCH=2²⁴}) + accountable-stream quorum = Policy E (CC 4.4.3.1 locality-scaled, not fixed N). & router & — \\ \hline
@@ -7847,7 +8297,7 @@ Four boundary modes:
 \subsubsection*{8.4.2 \texttt{credentials} — C2PA Content Credentials — media-provenance import/emit profile}
 
 
-\textbf{Disposition: ADOPT at the media boundary (import bridge + emit), zero interior wire change.} C2PA (Coalition for Content Provenance and Authenticity) Content Credentials are the industry standard (Adobe / Microsoft / Google / BBC …) for cryptographically signed media provenance — origin, edit history, and generator (incl. AI-generation) assertions embedded in or sidecar'd to images / video / audio. \textbf{Deadline driver:} EU AI Act Art. 50 machine-readable marking of AI-generated content applies from \textbf{2026-08} in the federation's primary jurisdiction, so this profile is calendar-bound, not optional. Owners: NodeCore / LensCore media ingest (the CC 2.4 \texttt{multimedia} / \texttt{federation\_blobs} boundary).
+\textbf{Disposition: ADOPT at the media boundary (import bridge + emit), zero interior wire change.} C2PA (Coalition for Content Provenance and Authenticity) Content Credentials are the industry standard (Adobe / Microsoft / Google / BBC …) for cryptographically signed media provenance — origin, edit history, and generator (incl. AI-generation) assertions embedded in or sidecar'd to images / video / audio. \textbf{Deadline driver:} EU AI Act Art. 50 machine-readable marking of AI-generated content applies from \textbf{2026-08} in the federation's primary jurisdiction, so this profile is calendar-bound, not optional. Stewards: NodeCore / LensCore media ingest (the CC 2.4 \texttt{multimedia} / \texttt{federation\_blobs} boundary).
 
 
 C2PA is \textbf{provenance}; CEG is \textbf{judgment}. They do not compete — they compose. C2PA answers \textit{"what process produced these bytes, signed by whom?"}; CEG answers \textit{"what does a community of signers, under what consent, make of them — and who can revoke that?"} Neither does the other's job; C2PA has no consent architecture, no revocation, no 1+4.
@@ -7960,7 +8410,7 @@ The following documents travel with the spec and are cited throughout:
 \end{itemize}
 
 
-\subsubsection*{8.6.4 \texttt{namespace-sibling} — Sibling MISSIONs (the namespace owners)}
+\subsubsection*{8.6.4 \texttt{namespace-sibling} — Sibling MISSIONs (the namespace stewards)}
 
 
 \textit{[source content to migrate — the sibling MISSION documents that own segments of the namespace, carried verbatim from the canonical references section; not present in this snapshot.]}
@@ -8738,7 +9188,7 @@ MH §204: "disinformation and campaigns that feed people's fears are used to man
 \textbf{3.5 Researcher and Developer Moral Responsibility.}
 
 
-MH §209 is the governing authority: "All the key players in this field — scientists, business owners, investors, academic authorities, politicians and others — must work with a transparent and responsible mindset, while maintaining an acute awareness of the broader context of the technological advancements they help to cultivate, including those related to AI. When people limit themselves to looking only at their own sector, they may deceive themselves into believing they are performing actions that are morally neutral and avoid questions about the ultimate ends that guide certain experiments. In this way, they risk cooperating — perhaps unknowingly — with questionable projects that fuel new forms of violence, manipulation and dominance."
+MH §209 is the governing authority: "All the key players in this field — scientists, business stewards, investors, academic authorities, politicians and others — must work with a transparent and responsible mindset, while maintaining an acute awareness of the broader context of the technological advancements they help to cultivate, including those related to AI. When people limit themselves to looking only at their own sector, they may deceive themselves into believing they are performing actions that are morally neutral and avoid questions about the ultimate ends that guide certain experiments. In this way, they risk cooperating — perhaps unknowingly — with questionable projects that fuel new forms of violence, manipulation and dominance."
 
 
 Operational translation into this Annex:
