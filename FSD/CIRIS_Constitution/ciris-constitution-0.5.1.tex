@@ -83,7 +83,7 @@
 \newunicodechar{└}{+}
 \newunicodechar{⟶}{$\longrightarrow$}
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}The CIRIS Constitution\\[10pt]
-\normalsize\mdseries Version 0.5\\[6pt]\itshape Stewarded by Eric Moore}
+\normalsize\mdseries Version 0.5.1\\[6pt]\itshape Stewarded by Eric Moore}
 \author{}\date{}
 \begin{document}
 \maketitle\thispagestyle{empty}
@@ -4503,6 +4503,100 @@ Communities compose with consent and self-collectives cleanly:
 \end{itemize}
 
 
+\subparagraph{4.4.3.2.8 \texttt{affiliations} — The institutional cohort (necessity, not interest) (normative)}\mbox{}\\
+
+
+A \textbf{community} (CC 4.4.3.2) gathers by \textit{interest} — voluntary, opt-in, no role compels it. An \textbf{affiliation} (\texttt{cohort\_scope: affiliations}) gathers by \textit{necessity} — the work, institution, or office a person belongs to because their role requires it. The discriminator is the single \texttt{cohort\_scope} value; affiliations \textbf{share the CommunityDek crypto tier} (CC 4.4.3.2.1) and all the community machinery (DEK cascade, forward secrecy on removal, \texttt{consensus\_protocol} admission), and add \textbf{institutional governance by construction} through one declared config record. Everything in that record is \textbf{DECLARED at creation and visible to members on joining} — there are no undeclared institutional powers.
+
+
+\textbf{Necessity is an axis, not a binary (the kibbutz catch).} A few institutions are \textit{voluntarily entered yet total} (a collective settlement, a religious order). The interest/necessity split is therefore carried by an explicit \texttt{membership\_basis} field — \texttt{\{voluntary-total | ascriptive | role-assigned | employment-contract\}} — orthogonal to \texttt{cohort\_scope}, so a body can declare institutional governance without asserting a coercion that does not exist. A group that needs \textbf{no} institutional governance is simply a \texttt{community}; affiliation's machinery is never forced on a body with no use for it.
+
+
+\textbf{Mandatory-with-default, not mandatory-to-author (the low-floor guarantee).} The two mandatory limbs — \textbf{data-classification} and \textbf{retention} — are \textit{mandatory in that a value MUST resolve}, \textbf{not} that a steward must hand-author a scheme. The constitution ships a canonical no-op default (a single \texttt{internal} class; retention = \texttt{rotate-forward} per CC 6.1.2/\texttt{archive\_mode} CC 3.3) and named **\texttt{affiliation\_archetype} presets** (e.g. \texttt{informal\_adhoc}, \texttt{nonprofit\_board}, \texttt{healthcare\_provider}, \texttt{legal\_practice}, \texttt{gov\_body}, \texttt{igo}) that pre-fill every field below. A 5-person committee sets one field (\texttt{affiliation\_archetype: informal\_adhoc}) and is served by construction; a regulated giant overrides into the full matrix. The optional limbs — \textbf{hierarchy}, \textbf{lawful-access/transparency} — are absent until declared and scale up only when needed.
+
+
+\textbf{A. Classification + retention — MANDATORY, default-satisfiable (substrate-enforced).}
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **\texttt{classification\_scheme}** — an ordered sensitivity lattice (e.g. \texttt{Public < Internal < Confidential < Restricted}) plus open-vocab handling tags, \textbf{orthogonal to} but \textit{carried on} \texttt{content\_class} (CC 3.3, open vocabulary — extended here with institutional values: \texttt{phi}, \texttt{psychotherapy\_notes}, \texttt{sud\_42cfr2}, \texttt{genetic}, \texttt{minor\_adolescent}, \texttt{privileged}, \texttt{work\_product}, \texttt{cui}, \texttt{itar}, \texttt{ear}, \texttt{trade\_secret}, \texttt{provenance}, \texttt{accession}, \texttt{culturally\_restricted}, \texttt{member\_economic\_standing}, \texttt{governance\_visible}, …). Each class entry binds: \texttt{crypto\_tier}, \texttt{retention}, \texttt{disclosure\_bar}, \texttt{erasure\_exempt}, \texttt{external\_controller}, and optional \texttt{compartment}. Default scheme: one \texttt{internal} class.
+\item **\texttt{retention\_policy}\textbf{ — a }per-class\textbf{ matrix, not one cohort-wide rate. Each class declares a }floor** (\texttt{retain\_minimum} / \texttt{permanent} — \textit{must-NOT-delete-before-N}), a \textbf{ceiling} (\texttt{delete\_after} — GDPR-style delete-by), an optional \texttt{minor\_age\_of\_majority\_offset}, and \texttt{legal\_basis}. The default class rides the CC 6.1.2 monotonic-descent noise floor unchanged (the free zero-config posture). A floor is the \textbf{inverse of descent}: it pins a class \textbf{above} the noise floor against capacity/aging pressure — the operator the seed lacked, expressed as a declared modifier \textit{to} the CC 6.1.2 retirement operator, not a new primitive. \texttt{archive\_mode: retain} (CC 3.3) is the default whenever any class declares a floor.
+\item **\texttt{legal\_hold}\textbf{ — a descent-}suspending freeze**: \texttt{\{hold\_id, issuer (accountable human / court — CC 3.2), scope (subjects/records/compartment), basis, tamper-evident, indefinite\}}. While set it \textbf{overrides both} the retention schedule \textbf{and} consent-driven descent, pinning named records above the noise floor; \texttt{hard\_case:legal\_hold\_set} / \texttt{:lifted} / \texttt{:violation\_attempt} make set, lift, and any deletion-during-hold observable (spoliation is liability). Default: none.
+\item **\texttt{erasure\_policy}\textbf{ — declares which classes are }non-erasable during retention\textbf{, so a right-to-be-forgotten / N5 signal is }refused-with-reason\textbf{ rather than honored (GDPR Art 17(3)(b)/(c)/(d) legal-obligation / public-interest-archiving exemptions). This is the }declared gate on CC 6.1.5 N5**: absent the gate, N5/withdrawal forces content below the floor as today; with it, a lawful-basis class lawfully resists. Erasure remains the default for unflagged classes (e.g. donor/marketing PII alongside permanent provenance in the same museum).
+\item **\texttt{disclosure\_posture}** — \texttt{privacy-seeking} (default; whole cohort under the CommunityDek) \textbf{or} \texttt{transparency-seeking} (per-class \textbf{promotion to Commons/plaintext} for legally-public records — FOIA bodies, 501(c)(3) Form 990, published collections, GA/SC documents). This **generalizes the existing \texttt{infrastructure} plaintext exception** (CC 4.4.3.2.1) from whole-cohort to per-class, letting one affiliation simultaneously hold Commons-public and Community-encrypted classes.
+\end{itemize}
+
+
+\textbf{B. Compartments + access — OPTIONAL (sub-roster granularity).}
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **\texttt{compartments[]}** — named need-to-know sub-cohorts \textit{within} the affiliation, membership ⊆ roster, \textbf{each with its own DEK} — the CC 4.4.3.2.1 epoch-DEK cascade applied recursively (\textit{a compartment is a stream a subset of members subscribe to}). Each carries explicit \textbf{per-member EXCLUSIONS} (deny-list) so a member high in the hierarchy can be cryptographically walled out (ethical walls / conflict screens; NAGPRA culturally-restricted records gated to external tribal designees and hidden \textbf{even from ordinary members} — which the flat all-members-read DEK cannot express). This is the single most load-bearing addition and is \textbf{the same machinery at finer scope}, not a new primitive.
+\item **\texttt{member\_attributes}** — per-member \texttt{\{nationality/us\_person, clearance, credential + expiry, …\}} consumed by compartment gating: deemed-export (ITAR/EAR exclude foreign-person members), MAC clearance (a Confidential-cleared member MUST NOT decrypt Secret), credential-expiry auto-descope (lapsed clinical license → automatic exclusion).
+\item **\texttt{access\_control\_model}** — \texttt{roster-wide} (default; the DEK cascade) | \texttt{rbac} (role→(class,compartment)) | \texttt{minimum-necessary} (treatment-/matter-relationship binding + audited \textbf{break-the-glass}). Honors HIPAA §164.502(b) minimum-necessary and the law-firm/bank/intel chinese-wall pattern.
+\item **\texttt{data\_subject\_access\_grant}\textbf{ — a scoped read+portability path to a }non-member\textbf{ data subject (patient, client, student) over }their own** records, via a \texttt{delegates\_to}/key-grant scoped grant \textbf{without conferring membership} (Cures Act, GDPR Art 15, FERPA rights-transfer-on-enrollment). Resolves the "the subject owns the data but is outside the roster" gap. Default: none.
+\item **\texttt{archive\_custody}\textbf{ — an institutional archive-key }custodian/escrow\textbf{ role holding per-epoch archive keys }decoupled from the live roster**, so \texttt{permanent}/\texttt{retain} records survive member turnover. Resolves the forward-secrecy-vs-permanence collision (CC 4.4.3.2.2 DEK rotation on removal would otherwise render a treaty-inviolable permanent archive unreadable). Rides the key-grant/escrow cascade. Default: none.
+\item **\texttt{chain\_of\_custody}\textbf{ — an append-only, }gap-marked** provenance chain per accessioned object / matter / lot (museum provenance with the legally-significant 1933–45 gap; product-liability lot traceability). Rides \texttt{supersedes} + \texttt{holds\_bytes:*}. Default: none.
+\end{itemize}
+
+
+\textbf{C. Hierarchy + designated officials — OPTIONAL.}
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **\texttt{hierarchy}** — reporting/authority roles over \texttt{delegates\_to} (CC 2.4.1), generalizing the CC 4.5.13 steward/moderator tiers. Supports \textbf{term-bound} authority (\texttt{delegation\_valid\_until} for annually-elected officers), \textbf{multi-parent DAG} roles (a grad student under PI + chair + registrar at once), a \textbf{configurable depth cap} (> the CC 4.1.1 default-5 for deep secretariats), and \textbf{per-compartment/per-matter} roles (responsible attorney, conflicts counsel, PI). Authority roots in \textbf{accountable humans} (CC 3.2) \textbf{or}, for a collective principal (member-state assembly, kibbutz \textit{asefa}), in the **\texttt{consensus\_protocol} body** — no single human sovereign required. An \texttt{independent\_branch} flag marks oversight bodies (OIOS, Ethics, IG) \textbf{exempt from the chain's read/control authority}, and \texttt{hierarchy} may \textbf{nest federated sub-affiliations} (autonomous specialized agencies). Default: flat.
+\item **\texttt{designated\_officials}\textbf{ — named accountable-human roots gating specific operations (Privacy + Security Officer / Controller-DPO at SI ≥ 0.6 per CC 8.8.9 Annex I; Records Officer; FOIA Officer; Original Classification Authority; archive custodian; conflicts counsel). Mandatory at federal/regulated scale, }waivable below threshold** (a town clerk has none). Default: none.
+\end{itemize}
+
+
+\textbf{D. Lawful-access, transparency, accountability — OPTIONAL, NEVER covert.}
+
+
+\begin{itemize}\setlength\itemsep{0pt}
+\item **\texttt{lawful\_access}\textbf{ — DECLARED, scope-bounded }to the declaring affiliation only**, always logged as \texttt{hard\_case:*}, transparency-reportable, and \textbf{NEVER a covert backdoor} — it does not touch anonymity-by-default (CC 1.13.3.4) or no-client-side-scanning (CC 4.5.7) anywhere else. Each authority declares a \textbf{type} — \texttt{surveillance/interception} | \texttt{records\_production} (subpoena/discovery) | \texttt{regulator\_inspection} (named auditor: DDTC/BIS/OSHA/Registrar) | \texttt{mandated\_reporting} (scheduled outbound: communicable-disease, vital stats) — a \texttt{statutory\_basis}, a **per-authority \texttt{transparency\_mode}** \texttt{\{immediate | delayed | aggregate\_banded | sealed\_cleared\_audit\}} (so a FISA/NSL gag complies via USA-FREEDOM-style aggregate banding rather than unlawful real-time emission), and optional \textbf{carve-out compartments} lawful access cannot reach (NIH Certificate-of-Confidentiality research, IRB, attorney-client privilege, academic-freedom). A \texttt{none/immune} value expresses \textbf{resistance-to / immunity-from} access as a first-class posture (privilege assertion via external judicial review; privileges-and-immunities of an IGO). Default: OFF.
+\item **\texttt{transparency\_obligations[]}\textbf{ — affirmative }proactive-disclosure\textbf{ duties (FOIA reading-room, IRS Form 990 public inspection, NAGPRA inventories → NPS), }DECOUPLED** from \texttt{lawful\_access} — transparency here is a \textit{duty to publish}, not an \textit{access concession}. Default: none.
+\item **\texttt{disclosure\_accounting}\textbf{ — a }per-data-subject\textbf{ disclosure ledger (HIPAA §164.528), retrievable }by that subject**, distinct from the aggregate transparency report. Default: none.
+\item **\texttt{breach\_notification}** — detection→notify config tied to DEK / unauthorized-access compromise: SLA and notifier identity (e.g. ≤60-day HHS + individual, media ≥ 500). Default: none.
+\item **\texttt{processor\_chain} / \texttt{baa}\textbf{ — declared sub-processors and }affiliation-to-affiliation** sharing/referral boundary, with \texttt{marking\_binds\_to\_record} so a class's classification + export marking + retention obligation \textbf{travel across the cohort boundary} (OEM→Tier-1 supply chain; HIE referral). Default: none.
+\end{itemize}
+
+
+\textbf{Minors (the PTA / EdTech tie-in).} Where records bear minor \texttt{subject\_key\_ids}, set **\texttt{minor\_data\_handling}\textbf{: such records REQUIRE a }live guardian consent chain** — \texttt{delegates\_to(parent → minor, scope: [consent\_revocation/share])} — per the \textbf{minor-stewardship rule} (part\_3 minor-stewardship clause) and the FERPA/COPPA hook (Annex I rows, CC 8.8.9). This is \textbf{minor-as-data-subject} (guardian consent over records about a child), distinct from \textbf{minor-as-member} (the operating-identity stewardship clause); both ride \texttt{delegates\_to} with no new primitive. Note FERPA rights \textbf{transfer to the adult student at postsecondary enrollment} — model the institution as records \textbf{custodian} with the subject retaining rights (\texttt{external\_controller} + \texttt{data\_subject\_access\_grant}), not as parent→minor stewardship.
+
+
+\textbf{Lifecycle.} **\texttt{dissolves\_at} / \texttt{sunset}** gives ephemeral institutions a first-class auto-wind-down (holiday committee → purge + dissolve after the event), riding \texttt{supersedes}/\texttt{withdraws} so a casual group leaves no zombie cohort or un-purged data. **\texttt{internal\_normative\_regime}** optionally references bylaws / \textit{takanon} / halachic order — an internal normative order that is neither external statute nor corporate hierarchy.
+
+
+\textbf{Regulatory anchoring.} \texttt{regulatory\_profile} and \texttt{jurisdiction[]} are \textbf{open lists} (not a closed HIPAA/SOX/FISA enum): values load the relevant \textbf{Annex I §3.2 sector overlay} and \textbf{Annex C cross-walk} (CC 8.8.5 / CC 8.8.9) and supply defaults — and equally admit \texttt{self-regulated/cooperative-light} (kibbutz under a Registrar) and \texttt{treaty / customary-IL / privileges-and-immunities} (IGO, largely exempt from the national statutes Annex I enumerates). The SI ≥ 0.6 Controller rule (CC 8.8.9) selects the accountable authority.
+
+
+\textbf{Instantiation — smallest vs largest, same fields:}
+
+
+{\footnotesize
+\begin{longtable}{|p{5.33cm}|p{5.33cm}|p{5.33cm}|}\hline
+\textbf{Field} & \textbf{Holiday-party committee (\texttt{informal\_adhoc})} & \textbf{UN / IGO (\texttt{igo})} \\ \hline\endhead
+\texttt{membership\_basis} & \texttt{role-assigned} (workplace); a purely-social one needs no affiliation → plain \texttt{community} & \texttt{employment-contract} + \texttt{ascriptive} (member-state principal) \\ \hline
+\texttt{regulatory\_profile} & \texttt{[]} (none) & \texttt{["P\&I-Convention-1946-Art.II§4","UN-PDP-2018","ST/SGB/2007/6"]} \\ \hline
+\texttt{classification\_scheme} & default single \texttt{internal} & \texttt{Unclassified < Confidential < Strictly-Confidential} + caveats \\ \hline
+\texttt{retention\_policy} & \texttt{rotate-forward} (noise-floor default) & per-series: \texttt{permanent} (archival) + scheduled (ARMS) + floors \\ \hline
+\texttt{legal\_hold} & — & litigation-hold freeze, role-gated lift \\ \hline
+\texttt{disclosure\_posture} & \texttt{privacy-seeking} & mixed: \texttt{transparency-seeking} for GA/SC docs, encrypted for ops \\ \hline
+\texttt{compartments[]} & — & peacekeeping / OIOS / source-protected, member-excluding \\ \hline
+\texttt{archive\_custody} & — & institutional custodian decoupled from rotating staff \\ \hline
+\texttt{hierarchy} & omitted (flat) & deep DAG, collective-\texttt{consensus\_protocol} root, \texttt{independent\_branch} oversight, nested agencies \\ \hline
+\texttt{lawful\_access} & omitted & \texttt{none/immune} (inviolable archives) + scoped internal OIOS \\ \hline
+\texttt{transparency\_obligations[]} & — & affirmative publication of designated classes \\ \hline
+\texttt{dissolves\_at} & event date + short TTL & — (perpetual) \\ \hline
+\end{longtable}}
+
+
+(The regulated middle — hospital, law firm, university, manufacturer, government body, museum, PTA — instantiates the \textit{same} fields at intermediate settings: a solo clinic resolves the whole matrix from \texttt{affiliation\_archetype: healthcare\_provider} + \texttt{regulatory\_profile: ["HIPAA"]}; a hospital overrides into per-class floors, compartments, disclosure accounting, breach notification, and BAA chain.)
+
+
+\textbf{Why this is still 1+4.} One \texttt{cohort\_scope} value (\texttt{affiliations}) + one declared config record riding existing machinery: classification on \texttt{content\_class} (open vocab, CC 3.3); retention floors/holds/erasure-gates as declared modifiers to the CC 6.1.2 retirement operator and the CC 6.1.5 N5 rule; compartments + archive custody as the CC 4.4.3.2.1 DEK / key-grant cascade at sub-roster granularity; hierarchy + designated officials on \texttt{delegates\_to} (CC 2.4.1) and \texttt{consensus\_protocol}; lawful-access/transparency as \texttt{hard\_case:*} events; minor handling on the minor-stewardship \texttt{delegates\_to} rule. The mandatory limbs default to a no-op so the floor stays low; the optional limbs stay absent until declared so the ceiling stays high. No new structural primitive.
+
+
 \paragraph{4.4.3.3 \texttt{policy} — Policy H — Tiered-Scope Composition (LIVE)}\mbox{}\\
 
 
@@ -7938,6 +8032,7 @@ These terms are referenced throughout the spec and across sibling repos. Definin
 \textbf{Fabric node} & A headless CEG/CEWP participant: it attests, stores, observes, reaches consensus, and transports, but does \textbf{not} reason or act (no brain). Shipped as CIRISServer. Three deployment shapes: standalone server, embedded-in-agent, or family member. See CC 3.4.7.1. \\ \hline
 **\texttt{ciris-canonical}** & The bootstrap governed community (cohort\_subkind: infrastructure) every node ships trusting by default — but which any consumer MAY untrust or re-root (CC 3.2 default-\textbf{not}-forced-root). Its founding members (\texttt{lens} + \texttt{registry-us} + \texttt{registry-eu} fabric nodes) hold the founder-quorum (2-of-3, entrenched). Trust in it is \textbf{role-scoped and ≠ consent} (CC 3.2). \\ \hline
 \textbf{NodeCode} & The QR-able peer-bootstrap shorthand for a federation key (\texttt{CIRIS-V1-…}, base32 + CRC-16). See CC 2.6.8. \\ \hline
+\textbf{Infohazard} & Information that is \textbf{damaging in one or more phases of its lifecycle} — its \textbf{creation, perception, acquisition, usage, modification, or destruction}. An infohazard is not a content \textit{category} but a \textit{hazard surface}: the same artifact may be hazardous in one phase and benign in others, so the substrate gives a distinct handle on each phase. \textbf{Creation} — the CC 1.2 admission gate and refusal-to-emit (some things are wrong to bring into existence). \textbf{Perception} — the CC 4.5.13 infohazard consent gate: no \textit{passive} perception; viewing reported material is an affirmative act that publishes a CC 3.3.1 \texttt{consent:*} attestation. \textbf{Acquisition} — cohort-scope confinement (CC 5.2) + holder-side keep/evict, so merely holding it is bounded and attributable. \textbf{Usage} — capability / license gating (the harm is in application, not possession). \textbf{Modification} — \textit{handled by construction}: CEG has \textbf{no in-place edit}; a modification is a signed \texttt{supersedes} / \texttt{recants} (CC 2.4.1) chained to its lineage, so any damaging alteration — forgery, provenance corruption, weaponizing a benign artifact — is an \textbf{attributable, on-record new claim}. You cannot silently modify, only visibly supersede; the integrity of the modified-from record is preserved and the change is witnessed. \textbf{Destruction} — the CC 6.1.2 noise-floor descent over fountain-coded storage: content can be \textbf{pushed below the recoverability floor} (controlled, graceful, verifiable destruction — the fountain-coding dividend) where existence is the harm, or \textbf{held above it} (\texttt{retain} / legal-hold, CC 3.x archive\_mode) where destruction is itself the harm (evidence, heritage, records). \textbf{Prior art:} the term follows Bostrom (2011), \textit{Information Hazards: A Typology of Potential Harms from Knowledge}; the lifecycle-phase decomposition adapts the data-lifecycle governance model (CSA / NIST), adding the \textit{perception} phase from the cognitohazard / neuropsychological-hazard literature. \\ \hline
 \end{longtable}}
 
 
