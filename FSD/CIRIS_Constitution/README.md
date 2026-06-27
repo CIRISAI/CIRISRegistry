@@ -1,6 +1,6 @@
 # The CIRIS Constitution
 
-**Version**: CC 0.5.1 (adds the **affiliations** institutional cohort — full taxonomy from a holiday-party committee to the UN — and the **infohazard** glossary entry; builds on the 0.5 mesh-safe seed: stewardship reframe (responsibility, not property), age-assurance, reverse-quorum moderation, the §11 scope-native-privacy wire absorption)
+**Version**: CC 0.6 (adult stewardship under incapacity (fail-to-liberty) + the 7 ratified child-safety rulings (restrictive floor, mDL-preferred age verification) + accord live-quorum canonical-bytes pins + key-independent steward floor (H6) + restore-to-known-good entrenchment exception (H7))
 **Incorporates**: the **CIRIS Accord** 1.3-RC2 (the constitutional / ethical layer) and **CEG** 1.0-RC29 (the wire grammar — 1+4 surface FROZEN). One document, one version line.
 **Status**: consolidated and adversarially **certified** (0 REJECT). Bodies are a verbatim copy-migration
 from the CEG reader edition + the Accord, woven into one coherent present-tense document; every
