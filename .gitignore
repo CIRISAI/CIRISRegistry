@@ -71,3 +71,4 @@ Thumbs.db
 # Rust
 rust-registry/target/
 **/*.rs.bk
+target/
