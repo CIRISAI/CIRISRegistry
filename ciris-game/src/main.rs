@@ -1,12 +1,6 @@
 use macroquad::prelude::*;
-
-#[derive(Clone, PartialEq, Debug)]
-enum Tier {
-    SelfTier,
-    Family,
-    Community,
-    Affiliation,
-}
+mod ceg;
+use ceg::{CegEngine, CohortScope, Envelope, Primitive};
 
 struct Node {
     pos: Vec2,
@@ -14,20 +8,22 @@ struct Node {
     radius: f32,
     is_malicious: bool,
     active: bool,
+    envelope_id: String,
 }
 
 #[macroquad::main("CIRIS Constitution Explorer")]
 async fn main() {
     let mut current_objective = 0; // 0 = menu, 1, 2, 3 = objectives
+    let mut engine = CegEngine::new();
 
     // Obj 1 state
-    let mut current_tier = Tier::SelfTier;
+    let mut current_tier = CohortScope::SelfScope;
     let mut tier_progress = 0.0;
 
     // Obj 2 state
     let mut packets: Vec<Node> = Vec::new();
-    let mut coherence = 100.0;
     let mut filter_active = false;
+    let mut packet_id_counter = 0;
 
     // Obj 3 state
     let mut holders = vec![
@@ -49,11 +45,11 @@ async fn main() {
         if current_objective == 0 {
             draw_menu(&mut current_objective);
         } else if current_objective == 1 {
-            update_objective_1(&mut current_tier, &mut tier_progress, dt);
+            update_objective_1(&mut current_tier, &mut tier_progress, &mut engine);
             draw_objective_1(&current_tier, tier_progress, &mut current_objective);
         } else if current_objective == 2 {
-            update_objective_2(&mut packets, &mut coherence, &mut filter_active, dt);
-            draw_objective_2(&packets, coherence, filter_active, &mut current_objective);
+            update_objective_2(&mut packets, &mut engine, &mut filter_active, &mut packet_id_counter, dt);
+            draw_objective_2(&packets, &engine, filter_active, &mut current_objective);
         } else if current_objective == 3 {
             update_objective_3(&mut holders, &mut selected_holder, &mut shutdown_triggered);
             draw_objective_3(&holders, shutdown_triggered, &mut current_objective);
@@ -97,33 +93,40 @@ fn draw_menu(current_objective: &mut i32) {
     }
 }
 
-fn update_objective_1(tier: &mut Tier, progress: &mut f32, _dt: f32) {
+fn update_objective_1(tier: &mut CohortScope, progress: &mut f32, engine: &mut CegEngine) {
     let btn_rect = Rect::new(screen_width() / 2.0 - 100.0, 300.0, 200.0, 50.0);
     if is_mouse_button_pressed(MouseButton::Left) {
         let mouse_pos = mouse_position();
         if btn_rect.contains(mouse_pos.into()) {
+            engine.emit(Envelope {
+                id: format!("action_{}", rand::rand()),
+                attesting_key_id: "user1".to_string(),
+                cohort_scope: tier.clone(),
+                primitive: Primitive::Scores { dimension: "activity".to_string(), score: 1.0, confidence: 1.0 },
+            });
+
             *progress += 20.0;
             if *progress >= 100.0 {
                 *progress = 0.0;
                 *tier = match tier {
-                    Tier::SelfTier => Tier::Family,
-                    Tier::Family => Tier::Community,
-                    Tier::Community => Tier::Affiliation,
-                    Tier::Affiliation => Tier::Affiliation,
+                    CohortScope::SelfScope => CohortScope::Family,
+                    CohortScope::Family => CohortScope::Community,
+                    CohortScope::Community => CohortScope::Affiliation,
+                    CohortScope::Affiliation => CohortScope::Affiliation,
                 };
             }
         }
     }
 }
 
-fn draw_objective_1(tier: &Tier, progress: f32, current_objective: &mut i32) {
+fn draw_objective_1(tier: &CohortScope, progress: f32, current_objective: &mut i32) {
     draw_text("Objective 1: Scope Expansion", 20.0, 40.0, 30.0, BLUE);
 
     let tier_str = match tier {
-        Tier::SelfTier => "Self (Local Occurrences only)",
-        Tier::Family => "Family (Invisible Encrypted Routing)",
-        Tier::Community => "Community (Provenance-Visible)",
-        Tier::Affiliation => "Affiliation (Institutional, Governance)",
+        CohortScope::SelfScope => "Self (Local Occurrences only)",
+        CohortScope::Family => "Family (Invisible Encrypted Routing)",
+        CohortScope::Community => "Community (Provenance-Visible)",
+        CohortScope::Affiliation => "Affiliation (Institutional, Governance)",
     };
 
     draw_text(&format!("Current Tier: {}", tier_str), 20.0, 100.0, 24.0, WHITE);
@@ -131,10 +134,10 @@ fn draw_objective_1(tier: &Tier, progress: f32, current_objective: &mut i32) {
     let cx = screen_width() / 2.0;
 
     draw_circle(cx, 200.0, 50.0 + progress * 0.5, match tier {
-        Tier::SelfTier => GRAY,
-        Tier::Family => ORANGE,
-        Tier::Community => GREEN,
-        Tier::Affiliation => PURPLE,
+        CohortScope::SelfScope => GRAY,
+        CohortScope::Family => ORANGE,
+        CohortScope::Community => GREEN,
+        CohortScope::Affiliation => PURPLE,
     });
 
     let btn_rect = Rect::new(cx - 100.0, 300.0, 200.0, 50.0);
@@ -144,28 +147,44 @@ fn draw_objective_1(tier: &Tier, progress: f32, current_objective: &mut i32) {
     draw_rectangle(cx - 100.0, 370.0, 200.0, 20.0, DARKGRAY);
     draw_rectangle(cx - 100.0, 370.0, progress * 2.0, 20.0, YELLOW);
 
-    // Features
     draw_text("Unlocked Features:", 20.0, 420.0, 20.0, WHITE);
     draw_text("- Local Data", 40.0, 450.0, 18.0, LIGHTGRAY);
-    if *tier != Tier::SelfTier {
+    if *tier != CohortScope::SelfScope {
         draw_text("- Encrypted File Sharing", 40.0, 470.0, 18.0, ORANGE);
     }
-    if *tier == Tier::Community || *tier == Tier::Affiliation {
+    if *tier == CohortScope::Community || *tier == CohortScope::Affiliation {
         draw_text("- Social & Moderation", 40.0, 490.0, 18.0, GREEN);
     }
-    if *tier == Tier::Affiliation {
+    if *tier == CohortScope::Affiliation {
         draw_text("- Institutional Compliance", 40.0, 510.0, 18.0, PURPLE);
     }
 
     draw_back_button(current_objective);
 }
 
-fn update_objective_2(packets: &mut Vec<Node>, coherence: &mut f32, filter_active: &mut bool, dt: f32) {
+fn update_objective_2(packets: &mut Vec<Node>, engine: &mut CegEngine, filter_active: &mut bool, counter: &mut u32, dt: f32) {
     let filter_rect = Rect::new(screen_width() - 220.0, 20.0, 200.0, 40.0);
     if is_mouse_button_pressed(MouseButton::Left) {
         let mouse_pos = mouse_position();
         if filter_rect.contains(mouse_pos.into()) {
             *filter_active = !*filter_active;
+            // Update delegates_to
+            if *filter_active {
+                engine.emit(Envelope {
+                    id: format!("filter_{}", counter),
+                    attesting_key_id: "agent_node".to_string(),
+                    cohort_scope: CohortScope::Affiliation,
+                    primitive: Primitive::DelegatesTo { delegated_scope: vec!["moderate".to_string()] },
+                });
+            } else {
+                engine.emit(Envelope {
+                    id: format!("filter_off_{}", counter),
+                    attesting_key_id: "agent_node".to_string(),
+                    cohort_scope: CohortScope::Affiliation,
+                    primitive: Primitive::Withdraws { target_id: format!("filter_{}", *counter - 1) },
+                });
+            }
+            *counter += 1;
         }
     }
 
@@ -173,20 +192,43 @@ fn update_objective_2(packets: &mut Vec<Node>, coherence: &mut f32, filter_activ
         let mouse_pos: Vec2 = mouse_position().into();
         for p in packets.iter_mut() {
             if p.pos.distance(mouse_pos) < p.radius {
-                p.active = false; // "Slash"
+                p.active = false;
+                // Emit CEG withdrawal for slashed packet
+                engine.emit(Envelope {
+                    id: format!("slash_{}", counter),
+                    attesting_key_id: "user1".to_string(),
+                    cohort_scope: CohortScope::Affiliation,
+                    primitive: Primitive::Withdraws { target_id: p.envelope_id.clone() },
+                });
+                *counter += 1;
             }
         }
     }
 
-    // Spawn packets
     if rand::gen_range(0, 100) < 5 {
         let is_mal = rand::gen_range(0, 100) < 30;
+        let env_id = format!("packet_{}", counter);
+        *counter += 1;
+
         packets.push(Node {
             pos: Vec2::new(rand::gen_range(50.0, screen_width() - 50.0), -20.0),
             color: if is_mal { RED } else { GREEN },
             radius: 15.0,
             is_malicious: is_mal,
             active: true,
+            envelope_id: env_id.clone(),
+        });
+
+        // Emit underlying CEG record when generated
+        engine.emit(Envelope {
+            id: env_id,
+            attesting_key_id: "unknown".to_string(),
+            cohort_scope: CohortScope::Community,
+            primitive: Primitive::Scores {
+                dimension: if is_mal { "infohazard".to_string() } else { "good_action".to_string() },
+                score: 1.0,
+                confidence: 1.0,
+            },
         });
     }
 
@@ -201,12 +243,15 @@ fn update_objective_2(packets: &mut Vec<Node>, coherence: &mut f32, filter_activ
 
         if p.pos.distance(core_pos) < 50.0 {
             p.active = false;
-            if p.is_malicious {
-                if !*filter_active {
-                    *coherence -= 10.0; // Damage
-                }
-            } else {
-                *coherence = (*coherence + 5.0).min(100.0);
+            // If malicious and filter is ON, we slash it automatically before it hits coherence
+            if p.is_malicious && *filter_active {
+                engine.emit(Envelope {
+                    id: format!("slash_{}", counter),
+                    attesting_key_id: "agent_node".to_string(),
+                    cohort_scope: CohortScope::Affiliation,
+                    primitive: Primitive::Withdraws { target_id: p.envelope_id.clone() },
+                });
+                *counter += 1;
             }
         }
     }
@@ -214,9 +259,10 @@ fn update_objective_2(packets: &mut Vec<Node>, coherence: &mut f32, filter_activ
     packets.retain(|p| p.active);
 }
 
-fn draw_objective_2(packets: &Vec<Node>, coherence: f32, filter_active: bool, current_objective: &mut i32) {
+fn draw_objective_2(packets: &Vec<Node>, engine: &CegEngine, filter_active: bool, current_objective: &mut i32) {
     draw_text("Objective 2: The Moderation Ratchet", 20.0, 40.0, 30.0, RED);
 
+    let coherence = engine.get_coherence_score();
     draw_text(&format!("Coherence: {:.0}%", coherence), 20.0, 80.0, 24.0, if coherence > 50.0 { GREEN } else { RED });
 
     let filter_rect = Rect::new(screen_width() - 220.0, 20.0, 200.0, 40.0);
@@ -228,7 +274,6 @@ fn draw_objective_2(packets: &Vec<Node>, coherence: f32, filter_active: bool, cu
     let cx = screen_width() / 2.0;
     let cy = screen_height() - 100.0;
 
-    // Draw Core
     draw_circle(cx, cy, 50.0, BLUE);
     draw_circle_lines(cx, cy, 70.0, 2.0, if filter_active { SKYBLUE } else { BLANK });
 
