@@ -1,363 +1,370 @@
 use macroquad::prelude::*;
 mod ceg;
 use ceg::{CegEngine, CohortScope, Envelope, Primitive};
+use std::collections::HashMap;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NodeType {
+    Standard,
+    Firewall,
+    LoadBalancer,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BallType {
+    Update,
+    Hack,
+}
+
+struct Org {
+    id: usize,
+    color: Color,
+    center: Vec3,
+}
 
 struct Node {
-    pos: Vec2,
-    color: Color,
-    radius: f32,
-    is_malicious: bool,
+    id: usize,
+    org_id: usize,
+    pos: Vec3,
+    node_type: NodeType,
     active: bool,
-    envelope_id: String,
 }
 
-#[macroquad::main("CIRIS Constitution Explorer")]
-async fn main() {
-    let mut current_objective = 0; // 0 = menu, 1, 2, 3 = objectives
-    let mut engine = CegEngine::new();
+struct Tube {
+    id: usize,
+    from_node: usize,
+    to_node: usize,
+    active: bool,
+}
 
-    // Obj 1 state
-    let mut current_tier = CohortScope::SelfScope;
-    let mut tier_progress = 0.0;
+struct Ball {
+    id: usize,
+    org_id: usize,
+    ball_type: BallType,
+    from_node: usize,
+    to_node: usize,
+    progress: f32, // 0.0 to 1.0 along the tube
+    env_id: String,
+}
 
-    // Obj 2 state
-    let mut packets: Vec<Node> = Vec::new();
-    let mut filter_active = false;
-    let mut packet_id_counter = 0;
+struct GameState {
+    users: i64,
+    orgs: HashMap<usize, Org>,
+    nodes: HashMap<usize, Node>,
+    tubes: Vec<Tube>,
+    balls: Vec<Ball>,
+    engine: CegEngine,
+    next_node_id: usize,
+    next_ball_id: usize,
+    next_tube_id: usize,
+    player_org_id: usize,
+    camera_distance: f32,
+    trust_filter_active: bool,
+    env_counter: usize,
+    camera_angle: f32,
+}
 
-    // Obj 3 state
-    let mut holders = vec![
-        Vec2::new(100.0, 100.0),
-        Vec2::new(700.0, 150.0),
-        Vec2::new(400.0, 500.0)
-    ];
-    let mut selected_holder: Option<usize> = None;
-    let mut shutdown_triggered = false;
-
-    let mut last_time = get_time();
-
-    loop {
-        let dt = (get_time() - last_time) as f32;
-        last_time = get_time();
-
-        clear_background(color_u8!(20, 20, 30, 255));
-
-        if current_objective == 0 {
-            draw_menu(&mut current_objective);
-        } else if current_objective == 1 {
-            update_objective_1(&mut current_tier, &mut tier_progress, &mut engine);
-            draw_objective_1(&current_tier, tier_progress, &mut current_objective);
-        } else if current_objective == 2 {
-            update_objective_2(&mut packets, &mut engine, &mut filter_active, &mut packet_id_counter, dt);
-            draw_objective_2(&packets, &engine, filter_active, &mut current_objective);
-        } else if current_objective == 3 {
-            update_objective_3(&mut holders, &mut selected_holder, &mut shutdown_triggered);
-            draw_objective_3(&holders, shutdown_triggered, &mut current_objective);
-        }
-
-        next_frame().await;
+impl GameState {
+    fn new() -> Self {
+        let mut state = Self {
+            users: 100,
+            orgs: HashMap::new(),
+            nodes: HashMap::new(),
+            tubes: Vec::new(),
+            balls: Vec::new(),
+            engine: CegEngine::new(),
+            next_node_id: 0,
+            next_ball_id: 0,
+            next_tube_id: 0,
+            player_org_id: 0,
+            camera_distance: 20.0,
+            trust_filter_active: false,
+            env_counter: 0,
+            camera_angle: 0.0,
+        };
+        state.init_world();
+        state
     }
-}
 
-fn draw_menu(current_objective: &mut i32) {
-    draw_text("CIRIS Constitution Explorer", 50.0, 50.0, 40.0, WHITE);
+    fn init_world(&mut self) {
+        // Player Org
+        self.orgs.insert(0, Org { id: 0, color: BLUE, center: Vec3::ZERO });
+        self.add_node(0, Vec3::new(0.0, 0.0, 0.0), NodeType::Standard);
 
-    let w = screen_width();
+        // External Orgs
+        let colors = [RED, GREEN, YELLOW, PURPLE];
+        for i in 1..=4 {
+            let angle = (i as f32) * std::f32::consts::PI / 2.0;
+            let dist = 15.0;
+            let center = Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
+            self.orgs.insert(i, Org { id: i, color: colors[i-1], center });
 
-    let btn_w = 400.0;
-    let btn_h = 50.0;
-    let btn_x = (w - btn_w) / 2.0;
-
-    let obj1_rect = Rect::new(btn_x, 150.0, btn_w, btn_h);
-    let obj2_rect = Rect::new(btn_x, 220.0, btn_w, btn_h);
-    let obj3_rect = Rect::new(btn_x, 290.0, btn_w, btn_h);
-
-    draw_rectangle(obj1_rect.x, obj1_rect.y, obj1_rect.w, obj1_rect.h, BLUE);
-    draw_text("1. Scope Expansion", obj1_rect.x + 10.0, obj1_rect.y + 32.0, 30.0, WHITE);
-
-    draw_rectangle(obj2_rect.x, obj2_rect.y, obj2_rect.w, obj2_rect.h, RED);
-    draw_text("2. The Moderation Ratchet", obj2_rect.x + 10.0, obj2_rect.y + 32.0, 30.0, WHITE);
-
-    draw_rectangle(obj3_rect.x, obj3_rect.y, obj3_rect.w, obj3_rect.h, GREEN);
-    draw_text("3. The Humanity Accord", obj3_rect.x + 10.0, obj3_rect.y + 32.0, 30.0, WHITE);
-
-    if is_mouse_button_pressed(MouseButton::Left) {
-        let mouse_pos = mouse_position();
-        if obj1_rect.contains(mouse_pos.into()) {
-            *current_objective = 1;
-        } else if obj2_rect.contains(mouse_pos.into()) {
-            *current_objective = 2;
-        } else if obj3_rect.contains(mouse_pos.into()) {
-            *current_objective = 3;
+            let ext_node = self.add_node(i, center, NodeType::Standard);
+            // Connect to player core
+            let tube_id = self.next_tube_id;
+            self.next_tube_id += 1;
+            self.tubes.push(Tube { id: tube_id, from_node: ext_node, to_node: 0, active: true });
         }
     }
-}
 
-fn update_objective_1(tier: &mut CohortScope, progress: &mut f32, engine: &mut CegEngine) {
-    let btn_rect = Rect::new(screen_width() / 2.0 - 100.0, 300.0, 200.0, 50.0);
-    if is_mouse_button_pressed(MouseButton::Left) {
-        let mouse_pos = mouse_position();
-        if btn_rect.contains(mouse_pos.into()) {
-            engine.emit(Envelope {
-                id: format!("action_{}", rand::rand()),
-                attesting_key_id: "user1".to_string(),
-                cohort_scope: tier.clone(),
-                primitive: Primitive::Scores { dimension: "activity".to_string(), score: 1.0, confidence: 1.0 },
-            });
+    fn add_node(&mut self, org_id: usize, pos: Vec3, node_type: NodeType) -> usize {
+        let id = self.next_node_id;
+        self.next_node_id += 1;
+        self.nodes.insert(id, Node { id, org_id, pos, node_type, active: true });
+        id
+    }
 
-            *progress += 20.0;
-            if *progress >= 100.0 {
-                *progress = 0.0;
-                *tier = match tier {
-                    CohortScope::SelfScope => CohortScope::Family,
-                    CohortScope::Family => CohortScope::Community,
-                    CohortScope::Community => CohortScope::Affiliation,
-                    CohortScope::Affiliation => CohortScope::Affiliation,
-                };
+    fn spawn_ball(&mut self, org_id: usize) {
+        let org_node = self.nodes.values().find(|n| n.org_id == org_id).unwrap().id;
+
+        // Find a random active player node that is connected
+        let mut possible_targets = Vec::new();
+        for tube in &self.tubes {
+            if tube.active && tube.from_node == org_node {
+                if let Some(target) = self.nodes.get(&tube.to_node) {
+                    if target.active {
+                        possible_targets.push(target.id);
+                    }
+                }
             }
         }
-    }
-}
 
-fn draw_objective_1(tier: &CohortScope, progress: f32, current_objective: &mut i32) {
-    draw_text("Objective 1: Scope Expansion", 20.0, 40.0, 30.0, BLUE);
+        if possible_targets.is_empty() { return; }
 
-    let tier_str = match tier {
-        CohortScope::SelfScope => "Self (Local Occurrences only)",
-        CohortScope::Family => "Family (Invisible Encrypted Routing)",
-        CohortScope::Community => "Community (Provenance-Visible)",
-        CohortScope::Affiliation => "Affiliation (Institutional, Governance)",
-    };
+        let player_node = possible_targets[rand::gen_range(0, possible_targets.len())];
 
-    draw_text(&format!("Current Tier: {}", tier_str), 20.0, 100.0, 24.0, WHITE);
+        let is_hack = rand::gen_range(0, 100) < 30;
+        let env_id = format!("packet_{}", self.env_counter);
+        self.env_counter += 1;
 
-    let cx = screen_width() / 2.0;
-
-    draw_circle(cx, 200.0, 50.0 + progress * 0.5, match tier {
-        CohortScope::SelfScope => GRAY,
-        CohortScope::Family => ORANGE,
-        CohortScope::Community => GREEN,
-        CohortScope::Affiliation => PURPLE,
-    });
-
-    let btn_rect = Rect::new(cx - 100.0, 300.0, 200.0, 50.0);
-    draw_rectangle(btn_rect.x, btn_rect.y, btn_rect.w, btn_rect.h, BLUE);
-    draw_text("Generate Occurrences", btn_rect.x + 10.0, btn_rect.y + 30.0, 18.0, WHITE);
-
-    draw_rectangle(cx - 100.0, 370.0, 200.0, 20.0, DARKGRAY);
-    draw_rectangle(cx - 100.0, 370.0, progress * 2.0, 20.0, YELLOW);
-
-    draw_text("Unlocked Features:", 20.0, 420.0, 20.0, WHITE);
-    draw_text("- Local Data", 40.0, 450.0, 18.0, LIGHTGRAY);
-    if *tier != CohortScope::SelfScope {
-        draw_text("- Encrypted File Sharing", 40.0, 470.0, 18.0, ORANGE);
-    }
-    if *tier == CohortScope::Community || *tier == CohortScope::Affiliation {
-        draw_text("- Social & Moderation", 40.0, 490.0, 18.0, GREEN);
-    }
-    if *tier == CohortScope::Affiliation {
-        draw_text("- Institutional Compliance", 40.0, 510.0, 18.0, PURPLE);
-    }
-
-    draw_back_button(current_objective);
-}
-
-fn update_objective_2(packets: &mut Vec<Node>, engine: &mut CegEngine, filter_active: &mut bool, counter: &mut u32, dt: f32) {
-    let filter_rect = Rect::new(screen_width() - 220.0, 20.0, 200.0, 40.0);
-    if is_mouse_button_pressed(MouseButton::Left) {
-        let mouse_pos = mouse_position();
-        if filter_rect.contains(mouse_pos.into()) {
-            *filter_active = !*filter_active;
-            // Update delegates_to
-            if *filter_active {
-                engine.emit(Envelope {
-                    id: format!("filter_{}", counter),
-                    attesting_key_id: "agent_node".to_string(),
-                    cohort_scope: CohortScope::Affiliation,
-                    primitive: Primitive::DelegatesTo { delegated_scope: vec!["moderate".to_string()] },
-                });
-            } else {
-                engine.emit(Envelope {
-                    id: format!("filter_off_{}", counter),
-                    attesting_key_id: "agent_node".to_string(),
-                    cohort_scope: CohortScope::Affiliation,
-                    primitive: Primitive::Withdraws { target_id: format!("filter_{}", *counter - 1) },
-                });
-            }
-            *counter += 1;
-        }
-    }
-
-    if is_mouse_button_pressed(MouseButton::Left) {
-        let mouse_pos: Vec2 = mouse_position().into();
-        for p in packets.iter_mut() {
-            if p.pos.distance(mouse_pos) < p.radius {
-                p.active = false;
-                // Emit CEG withdrawal for slashed packet
-                engine.emit(Envelope {
-                    id: format!("slash_{}", counter),
-                    attesting_key_id: "user1".to_string(),
-                    cohort_scope: CohortScope::Affiliation,
-                    primitive: Primitive::Withdraws { target_id: p.envelope_id.clone() },
-                });
-                *counter += 1;
-            }
-        }
-    }
-
-    if rand::gen_range(0, 100) < 5 {
-        let is_mal = rand::gen_range(0, 100) < 30;
-        let env_id = format!("packet_{}", counter);
-        *counter += 1;
-
-        packets.push(Node {
-            pos: Vec2::new(rand::gen_range(50.0, screen_width() - 50.0), -20.0),
-            color: if is_mal { RED } else { GREEN },
-            radius: 15.0,
-            is_malicious: is_mal,
-            active: true,
-            envelope_id: env_id.clone(),
+        self.balls.push(Ball {
+            id: self.next_ball_id,
+            org_id,
+            ball_type: if is_hack { BallType::Hack } else { BallType::Update },
+            from_node: org_node,
+            to_node: player_node,
+            progress: 0.0,
+            env_id: env_id.clone(),
         });
+        self.next_ball_id += 1;
 
-        // Emit underlying CEG record when generated
-        engine.emit(Envelope {
+        // Emit underlying CEG
+        self.engine.emit(Envelope {
             id: env_id,
-            attesting_key_id: "unknown".to_string(),
+            attesting_key_id: format!("org_{}", org_id),
             cohort_scope: CohortScope::Community,
             primitive: Primitive::Scores {
-                dimension: if is_mal { "infohazard".to_string() } else { "good_action".to_string() },
+                dimension: if is_hack { "infohazard".to_string() } else { "good_action".to_string() },
                 score: 1.0,
                 confidence: 1.0,
             },
         });
     }
 
-    let cx = screen_width() / 2.0;
-    let cy = screen_height() - 100.0;
-    let core_pos = Vec2::new(cx, cy);
+    fn apply_firewall(&mut self, tube_id: usize) {
+        if let Some(tube) = self.tubes.iter_mut().find(|t| t.id == tube_id) {
+            tube.active = false;
+        }
+    }
+}
 
-    for p in packets.iter_mut() {
-        if !p.active { continue; }
-        let dir = (core_pos - p.pos).normalize();
-        p.pos += dir * 100.0 * dt;
+// Function to find closest point on line segment
+fn closest_point_on_segment(p: Vec3, a: Vec3, b: Vec3) -> Vec3 {
+    let ap = p - a;
+    let ab = b - a;
+    let ab2 = ab.x*ab.x + ab.y*ab.y + ab.z*ab.z;
+    let ap_ab = ap.x*ab.x + ap.y*ab.y + ap.z*ab.z;
+    let mut t = ap_ab / ab2;
+    if t < 0.0 { t = 0.0; }
+    else if t > 1.0 { t = 1.0; }
+    a + ab * t
+}
 
-        if p.pos.distance(core_pos) < 50.0 {
-            p.active = false;
-            // If malicious and filter is ON, we slash it automatically before it hits coherence
-            if p.is_malicious && *filter_active {
-                engine.emit(Envelope {
-                    id: format!("slash_{}", counter),
-                    attesting_key_id: "agent_node".to_string(),
-                    cohort_scope: CohortScope::Affiliation,
-                    primitive: Primitive::Withdraws { target_id: p.envelope_id.clone() },
-                });
-                *counter += 1;
+#[macroquad::main("CIRIS Constitution Explorer 3D")]
+async fn main() {
+    let mut state = GameState::new();
+    let mut last_time = get_time();
+
+    loop {
+        let dt = (get_time() - last_time) as f32;
+        last_time = get_time();
+
+        clear_background(color_u8!(10, 10, 15, 255));
+
+        let max_users: i64 = 8_000_000_000;
+        if state.users > max_users {
+            state.users = max_users;
+        }
+
+        state.camera_angle += 0.1 * dt;
+
+        let scale_factor = (state.users as f32 / 100.0).max(1.0).log2();
+        state.camera_distance = 20.0 + scale_factor * 8.0;
+
+        let cam_pos = vec3(
+            state.camera_angle.cos() * state.camera_distance,
+            state.camera_distance * 0.8,
+            state.camera_angle.sin() * state.camera_distance,
+        );
+        let cam_target = vec3(0.0, 0.0, 0.0);
+        let cam_up = vec3(0.0, 1.0, 0.0);
+
+        let required_player_nodes = (state.users / 10).max(1) as usize;
+        let current_player_nodes = state.nodes.values().filter(|n| n.org_id == 0 && n.active).count();
+
+        if current_player_nodes < required_player_nodes {
+            let angle = rand::gen_range(0.0, std::f32::consts::PI * 2.0);
+            let dist = rand::gen_range(2.0, 5.0 + scale_factor);
+            let pos = Vec3::new(angle.cos() * dist, rand::gen_range(-2.0, 2.0), angle.sin() * dist);
+            let new_node = state.add_node(0, pos, NodeType::Standard);
+
+            let tube_id = state.next_tube_id;
+            state.next_tube_id += 1;
+            state.tubes.push(Tube { id: tube_id, from_node: new_node, to_node: 0, active: true });
+
+            // Connect this new node to a random external org to increase packet flow
+            let rand_org = rand::gen_range(1, 5);
+            if let Some(ext_node) = state.nodes.values().find(|n| n.org_id == rand_org) {
+                let tube_id2 = state.next_tube_id;
+                state.next_tube_id += 1;
+                state.tubes.push(Tube { id: tube_id2, from_node: ext_node.id, to_node: new_node, active: true });
             }
         }
-    }
 
-    packets.retain(|p| p.active);
-}
-
-fn draw_objective_2(packets: &Vec<Node>, engine: &CegEngine, filter_active: bool, current_objective: &mut i32) {
-    draw_text("Objective 2: The Moderation Ratchet", 20.0, 40.0, 30.0, RED);
-
-    let coherence = engine.get_coherence_score();
-    draw_text(&format!("Coherence: {:.0}%", coherence), 20.0, 80.0, 24.0, if coherence > 50.0 { GREEN } else { RED });
-
-    let filter_rect = Rect::new(screen_width() - 220.0, 20.0, 200.0, 40.0);
-    draw_rectangle(filter_rect.x, filter_rect.y, filter_rect.w, filter_rect.h, if filter_active { BLUE } else { DARKGRAY });
-    draw_text("Toggle Trust Filter", filter_rect.x + 10.0, filter_rect.y + 25.0, 18.0, WHITE);
-
-    draw_text("Click RED infohazards to slash them!", 20.0, 110.0, 18.0, LIGHTGRAY);
-
-    let cx = screen_width() / 2.0;
-    let cy = screen_height() - 100.0;
-
-    draw_circle(cx, cy, 50.0, BLUE);
-    draw_circle_lines(cx, cy, 70.0, 2.0, if filter_active { SKYBLUE } else { BLANK });
-
-    for p in packets {
-        if p.active {
-            draw_circle(p.pos.x, p.pos.y, p.radius, p.color);
+        if rand::gen_range(0, 100) < 5 + scale_factor as i32 {
+            let rand_org = rand::gen_range(1, 5);
+            state.spawn_ball(rand_org);
         }
-    }
 
-    if coherence <= 0.0 {
-        draw_text("COHERENCE LOST. SHUTDOWN.", cx - 150.0, cy - 80.0, 30.0, RED);
-    }
-
-    draw_back_button(current_objective);
-}
-
-fn update_objective_3(holders: &mut Vec<Vec2>, selected: &mut Option<usize>, triggered: &mut bool) {
-    let mouse_pos: Vec2 = mouse_position().into();
-
-    if is_mouse_button_pressed(MouseButton::Left) {
-        *selected = None;
-        for (i, h) in holders.iter().enumerate() {
-            if h.distance(mouse_pos) < 30.0 {
-                *selected = Some(i);
-                break;
+        if is_mouse_button_pressed(MouseButton::Left) {
+            let mouse_pos = mouse_position();
+            let filter_rect = Rect::new(screen_width() - 220.0, 20.0, 200.0, 40.0);
+            if filter_rect.contains(mouse_pos.into()) {
+                state.trust_filter_active = !state.trust_filter_active;
+            } else {
+                // Raycast to sever tubes (Firewall / Slashing)
+                // Simplified clicking: since we lack complex 3D raycasting easily in macroquad 3D right now,
+                // we'll randomly slash a tube if we click on the left side of the screen as a demo mechanic
+                if mouse_pos.0 < 200.0 {
+                    // find a random active tube from external to internal
+                    for tube in state.tubes.iter_mut() {
+                        if tube.active && tube.to_node != 0 {
+                            tube.active = false;
+                            break;
+                        }
+                    }
+                }
             }
         }
-    }
 
-    if is_mouse_button_down(MouseButton::Left) {
-        if let Some(idx) = *selected {
-            holders[idx] = mouse_pos;
+        // Update Balls
+        let mut balls_to_remove = Vec::new();
+        for i in 0..state.balls.len() {
+            let ball = &mut state.balls[i];
+
+            // Check if tube is severed
+            let mut tube_active = false;
+            for tube in &state.tubes {
+                if tube.from_node == ball.from_node && tube.to_node == ball.to_node && tube.active {
+                    tube_active = true;
+                }
+            }
+
+            if !tube_active {
+                // Ball drops/dies
+                balls_to_remove.push(i);
+                continue;
+            }
+
+            ball.progress += 0.2 * dt;
+
+            if ball.progress >= 1.0 {
+                balls_to_remove.push(i);
+
+                match ball.ball_type {
+                    BallType::Update => {
+                        state.users += 5;
+                    },
+                    BallType::Hack => {
+                        if !state.trust_filter_active {
+                            state.users -= 10;
+                            if state.users < 0 {
+                                state.users = 0;
+                            }
+                        } else {
+                            state.engine.emit(Envelope {
+                                id: format!("slash_{}", state.env_counter),
+                                attesting_key_id: "agent_node".to_string(),
+                                cohort_scope: CohortScope::Affiliation,
+                                primitive: Primitive::Withdraws { target_id: ball.env_id.clone() },
+                            });
+                            state.env_counter += 1;
+                        }
+                    }
+                }
+            }
         }
-    }
-
-    let cx = screen_width() / 2.0;
-    let cy = screen_height() / 2.0;
-    let core = Vec2::new(cx, cy);
-
-    let mut in_core = 0;
-    for h in holders.iter() {
-        if h.distance(core) < 60.0 {
-            in_core += 1;
+        for idx in balls_to_remove.iter().rev() {
+            state.balls.remove(*idx);
         }
-    }
 
-    if in_core >= 2 {
-        *triggered = true;
-    } else {
-        *triggered = false;
-    }
-}
+        // 3D Rendering
+        set_camera(&Camera3D {
+            position: cam_pos,
+            up: cam_up,
+            target: cam_target,
+            ..Default::default()
+        });
 
-fn draw_objective_3(holders: &Vec<Vec2>, triggered: bool, current_objective: &mut i32) {
-    draw_text("Objective 3: The Humanity Accord", 20.0, 40.0, 30.0, GREEN);
-    draw_text("Drag 2 of 3 Accord Holders to the Core to trigger CONSTITUTIONAL halt.", 20.0, 70.0, 18.0, WHITE);
+        draw_grid(20, 1.0, DARKGRAY, GRAY);
 
-    let cx = screen_width() / 2.0;
-    let cy = screen_height() / 2.0;
-
-    draw_circle(cx, cy, 60.0, if triggered { RED } else { DARKGRAY });
-    draw_text("CORE", cx - 25.0, cy + 5.0, 20.0, WHITE);
-
-    for (i, h) in holders.iter().enumerate() {
-        draw_circle(h.x, h.y, 30.0, YELLOW);
-        draw_text(&format!("H{}", i+1), h.x - 12.0, h.y + 6.0, 20.0, BLACK);
-    }
-
-    if triggered {
-        draw_text("CONSTITUTIONAL HALT INITIATED! 2-of-3 Multi-sig verified.", 20.0, 120.0, 24.0, RED);
-    }
-
-    draw_back_button(current_objective);
-}
-
-fn draw_back_button(current_objective: &mut i32) {
-    let back_rect = Rect::new(20.0, screen_height() - 60.0, 100.0, 40.0);
-    draw_rectangle(back_rect.x, back_rect.y, back_rect.w, back_rect.h, DARKGRAY);
-    draw_text("Back", back_rect.x + 20.0, back_rect.y + 25.0, 20.0, WHITE);
-
-    if is_mouse_button_pressed(MouseButton::Left) {
-        let mouse_pos = mouse_position();
-        if back_rect.contains(mouse_pos.into()) {
-            *current_objective = 0;
+        for tube in &state.tubes {
+            if !tube.active { continue; }
+            if let (Some(n1), Some(n2)) = (state.nodes.get(&tube.from_node), state.nodes.get(&tube.to_node)) {
+                if n1.active && n2.active {
+                    draw_line_3d(n1.pos, n2.pos, color_u8!(100, 100, 100, 100));
+                }
+            }
         }
+
+        for ball in &state.balls {
+            if let (Some(n1), Some(n2)) = (state.nodes.get(&ball.from_node), state.nodes.get(&ball.to_node)) {
+                let current_pos = n1.pos.lerp(n2.pos, ball.progress);
+                let color = match ball.ball_type {
+                    BallType::Update => GREEN,
+                    BallType::Hack => RED,
+                };
+                draw_sphere(current_pos, 0.3, None, color);
+            }
+        }
+
+        for node in state.nodes.values() {
+            if node.active {
+                let color = state.orgs.get(&node.org_id).unwrap().color;
+                let radius = match node.node_type {
+                    NodeType::Standard => 0.5,
+                    NodeType::Firewall => 0.8,
+                    NodeType::LoadBalancer => 0.7,
+                };
+                draw_sphere(node.pos, radius, None, color);
+            }
+        }
+
+        // Back to 2D for UI
+        set_default_camera();
+
+        draw_text(&format!("Users: {}", state.users), 20.0, 40.0, 30.0, WHITE);
+
+        let filter_rect = Rect::new(screen_width() - 220.0, 20.0, 200.0, 40.0);
+        draw_rectangle(filter_rect.x, filter_rect.y, filter_rect.w, filter_rect.h, if state.trust_filter_active { BLUE } else { DARKGRAY });
+        draw_text("Toggle Trust Filter", filter_rect.x + 10.0, filter_rect.y + 25.0, 18.0, WHITE);
+
+        draw_text("Click Left Screen to SLASH active external tubes", 20.0, screen_height() - 30.0, 20.0, LIGHTGRAY);
+
+        if state.users <= 0 {
+            draw_text("NETWORK COLLAPSE", screen_width() / 2.0 - 150.0, screen_height() / 2.0, 40.0, RED);
+        }
+
+        next_frame().await;
     }
 }
