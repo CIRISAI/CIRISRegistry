@@ -289,7 +289,7 @@ Any stakeholder believing that a CIRIS compliant creator's actions or omissions 
 Such claims, often referred to as "Creator Negligence Claims" (CNCs), fall under the exclusive jurisdiction of the Wise Authority (WA), as established and governed by Annex B.
 The WA will handle these claims according to its established procedures, potentially adapting specific processes or requiring specific panel expertise as outlined in Annex B or its procedural rules.
 Remedies determined by the WA may include mandated redesign, additional mitigation measures, public disclosure, restitution where applicable, or other actions consistent with Annex B and the Covenant's principles.
-All WA rulings and associated rationale concerning claims related to Book VI duties must be logged in the Wisdom Bank Database (WBD) to inform future interpretations, guide creator practices, and contribute to the Continuous Refinement Environment (CRE).
+All WA rulings and associated rationale concerning claims related to Book VI duties must be logged in the Wisdom Bank Database (WBDB — the durable store of WA rulings and contestability records; distinct from Wisdom-Based Deferral / WBD, see [CC 1.9](part_1_foundation.md)) to inform future interpretations, guide creator practices, and contribute to the Continuous Refinement Environment.
 
 ### 7.3.6 `integrating-creation` — Conclusion: Integrating Creation into the Ethical Lifecycle
 

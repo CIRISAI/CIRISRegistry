@@ -369,6 +369,10 @@ CEG envelope signing bytes are computed via **JCS — JSON Canonicalization Sche
 
 A CEG-Conforming Producer MUST produce signing bytes via JCS over the envelope object. A CEG-Conforming Consumer (CCC) MUST recompute signing bytes via the same JCS rule for signature verification. A CEG-Conforming Substrate (CCS) MUST preserve the as-received envelope object bytes for relay (per the round-trip rule above); it MAY store a parsed representation alongside, but the canonical-bytes contract is against the as-received form, not the parsed-and-re-serialized form.
 
+
+
+**Number totality (normative).** RFC 8785 §3.2.2.3 fixes the number model as the IEEE-754 binary64 (ECMAScript `Number`) image. A CCP MUST coerce every numeric value to its finite IEEE-754 double image *before* computing JCS bytes, and MUST reject — with a hard error, never a fallback or best-effort hash — any number that has no finite double (overflow to ±Infinity, e.g. `1e1000` or a thousand-digit integer). An implementation built against an arbitrary-precision JSON parser otherwise admits a string-backed number that bypasses the double model: JCS then emits a non-canonical result and the content address silently diverges between peers — the same non-determinism-is-broken hazard class as the byte-field and timestamp rules of [CC 2.6.1.1.1](#2.6.1.1.1). With this rule a content address is always either the spec-canonical hash or an honest error, never a wrong-but-plausible one, in any parser feature configuration. The cross-impl JCS vector set MUST include a non-representable-number case (a value with no finite double, asserted to reject) under both default and arbitrary-precision parser builds.
+
 #### 2.6.1.4 `worked` — Worked attack the rule closes
 
 Without the rule (implicit / unspecified) failure mode:

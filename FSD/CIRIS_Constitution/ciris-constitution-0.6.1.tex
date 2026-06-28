@@ -83,7 +83,7 @@
 \newunicodechar{└}{+}
 \newunicodechar{⟶}{$\longrightarrow$}
 \title{\vspace{-1cm}\Huge\bfseries\color{accent}The CIRIS Constitution\\[10pt]
-\normalsize\mdseries Version 0.6\\[6pt]\itshape Stewarded by Eric Moore}
+\normalsize\mdseries Version 0.6.1\\[6pt]\itshape Stewarded by Eric Moore}
 \author{}\date{}
 \begin{document}
 \maketitle\thispagestyle{empty}
@@ -356,6 +356,9 @@ The crucial constraint is in the second sentence: making the world more orderly 
 The six core principles below and this meta-goal together define the moral compass. They are mutually reinforcing; no single principle grants licence to violate another.
 
 
+\textbf{Two listings, one meaning.} The six principles appear twice: here in §1 as the narrative moral compass, and at CC 3.1.5.2 as the wire-attestable \texttt{accord-principle:*} dimension prefixes. The §3.1.5.2 listing is the \textbf{wire-normative} one — an implementer attests against those prefixes. Both listings carry the same \textbf{agent-layer} meaning: these are agent values, recorded as attestable M-1 dimensions, not properties of the substrate.
+
+
 \subsection*{1.2 \texttt{admission} — The four-test prefix-admission gate}
 
 
@@ -455,6 +458,11 @@ The principles answer \textit{what} matters; the Principled Decision-Making Algo
 The Order-Maximisation Veto in step 2 is M-1's order-must-carry-life guard made procedural: a ten-to-one efficiency win over any flourishing axis is not a green light, it is a stop sign.
 
 
+
+
+\textbf{Layer ruling — the Veto is agent reasoning, not a fabric gate.} The PDMA is wholly an agent-layer procedure, and the Order-Maximisation Veto lives inside it: the agent computes it, because predicting an entropy-reduction benefit against any loss in autonomy, justice, biodiversity, or preference diversity requires the agent's world-model, which the substrate does not hold. The substrate MUST NOT be relied on to perform or enforce the Veto. Its "stop sign" force is \textbf{normative} — the agent MUST abort the action or trigger WBD — not mechanically gated by the transport. The fabric's only role is \textbf{attestation}: it records, and lets others verify, \textit{that} the PDMA (including the Veto check) was executed — the redacted PDMA logs and WBD tickets of step 6 above. Auditability is fabric; the judgment is the agent's. This is the canonical resolution for the analogous fabric/agent seams: where an operation turns on a value judgment over an agent's world-model, it is agent reasoning that the fabric attests, not a fabric gate.
+
+
 \subsection*{1.4 \texttt{autonomy} — Respect for Autonomy}
 
 
@@ -506,7 +514,7 @@ The federation has exactly \textbf{one workhorse attestation primitive + four st
 \textbf{Future extensions are dimension prefixes or envelope fields, not new structural primitives.} Proposals to expand the 1+4 set face a high evidentiary bar and route through the CC 4.5.1 amendment process. A successful refutation requires either: (a) demonstrating an operational claim that cannot be expressed via the existing 1+4 set plus envelope composition, OR (b) demonstrating a structural-primitive consolidation that reduces below 1+4 without loss.
 
 
-\textbf{The standing falsification target (named, so the claim is a real bet).} The strongest current candidate for "a genuinely important domain not naturally expressible in 1+4" is \textbf{atomic fair exchange / bilateral simultaneity} — atomic content-for-payment, atomic swaps, simultaneous mutual commitment. CEG attestations are \textit{unilateral, monotonic} graph claims; fair exchange is classically impossible without a trusted third party or a totally-ordered ledger (Even–Goldreich–Lempel). CEG does \textbf{not} express it in-grammar — it \textbf{bridges} atomicity to an external settlement rail (CC 3.3.10 \texttt{settlement} over a chain) and records only the after-the-fact trust claim. That is the honest boundary: the first domain where 1+4 reaches for something outside itself. The claim "1+4 is adequate for the federation's claims" survives \textit{because} fair exchange is treated as out-of-grammar (a bridge, not a primitive); it would be \textbf{refuted} by either (i) a natural in-grammar expression of fair exchange, or (ii) a federation-critical domain that resists even bridging. Adversarial reviewers: this is the test to push on.
+\textbf{The standing falsification target (named, so the claim is a real bet).} The standing target is the \textbf{trustless, third-party-free atomic swap} — bilateral simultaneity with commit-or-abort against \textbf{all} parties \textbf{including any escrow}, achieved \textbf{without} a trusted third party \textbf{and without} a totally-ordered ledger (the HTLC / atomic-swap class). This, and only this, is out-of-grammar: CEG attestations are \textit{unilateral and monotonic}, with no two-phase-commit primitive, and value transfer rides external rails (CC 3.3.10). The classical impossibility (Even–Goldreich–Lempel) holds precisely \textit{because} there is no trusted third party or totally-ordered ledger — a premise CIRIS does not share, since 1+4 always supplies an accountable adjudicator (the named-moderator existence invariant CC 4.5.4, Wise Authorities + WBD CC 4.3 / CC 1.9). \textbf{Fair exchange via accountable adjudication ("optimistic fair exchange") is therefore expressible in-grammar by composition}: bilateral ratification (CC 3.3.5) for offer/accept; a steward-bound escrow custodian (the CC 4.4.3.2.8 \texttt{archive\_custody} pattern) authorized by \texttt{delegates\_to} (CC 2.4.1.2) emitting \texttt{key\_grant}s (CC 3.3.2) for the digital leg; the always-present named-moderator / WA adjudicator (CC 4.5.4 / CC 4.3) for disputes; and \texttt{commitment\_fulfillment} + \texttt{slashing} + \texttt{stake} (CC 3.1.9.2 / CC 3.1.9.3 / CC 2.4.2) for defection. The residual bridges are the value leg (CC 3.3.10) and physical delivery — neither fair-exchange-specific. \textbf{1+4 buys accountability, not cryptographic atomicity}: a colluding escrow can still defect (after-the-fact redress, not prevention; a revealed \texttt{key\_grant} cannot be un-revealed), so the one domain that reaches outside itself is atomic simultaneity, not commerce. The claim "1+4 is adequate for the federation's claims" survives \textit{because} the trustless atomic swap is treated as out-of-grammar (a bridge, not a primitive); it would be \textbf{refuted} by either (i) a natural in-grammar expression of the trustless atomic swap, or (ii) a federation-critical domain that resists even bridging. Adversarial reviewers: this is the test to push on.
 
 
 \subsection*{1.8 \texttt{integrity} — Integrity}
@@ -1631,6 +1639,11 @@ CEG envelope signing bytes are computed via \textbf{JCS — JSON Canonicalizatio
 
 
 A CEG-Conforming Producer MUST produce signing bytes via JCS over the envelope object. A CEG-Conforming Consumer (CCC) MUST recompute signing bytes via the same JCS rule for signature verification. A CEG-Conforming Substrate (CCS) MUST preserve the as-received envelope object bytes for relay (per the round-trip rule above); it MAY store a parsed representation alongside, but the canonical-bytes contract is against the as-received form, not the parsed-and-re-serialized form.
+
+
+
+
+\textbf{Number totality (normative).} RFC 8785 §3.2.2.3 fixes the number model as the IEEE-754 binary64 (ECMAScript \texttt{Number}) image. A CCP MUST coerce every numeric value to its finite IEEE-754 double image \textit{before} computing JCS bytes, and MUST reject — with a hard error, never a fallback or best-effort hash — any number that has no finite double (overflow to ±Infinity, e.g. \texttt{1e1000} or a thousand-digit integer). An implementation built against an arbitrary-precision JSON parser otherwise admits a string-backed number that bypasses the double model: JCS then emits a non-canonical result and the content address silently diverges between peers — the same non-determinism-is-broken hazard class as the byte-field and timestamp rules of CC 2.6.1.1.1. With this rule a content address is always either the spec-canonical hash or an honest error, never a wrong-but-plausible one, in any parser feature configuration. The cross-impl JCS vector set MUST include a non-representable-number case (a value with no finite double, asserted to reject) under both default and arbitrary-precision parser builds.
 
 
 \paragraph{2.6.1.4 \texttt{worked} — Worked attack the rule closes}\mbox{}\\
@@ -3078,6 +3091,45 @@ It rides the same admission gate as a bare \texttt{scores} on \texttt{consent:st
 \end{lstlisting}
 
 The structural primitives close the bilateral shape — no new attestation\_type, no new envelope field beyond \texttt{subject\_key\_ids} itself.
+
+
+
+
+\paragraph{3.3.5.1 \texttt{fair-exchange} — Optimistic fair exchange (worked example, no new primitive)}\mbox{}\\
+
+
+This worked example promotes the CC 1.7 in-grammar claim from \textit{implied-by-scattered-clauses} to \textbf{normative}: accountable ("optimistic") fair exchange — a digital good D traded for a settlement S, with adjudicated recourse — composes entirely from the existing 1+4 set plus the bilateral pair pattern above. The trustless, third-party-free atomic swap (HTLC-class) remains the CC 1.7 standing falsification target; this pattern does \textbf{not} reach it. Offeror A and acceptor B exchange across a steward-bound escrow custodian E, with the always-present named-moderator / WA as the optimistic third party invoked only on dispute (WBD applied to exchange).
+
+
+\begin{lstlisting}
+1. OFFER / ACCEPT -- bilateral ratification (the CC 3.3.5 bilateral pair above,
+ CC 2.3.2.4 consumer-policy ratification):
+ A emits consent_record(stance: granted, bilateral_pair_id: X)
+ + scores on `consent:partnership_grant:v1`
+ B emits consent_record(target_key_id: A, stance: granted, bilateral_pair_id: X)
+ + scores on `consent:partnership_accept:v1`
+ topical_relation:bilateral_pair links the halves; ratified iff both present.
+
+2. DIGITAL LEG -- steward-bound escrow custodian (the CC 4.4.3.2 archive_custody
+ precedent: a custodian holding per-epoch keys decoupled from the live roster):
+ A authorizes E via delegates_to (CC 2.4.1.2) scoped to release-of-D.
+ On confirmed S, E emits a key_grant (CC 3.3.2) to B -- the release.
+
+3. VALUE LEG -- settlement (CC 3.3.10), off-stack on an external rail:
+ a settlement attestation binds S to the ratified pair
+ (settled_action_ref = the offer/accept Contribution).
+
+4. DISPUTE -- optimistic adjudication: absent dispute, parties + E complete
+ unilaterally (the optimistic path); on dispute the named-moderator
+ (CC 4.5.4) / WA (CC 4.3) adjudicates and a hard_case:* event records it.
+
+5. DEFECTION -- accountable recourse: non-delivery composes as a
+ commitment_fulfillment (CC 3.1.9.2) shortfall; a PROVEN_ROGUE
+ slashing:{outcome} (CC 3.1.9.2) against staked standing (the CC 2.5 stake
+ axis) follows on WA quorum.
+\end{lstlisting}
+
+\textbf{What this buys, and what it does not.} 1+4 buys \textbf{accountability, not atomicity}: a malicious or colluding escrow can still defect (after-the-fact redress is not prevention), and a revealed \texttt{key\_grant} (CC 3.3.2) is forward-only — it cannot be un-revealed. The residual bridges are the value leg (CC 3.3.10) and physical delivery, neither fair-exchange-specific. No new attestation\_type and no new envelope field — the CC 1.7 1+4 lockdown holds.
 
 
 \subsubsection*{3.3.6 \texttt{identity} — \texttt{identity\_occurrence} subject\_kind}
@@ -7935,7 +7987,7 @@ The WA will handle these claims according to its established procedures, potenti
 
 Remedies determined by the WA may include mandated redesign, additional mitigation measures, public disclosure, restitution where applicable, or other actions consistent with Annex B and the Covenant's principles.
 
-All WA rulings and associated rationale concerning claims related to Book VI duties must be logged in the Wisdom Bank Database (WBD) to inform future interpretations, guide creator practices, and contribute to the Continuous Refinement Environment (CRE).
+All WA rulings and associated rationale concerning claims related to Book VI duties must be logged in the Wisdom Bank Database (WBDB — the durable store of WA rulings and contestability records; distinct from Wisdom-Based Deferral / WBD, see CC 1.9) to inform future interpretations, guide creator practices, and contribute to the Continuous Refinement Environment.
 
 
 \subsubsection*{7.3.6 \texttt{integrating-creation} — Conclusion: Integrating Creation into the Ethical Lifecycle}
@@ -8702,6 +8754,11 @@ Four boundary modes:
 
 
 **The universal "absorb anywhere" surface is [\texttt{evidence\_refs[]}](part\_2\_the\_grammar.md).\textbf{ Any Contribution may cite an external signed artifact as evidence with }zero wire change\textbf{. That is how foreign provenance enters CEG — not by replacing the interior encoding, but by reference, with CEG layering the epistemic claims (who vouches, under what consent, with what confidence) on top. The composition is the differentiated story: }provenance says where the bytes came from; CEG says what a community of signers makes of them.**
+
+
+
+
+\textbf{Disposition rule — a legally-recognized record is in-grammar AND carries an external recognition bridge; the two are never alternatives (CEWPOS object-model finding).} A civil-registry event — birth registration, death registration, name/gender amendment, adoption, guardianship transfer — is \textbf{in-grammar}: it is a Contribution like any other (guardianship transfer rides \texttt{delegates\_to} / \texttt{supersedes} / \texttt{withdraws} per CC 3.2; the others ride \texttt{scores}, no new primitive). Its \textbf{legal force is external} and arrives only by \textbf{bridge}: an import-bridge \texttt{evidence\_refs} citation of the state/civil-registry instrument (or a licensed verifier's attestation), or a witness-reserved \texttt{government}/\texttt{provider}-rung attestation on the CC 3.4.11 age-assurance ladder. The identical rule governs KYC-to-legal-level and age-verification at the verified/\texttt{government} rung. The record's presence in the wire and its external recognition are \textbf{orthogonal and compose} — exactly as provenance composes with judgment above. Tagging such a record as bridge-only (because its force is external) or as in-grammar-only (because the Contribution exists) is the recurring mis-tag this rule removes: \textbf{both are always true at once.}
 
 
 \subsubsection*{8.4.2 \texttt{credentials} — C2PA Content Credentials — media-provenance import/emit profile}

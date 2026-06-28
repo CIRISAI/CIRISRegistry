@@ -918,6 +918,42 @@ It rides the same admission gate as a bare `scores` on `consent:state:*`; the `c
 
 The structural primitives close the bilateral shape — no new attestation_type, no new envelope field beyond `subject_key_ids` itself.
 
+
+
+#### 3.3.5.1 `fair-exchange` — Optimistic fair exchange (worked example, no new primitive)
+
+This worked example promotes the [CC 1.7](part_1_foundation.md) in-grammar claim from *implied-by-scattered-clauses* to **normative**: accountable ("optimistic") fair exchange — a digital good D traded for a settlement S, with adjudicated recourse — composes entirely from the existing 1+4 set plus the bilateral pair pattern above. The trustless, third-party-free atomic swap (HTLC-class) remains the [CC 1.7](part_1_foundation.md) standing falsification target; this pattern does **not** reach it. Offeror A and acceptor B exchange across a steward-bound escrow custodian E, with the always-present named-moderator / WA as the optimistic third party invoked only on dispute (WBD applied to exchange).
+
+```
+1. OFFER / ACCEPT — bilateral ratification (the CC 3.3.5 bilateral pair above,
+ CC 2.3.2.4 consumer-policy ratification):
+ A emits consent_record(stance: granted, bilateral_pair_id: X)
+ + scores on `consent:partnership_grant:v1`
+ B emits consent_record(target_key_id: A, stance: granted, bilateral_pair_id: X)
+ + scores on `consent:partnership_accept:v1`
+ topical_relation:bilateral_pair links the halves; ratified iff both present.
+
+2. DIGITAL LEG — steward-bound escrow custodian (the CC 4.4.3.2 archive_custody
+ precedent: a custodian holding per-epoch keys decoupled from the live roster):
+ A authorizes E via delegates_to (CC 2.4.1.2) scoped to release-of-D.
+ On confirmed S, E emits a key_grant (CC 3.3.2) to B — the release.
+
+3. VALUE LEG — settlement (CC 3.3.10), off-stack on an external rail:
+ a settlement attestation binds S to the ratified pair
+ (settled_action_ref = the offer/accept Contribution).
+
+4. DISPUTE — optimistic adjudication: absent dispute, parties + E complete
+ unilaterally (the optimistic path); on dispute the named-moderator
+ (CC 4.5.4) / WA (CC 4.3) adjudicates and a hard_case:* event records it.
+
+5. DEFECTION — accountable recourse: non-delivery composes as a
+ commitment_fulfillment (CC 3.1.9.2) shortfall; a PROVEN_ROGUE
+ slashing:{outcome} (CC 3.1.9.2) against staked standing (the CC 2.5 stake
+ axis) follows on WA quorum.
+```
+
+**What this buys, and what it does not.** 1+4 buys **accountability, not atomicity**: a malicious or colluding escrow can still defect (after-the-fact redress is not prevention), and a revealed `key_grant` ([CC 3.3.2](#key_grant)) is forward-only — it cannot be un-revealed. The residual bridges are the value leg ([CC 3.3.10](#3310-settlement--cegvalue-transfer-linkage)) and physical delivery, neither fair-exchange-specific. No new attestation_type and no new envelope field — the [CC 1.7](part_1_foundation.md) 1+4 lockdown holds.
+
 ### 3.3.6 `identity` — `identity_occurrence` subject_kind
 
 The wire-format primitive that lets one logical identity speak across multiple **trusted participants** — devices (phone / laptop / server / embedded) AND agents (the user's own agents acting on the user's behalf). The `occurrence_id` envelope field ([CC 2.1](part_2_the_grammar.md)) names which occurrence emitted a Contribution; `identity_occurrence` is the **wire-format binding** that lets the substrate know `key_phone` and `key_laptop` and `key_my_agent` all represent the same identity `key_identity`. This is the integrity foundation under self-scope: it is what makes "this is me, on another device" a cryptographic fact rather than a guess.
