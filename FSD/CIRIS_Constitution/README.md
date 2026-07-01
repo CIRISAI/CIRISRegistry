@@ -1,6 +1,6 @@
 # The CIRIS Constitution
 
-**Version**: CC 0.6.1 (CEWPOS object-model review: §1.7 fair-exchange target narrowed to the trustless atomic swap + optimistic-fair-exchange worked example, §1.3 Order-Maximisation Veto ruled agent-reasoning-not-fabric-gate, §2.6 canonicalization totality, record/legal-recognition bridge, + WBD/CRE/principle doc-fixes)
+**Version**: CC 0.7 (wire vocabulary as a hash-pinned artifact — the §2.6.4 two-tier governance hook + the `manifests/WIRE_VOCABULARY.md` registry artifact: Tier-1 CC-ratified message types, Tier-2 delegated opaque `kind`-range channels; RFC 8126 / Nostr / Matrix pattern)
 **Incorporates**: the **CIRIS Accord** 1.3-RC2 (the constitutional / ethical layer) and **CEG** 1.0-RC29 (the wire grammar — 1+4 surface FROZEN). One document, one version line.
 **Status**: consolidated and adversarially **certified** (0 REJECT). Bodies are a verbatim copy-migration
 from the CEG reader edition + the Accord, woven into one coherent present-tense document; every
