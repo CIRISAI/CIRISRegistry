@@ -2,7 +2,7 @@
 
 **Constitution:** CC (CIRIS Accord) 0.7 — wire vocabulary as a hash-pinned constitutional artifact
 **Artifact steward:** CIRISRegistry (`manifests/WIRE_VOCABULARY.md`)
-**Vocabulary version:** v1.0.0 (ratified baseline)
+**Vocabulary version:** v1.0.1 (ratified baseline; v1.0.1 adds the §3.3 migration-semantics clarification — schema+canonicalization move to the range steward, not just the wire discriminator)
 **Vocabulary hash:** `sha256(` canonical bytes of this document `)` — computed at build time, pinned by every ratifying repo (§4)
 **Implements:** CIRISRegistry#130
 **Status:** DRAFT for the coordinated v8.0.0 substrate cut
@@ -159,6 +159,15 @@ Each range steward publishes a `WIRE_VOCABULARY_KINDS.md` in its own repo docume
 ### 3.3 Variants migrating from `MessageType` into Tier 2 at v8.0.0
 
 The following current `MessageType` variants are **app-tier** by the ethical-primitive test and migrate to opaque channels under the noted range. Their inner bytes are already the app's/persist's concern; the substrate need not close-vocabulary them.
+
+> **What "migrate to Tier-2" means — normative, so it cannot be misread.** Migration moves the **schema, its canonicalization, AND the convenience API into the range steward's own repo**. It is **NOT** satisfied by swapping the wire discriminator to opaque while the typed struct and its `canonical_bytes` remain in CIRISEdge. A retained `struct InlineText` + `canonical_bytes(InlineText)` inside the transport tier keeps the transport **owning app semantics** — the exact category error this migration exists to remove.
+>
+> **Rationale (CIRISEdge MISSION.md).** §1.3 — *"the policy tier owns its own meaning; edge is reach, not meaning"* — and §6 anti-pattern 2 — *"edge re-implements no canonicalization; canonical bytes come from the authority, never edge."* A migrant whose canonicalization stays in edge violates both.
+>
+> **Therefore, post-migration:**
+> - **CIRISEdge** exposes only the **generic** Tier-2 surface — `send_opaque_event` / `send_opaque_request` / `subscribe_opaque(range)` — and carries `payload` as opaque bytes. It holds no typed struct, trait, or `canonical_bytes` for any migrant.
+> - **The range steward's repo** owns the migrant's schema + canonicalization + inner signature, documented in its `WIRE_VOCABULARY_KINDS.md`, and **re-exposes the same-signature convenience method** (e.g. CIRISAgent's `send_inline_text(text)`) as a thin wrapper over `edge.send_opaque_event(kind, app_canonicalize(text))`.
+> - **API impact:** the *app-level* API stays stable (callers of `agent.send_inline_text(...)` see no change); the only thing that changes is that a call to the *transport's* `edge.send_inline_text(...)` — the layering inversion itself — no longer exists. "App owns meaning" is honored **on the wire and in the ownership graph**, not just the discriminator.
 
 **`DSARRequest` / `DSARResponse` stay Tier-1** (resolved, not migrated): data-subject access/erasure is rights-bearing (consent-weight, adjacent to `Withdraws`) **and** rides Durable/requires_ack — the erasure-completion receipt the opaque model cannot express (§3 limit). It keeps its closed, ack-bearing schema. Should a durable, ack-bearing opaque channel ever be added, DSAR MAY be revisited; until then it is not a migrant.
 
