@@ -275,7 +275,7 @@ The wire format moves. The page must move with it. Three mechanisms:
 
 ### §6.1 — Auto-regen from CEG §5 namespace tables
 
-The §5.1-§5.9 prefix tables in [`FSD/CEG/05_namespace.md`](../FSD/CEG/05_namespace.md) are markdown tables with stable column shapes (Prefix | Description | Polarity, plus Reserved? for §5.9). A small script can parse these into JSON and feed the page's primitive-card content. Recommend:
+The §5.1-§5.9 prefix tables in [`FSD/CEG/README.md`](../FSD/CEG/README.md) are markdown tables with stable column shapes (Prefix | Description | Polarity, plus Reserved? for §5.9). A small script can parse these into JSON and feed the page's primitive-card content. Recommend:
 
 ```
 docs/scripts/extract_namespace.py  →  data/primitives.json
