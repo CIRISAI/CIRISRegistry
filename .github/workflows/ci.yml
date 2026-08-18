@@ -1,0 +1,122 @@
+name: CI
+
+# The registry had no test pipeline — `docker.yml` built an image and nothing
+# ran `cargo test`. That is tolerable for a repo nobody is changing and actively
+# dangerous for one about to take a substrate co-bump (CIRISRegistry#76), where
+# the first real verification would otherwise be production.
+#
+# Deliberately NOT gated here:
+#   - `cargo fmt --check` — the tree carries ~200 pre-existing rustfmt diffs.
+#     Gating on it would make this workflow red on arrival, and reformatting the
+#     tree inside a substrate bump would bury the five-field diff that matters.
+#     Land the reformat on its own commit, then add the gate.
+#   - `-D warnings` on clippy — same reason (200+ standing warnings). Clippy runs
+#     so regressions are visible in the log; it does not fail the build yet.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rust-registry/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - 'rust-registry/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # The substrate crates are git deps; a shallow fetch is enough and much faster.
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+
+jobs:
+  # The gate that matters: does it build, and do the tests pass. No database
+  # required — registry uses runtime `sqlx::query(...)`, never the compile-time
+  # `query!` macros, so there is nothing to verify against a live schema at
+  # build time and no .sqlx offline cache to keep in sync.
+  test:
+    name: build + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (MSRV floor from workspace Cargo.toml)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry + git + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust-registry/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust-registry/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: System deps
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libssl-dev pkg-config
+
+      - name: Build (all targets)
+        working-directory: rust-registry
+        run: cargo build --workspace --all-targets --locked
+
+      - name: Test
+        working-directory: rust-registry
+        run: cargo test --workspace --lib --locked
+
+      - name: Property tests
+        working-directory: rust-registry
+        run: |
+          cargo test --locked -p ciris-registry-core --test crypto_properties
+          cargo test --locked -p ciris-registry-core --test capability_properties
+
+      - name: Clippy (informational — not gating, see header)
+        working-directory: rust-registry
+        continue-on-error: true
+        run: cargo clippy --workspace --all-targets --locked
+
+  # `tests/db_integration.rs` uses `sqlx::test`, which needs a real Postgres and
+  # creates/migrates a database per test. Split from the main gate so a database
+  # outage never masks a genuine compile or logic regression.
+  db:
+    name: db integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ciris
+          POSTGRES_PASSWORD: ciris_dev
+          POSTGRES_DB: ciris_registry
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://ciris:ciris_dev@localhost:5432/ciris_registry
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + git + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust-registry/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust-registry/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: System deps
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libssl-dev pkg-config
+
+      - name: Integration tests
+        working-directory: rust-registry
+        run: cargo test --locked -p ciris-registry-core --test db_integration
