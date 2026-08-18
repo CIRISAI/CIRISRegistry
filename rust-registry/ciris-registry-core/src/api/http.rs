@@ -3122,7 +3122,9 @@ mod tests {
             ClassicalSigner, ClassicalVerifier, Ed25519Signer, Ed25519Verifier, MlDsa65Signer,
             MlDsa65Verifier, PqcSigner, PqcVerifier,
         };
-        let ed_signer = Ed25519Signer::random();
+        // v13.3.1: `random()` is fallible — it fails secure when the RNG health
+        // check has marked the source failed (ciris-crypto rng_health).
+        let ed_signer = Ed25519Signer::random().unwrap();
         let pqc_signer = MlDsa65Signer::new().unwrap();
         let ed_pk = ed_signer.public_key().unwrap();
         let pqc_pk = pqc_signer.public_key().unwrap();

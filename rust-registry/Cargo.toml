@@ -14,7 +14,9 @@ members = [
 edition = "2021"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/CIRISAI/CIRISRegistry"
-rust-version = "1.84"
+# 1.86 is verify v13.3.1's floor (persist v32.3.0 is 1.83, edge v17.4.1 is 1.75);
+# build with the highest of the three.
+rust-version = "1.86"
 authors = ["CIRIS AI <hello@ciris.ai>"]
 # pkcs8 transitive-pin resolution lives in ciris-registry-core's
 # [dependencies] (where ciris-crypto is consumed); see comment block there.

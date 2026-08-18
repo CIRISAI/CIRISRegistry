@@ -175,6 +175,7 @@ mod tests {
             scrub_signature_pqc: None,
             scrub_key_id: attester.into(),
             scrub_timestamp: Utc::now(),
+            additional_scrubs: Vec::new(),
             pqc_completed_at: None,
             persist_row_hash: String::new(),
             subject_key_ids: Vec::new(),
