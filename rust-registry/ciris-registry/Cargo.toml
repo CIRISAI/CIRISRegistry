@@ -39,4 +39,4 @@ metrics-exporter-prometheus = "0.16"
 anyhow = "1.0"
 
 # Required for ciris_persist::engine::Engine::with_signer at boot.
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v32.3.0", features = ["postgres", "sqlite"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v37.1.0", features = ["postgres", "sqlite"] }

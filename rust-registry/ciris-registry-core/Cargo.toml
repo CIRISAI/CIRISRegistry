@@ -84,9 +84,14 @@ rsa = { version = "0.9", features = ["sha2"] }
 # Originally tracked as CIRISRegistry#10; resolved this phase.
 
 # ── PINNED TO CIRISSERVER'S EXACT TRIPLE, NOT TO LATEST (#76) ────────────────
-#   ciris-verify  v13.3.1  (carries ciris-crypto + ciris-keyring at the same tag)
-#   ciris-persist v32.3.0
-#   ciris-edge    v17.4.1
+#   ciris-verify  v13.6.1  (carries ciris-crypto + ciris-keyring at the same tag)
+#   ciris-persist v37.1.0
+#   ciris-edge    v18.2.0
+#
+# This is the **Server 0.6 (registry fold) floor**. The set is internally
+# coherent, which is what makes it takeable: edge v18.2.0 pins persist v37.1.0,
+# and edge AND persist BOTH pin the verify family at v13.6.1 — so there is one
+# verify in the graph, not two.
 #
 # These are the tags CIRISServer 0.5.177 pins, and matching them EXACTLY is the
 # whole point of the bump: registry-core is being absorbed into that workspace,
@@ -111,10 +116,10 @@ rsa = { version = "0.9", features = ["sha2"] }
 # at all, the `From<federation::Error>` match ends in a catch-all arm, and this
 # crate declares its OWN 8-method FederationDirectory trait rather than
 # implementing persist's (so persist growing that trait is invisible here).
-ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v13.3.1", features = ["pqc-ml-dsa"] }
-ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v13.3.1", default-features = false, features = ["software", "pqc-ml-dsa"] }
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v32.3.0", features = ["postgres", "sqlite"] }
-ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v17.4.1", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
+ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v13.6.1", features = ["pqc-ml-dsa"] }
+ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v13.6.1", default-features = false, features = ["software", "pqc-ml-dsa"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v37.1.0", features = ["postgres", "sqlite"] }
+ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v18.2.0", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
 
 # Force libsqlite3-sys to build with bundled libsqlite3 so the final
 # binary statically links sqlite3 and does NOT require libsqlite3.so.0
