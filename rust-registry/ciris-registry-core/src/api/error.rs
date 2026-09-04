@@ -26,8 +26,11 @@ use serde_json::{json, Value};
 /// number tracks that repo's `VERSION`. Emitted as the `CEG-Version` header.
 ///
 /// NOTE: the pre-re-home `1.0-RC29` line is DISCONTINUED lineage, not a later
-/// revision than `1.0-RC3`. Do not "restore" the higher number.
-pub const CEG_VERSION: &str = "1.0-RC3";
+/// revision than `1.0-rc4`. Do not "restore" the higher number.
+///
+/// Casing matches the constitution's own `VERSION` file (`1.0-rc4`) byte-for-byte,
+/// since that file is the artifact this header claims conformance to.
+pub const CEG_VERSION: &str = "1.0-rc4";
 
 tokio::task_local! {
     /// Per-request id, set by [`request_context_mw`] and read by

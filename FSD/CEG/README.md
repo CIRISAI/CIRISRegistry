@@ -3,7 +3,7 @@
 The CIRIS Ethical Grammar is no longer maintained in this repository. It has been
 absorbed into **the CIRIS Constitution**, which is the single source of truth:
 
-> **https://github.com/CIRISAI/CIRISConstitution** — currently **1.0-RC3**
+> **https://github.com/CIRISAI/CIRISConstitution** — currently **1.0-rc4**
 
 Consumers vendor and pin from that repo. Nothing in this directory is normative.
 
@@ -16,7 +16,7 @@ with spec content.
 
 ## Versioning — read this before citing a number
 
-The constitution is at **1.0-RC3**. The old `1.0-RC29` line that this directory
+The constitution is at **1.0-rc4**. The old `1.0-RC29` line that this directory
 used to declare was **discontinued at the re-home** — it is not a later revision
 than RC3 and must not be cited as one. Any code or doc still carrying an RC2x
 number, or the older `0.x` line, is on dead lineage.

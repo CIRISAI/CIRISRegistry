@@ -1,6 +1,6 @@
 [package]
 name = "ciris-registry-core"
-version = "2.3.0"
+version = "3.0.0"
 edition = "2021"
 rust-version = "1.84"
 authors = ["CIRIS AI <hello@ciris.ai>"]
