@@ -84,6 +84,14 @@ impl FederationDirectory for PersistFederationClient {
             .map_err(Into::into)
     }
 
+    async fn list_keys_by_identity_type(&self, identity_type: &str) -> Result<Vec<KeyRecord>> {
+        self.engine
+            .federation_directory()
+            .list_keys_by_identity_type(identity_type)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn lookup_keys_for_identity(&self, identity_ref: &str) -> Result<Vec<KeyRecord>> {
         self.engine
             .federation_directory()

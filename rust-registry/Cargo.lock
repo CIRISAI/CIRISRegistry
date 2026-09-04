@@ -1054,6 +1054,7 @@ dependencies = [
  "ciris-edge",
  "ciris-keyring",
  "ciris-persist",
+ "ciris-verify-core",
  "config",
  "der 0.7.10",
  "dotenvy",

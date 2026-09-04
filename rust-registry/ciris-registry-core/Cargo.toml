@@ -155,17 +155,23 @@ libsqlite3-sys = { version = "0.28", features = ["bundled"] }
 # dependency it was added to satisfy and blocks resolution outright.
 # Registry never used pkcs8 directly; it was only ever a resolver constraint.
 
-# NOTE on BuildManifest validation:
-# We do NOT pull ciris-verify-core. Reasons:
-#   1. ciris-verify-core has a hard rusqlite dep (license cache) that
-#      conflicts with sqlx-sqlite at the libsqlite3-sys linker level.
-#   2. Most of ciris-verify-core (transparency log, license cache,
-#      registry client, app_attest) is verifier-side and unused by the
-#      registry.
-#   3. The BuildManifest type is small (~80 lines) and stable enough to
-#      vendor + maintain wire-format parity via integration tests.
-# See `src/security/build_manifest.rs` for the vendored type. ciris-crypto
-# (above) provides the actual signature verifiers we use.
+# ciris-verify-core — the CEG-native manifest CONSUMER primitives
+# (`jcs::canonicalize`, `threshold::{ThresholdMember, ThresholdSignature,
+# verify_threshold_signatures}`). Added for #138: the /v1/builds provenance
+# block reads pipeline-signed `provenance:build_manifest:*` Contributions from
+# the federation directory and re-verifies the bound-hybrid signature against
+# the pipeline's directory-pinned pubkeys, instead of synthesizing a 1.0.
+#
+# The note that used to live here refused this crate over a rusqlite /
+# libsqlite3-sys linker conflict with sqlx-sqlite. That conflict is MOOT and has
+# been since the #76 co-bump: ciris-persist already pulls ciris-verify-core
+# transitively (it has been in Cargo.lock at every tag since), and the lock
+# resolves exactly ONE libsqlite3-sys (0.28, `bundled`). Declaring it directly
+# adds nothing to the graph; it only lets us name the types.
+#
+# default-features = false + "pqc": we want the hybrid verifier and nothing
+# else — no keyring hardware backends, no license cache, no test-support.
+ciris-verify-core = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v14.1.0", default-features = false, features = ["pqc"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

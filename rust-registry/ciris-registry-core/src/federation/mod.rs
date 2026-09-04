@@ -95,6 +95,12 @@ pub trait FederationDirectory: Send + Sync {
     async fn put_public_key(&self, record: SignedKeyRecord) -> Result<()>;
     async fn lookup_public_key(&self, key_id: &str) -> Result<Option<KeyRecord>>;
     async fn lookup_keys_for_identity(&self, identity_ref: &str) -> Result<Vec<KeyRecord>>;
+    /// Every key record of one `identity_type` (e.g. `"node"`). Added for #138:
+    /// the CEG-native manifest consumer finds the accord-blessed CI pipelines
+    /// by listing `node` keys and filtering on the `infra:attest` role — there
+    /// is no dimension index in the directory, so the walk starts from WHO may
+    /// attest, not from WHAT was attested.
+    async fn list_keys_by_identity_type(&self, identity_type: &str) -> Result<Vec<KeyRecord>>;
 
     // ── Attestations ───────────────────────────────────────────────
     async fn put_attestation(&self, attestation: SignedAttestation) -> Result<()>;
@@ -123,6 +129,9 @@ impl FederationDirectory for NoOpFederationClient {
     }
     async fn lookup_public_key(&self, _key_id: &str) -> Result<Option<KeyRecord>> {
         Ok(None)
+    }
+    async fn list_keys_by_identity_type(&self, _identity_type: &str) -> Result<Vec<KeyRecord>> {
+        Ok(Vec::new())
     }
     async fn lookup_keys_for_identity(&self, _identity_ref: &str) -> Result<Vec<KeyRecord>> {
         Ok(Vec::new())
