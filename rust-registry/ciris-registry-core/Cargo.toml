@@ -1,6 +1,6 @@
 [package]
 name = "ciris-registry-core"
-version = "2.3.0"
+version = "3.0.0"
 edition = "2021"
 rust-version = "1.84"
 authors = ["CIRIS AI <hello@ciris.ai>"]
@@ -83,21 +83,46 @@ rsa = { version = "0.9", features = ["sha2"] }
 # documented this). The [patch.crates-io] block below resolves it.
 # Originally tracked as CIRISRegistry#10; resolved this phase.
 
-# Cohabit-set version matrix per [CIRISConformance/matrices/current.yaml]
-# (https://github.com/CIRISAI/CIRISConformance/blob/main/matrices/current.yaml):
-#   ciris-verify  v5.1.3  (carries ciris-crypto + ciris-keyring at the same tag)
-#   ciris-persist v5.5.5  (the edge-2.2.2 substrate floor; CEG 1.0-RC2 operational envelopes)
-#   ciris-edge    v2.2.2  (CIRISEdge#97 RNS destination-hash accessor; substrate-trio conformance floor)
+# ── PINNED TO CIRISSERVER'S EXACT TRIPLE, NOT TO LATEST (#76) ────────────────
+#   ciris-verify  v14.1.0  (carries ciris-crypto + ciris-keyring at the same tag)
+#   ciris-persist v40.0.0
+#   ciris-edge    v20.1.1
 #
-# The cohabit set converged at keyring v4.x across all members so Cargo can
-# unify the dep graph cleanly. The local `PersistPqcAdapter` stopgap from v1.3.0
-# (CIRISVerify#39) is no longer needed — ciris-keyring v4.1.0+ ships
-# `impl PqcSigner for MlDsa65Signer` upstream and the unified v4.4.2 across
-# all our deps lets us use it directly.
-ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v5.1.3",   features = ["pqc-ml-dsa"] }
-ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v5.1.3",   default-features = false, features = ["software", "pqc-ml-dsa"] }
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v5.5.5", features = ["postgres", "sqlite"] }
-ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v2.2.2", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
+# The set is internally coherent, which is what makes it takeable: edge v20.1.1
+# pins persist v40.0.0, and edge AND persist BOTH pin the verify family at
+# v14.1.0 — so there is one verify in the graph, not two.
+#
+# NOTE verify v14.2.0 EXISTS and is deliberately NOT taken. Nothing pins it yet;
+# taking it would fork verify rather than upgrade it (the tag-is-source-id rule
+# above). It becomes available to us when persist and edge repin, not before.
+#
+# These are the tags CIRISServer 0.5.177 pins, and matching them EXACTLY is the
+# whole point of the bump: registry-core is being absorbed into that workspace,
+# so any divergence here becomes a duplicate substrate rev in the composed
+# build — which is precisely why CIRISServer held registry-core OUT of its
+# dependency graph while this crate sat on the 5.5.5/2.2.2/5.1.3 floor.
+#
+# DO NOT "helpfully" bump these to the newest tags (at time of writing
+# persist v36.1.0 / edge v17.8.0 / verify v13.4.0). CIRISServer#340 measured
+# what happens: persist and edge BOTH pin verify by git `tag`, and a cargo git
+# tag is part of the SOURCE ID, not a semver range. Moving the verify pin alone
+# does not upgrade verify, it FORKS it — the graph then carries two
+# `ciris_keyring` + `ciris_verify_core` crates and every substrate type that
+# crosses the seam becomes two incompatible types. The verify pin moves only as
+# part of a persist+edge co-bump, upstream first.
+#
+# What the 31-major persist gap actually cost, measured before the bump: the
+# federation surface this crate consumes changed in five fields total —
+# KeyRecord.roles → capability_roles (rename), KeyRecord +consent_role
+# +additional_scrubs, Attestation +additional_scrubs, Revocation +revoked_after.
+# Everything else held because only 12 of this crate's files touch the substrate
+# at all, the `From<federation::Error>` match ends in a catch-all arm, and this
+# crate declares its OWN 8-method FederationDirectory trait rather than
+# implementing persist's (so persist growing that trait is invisible here).
+ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v14.1.0", features = ["pqc-ml-dsa"] }
+ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v14.1.0", default-features = false, features = ["software", "pqc-ml-dsa"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v40.0.0", features = ["postgres", "sqlite"] }
+ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v20.1.1", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
 
 # Force libsqlite3-sys to build with bundled libsqlite3 so the final
 # binary statically links sqlite3 and does NOT require libsqlite3.so.0
@@ -119,26 +144,34 @@ ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v2.2.2
 # union), the runtime image still has the system lib.
 libsqlite3-sys = { version = "0.28", features = ["bundled"] }
 
-# pkcs8 transitive-pin resolution (Phase 1 of #33; see comment block above).
-# ciris-crypto v4.0.0 pulls ml-dsa = "=0.1.0-rc.8" which requires
-# pkcs8 ^0.11.0-rc.11. Cargo's caret resolution for pre-release versions
-# would otherwise pick pkcs8 0.11.0 stable (API-incompatible with ml-dsa rc.8).
-# Declaring pkcs8 explicitly at the top level forces version unification to
-# rc.11 across all transitive deps. Registry does NOT use pkcs8 directly;
-# this is purely a resolver constraint to keep ciris-crypto + ml-dsa happy.
-pkcs8 = "=0.11.0-rc.11"
+# The pkcs8 = "=0.11.0-rc.11" pin that lived here is REMOVED as of the #76
+# co-bump, because the thing it worked around no longer exists.
+#
+# It was needed when ciris-crypto pulled `ml-dsa = "=0.1.0-rc.8"`, which
+# required `pkcs8 ^0.11.0-rc.11`: cargo's caret resolution for pre-releases
+# would otherwise select pkcs8 0.11.0 stable, which was API-incompatible with
+# that ml-dsa rc. ciris-crypto v13.3.1 pulls `ml-dsa = "=0.1.1"` — a stable
+# release requiring plain `pkcs8 ^0.11` — so the pin now CONFLICTS with the
+# dependency it was added to satisfy and blocks resolution outright.
+# Registry never used pkcs8 directly; it was only ever a resolver constraint.
 
-# NOTE on BuildManifest validation:
-# We do NOT pull ciris-verify-core. Reasons:
-#   1. ciris-verify-core has a hard rusqlite dep (license cache) that
-#      conflicts with sqlx-sqlite at the libsqlite3-sys linker level.
-#   2. Most of ciris-verify-core (transparency log, license cache,
-#      registry client, app_attest) is verifier-side and unused by the
-#      registry.
-#   3. The BuildManifest type is small (~80 lines) and stable enough to
-#      vendor + maintain wire-format parity via integration tests.
-# See `src/security/build_manifest.rs` for the vendored type. ciris-crypto
-# (above) provides the actual signature verifiers we use.
+# ciris-verify-core — the CEG-native manifest CONSUMER primitives
+# (`jcs::canonicalize`, `threshold::{ThresholdMember, ThresholdSignature,
+# verify_threshold_signatures}`). Added for #138: the /v1/builds provenance
+# block reads pipeline-signed `provenance:build_manifest:*` Contributions from
+# the federation directory and re-verifies the bound-hybrid signature against
+# the pipeline's directory-pinned pubkeys, instead of synthesizing a 1.0.
+#
+# The note that used to live here refused this crate over a rusqlite /
+# libsqlite3-sys linker conflict with sqlx-sqlite. That conflict is MOOT and has
+# been since the #76 co-bump: ciris-persist already pulls ciris-verify-core
+# transitively (it has been in Cargo.lock at every tag since), and the lock
+# resolves exactly ONE libsqlite3-sys (0.28, `bundled`). Declaring it directly
+# adds nothing to the graph; it only lets us name the types.
+#
+# default-features = false + "pqc": we want the hybrid verifier and nothing
+# else — no keyring hardware backends, no license cache, no test-support.
+ciris-verify-core = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v14.1.0", default-features = false, features = ["pqc"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

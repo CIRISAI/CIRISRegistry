@@ -106,7 +106,7 @@ For FunctionManifest signatures (Case ii):
 
 ## 3. Trust anchor: registry's steward pubkey
 
-> **Forward note (LOCKED 2026-06-05, migration in flight).** The canonical-services trust shape is migrating from "pin the per-region steward pubkey" to "pin the `community_key_id` of the governed global `community` `ciris-canonical`" (CEG [§5.6.8.10](../FSD/CEG/05_namespace.md), governed: `consensus_protocol: quorum:2/3` entrenched over the regional-steward founding core). Decision + rationale: [`MISSION.md` §2.1.1](../MISSION.md). The steward pubkeys below remain the founding-core keys; once the community Contribution is published, consumers SHOULD pin `ciris-canonical` and resolve the member set via `resolve_community` rather than hard-pinning per-region fingerprints. `/v1/steward-key` continues to serve the founding-core keys during the transition.
+> **Forward note (LOCKED 2026-06-05, migration in flight).** The canonical-services trust shape is migrating from "pin the per-region steward pubkey" to "pin the `community_key_id` of the governed global `community` `ciris-canonical`" (CEG [§5.6.8.10](../FSD/CEG/README.md), governed: `consensus_protocol: quorum:2/3` entrenched over the regional-steward founding core). Decision + rationale: [`MISSION.md` §2.1.1](../MISSION.md). The steward pubkeys below remain the founding-core keys; once the community Contribution is published, consumers SHOULD pin `ciris-canonical` and resolve the member set via `resolve_community` rather than hard-pinning per-region fingerprints. `/v1/steward-key` continues to serve the founding-core keys during the transition.
 
 ### 3.1 Source of truth
 

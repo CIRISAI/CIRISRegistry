@@ -790,7 +790,7 @@ CEG §4 defines `listed` as a per-Contribution envelope field (CEG 0.10), not a 
 
 ### §8.6 `quorum:{m}/{n}` — `n` vs live roster size precedence is RESOLVED
 
-~~CEG §5.6.8.9 leaves it ambiguous whether the literal `{n}` is fixed or rescales with the live roster.~~ **RESOLVED in CEG [§8.1.12.3.1](CEG/08_composition.md)** (pinned 2026-06-05): **`m` is absolute, `n` is documentary.** A `quorum:2/3` collective grown to 5 members still admits at **2** signatures; `m` never rescales. Rationale: matches NodeCore's shipped `evaluate_consensus_protocol` (already treats `m` as absolute), simpler invariant for a deterministic gate, and roster-proportional quorum stays expressible via `weighted:{rubric}` (members weight 1, threshold = `ceil(roster/2)` recomputed by the rubric resolver). Applies identically to community admission (CEG §8.1.13.2). The gate is no longer under-specified for non-entrenched `quorum:` families whose roster ≠ `{n}`.
+~~CEG §5.6.8.9 leaves it ambiguous whether the literal `{n}` is fixed or rescales with the live roster.~~ **RESOLVED in CEG [§8.1.12.3.1](CEG/README.md)** (pinned 2026-06-05): **`m` is absolute, `n` is documentary.** A `quorum:2/3` collective grown to 5 members still admits at **2** signatures; `m` never rescales. Rationale: matches NodeCore's shipped `evaluate_consensus_protocol` (already treats `m` as absolute), simpler invariant for a deterministic gate, and roster-proportional quorum stays expressible via `weighted:{rubric}` (members weight 1, threshold = `ceil(roster/2)` recomputed by the rubric resolver). Applies identically to community admission (CEG §8.1.13.2). The gate is no longer under-specified for non-entrenched `quorum:` families whose roster ≠ `{n}`.
 
 ### §8.7 `weighted:{rubric}` rubric resolution is not specified
 
@@ -812,10 +812,10 @@ CEG §5.6.8.9 names `weighted:{rubric}` ("sum of member weights per a named oper
 
 ## §10 References
 
-- [`FSD/CEG/05_namespace.md`](CEG/05_namespace.md) §5.6.8.8 / §5.6.8.9 / §5.6.8.10 / §5.6.8.11 — wire-format primitives (normative)
-- [`FSD/CEG/04_envelope.md`](CEG/04_envelope.md) §4 — envelope fields (`family_id`, `community_id`, `listed`, `history_on_join`)
-- [`FSD/CEG/07_reserved.md`](CEG/07_reserved.md) §7.7 + §7.8 — substrate-emitted reserved prefixes
-- [`FSD/CEG/11_governance.md`](CEG/11_governance.md) §11.7 + §11.8 — self/family + geographic-community governance (normative semantics)
+- [`FSD/CEG/README.md`](CEG/README.md) §5.6.8.8 / §5.6.8.9 / §5.6.8.10 / §5.6.8.11 — wire-format primitives (normative)
+- [`FSD/CEG/README.md`](CEG/README.md) §4 — envelope fields (`family_id`, `community_id`, `listed`, `history_on_join`)
+- [`FSD/CEG/README.md`](CEG/README.md) §7.7 + §7.8 — substrate-emitted reserved prefixes
+- [`FSD/CEG/README.md`](CEG/README.md) §11.7 + §11.8 — self/family + geographic-community governance (normative semantics)
 - [`FSD/FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md) §5 — envelope-schema documentation style this FSD mirrors
 - [`FSD/UIUX-001_PORTAL_SCREENS.md`](UIUX-001_PORTAL_SCREENS.md) — portal UX baseline (Ask 4 extends)
 - [CIRISRegistry#52](https://github.com/CIRISAI/CIRISRegistry/issues/52) — parent issue (this FSD = Ask 1)

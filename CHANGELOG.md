@@ -12,6 +12,7 @@ discipline + release process.
 |---|---|
 | 1.x | FSD-002 v1.4.3 baseline |
 | 2.x | CEG 0.2 |
+| 3.x | CC 1.0-rc4 (fold-prep; Server 0.6 substrate floor) |
 
 Prior to v1.1.0 baseline tagging, per-feature commit history lives in
 `git log`; the CHANGELOG starts from this baseline forward.
@@ -20,23 +21,35 @@ Prior to v1.1.0 baseline tagging, per-feature commit history lives in
 
 ## [Unreleased]
 
-Tracking under [#33 umbrella](https://github.com/CIRISAI/CIRISRegistry/issues/33):
-substrate-sister adoption + CEG 0.2 conformance + fold-readiness for CIRISAgent.
+## [3.0.0] — 2026-09-04
 
-Upcoming phases (in waterfall order):
+**MAJOR: registry adopts the ratified CIRIS Constitution (1.0-rc4) and navigates the CEG-native manifest transition honestly.** Per the versioning rule, adopting a new spec series bumps MAJOR: 2.x was CEG 0.2; 3.x is CC 1.0-rc4. This is the fold-prep release — the last major cut before `ciris-registry-core` is absorbed into CIRISServer (#62). It ships the substrate at the Server 0.6 floor and two wire-facing changes that stop the registry asserting trust it never verified.
 
-- Phase 2 (v1.2.0) — DONE (this release). Pending follow-up: wire engine
-  construction at boot path + enable `FEDERATION_DUAL_WRITE_ENABLED` in
-  staging.
-- **v1.3.0** — Edge wiring (CEG 0.2 §10.1 + connects #18): `PeerResolver` client
-  + `holds_bytes` directory consumption + ContentFetch/ContentBody/ContentMiss
-  round-trip with full-SHA verification (§10.1.1) + 24h TTL discipline (§10.1.2).
-- **v1.4.0** — Crate-ify split: `ciris-registry-core` library (for CIRISAgent
-  workspace cohabit with `ciris-lens-core` + `ciris-node-core`) + `ciris-registry`
-  binary (standalone deployments).
-- **v2.0.0** — CEG-0.2 conformance MAJOR + fold-readiness; closes #17 + #18 + #32.
+### Wire changes (read these first)
 
----
+- **`GET /v1/steward-key` now serves the portable trust root** (#133) — the `GenesisBundle` persist bakes: the `humanity-accord` charter, the A1/B1/C1 holder roster, the `infra:*` scopes the charter confers, and the serve-node grants. `GET /v1/trust-root/bundle` serves the identical schema, field-for-field CIRISServer's, so the fold changes nothing a consumer sees. The old body published registry's own key as a root — unsigned on the wire while declaring `signature_mode: "HYBRID_REQUIRED"`, asserting `hardware_class: HSM_PROD` under `self_attested: true`, and in a shape **none of verify's three client schemas could parse**. There was no working contract to preserve. The bundle is self-authenticating (hybrid accord-holder signatures over the charter, re-derived by the consumer from its own records); the outer envelope carries **no `response_signature`** by design — signing the wrapper would prove only that the relay said so.
+- **`GET /v1/builds/{version}` provenance stops asserting what it never verified** (#138). `federation_provenance.attestations_consumed` previously carried a `provenance:build_manifest:{target}` entry synthesized at `score: 1.0, confidence: 1.0` from the Postgres row itself — a false pass. It is now emitted **only** when a pipeline-signed Contribution binding the exact `(target, binary_version, manifest_hash)` exists in the federation directory, signed by a `node` key carrying the **accord-conferred** `infra:attest` role, whose bound-hybrid signature re-verifies against directory-pinned pubkeys (the same threshold-1 check as `ciris_verify_core::manifest_contribution`). Otherwise the dimension is **absent** and `note` says so. Nothing emits these Contributions yet (CIRISServer#25 open; producers unwired — see #138), so this release returns no manifest entry everywhere. That is the correct answer today. Manifest **bytes** keep serving from the build table through the transition.
+- **`-stable` folds on version lookup, nothing else** (#137). Publishers strip the channel suffix, so registry holds `2.9.48` while a consumer may ask for `2.9.48-stable`. Folded on read. `-rc*`/`-beta*` are **not** folded — different artifacts.
+
+### Substrate — the Server 0.6 floor (#76; closes it)
+
+persist `v5.5.5 → v40.0.0`, edge `v2.2.2 → v20.1.1`, verify `v5.1.3 → v14.1.0`, in three coherent steps. Across 35 persist majors the library needed one source change (`put_attestation` returns `AttestationOutcome`; both variants are documented idempotent success, so it is discarded with the reason at the call site). verify 14.2.0 exists and is deliberately not taken: both edge and persist pin 14.1.0, and a git `tag` is part of the source id, so taking it would fork verify (CIRISServer#340). `ciris-verify-core` is now a direct dependency (`default-features = false`, `pqc`) — the note refusing it over a libsqlite3-sys conflict (the reason 2.3.0 vendored the merkle verifier) was stale: persist has pulled it transitively at every tag since, and the lock resolves one `libsqlite3-sys 0.28`. MSRV 1.84 → 1.86. Removed the obsolete `pkcs8 = "=0.11.0-rc.11"` resolver pin (its cause, `ml-dsa` rc.8, is gone; it blocked resolution outright).
+
+### Spec + docs
+
+- Constitution corpus removed (#131): `FSD/CIRIS_Constitution/` and `manifests/WIRE_VOCABULARY.md` — homed at CIRISAI/CIRISConstitution (1.0-rc4 upstream vs 0.7 here; the manifest's sha256 had diverged). `FSD/CEG/` is a redirect stub with the 20-section → 8-Part map for the ~28 cross-repo links. `CEG_VERSION` header `0.10 → 1.0-rc4`; the `1.0-RC29` line is discontinued lineage.
+- FSD-002 reconciled with CC (#132): ladder-named `attestation:l1:*` dimensions → mechanism-named; one occurrence was an enforcement rule keyed on a prefix with no subtree. The v1 line-oriented canonical bytes — a newline-injection surface via `source = direct:{url}` — retired for CC's v2 JCS form; blocks preserved and marked MUST-NOT for the ~34 inbound citations. And, since CC 1.0-rc4 landed mid-cut: the `accountability:mode_shift:{from}:{to}` dimension FSD-002 v1.4.1 announced is **withdrawn** — rc4 rules a mode shift is a superseding `delegates_to` on the delegation plane and that there is no `accountability:*` family; both FSD-002 sites now quote the ruling verbatim. No shipped code ever emitted it.
+
+### CI
+
+New `ci.yml`: `build + test` (153 tests, no database) and `db integration` (postgres:16). `cargo fmt --check` and clippy `-D warnings` deliberately not gated (~200 standing fmt diffs, 200+ warnings, 0 errors) — noted in the workflow header.
+
+Build clean; clippy 0 errors; 108 lib + 19 crypto_properties + 26 capability_properties pass.
+
+**Rollback metadata:**
+- **Digest**: (operator-resolvable via `crane digest …:v3.0.0`)
+- **Migrations**: **none** — no schema change in this release.
+- **Config**: none new. Note `FEDERATION_DUAL_WRITE_ENABLED` now also governs the provenance walk: with it off, `state.federation` is the no-op client and the manifest dimension is always absent (honestly). Consumers keyed on the old synthesized `provenance:build_manifest:*` entry will see it vanish; consumers parsing the old `/v1/steward-key` shape (none measured) break.
 
 ## [2.3.0] — 2026-06-05
 
@@ -727,7 +740,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v3.0.0
 [2.3.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.3.0
 [2.2.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.2.1
 [2.2.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.2.0

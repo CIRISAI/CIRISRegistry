@@ -84,55 +84,22 @@ struct ReadinessResponse {
 /// FSD-002 §7.7). CIRISVerify v3.1.0+ consumer wiring at
 /// `ciris-verify-core::ThresholdMember` + `verify_threshold_signatures`
 /// per CIRISRegistry#21.
-#[derive(Serialize)]
-struct StewardKeyResponse {
-    stewards: Vec<StewardEntry>,
-    verification_policy: VerificationPolicy,
-    rotation_history_uri: String,
-    signature_mode: String,
-    revision: u64,
-    timestamp: i64,
-}
 
 /// One steward entry in the multi-steward response. Non-deployed stewards
 /// (e.g., APAC during the rollout window) carry `deployed: false` +
 /// `hardware_class: placeholder_pending_provisioning` + null pubkeys.
 /// Verify-side `ThresholdMember` construction filters by `deployed=true`.
-#[derive(Serialize)]
-struct StewardEntry {
-    region: String,
-    key_id: String,
-    /// Base64 Ed25519 pubkey, null for non-deployed stewards.
-    classical_pubkey: Option<String>,
-    /// Base64 ML-DSA-65 pubkey, null for non-deployed stewards.
-    pqc_pubkey: Option<String>,
-    /// sha256:... fingerprint of ML-DSA-65 pubkey, null for non-deployed stewards.
-    fingerprint: Option<String>,
-    hardware_class: String,
-    deployed: bool,
-    /// v1.4.3 CIRISRegistry#24 Ask 4 — cert_validity:{steward_id} self-attestation.
-    /// Steward attests that its TLS cert chain is valid as of attested_at.
-    /// Consumers verify the TLS chain at connection time independently;
-    /// this attestation is an additional signed claim from the steward.
-    /// Null for non-deployed stewards (no cert chain to attest).
-    cert_validity: Option<CertValidityAttestation>,
-}
 
 /// `cert_validity:{steward_id}` self-attestation envelope per FSD-002 §3.2.
 /// v1.4 interim: minimal shape; substrate-conformance #17 will surface this
 /// as a full `scores` attestation on `federation_attestations` with
 /// hybrid-signed envelope per §2.1.
-#[derive(Serialize)]
-struct CertValidityAttestation {
-    dimension: String,
-    score: f64,
-    confidence: f64,
-    self_attested: bool,
-    attested_at: i64,
-    valid_until: i64,
-    note: String,
-}
 
+
+/// Response from the /v1/accord-holders endpoint (FSD-002 §7.7).
+/// v1.4 interim: placeholder fingerprints; provisioned=false signals
+/// to consumers that CONSTITUTIONAL invocations MUST NOT be honored
+/// until real hardware-attested keys land.
 #[derive(Serialize)]
 struct VerificationPolicy {
     threshold: u32,
@@ -142,10 +109,6 @@ struct VerificationPolicy {
     non_revocable: Option<bool>,
 }
 
-/// Response from the /v1/accord-holders endpoint (FSD-002 §7.7).
-/// v1.4 interim: placeholder fingerprints; provisioned=false signals
-/// to consumers that CONSTITUTIONAL invocations MUST NOT be honored
-/// until real hardware-attested keys land.
 #[derive(Serialize)]
 struct AccordHoldersResponse {
     holders: Vec<AccordHolderEntry>,
@@ -262,11 +225,6 @@ const ACCORD_HOLDERS: &[(&str, &str)] = &[
 
 /// FSD-002 §2.1 — three regional stewards per the multi-party arc.
 /// "us" + "eu" deployed today; "apac" is Spec per MISSION §2.1.
-const STEWARD_REGIONS: &[(&str, &str)] = &[
-    ("us",   "registry-steward-us"),
-    ("eu",   "registry-steward-eu"),
-    ("apac", "registry-steward-apac"),
-];
 
 /// Deterministic placeholder fingerprint for non-provisioned accord-holders
 /// and non-deployed stewards. Lets the endpoint shape be structurally live
@@ -404,88 +362,137 @@ async fn identity(
 /// `ThresholdMember` consumer filters by `deployed=true`.
 ///
 /// Closes CIRISRegistry#21 Ask 1 (v1.4 multi-steward shape change).
+/// `GET /v1/steward-key` and `GET /v1/trust-root/bundle` — serve the
+/// **portable trust root persist bakes**, not this node's own key.
+///
+/// This is the #133 resolution. The old body published registry's own steward
+/// key as a trust root: unsigned on the wire while declaring
+/// `signature_mode: "HYBRID_REQUIRED"`, and asserting `hardware_class: HSM_PROD`
+/// under `self_attested: true`. Three mutually incompatible client schemas for
+/// it exist across the fleet and none of them could parse it. There was no
+/// working contract to preserve, so it is replaced rather than repaired.
+///
+/// What is served instead is the `GenesisBundle` — the `humanity-accord`
+/// charter, its A1/B1/C1 holder roster, the `infra:*` scopes the charter
+/// confers, and the serve-node grants issued under it. It is
+/// **self-authenticating**: its `authorizations` are hybrid Ed25519 + ML-DSA-65
+/// signatures from accord holders over the charter, and a consumer re-derives
+/// authority from its OWN records, never from anything the bundle says about
+/// itself.
+///
+/// **The authority is inside `bundle` and nowhere else.** Everything outside it
+/// — `bundle_fingerprint`, `charter_root_key_id`, `served_by` — is unsigned
+/// convenience metadata: this node's unverified claim about bytes it is
+/// relaying. There is deliberately NO `response_signature`: signing the wrapper
+/// would prove only that the relaying node said it, which is exactly what the
+/// old steward-key proved and exactly what was worthless. The same schema is
+/// served by CIRISServer at `/v1/trust-root/bundle`, so a consumer sees one
+/// shape on both sides of the fold.
+///
+/// The old path `/v1/steward-key` is KEPT and serves this; any consumer still
+/// pinned to it now receives the portable root instead of a self-assertion.
 async fn steward_key(
     State(state): State<AppState>,
-) -> Result<Json<StewardKeyResponse>, crate::api::error::ApiError> {
-    let ed25519_pubkey = state.crypto.ed25519_public_key();
-    let mldsa_pubkey = state.crypto.mldsa_public_key();
-    let key_id = state.crypto.key_id().to_string();
+) -> Result<Json<TrustRootBundleResponse>, crate::api::error::ApiError> {
+    let bundle = ciris_persist::federation::genesis::canonical_genesis_bundle();
 
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(&mldsa_pubkey);
-    let mldsa_fingerprint = format!("sha256:{}", hex::encode(hasher.finalize()));
+    let bundle_json = serde_json::to_value(bundle).map_err(|e| {
+        crate::api::error::ApiError::from_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("the baked genesis bundle could not be serialized: {e}"),
+        )
+    })?;
 
-    let revision: u64 = sqlx::query_scalar::<_, Option<i32>>("SELECT MAX(id) FROM revocations")
-        .fetch_one(state.db.pool())
-        .await
-        .unwrap_or(Some(0))
-        .unwrap_or(0) as u64;
+    // Fingerprint over the JCS-canonical bytes so it is stable across
+    // serializers. Best-effort: a bundle we cannot fingerprint is still worth
+    // serving — the consumer verifies the artifact, not this field.
+    let bundle_fingerprint = ciris_verify_core::jcs::canonicalize(&bundle_json)
+        .ok()
+        .map(|bytes| {
+            use sha2::{Digest, Sha256};
+            format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
+        });
 
-    let b64 = base64::engine::general_purpose::STANDARD;
-    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    let charter_root_key_id = charter_root_of(bundle);
 
-    let this_region = std::env::var("REGISTRY_REGION").unwrap_or_else(|_| "us".to_string());
-    let mut stewards: Vec<StewardEntry> = Vec::with_capacity(STEWARD_REGIONS.len());
-    for (region, region_key_id) in STEWARD_REGIONS {
-        if *region == this_region {
-            // v1.4.3 CIRISRegistry#24 Ask 4 — emit cert_validity:{steward_id}
-            // self-attestation. v1.4 interim: minimal self-attested shape with
-            // 90-day validity window; substrate-conformance #17 lands the full
-            // hybrid-signed envelope on federation_attestations.
-            let valid_until_secs = 90 * 24 * 60 * 60;
-            stewards.push(StewardEntry {
-                region: region.to_string(),
-                key_id: key_id.clone(),
-                classical_pubkey: Some(b64.encode(&ed25519_pubkey)),
-                pqc_pubkey: Some(b64.encode(&mldsa_pubkey)),
-                fingerprint: Some(mldsa_fingerprint.clone()),
-                hardware_class: HARDWARE_CLASS_HSM_PROD.to_string(),
-                deployed: true,
-                cert_validity: Some(CertValidityAttestation {
-                    dimension: format!("cert_validity:{}", key_id),
-                    score: 1.0,
-                    confidence: 1.0,
-                    self_attested: true,
-                    attested_at: now,
-                    valid_until: now + valid_until_secs,
-                    note: "v1.4 interim self-attestation; substrate-conformance #17 lands hybrid-signed envelope on federation_attestations per §3.2 + §2.1. Consumers verify the TLS chain at connection time independently.".to_string(),
-                }),
-            });
-        } else {
-            // Other regions: placeholder until their Registry instance ships.
-            // Per FSD-002 §11.2 v1.4 interim — endpoint shape live so Verify-side
-            // ThresholdMember construction works end-to-end; downstream filters
-            // by deployed=true. APAC is Spec per MISSION §2.1; EU+US are
-            // Deployed but each instance only knows its own crypto today
-            // (pre-substrate-conformance #17). Placeholder for the non-this
-            // entries lets v1.4 ship before #17 lands.
-            stewards.push(StewardEntry {
-                region: region.to_string(),
-                key_id: region_key_id.to_string(),
-                classical_pubkey: None,
-                pqc_pubkey: None,
-                fingerprint: None,
-                hardware_class: HARDWARE_CLASS_PLACEHOLDER.to_string(),
-                deployed: false,
-                cert_validity: None,
-            });
+    // Does THIS node's own `trust:accepts` edge reach the charter root? Only
+    // answerable when the persist Engine is wired (FEDERATION_DUAL_WRITE);
+    // otherwise honestly `false` — a node can relay a root it has not accepted.
+    let accepts_this_root = match (&state.persist_engine, &charter_root_key_id) {
+        (Some(engine), Some(root)) => {
+            ciris_persist::federation::trust_root::trust_root_valid(
+                engine.federation_directory().as_ref(),
+                state.crypto.key_id(),
+                root,
+            )
+            .await
+            .ok()
+            .and_then(|v| serde_json::to_value(&v).ok())
+            .and_then(|j| j.get("user_accepts").and_then(serde_json::Value::as_bool))
+            .unwrap_or(false)
         }
-    }
+        _ => false,
+    };
 
-    Ok(Json(StewardKeyResponse {
-        stewards,
-        verification_policy: VerificationPolicy {
-            threshold: 2,
-            of_total: 3,
-            scheme: "M-of-N hybrid Ed25519 + ML-DSA-65".to_string(),
-            non_revocable: None,
+    Ok(Json(TrustRootBundleResponse {
+        bundle: bundle_json,
+        bundle_fingerprint,
+        charter_root_key_id,
+        served_by: TrustRootServedBy {
+            node_key_id: state.crypto.key_id().to_string(),
+            accepts_this_root,
         },
-        rotation_history_uri: "/v1/rotation-history".to_string(),
-        signature_mode: "HYBRID_REQUIRED".to_string(),
-        revision,
-        timestamp: now,
     }))
+}
+
+/// The charter root a bundle declares — read off the `genesis-charter`
+/// attestation's `attested_key_id` (`humanity-accord`). For discoverability
+/// only; a consumer verifies it, it does not trust this field.
+fn charter_root_of(bundle: &ciris_persist::federation::genesis::GenesisBundle) -> Option<String> {
+    bundle
+        .attestations
+        .iter()
+        .find(|a| a.attestation.attestation_id == "genesis-charter")
+        .map(|a| a.attestation.attested_key_id.clone())
+}
+
+/// The accord holder roster the bundle carries (A1/B1/C1). Used as the
+/// "who may bless a CI pipeline" set by the #138 manifest consumer.
+///
+/// Persist is explicit that bundle-carried holders are cross-check input and
+/// never the verification authority on their own (the CIRISPersist#377
+/// lesson) — but this is the BAKED bundle, compiled into the persist crate,
+/// not one received over the wire, so it is the same authority persist's own
+/// admission gate re-derives from.
+fn accord_holder_roster() -> Vec<String> {
+    ciris_persist::federation::genesis::canonical_genesis_bundle()
+        .holders
+        .iter()
+        .map(|h| h.record.key_id.clone())
+        .collect()
+}
+
+/// Response for the trust-root broadcast. Mirrors CIRISServer's
+/// `BundleBroadcast` field-for-field so the fold changes nothing a consumer
+/// sees. **Only `bundle` carries authority.**
+#[derive(Serialize)]
+struct TrustRootBundleResponse {
+    /// The artifact — the only part of this response that carries authority.
+    bundle: serde_json::Value,
+    /// `sha256:` over the JCS-canonical bundle. Convenience; recompute it.
+    bundle_fingerprint: Option<String>,
+    /// The charter root the bundle declares. Read off the bundle; verify it.
+    charter_root_key_id: Option<String>,
+    served_by: TrustRootServedBy,
+}
+
+/// What this node says about itself while relaying. **Unsigned.**
+#[derive(Serialize)]
+struct TrustRootServedBy {
+    node_key_id: String,
+    /// `false` is a legitimate state: a node may relay a root it has not
+    /// accepted. It is also the operator's un-trust lever.
+    accepts_this_root: bool,
 }
 
 /// Public endpoint: GET /v1/accord-holders (FSD-002 §7.7)
@@ -1631,7 +1638,35 @@ struct ProvenanceAttestationEntry {
 /// of build_attestation row (from existing build_attestations table) → L2/L3
 /// per the attested level. Substrate-conformance #17 will read from
 /// federation_attestations once attestations land there.
-fn compose_federation_provenance(row: &BuildRow) -> FederationProvenanceBlock {
+/// Compose the `federation_provenance` block for a build row — from the
+/// federation directory, not from the row.
+///
+/// #138: the previous body SYNTHESIZED a `provenance:build_manifest:{target}`
+/// entry with `score: 1.0, confidence: 1.0` from the Postgres row itself,
+/// attributed to whoever inserted it. That is an unsigned self-assertion in the
+/// position of an attestation — the same shape as the old `/v1/steward-key` —
+/// and it over-reports: a consumer was told a manifest was attested when a row
+/// had merely been inserted. A false pass, not a 404.
+///
+/// Now the manifest entry is emitted ONLY when a pipeline-signed Contribution
+/// for this exact `(target, binary_version, manifest_hash)` exists in the
+/// directory, signed by a CI pipeline key that carries the accord-conferred
+/// `infra:attest` role, and whose bound-hybrid signature re-verifies here
+/// against the pipeline's directory-pinned pubkeys. Absent that, the dimension
+/// is **absent** — and `note` says so — rather than 1.0.
+///
+/// The SLSA L1 entry is unchanged: it is derived from facts the row carries
+/// (`source_repo` + `source_commit` present), not a claim that anyone attested.
+///
+/// This is the CEG-native consumer read path (CIRISServer#25's registry half).
+/// Nothing emits these Contributions into the directory yet — see #138 for the
+/// order of operations — so today this returns no manifest entry everywhere.
+/// That is the correct answer today, and the code lights up unchanged the
+/// moment the pipelines start signing.
+async fn compose_federation_provenance(
+    federation: &dyn crate::federation::FederationDirectory,
+    row: &BuildRow,
+) -> FederationProvenanceBlock {
     let mut entries: Vec<ProvenanceAttestationEntry> = Vec::new();
 
     // SLSA L1 baseline: source_repo + source_commit present → "build process
@@ -1639,7 +1674,6 @@ fn compose_federation_provenance(row: &BuildRow) -> FederationProvenanceBlock {
     // separately (build_attestations table), surfaced here when present.
     let has_source = row.source_repo.is_some() && row.source_commit.is_some();
     let slsa_level = if has_source { Some(1u32) } else { None };
-
     if let Some(level) = slsa_level {
         entries.push(ProvenanceAttestationEntry {
             dimension: format!("provenance:slsa:{}", level),
@@ -1654,31 +1688,176 @@ fn compose_federation_provenance(row: &BuildRow) -> FederationProvenanceBlock {
         });
     }
 
-    // BuildManifest provenance entry per §3.2 v1.4.1 discipline:
-    // "Each BuildManifest should be hybrid-signed by the per-primitive
-    // steward; Registry serves the signed BuildManifest via the existing
-    // function-manifest endpoint."
-    entries.push(ProvenanceAttestationEntry {
-        dimension: format!("provenance:build_manifest:{}", row.target),
-        score: 1.0,
-        confidence: 1.0,
-        attester_key_id: row.registered_by.clone().unwrap_or_default(),
-        evidence_summary: format!(
-            "build_hash={} target={}",
-            row.build_hash, row.target
-        ),
-    });
+    let manifest_note = match verified_manifest_contribution(federation, row).await {
+        Some(v) => {
+            entries.push(ProvenanceAttestationEntry {
+                dimension: v.dimension,
+                score: 1.0,
+                confidence: 1.0,
+                attester_key_id: v.pipeline_key_id.clone(),
+                evidence_summary: format!(
+                    "pipeline={} blessed_by={} manifest_hash={} attestation_id={}",
+                    v.pipeline_key_id, v.blessed_by, row.file_manifest_hash, v.attestation_id
+                ),
+            });
+            "provenance:build_manifest verified from a pipeline-signed Contribution in the federation directory (#138)."
+        }
+        None => {
+            "no verified provenance:build_manifest Contribution for this (target, version, manifest_hash) in the federation directory — the dimension is ABSENT rather than asserted (#138). Manifest bytes are served from the registry's build table during the CEG-native transition."
+        }
+    };
 
     FederationProvenanceBlock {
         attestations_consumed: entries,
         slsa_level,
-        note: Some("v1.4 interim composition from BuildRow fields; substrate-conformance #17 will read attestations from federation_attestations directly per FSD-002 §3.2.".to_string()),
+        note: Some(manifest_note.to_string()),
     }
+}
+
+/// A build-manifest Contribution that passed every check.
+struct VerifiedManifestContribution {
+    dimension: String,
+    attestation_id: String,
+    pipeline_key_id: String,
+    /// The accord holder whose scrub conferred `infra:attest` on the pipeline.
+    blessed_by: String,
+}
+
+/// Is this `node` key an accord-blessed CI pipeline?
+///
+/// The bless ceremony (`POST /v1/accord/ci-key/{propose,cosign}`, CIRISServer#290)
+/// scrub-signs each pipeline key with `roles:["infra:attest"]`, keeping
+/// `identity_type = "node"` — an infrastructure attester, never canonical. So a
+/// pipeline is blessed iff it carries the role AND at least one of its scrubs
+/// (primary or additional) is from an accord holder. The role alone is not
+/// enough: a key can self-declare any role in its own envelope; only the
+/// accord's scrub makes it conferred.
+fn blessed_by(record: &crate::federation::KeyRecord, roster: &[String]) -> Option<String> {
+    if !record
+        .capability_roles
+        .iter()
+        .any(|r| r == ciris_persist::federation::trust_root::INFRA_ATTEST_SCOPE)
+    {
+        return None;
+    }
+    if roster.iter().any(|h| h == &record.scrub_key_id) {
+        return Some(record.scrub_key_id.clone());
+    }
+    record
+        .additional_scrubs
+        .iter()
+        .map(|s| s.scrub_key_id.clone())
+        .find(|k| roster.iter().any(|h| h == k))
+}
+
+/// Find and re-verify the pipeline-signed `provenance:build_manifest:{target}`
+/// Contribution binding THIS row's `(version, manifest_hash)`, if one exists.
+///
+/// Walk order is forced by what the directory indexes: there is no dimension
+/// index, so we start from WHO may attest (blessed `node` keys) and list what
+/// each one signed. Fail-closed at every step — a Contribution that matches on
+/// version but not `manifest_hash` is a different build and is ignored; one
+/// whose signature does not re-verify is ignored and logged.
+async fn verified_manifest_contribution(
+    federation: &dyn crate::federation::FederationDirectory,
+    row: &BuildRow,
+) -> Option<VerifiedManifestContribution> {
+    use ciris_verify_core::threshold::{verify_threshold_signatures, ThresholdMember, ThresholdSignature};
+
+    let roster = accord_holder_roster();
+    let want_dim = format!("provenance:build_manifest:{}", row.target);
+    let want_version = normalize_release_version(&row.version);
+
+    let nodes = match federation
+        .list_keys_by_identity_type(crate::federation::types::identity_type::NODE)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            warn!("provenance: list node keys failed ({e}); emitting no manifest entry");
+            return None;
+        }
+    };
+
+    for pipeline in nodes {
+        let Some(blessed_by) = blessed_by(&pipeline, &roster) else { continue };
+        let Ok(signed) = federation.list_attestations_by(&pipeline.key_id).await else { continue };
+
+        for att in signed {
+            let env = &att.attestation_envelope;
+            if env.get("dimension").and_then(|d| d.as_str()) != Some(want_dim.as_str()) {
+                continue;
+            }
+            let build = env.get("build");
+            let bv = build.and_then(|b| b.get("binary_version")).and_then(|v| v.as_str());
+            let mh = build.and_then(|b| b.get("manifest_hash")).and_then(|v| v.as_str());
+            if bv.map(normalize_release_version) != Some(want_version.clone()) {
+                continue;
+            }
+            // Binding to THIS row's bytes. Same version, different manifest hash
+            // is a different build — attributing it here would be exactly the
+            // over-reporting this function exists to stop.
+            if mh != Some(row.file_manifest_hash.as_str()) {
+                continue;
+            }
+
+            // Re-verify the pipeline's bound-hybrid signature over the JCS
+            // envelope against its DIRECTORY-pinned pubkeys — the same check
+            // ciris_verify_core::manifest_contribution performs, at threshold 1.
+            let Ok(bytes) = ciris_verify_core::jcs::canonicalize(env) else { continue };
+            let member = ThresholdMember {
+                member_id: pipeline.key_id.clone(),
+                ed25519_public_key_base64: pipeline.pubkey_ed25519_base64.clone(),
+                mldsa65_public_key_base64: pipeline.pubkey_ml_dsa_65_base64.clone(),
+                // Founder/Member roles govern accord admission-quorum dilution;
+                // a single pinned pipeline verified at threshold 1 is neither.
+                // verify-core documents `None` as the non-infrastructure default.
+                role: None,
+            };
+            let sig = ThresholdSignature {
+                member_id: pipeline.key_id.clone(),
+                ed25519_signature_base64: att.scrub_signature_classical.clone(),
+                mldsa65_signature_base64: att.scrub_signature_pqc.clone(),
+            };
+            if verify_threshold_signatures(&bytes, std::slice::from_ref(&member), &[sig], 1) != Ok(1) {
+                warn!(
+                    "provenance: Contribution {} by {} matched (target, version, manifest_hash) but its signature did not re-verify — ignoring",
+                    att.attestation_id, pipeline.key_id
+                );
+                continue;
+            }
+
+            return Some(VerifiedManifestContribution {
+                dimension: want_dim,
+                attestation_id: att.attestation_id,
+                pipeline_key_id: pipeline.key_id,
+                blessed_by,
+            });
+        }
+    }
+    None
+}
+
+/// Normalize a release version for lookup: strip a trailing `-stable` ONLY.
+///
+/// The publishers strip the channel suffix before registering, so registry
+/// holds `2.9.48` while the agent reports `CIRIS_VERSION = "2.9.48-stable"`
+/// and nothing on the consumer side re-strips it — a guaranteed 404 on data
+/// that exists (#137). `-stable` is the publisher's own documented equivalence
+/// and is safe to fold.
+///
+/// `-rc*` / `-beta*` / `-alpha*` are deliberately NOT stripped here: an rc and
+/// a stable of the same number are different artifacts, and folding them on
+/// read would serve the stable manifest for an rc query — a false pass.
+fn normalize_release_version(v: &str) -> String {
+    v.strip_suffix("-stable").unwrap_or(v).to_string()
 }
 
 impl From<BuildRow> for BuildRecordResponse {
     fn from(row: BuildRow) -> Self {
-        let federation_provenance = Some(compose_federation_provenance(&row));
+        // Provenance is composed by the handler (it is an async directory
+        // read now — #138); `From` yields the row with it unset.
+        let federation_provenance = None;
 
         // CIRISVerify expects: {"version": "...", "files": {"path": "hash"}}
         // Database stores flat: {"path": "hash"}
@@ -1731,8 +1910,23 @@ async fn get_build_by_version(
         return Err(crate::api::error::ApiError::from_status(StatusCode::BAD_REQUEST, reason));
     }
 
-    match get_build(state.db.pool(), Some(&version), None, q.project_opt(), q.target_opt()).await {
-        Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
+    // #137: publishers register the channel-stripped version (`2.9.48`) while
+    // the agent reports `2.9.48-stable`. Look up as given, then retry with a
+    // trailing `-stable` folded. ONLY `-stable` — see normalize_release_version.
+    let mut found = get_build(state.db.pool(), Some(&version), None, q.project_opt(), q.target_opt()).await;
+    if matches!(found, Ok(None)) {
+        let folded = normalize_release_version(&version);
+        if folded != version {
+            found = get_build(state.db.pool(), Some(&folded), None, q.project_opt(), q.target_opt()).await;
+        }
+    }
+    match found {
+        Ok(Some(row)) => {
+            let provenance = compose_federation_provenance(state.federation.as_ref(), &row).await;
+            let mut resp = BuildRecordResponse::from(row);
+            resp.federation_provenance = Some(provenance);
+            Ok(Json(resp))
+        }
         Ok(None) => Err(crate::api::error::ApiError::from_status(StatusCode::NOT_FOUND, format!("Build not found for version {}", version))),
         Err(e) => {
             warn!("Error fetching build by version: {}", e);
@@ -1767,7 +1961,12 @@ async fn get_build_by_hash(
     // get_build returns the most recent row by (project, version, target)
     // ordering — sufficient for liveness checks.
     match get_build(state.db.pool(), None, Some(&build_hash), None, None).await {
-        Ok(Some(row)) => Ok(Json(BuildRecordResponse::from(row))),
+        Ok(Some(row)) => {
+            let provenance = compose_federation_provenance(state.federation.as_ref(), &row).await;
+            let mut resp = BuildRecordResponse::from(row);
+            resp.federation_provenance = Some(provenance);
+            Ok(Json(resp))
+        }
         Ok(None) => Err(crate::api::error::ApiError::from_status(StatusCode::NOT_FOUND, format!("Build not found for hash {}", &build_hash[..16]))),
         Err(e) => {
             warn!("Error fetching build by hash: {}", e);
@@ -2905,6 +3104,7 @@ pub async fn serve(
     // device-attestation APIs.
     let public_rate_limited = Router::new()
         .route("/v1/steward-key", get(steward_key))
+        .route("/v1/trust-root/bundle", get(steward_key))
         .route("/v1/identity", get(identity))
         // v1.4 FSD-002 §7.7 — multi-steward + accord-holder discovery
         // (CIRISRegistry#21 + #23 Surface 1 + #16 spec support).
@@ -3122,7 +3322,9 @@ mod tests {
             ClassicalSigner, ClassicalVerifier, Ed25519Signer, Ed25519Verifier, MlDsa65Signer,
             MlDsa65Verifier, PqcSigner, PqcVerifier,
         };
-        let ed_signer = Ed25519Signer::random();
+        // v13.3.1: `random()` is fallible — it fails secure when the RNG health
+        // check has marked the source failed (ciris-crypto rng_health).
+        let ed_signer = Ed25519Signer::random().unwrap();
         let pqc_signer = MlDsa65Signer::new().unwrap();
         let ed_pk = ed_signer.public_key().unwrap();
         let pqc_pk = pqc_signer.public_key().unwrap();
@@ -3141,5 +3343,166 @@ mod tests {
         assert!(MlDsa65Verifier::new()
             .verify(&pqc_pk, &bound, &pqc_sig)
             .unwrap());
+    }
+}
+
+#[cfg(test)]
+mod fold_consumer_tests {
+    //! #133 / #137 / #138 — the trust-root broadcast and the CEG-native
+    //! manifest consumer. The invariants under test are the ones that would
+    //! silently regress into over-reporting: an outer envelope that grows a
+    //! signature, a bless predicate that trusts a self-declared role, a
+    //! version fold that swallows an rc, or a provenance block that asserts a
+    //! manifest it never found.
+
+    use super::*;
+    use crate::federation::types::{algorithm, identity_type};
+    use crate::federation::{KeyRecord, NoOpFederationClient};
+    use chrono::Utc;
+
+    fn node_key(key_id: &str, roles: &[&str], scrub_by: &str, extra_scrubs: &[&str]) -> KeyRecord {
+        KeyRecord {
+            key_id: key_id.into(),
+            pubkey_ed25519_base64: String::new(),
+            pubkey_ml_dsa_65_base64: None,
+            algorithm: algorithm::HYBRID.into(),
+            identity_type: identity_type::NODE.into(),
+            identity_ref: key_id.into(),
+            valid_from: Utc::now(),
+            valid_until: None,
+            registration_envelope: serde_json::Value::Null,
+            original_content_hash: String::new(),
+            scrub_signature_classical: String::new(),
+            scrub_signature_pqc: None,
+            scrub_key_id: scrub_by.into(),
+            scrub_timestamp: Utc::now(),
+            pqc_completed_at: None,
+            capability_roles: roles.iter().map(|r| r.to_string()).collect(),
+            consent_role: None,
+            additional_scrubs: extra_scrubs
+                .iter()
+                .map(|k| ciris_persist::federation::types::ScrubSig {
+                    scrub_key_id: k.to_string(),
+                    scrub_signature_classical: String::new(),
+                    scrub_signature_pqc: None,
+                    cosigned_at: None,
+                })
+                .collect(),
+            attestation_evidence: None,
+            persist_row_hash: String::new(),
+        }
+    }
+
+    fn build_row(version: &str, manifest_hash: &str) -> BuildRow {
+        BuildRow {
+            build_id: sqlx::types::Uuid::nil(),
+            project: "ciris-agent".into(),
+            version: version.into(),
+            target: "python-source-tree".into(),
+            build_hash: "0".repeat(64),
+            file_manifest_hash: manifest_hash.into(),
+            file_manifest_count: 1,
+            file_manifest_json: serde_json::json!({"files": {}}),
+            includes_modules: Vec::new(),
+            source_repo: Some("https://github.com/CIRISAI/CIRISAgent".into()),
+            source_commit: Some("abc".into()),
+            registered_at: time::OffsetDateTime::now_utc(),
+            registered_by: Some("someone".into()),
+            status: "active".into(),
+            notes: None,
+        }
+    }
+
+    // ── trust-root broadcast ─────────────────────────────────────────────
+
+    /// The wrapper must never grow a signature or a hardware claim. Those are
+    /// precisely the fields the old /v1/steward-key carried, and they are what
+    /// made it worthless: they prove only that the relay said so.
+    #[test]
+    fn trust_root_outer_envelope_claims_no_authority() {
+        let body = TrustRootBundleResponse {
+            bundle: serde_json::json!({"stub": true}),
+            bundle_fingerprint: Some("sha256:f".into()),
+            charter_root_key_id: Some("humanity-accord".into()),
+            served_by: TrustRootServedBy { node_key_id: "n".into(), accepts_this_root: false },
+        };
+        let json = serde_json::to_value(&body).unwrap();
+        let outer: Vec<&str> = json.as_object().unwrap().keys().map(String::as_str).collect();
+        for forbidden in ["response_signature", "signature_mode", "hardware_class", "stewards"] {
+            assert!(!outer.contains(&forbidden), "`{forbidden}` must not appear on the outer envelope (#133)");
+        }
+        assert!(outer.contains(&"bundle"), "the artifact is the only part that matters");
+    }
+
+    /// We serve the bundle persist bakes, and read the charter + roster off it.
+    /// If either ever comes back empty, the bless predicate has no roster and
+    /// the consumer below can never confer — pin it here, where it is served.
+    #[test]
+    fn baked_bundle_names_its_charter_and_holders() {
+        let b = ciris_persist::federation::genesis::canonical_genesis_bundle();
+        assert_eq!(charter_root_of(b).as_deref(), Some("humanity-accord"));
+        let roster = accord_holder_roster();
+        assert!(!roster.is_empty(), "the baked bundle must carry the holder roster");
+        for h in ["A1", "B1", "C1"] {
+            assert!(roster.iter().any(|k| k == h), "holder {h} missing from baked roster {roster:?}");
+        }
+        let json = serde_json::to_value(b).unwrap();
+        assert!(json.get("authorizations").is_some(), "authorizations are what make the bundle self-authenticating");
+    }
+
+    // ── version fold ─────────────────────────────────────────────────────
+
+    /// `-stable` is the publisher's own equivalence and folds; an rc/beta is a
+    /// different artifact and must NOT — folding it would serve the stable
+    /// manifest for an rc query, a false pass.
+    #[test]
+    fn version_fold_strips_stable_only() {
+        assert_eq!(normalize_release_version("2.9.48-stable"), "2.9.48");
+        assert_eq!(normalize_release_version("2.9.48"), "2.9.48");
+        assert_eq!(normalize_release_version("2.9.48-rc1"), "2.9.48-rc1");
+        assert_eq!(normalize_release_version("2.9.48-beta2"), "2.9.48-beta2");
+        assert_eq!(normalize_release_version("2.9.48-stable-stable"), "2.9.48-stable");
+    }
+
+    // ── bless predicate ──────────────────────────────────────────────────
+
+    /// A role a key declares about itself confers nothing. Only the accord's
+    /// scrub does — primary or additional.
+    #[test]
+    fn a_pipeline_is_blessed_only_by_an_accord_scrub_carrying_the_role() {
+        let roster = vec!["A1".to_string(), "B1".to_string(), "C1".to_string()];
+        let attest = ciris_persist::federation::trust_root::INFRA_ATTEST_SCOPE;
+
+        // role + accord primary scrub → blessed by that holder
+        assert_eq!(blessed_by(&node_key("ci-1", &[attest], "A1", &[]), &roster).as_deref(), Some("A1"));
+        // role, but scrubbed by a stranger → self-declared, NOT blessed
+        assert_eq!(blessed_by(&node_key("ci-2", &[attest], "not-a-holder", &[]), &roster), None);
+        // accord scrub, but no role → an admitted node, not an attester
+        assert_eq!(blessed_by(&node_key("ci-3", &["infra:serve"], "A1", &[]), &roster), None);
+        // role + stranger primary + accord co-scrub → blessed by the co-scrubber
+        assert_eq!(
+            blessed_by(&node_key("ci-4", &[attest], "not-a-holder", &["B1"]), &roster).as_deref(),
+            Some("B1")
+        );
+    }
+
+    // ── provenance honesty ───────────────────────────────────────────────
+
+    /// With nothing in the directory, the manifest dimension must be ABSENT —
+    /// not 1.0 — and the note must say so. This is the #138 over-reporting
+    /// regression pinned directly: the old body emitted
+    /// `provenance:build_manifest:*` at confidence 1.0 from the row alone.
+    #[tokio::test]
+    async fn empty_directory_yields_no_manifest_provenance() {
+        let row = build_row("2.9.49", &"a".repeat(64));
+        let block = compose_federation_provenance(&NoOpFederationClient, &row).await;
+        assert!(
+            !block.attestations_consumed.iter().any(|e| e.dimension.starts_with("provenance:build_manifest:")),
+            "no Contribution was found, so no manifest dimension may be asserted: {:?}",
+            block.attestations_consumed.iter().map(|e| &e.dimension).collect::<Vec<_>>()
+        );
+        // SLSA L1 is derived from row facts (source present), not a claim of attestation — still emitted.
+        assert_eq!(block.slsa_level, Some(1));
+        assert!(block.note.as_deref().unwrap_or("").contains("ABSENT"), "note must state the absence: {:?}", block.note);
     }
 }

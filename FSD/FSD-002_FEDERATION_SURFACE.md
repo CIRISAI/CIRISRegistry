@@ -1,6 +1,15 @@
 # FSD-002 — Federation Surface
 
-> **⚠️ DESIGN-HISTORY NOTICE (2026-05-28)**: As of CEG 0.1 Public Working Draft, this document is **superseded** by the consolidated CIRIS Epistemic Grammar specification at [`FSD/CEG/`](CEG/README.md). FSD-002 is preserved here as design-history showing the v1.0 → v1.4.3 incremental evolution that fed into CEG. **New references should cite CEG; this document is no longer the authoritative wire-format spec.**
+> **⚠️ DESIGN-HISTORY NOTICE (2026-05-28; normative pointer updated 2026-08-17)**: As of CEG 0.1 Public Working Draft, this document was **superseded** by the consolidated CIRIS Epistemic Grammar specification — which has since been absorbed into **the CIRIS Constitution (CC)**, the single source of truth, homed at **[CIRISAI/CIRISConstitution](https://github.com/CIRISAI/CIRISConstitution)** (currently **1.0-rc4**). The former in-repo `FSD/CEG/` corpus was removed in CIRISRegistry#131; [`FSD/CEG/README.md`](CEG/README.md) survives only as a signpost and is not normative. FSD-002 is preserved here as design-history showing the v1.0 → v1.4.3 incremental evolution that fed into CEG. **New references should cite CC; this document is no longer the authoritative wire-format spec.**
+>
+> **Where CC and FSD-002 disagree, CC wins.** Two divergences were found and corrected in place on 2026-08-17 (CIRISRegistry#132) rather than left to propagate through the ~34 inbound citations that treat FSD-002 as the normative attestation-surface spec:
+>
+> | § touched | Was (FSD-002, stale) | Is (CC, ratified — and what shipped CIRISVerify already emits) |
+> |---|---|---|
+> | §3.2, §4.3, §4.8, §5.3, §5.5 | ladder-named `attestation:l1:self_verify` … `attestation:l5:agent_integrity` | mechanism-named `attestation:self_verify` … `attestation:agent_integrity` — [CC part_3 §3.1.2](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) |
+> | §3.2.1.1, §3.2.1.2 | v1 line-oriented canonical bytes (a `ciris.skill_import.v1` domain prefix plus newline-delimited `key=value` fields) | v2 JCS canonical bytes — `sha256(JCS({…}))` with pinned `.v2` domain literals; *"Producers MUST emit v2"* — [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) |
+>
+> The retired v1 canonical-bytes blocks are **preserved and marked** at §3.2.1.1-R and §3.2.1.2-R rather than deleted, so a reader arriving from an old citation can see what replaced them. These are documentation corrections: there is no FSD-002 version bump, because the version line of record is CC's, not this document's.
 
 **Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
@@ -14,7 +23,7 @@
 - §2.1 — three new envelope fields: `occurrence_id` + `occurrence_count` + `occurrence_role` for multi-occurrence agent-deployment semantics. Closes CIRISPersist#110 (which requested a §3.1.5 addition — architecturally these are envelope-level fields, not a per-component prefix slice, so §2.1 is the canonical home). Substrate-self-report attestations (`system:*` prefixes per §3.3 + §3.4) SHOULD carry these fields per the field's documented semantics. Single-occurrence agents leave them null/absent; backward-compatible. CIRIS Agent multi-occurrence wiring at `ciris_engine/logic/utils/occurrence_utils.py`.
 
 **Changelog vs v1.4**:
-- §2.1 — `oversight_mode` envelope field (HITL/HOTL/HOOTL) added per CIRISRegistry#27 (D12+D23) + ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits per CIRISNodeCore#18; mode-shifts attestable as `accountability:mode_shift:{from}:{to}`.
+- §2.1 — `oversight_mode` envelope field (HITL/HOTL/HOOTL) added per CIRISRegistry#27 (D12+D23) + ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits per CIRISNodeCore#18. **Correction (CC 1.0-rc4):** the `accountability:mode_shift:{from}:{to}` dimension this entry originally announced is **withdrawn** — CC 2.1 no longer names it. Per rc4: A **mode shift is a stewardship act on the delegation plane, not a scored dimension**: the human-control gradient an agent may operate under is bounded by the `agency:*` scopes its steward conferred ([CC 4.4.3.4.3](part_4_composition_governance.md)), so a shift is recorded as the steward issuing a **superseding `delegates_to`** ([CC 2.4.1](part_2_the_grammar.md)) carrying the new scope set, with `supersedes` keeping the prior grant as forward-only history ([CC 4.5.9.3](part_4_composition_governance.md)) — the same naming/superseding machinery that governs stewards and moderators ([CC 4.5.5](part_4_composition_governance.md)). A consumer MAY treat an `oversight_mode` inconsistent with the agent's live grant as it treats any self-claim exceeding its delegation. There is **no `accountability:*` family**: accountability is structural (the audit chain), never a named axis — the CIRISAgent D23 design, and the reason an earlier draft's `accountability:mode_shift:{from}:{to}` could never have admitted under [CC 3.1.7](part_3_the_namespace.md) R2. The family was never minted by any shipped implementation.
 - §3.1.1 — `fidelity:explainability_sla:{tier}` added per CIRISRegistry#26 (D09). Four tiers (L1-L4); SLA-breach surfaces as `hard_case:sla_breach_unattested` per CIRISNodeCore#18 composition.
 - §3.2 — three additions: `provenance:slsa:{level}` emission discipline (CIRISRegistry#24 Ask 1); per-target `BuildManifest` hybrid-signing discipline (CIRISRegistry#24 Ask 2); `cert_validity:{steward_id}` self-attestation (CIRISRegistry#24 Ask 4); plus two new prefixes: `provenance:build_manifest:{target}:locale:{lang_code}` (CIRISRegistry#29 D02+D27) and `provenance:skill_import:{source}` (CIRISRegistry#28 D27). Verify-side signature verification at CIRISVerify#37.
 - §3.9 — D11 / D19 doc clarification (the 6-element `partner_role:{role}` enum + `multilateral_participation:{forum}:{kind}` taxonomy were already in §3.9 v1.3 + v1.4; v1.4.1 doc-only clarification of canonical enums per CIRISRegistry#25 umbrella).
@@ -343,7 +352,7 @@ Field semantics:
 | `valid_until` | no | ISO8601 datetime. If set, consumer policy treats the attestation as stale after that point (independent of the substrate row's own `expires_at`). |
 | `epistemic_mode` | no | Per §1.4; default `direct`. Consumers may weight by mode (e.g., direct witness > hearsay). |
 | `witness_relation` | no | `self` \| `external` \| `derived`. Names the attester's relation to the attested fact: `self` = attester is the attested entity (self-attestation); `external` = attester observed independently; `derived` = attester inferred from other attestations or signed traces. Default `external`. Consumers weight by relation to prevent self-attestation gaming and to distinguish first-hand from derived claims. Added v1.3; complements `epistemic_mode` (which names HOW the claim was formed) — `witness_relation` names WHO the attester is in relation to the attested entity. |
-| `oversight_mode` | no | `HITL` \| `HOTL` \| `HOOTL`. Names the human-control gradient under which the attestation was produced: **HITL** = every action requires human approval before dispatch; **HOTL** = human reviews stream + can intervene; agent dispatches unilaterally otherwise; **HOOTL** = human reviews only flagged escalations + audit log. Default `null` (legacy contributions before v1.4.1; consumer policy applies a per-cell default). Mode shifts are themselves attestable as `accountability:mode_shift:{from}:{to}` Contributions. Added v1.4.1 per CIRISRegistry#27 (D12 + D23) + ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits this field per CIRISNodeCore#18 — mode-shifts flagged for operator review. |
+| `oversight_mode` | no | `HITL` \| `HOTL` \| `HOOTL`. Names the human-control gradient under which the attestation was produced: **HITL** = every action requires human approval before dispatch; **HOTL** = human reviews stream + can intervene; agent dispatches unilaterally otherwise; **HOOTL** = human reviews only flagged escalations + audit log. Default `null` (legacy contributions before v1.4.1; consumer policy applies a per-cell default). **Mode shifts are NOT an attestable dimension** — the `accountability:mode_shift:{from}:{to}` family FSD-002 v1.4.1 announced is withdrawn at CC 1.0-rc4 (CC 2.1). Per rc4: A **mode shift is a stewardship act on the delegation plane, not a scored dimension**: the human-control gradient an agent may operate under is bounded by the `agency:*` scopes its steward conferred ([CC 4.4.3.4.3](part_4_composition_governance.md)), so a shift is recorded as the steward issuing a **superseding `delegates_to`** ([CC 2.4.1](part_2_the_grammar.md)) carrying the new scope set, with `supersedes` keeping the prior grant as forward-only history ([CC 4.5.9.3](part_4_composition_governance.md)) — the same naming/superseding machinery that governs stewards and moderators ([CC 4.5.5](part_4_composition_governance.md)). A consumer MAY treat an `oversight_mode` inconsistent with the agent's live grant as it treats any self-claim exceeding its delegation. There is **no `accountability:*` family**: accountability is structural (the audit chain), never a named axis — the CIRISAgent D23 design, and the reason an earlier draft's `accountability:mode_shift:{from}:{to}` could never have admitted under [CC 3.1.7](part_3_the_namespace.md) R2. Added v1.4.1 per CIRISRegistry#27 (D12 + D23) + ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits this field per CIRISNodeCore#18 — mode-shifts flagged for operator review. |
 | `occurrence_id` | no | Identifies which occurrence of a multi-occurrence agent deployment emitted this attestation. Format: `"occurrence-{n}"` (numeric index per the agent's `AGENT_OCCURRENCE_ID` env var) or `"__shared__"` for shared-task pattern emissions (per CIRISAgent CLAUDE.md "Multi-Occurrence Deployment Support"). Default `null`/absent for single-occurrence agents — consumer policy treats absence as `occurrence-0` for backward compat. Added v1.4.2 per CIRISPersist#110 (D09 per-occurrence mandate-fidelity). |
 | `occurrence_count` | no | Total occurrences in the deployment fleet emitting the attestation; integer ≥ 1. Default `null`/absent → `1` (single-occurrence). Lets consumers reconstruct fleet-wide coverage from per-occurrence attestation streams. Added v1.4.2 per CIRISPersist#110. |
 | `occurrence_role` | no | `primary` \| `shared` \| `replica`. Names the occurrence's role within the fleet: **primary** = emits for the fleet's authoritative claims (default for occurrence-0 in fleets without explicit role config); **shared** = emits for shared-task pattern (uses `__shared__` occurrence_id); **replica** = emits for redundancy/observability without authoritative weight. Default `null`/absent → `primary` for backward compat. Added v1.4.2 per CIRISPersist#110. Per-occurrence semantics live in `ciris_engine/logic/utils/occurrence_utils.py`; substrate-self-report attestations (`system:*` prefixes per §3.3 + §3.4) SHOULD carry these fields so post-facto compliance reviewers can reconstruct "which occurrence agreed to which mandate" — the D09 surface this admission opens. |
@@ -494,13 +503,17 @@ This section catalogs every prefix family, organized by owning component, with c
 
 **Owner**: [`CIRISVerify/MISSION.md`](https://github.com/CIRISAI/CIRISVerify/blob/main/MISSION.md) (sha `8c3907ce8cd9`).
 
+> **Normative source (2026-08-17)**: this namespace slice is ratified at [**CC part_3 §3.1.2**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) (CIRISAI/CIRISConstitution, 1.0-rc4). Where the table below and CC disagree, **CC wins**.
+>
+> **Correction (CIRISRegistry#132)**: the five attestation-ladder rows previously carried **ladder-numbered** prefixes — `attestation:l1:self_verify`, `attestation:l2:hardware`, `attestation:l3:registry_consensus`, `attestation:l4:license_validity`, `attestation:l5:agent_integrity`. Those are **retired**. The ratified names are **mechanism-named, with no ladder number**, and CC states why: *"the attestation-ladder prefixes are mechanism-named … because L-numbers name a verdict-shape (ladder position), not a mechanism — the L1-L5 ladder lives as consumer-side composition per CC 4.4.3.6 Policy I."* CIRISVerify dropped the ladder from the wire in v3.7.0 on that reasoning and CC subsequently ratified it; the shipped constants are `ciris-verify-core/src/federation_provenance.rs::dim`. Note that the L2 row changed **two** tokens — the ladder number went, and the mechanism token became `hardware_rooted`, not `hardware`. The L1-L5 ladder itself is **not** abolished: it survives as consumer-side composition, which is why each row below still names its ladder position in prose. The same rename is applied at §4.3, §4.8, §5.3 and §5.5.
+
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `attestation:l1:self_verify` | L1 self-verification — running CIRISVerify binary attests itself against its function manifest. "If L1 fails, every other level is UNVERIFIED." | Verify §1.5, §4; `function_integrity.rs`. | boolean-via-score |
-| `attestation:l2:hardware` | Hardware-rooted attestation (TPM 2.0 / Android Keystore / iOS Secure Enclave). | Verify §4; `HardwareSigner`. | boolean-via-score |
-| `attestation:l3:registry_consensus` | 2-of-3 multi-source registry consensus on key/build/license validity. | Verify §4; `validation.rs`. | boolean-via-score; `Indeterminate` allowed → RESTRICTED |
-| `attestation:l4:license_validity` | License-validity claim (Registry-signed, Verify-verified). | Verify §4. | boolean-via-score |
-| `attestation:l5:agent_integrity` | Full L5 — agent source-tree byte-equal against registered manifest (Algorithm A; Algorithm B caps at L3 for mobile). | Verify §4; Agent §4.6. | boolean-via-score |
+| `attestation:self_verify` | Running CIRISVerify binary attests itself against its function manifest. "If this fails, every other level is UNVERIFIED." (Consumer-side ladder position: **L1**.) | Verify §1.5, §4; `function_integrity.rs`. | boolean-via-score |
+| `attestation:hardware_rooted` | Hardware-rooted attestation (TPM 2.0 / Android Keystore / iOS Secure Enclave). (Ladder **L2**.) | Verify §4; `HardwareSigner`. | boolean-via-score |
+| `attestation:registry_consensus` | 2-of-3 multi-source registry consensus on key/build/license validity. (Ladder **L3**.) | Verify §4; `validation.rs`. | boolean-via-score; `Indeterminate` allowed → RESTRICTED |
+| `attestation:license_validity` | License-validity claim (Registry-signed, Verify-verified). (Ladder **L4**.) | Verify §4. | boolean-via-score |
+| `attestation:agent_integrity` | Agent source-tree byte-equal against registered manifest (Algorithm A; Algorithm B caps at L3 for mobile). (Ladder **L5**.) | Verify §4; Agent §4.6. | boolean-via-score |
 | `provenance:slsa:{level}` | SLSA build provenance levels 1-3. **v1.4.1**: Registry emits these attestations alongside build-signing per CIRISRegistry#24 Ask 1. Verify v3.6.0+ `AttestBundle.provenance.slsa_level` consumes. | Registry FSD-001 `GetBuildAttestation`; Edge §4; CIRISRegistry#24. | boolean-via-score |
 | `provenance:build_manifest:{target}` | Per-target canonical-staged-runtime manifest hash equality. **v1.4.1**: each `BuildManifest` is hybrid-signed (Ed25519 + ML-DSA-65) by the per-primitive steward (`verify-steward-2026`, `persist-steward-2026`, etc.) per CIRISRegistry#24 Ask 2; Verify v3.4.0+ `verify_build_manifest` + `to_attestation_entries` consumes. | Agent §6.3; Edge §4 `emit_edge_extras.rs`; CIRISRegistry#24. | boolean-via-score |
 | `provenance:build_manifest:{target}:locale:{lang_code}` | **v1.4.1 addition (D02 + D27 per CIRISRegistry#29).** Per-locale signed sub-manifest within a target's manifest tree. `{lang_code}` is one of the 29 supported ISO 639-1 codes per `localization/manifest.json` (or `polyglot` for the unified case). Each per-locale leaf carries its own signed hash chain; the parent `{target}` manifest is a Merkle root over the per-locale leaves. Detection surface for locale-targeted attacks (e.g., selective doctrinal substitution in low-resource languages). Verify-side: see CIRISVerify#37 for Merkle-walk verification + `AttestBundle.provenance.build_manifest_per_locale` field. | CIRISAgent `compliance/D02_integrity.md`, `D27_provenance.md` (commit `db6a68246`); CIRISVerify v2.0.3+ CanonicalBuild v2 per-target pattern; this FSD §3.2 (v1.4.1 addition). | boolean-via-score |
@@ -513,37 +526,45 @@ This section catalogs every prefix family, organized by owning component, with c
 
 #### 3.2.1 Canonical-bytes contracts for v1.4.1+ provenance primitives
 
-CIRISVerify v3.8.0 ships Phase 1 (carrier-ready: dimension recognition + `AttestBundle` projection for `provenance:skill_import:{source}` + `provenance:build_manifest:{target}:locale:{lang_code}`); Phase 2 (`SkillImportManifest::verify` + per-locale Merkle composition verifier) is blocked on Registry-side canonical-bytes finalization. This subsection pins the structures so Verify v3.9.0+ can land the verifiers deterministically.
+> **Normative source (2026-08-17)**: these contracts are ratified at [**CC part_3 §3.1.2.1**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) — *"`provenance` — Canonical-bytes contracts for provenance primitives"* (CIRISAI/CIRISConstitution, 1.0-rc4). The general canonicalization rules they compose against are at [**CC part_2 §2.6**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_2_the_grammar.md): §2.6.1 (JCS-as-encoding + the omit-vs-materialize rule), §2.6.1.1.1 (array-ordering / byte-field / timestamp determinism), §2.6.2 (timestamps), §2.6.3 (hex). Where this section and CC disagree, **CC wins**.
+>
+> **Correction (CIRISRegistry#132) — the v1 form below is RETIRED; v2 is normative.** §3.2.1.1 and §3.2.1.2 originally pinned a **line-oriented** preimage: a `ciris.skill_import.v1` / `ciris.locale_manifest.v1` domain prefix followed by newline-delimited `key=value` fields. **That form is retired and MUST NOT be implemented.** CC supersedes it with a **v2 JCS form** — `sha256(JCS({…}))` over a JSON object with pinned `.v2` domain literals — and rules: *"Producers MUST emit v2."* The reason CC gives is an injection surface, not tidiness: a delimiter-based preimage is ambiguous whenever a field carries attacker-influenceable free text, and `source = direct:{url}` is exactly such a field — a crafted URL carrying a newline plus a `key=` sequence can present a different field set that hashes identically. JCS closes that by construction. The retired v1 blocks are preserved below, explicitly marked, so a reader arriving from one of the ~34 inbound citations can see what replaced them rather than finding a silent deletion. CIRISVerify adopts v2 as a deliberate wire break — CIRISVerify#231.
 
-##### 3.2.1.1 `SkillImportManifest` canonical bytes
+CIRISVerify v3.8.0 shipped Phase 1 (carrier-ready: dimension recognition + `AttestBundle` projection for `provenance:skill_import:{source}` + `provenance:build_manifest:{target}:locale:{lang_code}`); Phase 2 (`SkillImportManifest::verify` + per-locale Merkle composition verifier) was blocked on canonical-bytes finalization. That finalization now lives in CC, not here.
 
-A `SkillImportManifest` is the signed bytes underlying a `provenance:skill_import:{source}` attestation. Signature scheme is hybrid Ed25519 + ML-DSA-65 per FSD-002 §7 federation discipline. Canonical bytes for both signatures are computed as:
+##### 3.2.1.1 `SkillImportManifest` canonical bytes (v2 — normative)
+
+A `SkillImportManifest` is the signed bytes underlying a `provenance:skill_import:{source}` attestation. Signature scheme is hybrid Ed25519 + ML-DSA-65 per FSD-002 §7 federation discipline. Canonical bytes for both signatures are computed as follows — reproduced from CC part_3 §3.1.2.1; **cite CC, not this copy**:
 
 ```
-canonical_bytes = sha256(
-    "ciris.skill_import.v1\n" ||                            // domain prefix; UTF-8 newline-terminated
-    "source=" || source_string || "\n" ||                   // see source-form table below
-    "skill_manifest_sha256=" || sha256_hex_lowercase || "\n" ||  // 64 hex chars
-    "signer_identity=" || signer_key_id || "\n" ||          // federation_keys.key_id string
-    "import_timestamp=" || iso8601_rfc3339_utc || "\n" ||   // "2026-05-28T17:30:00Z" form
-    "capability_declaration=" || sorted_capabilities_json || "\n" ||  // see capability-declaration form below
-    "valid_until=" || optional_iso8601_or_empty            // empty string if no valid_until
-)
+canonical_bytes = sha256( JCS( {
+  "domain": "ciris.skill_import.v2",                  // domain separation; pinned literal
+  "source": source_string,                            // see source-form table below
+  "skill_manifest_sha256": sha256_hex_lowercase,      // per CC 2.6.3
+  "signer_identity": signer_key_id,                   // per CC 2.6.3
+  "import_timestamp": rfc3339_canonical,              // per CC 2.6.2
+  "capability_declaration": sorted_capability_array,  // JSON array of capability strings, sorted
+  // lexicographically by byte representation BEFORE canonicalization — JCS canonicalizes
+  // arrays in place and does not reorder elements, so the sort is part of the signed preimage
+  "valid_until": rfc3339_canonical                    // OPTIONAL — CC 2.6.1.1 omit rule: absent if unset
+}))
 ```
+
+**`valid_until` is omit-vs-materialize, not empty-string.** The retired v1 form appended a `valid_until=` line with an empty value when unset. Under v2 the member is **absent from the object** when unset, per the CC 2.6.1.1 omit rule; materializing it as `""` or `null` yields different bytes and a failing signature.
 
 **Source string forms** (UTF-8; case-sensitive; no trailing whitespace):
 - `registry:{registry_id}` — `registry_id` is the federation_keys.key_id of the publishing registry steward (e.g., `registry-steward-us`)
-- `direct:{url}` — `url` is the RFC 3986 absolute URI; consumer policy decides whether to honor non-HTTPS schemes
+- `direct:{url}` — `url` is the RFC 3986 absolute URI; consumer policy decides whether to honor non-HTTPS schemes. **This is the attacker-influenceable field that motivated the v1 → v2 move.**
 - `local:{path}` — `path` is the deployment-local filesystem path; emitted only for operator-managed local skill installations
 
-**Capability-declaration canonical form**: JSON array of capability strings, sorted lexicographically, no whitespace, no trailing newline. Example:
+**Capability-declaration canonical form**: a JSON **array** of capability strings, sorted lexicographically by byte representation *before* canonicalization. Example:
 ```
 ["agent_files:adapter:wellness","beneficence:wellness_referral","domain:medical:triage"]
 ```
 
-The bytes the canonical-form is computed over are the EXACT UTF-8 representation of the sorted JSON array — same form Verify's `canonical_bytes()` reconstructs at verification time.
+This was the one question CIRISRegistry#132 left open for CC to rule on: an earlier CC draft of the v2 block spelled `capability_declaration` a JSON *object*, filed as CIRISConstitution#56. **CC ruled for the array**, and records it as a correction rather than a version bump — the object spelling carried no key schema, no producer ever emitted one, and the only shipped implementation (CIRISVerify v11.0.0, golden-vectored) signs the sorted array. CIRISConstitution#56 is closed. FSD-002's original array claim was right and stands unchanged.
 
-**ML-DSA-65 signing convention**: signed over `canonical_bytes || ed25519_signature_bytes` (bound payload — same scheme as `build_manifest::verify_uploaded_manifest` per `rust-registry/src/build_manifest.rs`). Verify v3.9.0+'s `SkillImportManifest::verify()` reconstructs both forms to validate.
+**ML-DSA-65 signing convention**: Ed25519 signs `canonical_bytes`; ML-DSA-65 signs `canonical_bytes || ed25519_signature_bytes` (bound payload — same scheme as `build_manifest::verify_uploaded_manifest` per `rust-registry/src/build_manifest.rs`). Unchanged from v1; CC part_3 §3.1.2.1 states the same rule.
 
 **Wire envelope** (the attestation that carries the signed SkillImportManifest):
 ```json
@@ -567,24 +588,43 @@ The bytes the canonical-form is computed over are the EXACT UTF-8 representation
 }
 ```
 
-##### 3.2.1.2 Per-locale Merkle composition for `provenance:build_manifest:{target}:locale:{lang_code}`
+###### 3.2.1.1-R RETIRED — v1 line-oriented `SkillImportManifest` canonical bytes
 
-The parent `provenance:build_manifest:{target}` manifest is a Merkle root over per-locale leaves. RFC 6962-style domain-separated hashing; deterministic locale ordering; explicit padding for non-power-of-2 leaf counts.
+**RETIRED 2026-08-17 (CIRISRegistry#132). Superseded by the v2 JCS form in §3.2.1.1 above and by [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md). A producer MUST NOT emit these bytes; a verifier MUST NOT accept them.** Retained verbatim, and only, so that a reader arriving from a pre-2026-08-17 citation can identify what they were pointed at:
+
+```
+canonical_bytes = sha256(
+    "ciris.skill_import.v1\n" ||                            // domain prefix; UTF-8 newline-terminated
+    "source=" || source_string || "\n" ||                   // see source-form table above
+    "skill_manifest_sha256=" || sha256_hex_lowercase || "\n" ||  // 64 hex chars
+    "signer_identity=" || signer_key_id || "\n" ||          // federation_keys.key_id string
+    "import_timestamp=" || iso8601_rfc3339_utc || "\n" ||   // "2026-05-28T17:30:00Z" form
+    "capability_declaration=" || sorted_capabilities_json || "\n" ||  // sorted JSON array
+    "valid_until=" || optional_iso8601_or_empty            // empty string if no valid_until
+)
+```
+
+##### 3.2.1.2 Per-locale Merkle composition for `provenance:build_manifest:{target}:locale:{lang_code}` (v2 — normative)
+
+The parent `provenance:build_manifest:{target}` manifest is a Merkle root over per-locale leaves. RFC 6962-style domain-separated hashing; deterministic locale ordering; explicit padding for non-power-of-2 leaf counts. Leaf composition below is reproduced from CC part_3 §3.1.2.1; **cite CC, not this copy**.
 
 **Leaf hash** (per locale):
 ```
 leaf_hash[lang_code] = sha256(
-    0x00 ||                                                  // RFC 6962 leaf-domain prefix
-    "ciris.locale_manifest.v1\n" ||                         // ciris domain prefix
-    "target=" || target_string || "\n" ||                   // e.g., "ios-mobile-bundle"
-    "locale=" || lang_code || "\n" ||                       // ISO 639-1 lowercase, or "polyglot"
-    "files_root=" || files_merkle_root_hex || "\n" ||       // SHA-256 hex of the locale's file-tree Merkle root
-    "build_id=" || build_id || "\n" ||                      // canonical build identifier (UUIDv7 or similar)
-    "signer_identity=" || signer_key_id                      // per-primitive steward
-)
+    0x00 ||                                    // RFC 6962 leaf-domain prefix (binary, outside the JSON)
+    JCS( {
+      "domain": "ciris.locale_manifest.v2",    // domain separation; pinned literal
+      "target": target_string,                 // e.g., "ios-mobile-bundle"
+      "locale": lang_code,                     // ISO 639-1 lowercase, or "polyglot"
+      "files_root": files_merkle_root_hex_lowercase,  // per CC 2.6.3
+      "build_id": build_id,                    // canonical build identifier (UUIDv7 or similar)
+      "signer_identity": signer_key_id         // per-primitive steward; per CC 2.6.3
+    }))
 ```
 
-**Parent node hash**:
+The `0x00` domain prefix is **binary, concatenated outside the JSON** — it is not a JSON member and does not enter JCS.
+
+**Parent node hash** (unchanged from v1):
 ```
 parent_hash(left, right) = sha256(
     0x01 ||                                                  // RFC 6962 parent-domain prefix
@@ -594,7 +634,7 @@ parent_hash(left, right) = sha256(
 ```
 
 **Locale ordering** (deterministic; consumers MUST sort before constructing the tree):
-1. Sort `lang_code` values lexicographically by their ISO 639-1 byte representation (UTF-8, lowercase).
+1. Sort `lang_code` values lexicographically by their ISO 639-1 / BCP 47 byte representation (UTF-8, lowercase).
 2. `"polyglot"` (the unified-locale case) sorts AFTER all 2-letter codes by lexicographic byte order — i.e., it appears last in the leaf set when present.
 
 **Padding for non-power-of-2 leaf counts** (29 locales is not a power of 2): duplicate the last leaf to reach the next power of 2 (RFC 6962 convention). Verify-side walk must apply the same duplication discipline to reconstruct the parent root.
@@ -606,7 +646,7 @@ leaves[29..32] = leaves[28] repeated  (RFC 6962 duplication padding)
 parent_root    = construct_merkle_tree(leaves)
 ```
 
-**Verify-side walk** (Verify v3.9.0+'s lazy verification):
+**Verify-side walk**:
 1. Parse the parent `provenance:build_manifest:{target}` attestation; extract claimed `parent_root` from envelope `context.merkle_root`.
 2. Verify the parent attestation's hybrid signature against the per-primitive steward's pubkey.
 3. On per-locale fetch, compute `leaf_hash[lang_code]` from the served sub-manifest payload; collect sibling hashes from the inclusion proof; reconstruct path to root; compare to `parent_root` from step 1.
@@ -623,11 +663,27 @@ parent_root    = construct_merkle_tree(leaves)
 }
 ```
 
-**Coordination with CanonicalBuild v2 per-target dispatcher** (CIRISVerify v2.0.3+): the locale layer composes BELOW target, not parallel. A target is `ios-mobile-bundle`; a locale leaf is `ios-mobile-bundle:locale:my` for Burmese sub-manifest within the iOS bundle. Per-target dispatcher pattern unchanged; the new per-locale layer is purely additive.
+**Coordination with CanonicalBuild v2 per-target dispatcher** (CIRISVerify v2.0.3+): the locale layer composes BELOW target, not parallel. A target is `ios-mobile-bundle`; a locale leaf is `ios-mobile-bundle:locale:my` for Burmese sub-manifest within the iOS bundle. Per-target dispatcher pattern unchanged; the per-locale layer is purely additive.
 
-##### 3.2.1.3 Closes Verify Phase 2 blocker
+###### 3.2.1.2-R RETIRED — v1 line-oriented locale leaf hash
 
-These canonical-bytes contracts are the spec-side dependency CIRISVerify#37 Phase 2 was waiting on. With them pinned, Verify v3.9.0+ can implement `SkillImportManifest::verify()` + per-locale Merkle composition verifier deterministically against the structures named here. No further Registry-side spec work owed for the Phase 2 verifier.
+**RETIRED 2026-08-17 (CIRISRegistry#132). Superseded by the v2 JCS leaf in §3.2.1.2 above and by [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md). A producer MUST NOT emit these bytes; a verifier MUST NOT accept them.** The parent-node hash, locale ordering, padding and inclusion-proof shape were NOT changed by v2 — only the leaf preimage was. Retained verbatim for citation archaeology:
+
+```
+leaf_hash[lang_code] = sha256(
+    0x00 ||                                                  // RFC 6962 leaf-domain prefix
+    "ciris.locale_manifest.v1\n" ||                         // ciris domain prefix
+    "target=" || target_string || "\n" ||                   // e.g., "ios-mobile-bundle"
+    "locale=" || lang_code || "\n" ||                       // ISO 639-1 lowercase, or "polyglot"
+    "files_root=" || files_merkle_root_hex || "\n" ||       // SHA-256 hex of the locale's file-tree Merkle root
+    "build_id=" || build_id || "\n" ||                      // canonical build identifier (UUIDv7 or similar)
+    "signer_identity=" || signer_key_id                      // per-primitive steward
+)
+```
+
+##### 3.2.1.3 Status of the Verify Phase 2 blocker
+
+The v1 contracts in this section were originally written to unblock CIRISVerify#37 Phase 2 (`SkillImportManifest::verify()` + the per-locale Merkle composition verifier). That spec-side debt is **discharged, but not by this document**: the ratified contracts are CC part_3 §3.1.2.1, and the v1 bytes those Phase 2 verifiers were specified against are retired. Verify's adoption of v2 is a deliberate wire break tracked at CIRISVerify#231. No further Registry-side spec work is owed — and none can be, since FSD-002 is design-history and CC holds the normative surface.
 
 ### 3.3 CIRISPersist — substrate health (system:* reserved)
 
@@ -887,11 +943,13 @@ Eight cross-cutting policies that constrain *who* may attest on *which* prefixes
 
 **Enforcement rule**: `attesting_key_id` must resolve to a manifest-registered CIRISAgent build (`provenance:slsa:*` + `provenance:build_manifest:{target}` chained). Non-agent attestations on `dma:*` are category errors.
 
-### 4.3 `attestation:l1:*` — self-emit only
+### 4.3 `attestation:self_verify` — self-emit only
+
+> **Normative source (2026-08-17)**: the dimension name is ratified at [**CC part_3 §3.1.2**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) (CIRISAI/CIRISConstitution). **Correction (CIRISRegistry#132)**: this rule was previously keyed on the prefix `attestation:l1:*` — an enforcement pattern matching a prefix nothing emits. Under the ratified mechanism-named set there is no `l1` subtree, so the rule binds a **single leaf dimension**, `attestation:self_verify`, and not a prefix wildcard. The ladder position (L1) survives only as consumer-side composition per CC 4.4.3.6 Policy I and carries no enforcement weight here.
 
 **Source**: Verify §1.5 recursive golden rule — "the running CIRISVerify binary attests *itself* against its registered function manifest before it attests anything else."
 
-**Enforcement rule**: an L1 attestation about key K must be signed by key K. Cross-attestations on L1 are not meaningful.
+**Enforcement rule**: an `attestation:self_verify` attestation about key K must be signed by key K. Cross-attestations on it are not meaningful.
 
 ### 4.4 `prohibited:*` — never positive
 
@@ -921,8 +979,8 @@ Eight cross-cutting policies that constrain *who* may attest on *which* prefixes
 
 Several prefixes are co-owned and require *both* an attester and a data-source to converge. Their envelopes must include `evidence_refs[]` pointing to *both* component types:
 
-- `attestation:l3:registry_consensus` — Registry row + Verify L-ladder attestation.
-- `attestation:l4:license_validity` — Registry row + Verify L-ladder attestation.
+- `attestation:registry_consensus` — Registry row + Verify L-ladder attestation.
+- `attestation:license_validity` — Registry row + Verify L-ladder attestation.
 - `licensure:{authority_id}` — Registry record + Verify identity attestation + (optionally) named-authority signature.
 - `identity_continuity:relational_anchor` — Persist audit-chain reference + Verify identity attestation.
 
@@ -1016,15 +1074,15 @@ This section gives illustrative envelope examples per family; full per-prefix sc
 ### 5.3 Verify L-ladder envelopes
 
 ```json
-// attestation:l4:license_validity
+// attestation:license_validity
 {
-  "dimension": "attestation:l4:license_validity",
+  "dimension": "attestation:license_validity",
   "score": 1.0,
   "confidence": 1.0,
   "context": "Multi-source consensus 2-of-3 across US/EU/APAC registry stewards",
   "evidence_refs": [
     "registry_row:partner-acme/license/L-12345",
-    "verify_attestation:l3:registry_consensus:abc..."  // dual-evidence per §4.8
+    "verify_attestation:registry_consensus:abc..."  // dual-evidence per §4.8
   ]
 }
 ```
@@ -1058,7 +1116,7 @@ This section gives illustrative envelope examples per family; full per-prefix sc
   "context": "{\"license_type\": \"MD\", \"license_number\": \"MD-12345-CA\", \"license_status\": \"active\", \"specialty_scope\": [\"radiology\"]}",
   "evidence_refs": [
     "registry_row:partner-acme/licensure/MD-12345-CA",       // Registry-side
-    "verify_attestation:l4:license_validity:def...",          // Verify-side
+    "verify_attestation:license_validity:def...",          // Verify-side
     "licensing_body_lookup:https://search.dca.ca.gov/..."     // External
   ],
   "valid_until": "2028-06-15T00:00:00Z",
@@ -1283,7 +1341,7 @@ Aggregation: per (`dimension`, `attested_key_id`) tuple, mean of `score × confi
 
 #### 6.1.2 Policy B — one-hop transitive
 
-Consumer trusts an attestation if `attesting_key_id` has been vouched for by the pinned trust set (via positive `scores` on dimension `identity_binding` or `attestation:l3:registry_consensus`). Adds one hop of indirection.
+Consumer trusts an attestation if `attesting_key_id` has been vouched for by the pinned trust set (via positive `scores` on dimension `identity_binding` or `attestation:registry_consensus`). Adds one hop of indirection.
 
 Aggregation: same as A, but trust set expands to "directly-pinned ∪ one-hop-vouched."
 
@@ -1375,7 +1433,7 @@ verdict           = mean(trusted_scores) if len(trusted_scores) ≥ consumer.min
 
 Variants:
 - **Trimmed mean** (drop top/bottom 10%) for dimensions where outliers are common (e.g., `coherence_standing:*`).
-- **Quorum-of-confidence** (e.g., 2-of-3 weighted by confidence) for boolean-via-score dimensions (e.g., `attestation:l3:registry_consensus`).
+- **Quorum-of-confidence** (e.g., 2-of-3 weighted by confidence) for boolean-via-score dimensions (e.g., `attestation:registry_consensus`).
 - **Median** for cell-scoped dimensions where adversarial attesters might pull the mean (e.g., `expertise:*`).
 
 Consumer policy declares which aggregator to use per dimension; defaults documented in `crate::federation::aggregation`.
@@ -1997,7 +2055,7 @@ Each subsection below is the body of an upstream issue to be filed on the named 
        "policy": "registry-v1.4-direct-trust",
        "attestations_consumed": [
          {"dimension": "provenance:slsa:3:ciris-persist", "score": 1.0, "attester": "registry-steward-us"},
-         {"dimension": "attestation:l4:license_validity", "score": 1.0, "attester": "registry-steward-eu"}
+         {"dimension": "attestation:license_validity", "score": 1.0, "attester": "registry-steward-eu"}
        ],
        "cache_age_seconds": 47,
        "persist_row_hash": "sha256:..."
@@ -2007,7 +2065,7 @@ Each subsection below is the body of an upstream issue to be filed on the named 
 
 5. **Hardware-attestation chain verification for accord-holder keys.** Per §7.3 + §11.1 ask 8 — accord-holder keys MUST carry hardware attestation. Verify's lib verifies the attestation chain (TPM quote / App Attest / etc.) and rejects accord-holder claims with `hardware_attested=false`.
 
-6. **Build manifest verification under per-dimension attestation.** Today `POST /v1/verify/build-manifest` returns a binary verdict. Under scalar attestations, it composes a verdict from `provenance:slsa:*` + `provenance:build_manifest:{target}` + `attestation:l4:license_validity` attestations per the consumer policy. Wire format unchanged (returns trust verdict); composition changes internally.
+6. **Build manifest verification under per-dimension attestation.** Today `POST /v1/verify/build-manifest` returns a binary verdict. Under scalar attestations, it composes a verdict from `provenance:slsa:*` + `provenance:build_manifest:{target}` + `attestation:license_validity` attestations per the consumer policy. Wire format unchanged (returns trust verdict); composition changes internally.
 
 ### 11.3 CIRISEdge asks
 
