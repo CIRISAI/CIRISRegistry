@@ -93,10 +93,23 @@ impl FederationDirectory for PersistFederationClient {
     }
 
     async fn put_attestation(&self, attestation: SignedAttestation) -> Result<()> {
+        // persist v40 returns AttestationOutcome (Inserted | AlreadyHeld) where it
+        // previously returned (). Discarding it is SAFE, not a swallowed failure:
+        // persist documents both variants as idempotent SUCCESS — "I already hold
+        // this" is the anti-entropy protocol working. A genuine disagreement (same
+        // attestation_id, different bytes) never reaches the Ok path at all; it is
+        // a typed Error::Conflict and still propagates through map_err below.
+        //
+        // What IS lost is the Inserted-vs-AlreadyHeld progress signal. Registry's
+        // own FederationDirectory trait returns Result<()> and nothing here acts on
+        // that distinction today; surfacing it would mean widening a trait on a
+        // crate that is being dissolved into CIRISServer. If a caller ever needs
+        // the signal, widen it then rather than speculatively now.
         self.engine
             .federation_directory()
             .put_attestation(attestation)
             .await
+            .map(|_outcome| ())
             .map_err(Into::into)
     }
 
