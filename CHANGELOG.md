@@ -38,7 +38,7 @@ persist `v5.5.5 → v40.0.0`, edge `v2.2.2 → v20.1.1`, verify `v5.1.3 → v14.
 ### Spec + docs
 
 - Constitution corpus removed (#131): `FSD/CIRIS_Constitution/` and `manifests/WIRE_VOCABULARY.md` — homed at CIRISAI/CIRISConstitution (1.0-rc4 upstream vs 0.7 here; the manifest's sha256 had diverged). `FSD/CEG/` is a redirect stub with the 20-section → 8-Part map for the ~28 cross-repo links. `CEG_VERSION` header `0.10 → 1.0-rc4`; the `1.0-RC29` line is discontinued lineage.
-- FSD-002 reconciled with CC (#132): ladder-named `attestation:l1:*` dimensions → mechanism-named; one occurrence was an enforcement rule keyed on a prefix with no subtree. The v1 line-oriented canonical bytes — a newline-injection surface via `source = direct:{url}` — retired for CC's v2 JCS form; blocks preserved and marked MUST-NOT for the ~34 inbound citations.
+- FSD-002 reconciled with CC (#132): ladder-named `attestation:l1:*` dimensions → mechanism-named; one occurrence was an enforcement rule keyed on a prefix with no subtree. The v1 line-oriented canonical bytes — a newline-injection surface via `source = direct:{url}` — retired for CC's v2 JCS form; blocks preserved and marked MUST-NOT for the ~34 inbound citations. And, since CC 1.0-rc4 landed mid-cut: the `accountability:mode_shift:{from}:{to}` dimension FSD-002 v1.4.1 announced is **withdrawn** — rc4 rules a mode shift is a superseding `delegates_to` on the delegation plane and that there is no `accountability:*` family; both FSD-002 sites now quote the ruling verbatim. No shipped code ever emitted it.
 
 ### CI
 
