@@ -415,6 +415,30 @@ async fn accord_holders_ui(
 /// Public endpoint: GET /v1/partner/{key_id} (CIRISRegistry#23 Surface 3)
 ///
 /// Per-agent partner status badge composed from four prefix families:
+/// Map a `partner_status` to the CC 1.0-rc5 canonical licensure vocabulary
+/// (`issued · probation · restricted · suspended · revoked · lapsed ·
+/// surrendered · reduced`; open per CC 4.5.1.1).
+///
+/// The bug this replaces collapsed SUSPENDED and REVOKED into one string,
+/// `"inactive"` — destroying exactly the distinction rc5 says a consumer **MUST**
+/// honour and **MUST NOT** infer from the other: `suspended` is reversible,
+/// `revoked` is terminal. A consumer reading `"inactive"` could not tell whether
+/// a partner may return.
+///
+/// `PARTNER_STATUS_UNSPECIFIED` maps to a deliberately NON-canonical
+/// `"unspecified"` rather than to `issued`: the row exists, so the licence is not
+/// absent, but nothing licensed it. A consumer that does not recognise the token
+/// withholds — which is the correct outcome — whereas `issued` would be an
+/// escalation from "we do not know" to "valid".
+fn licensure_status(partner_status: i32) -> &'static str {
+    match partner_status {
+        1 => "issued",    // PARTNER_ACTIVE
+        2 => "suspended", // PARTNER_SUSPENDED — reversible
+        3 => "revoked",   // PARTNER_REVOKED — terminal
+        _ => "unspecified",
+    }
+}
+
 /// partner_role, bond_posted, licensure, revocation_active. Backs the
 /// CIRISAgent 2.10.0 ProfileScorecard UI surface.
 async fn partner_composition(
@@ -449,12 +473,31 @@ async fn partner_composition(
         None => (None, None, false, None),
     };
 
+    // CC 1.0-rc5 conformance (CC 2.4.1.2.1 authority-triad + part_3 §3.3.9).
+    //
+    // `authority_id` is the licence's PROVENANCE, and when the authority is an
+    // organisation it MUST be that organisation's `org_id` UUID — the id its
+    // keys resolve through. This previously emitted `PartnerRecord.organization_id`,
+    // which is the Tax ID / registration number: jurisdiction-scoped, mutable and
+    // PII-adjacent. rc5 names this Registry when ruling that out, so the tax id
+    // was leaving on a public surface AND naming the wrong thing.
+    //
+    // No org row → no licence entry. Emitting a licence whose authority we cannot
+    // name would assert provenance we do not have; absent is the honest answer and
+    // the fail-secure one (unknown → restricted, never escalated).
     let licensure: Vec<LicensureEntry> = match &partner_row {
-        Some(row) => vec![LicensureEntry {
-            authority_id: row.organization_id.clone(),
-            status: if row.status == 1 { "active".to_string() } else { "inactive".to_string() },
-            expires_at: Some(row.expires_at.unix_timestamp()),
-        }],
+        Some(row) => match db::org_id_for_partner(state.db.pool(), &row.partner_id).await {
+            Ok(Some(org_id)) => vec![LicensureEntry {
+                authority_id: org_id,
+                status: licensure_status(row.status).to_string(),
+                expires_at: Some(row.expires_at.unix_timestamp()),
+            }],
+            Ok(None) => Vec::new(),
+            Err(e) => {
+                warn!("partner_composition: org_id_for_partner failed: {e}");
+                Vec::new()
+            }
+        },
         None => Vec::new(),
     };
 
@@ -3181,5 +3224,87 @@ mod fold_consumer_tests {
         // SLSA L1 is derived from row facts (source present), not a claim of attestation — still emitted.
         assert_eq!(block.slsa_level, Some(1));
         assert!(block.note.as_deref().unwrap_or("").contains("ABSENT"), "note must state the absence: {:?}", block.note);
+    }
+}
+
+#[cfg(test)]
+mod licensure_conformance_tests {
+    //! CC 1.0-rc5 authority-triad conformance (CC 2.4.1.2.1, part_3 §3.3.9).
+    //!
+    //! Both rules under test are stated in CC as MUST, and both were violated by
+    //! the code these replace — so these pin behaviour that regressed once.
+
+    use super::*;
+
+    /// rc5: *"`suspended` is reversible; `revoked` is terminal — the one
+    /// operational distinction a consumer MUST honour, and a status a consumer
+    /// MUST NOT infer from the other."*
+    ///
+    /// The previous mapping emitted `"inactive"` for both, so a consumer could
+    /// not tell whether a partner may return. That is the regression.
+    #[test]
+    fn suspended_and_revoked_are_distinguishable() {
+        assert_eq!(licensure_status(2), "suspended");
+        assert_eq!(licensure_status(3), "revoked");
+        assert_ne!(
+            licensure_status(2),
+            licensure_status(3),
+            "collapsing SUSPENDED and REVOKED destroys the one distinction CC says \
+             a consumer MUST honour — a suspended partner may return, a revoked one may not"
+        );
+    }
+
+    /// Every emitted status is drawn from rc5's canonical vocabulary, except the
+    /// deliberately non-canonical `unspecified` — see `licensure_status`.
+    #[test]
+    fn emitted_statuses_are_canonical_or_deliberately_not() {
+        const CANONICAL: [&str; 8] = [
+            "issued", "probation", "restricted", "suspended",
+            "revoked", "lapsed", "surrendered", "reduced",
+        ];
+        assert_eq!(licensure_status(1), "issued", "ACTIVE is `issued`, not the old `active`");
+        for st in [1, 2, 3] {
+            assert!(
+                CANONICAL.contains(&licensure_status(st)),
+                "status {st} emits {:?}, which is outside the canonical set",
+                licensure_status(st)
+            );
+        }
+        // Unknown must NOT escalate to a valid-licence claim.
+        assert!(
+            !CANONICAL.contains(&licensure_status(0)),
+            "UNSPECIFIED must not borrow a canonical status; it is not licensed"
+        );
+        assert_ne!(licensure_status(0), "issued", "unknown → issued is an escalation");
+        assert_eq!(licensure_status(0), "unspecified");
+        assert_eq!(licensure_status(99), "unspecified", "unrecognised codes fail the same way");
+    }
+
+    /// rc5 part_3 §3.3.9 rules the `authority_id` is the organisation's `org_id`
+    /// UUID, *"not the legal registration number the reference Registry's
+    /// `PartnerRecord.organization_id` carries (jurisdiction-scoped, mutable,
+    /// PII-adjacent)"* — a ruling that names this Registry.
+    ///
+    /// The emit site resolves it through `db::org_id_for_partner`, so this pins
+    /// the shape a caller gets: a UUID, never a tax id.
+    #[test]
+    fn authority_id_is_a_uuid_not_a_tax_id() {
+        let entry = LicensureEntry {
+            authority_id: "3f2b1c44-9e7a-4d51-8b0e-1a2c3d4e5f60".to_string(),
+            status: licensure_status(1).to_string(),
+            expires_at: Some(0),
+        };
+        assert!(
+            uuid::Uuid::parse_str(&entry.authority_id).is_ok(),
+            "authority_id must be an org_id UUID; a tax id / registration number \
+             is jurisdiction-scoped, mutable and PII-adjacent (CC part_3 §3.3.9)"
+        );
+        // The tax ids this used to emit are not UUIDs — the shape is the guard.
+        for tax_id in ["12-3456789", "GB123456789", "HRB 12345"] {
+            assert!(
+                uuid::Uuid::parse_str(tax_id).is_err(),
+                "{tax_id:?} is the shape that must never appear as an authority_id"
+            );
+        }
     }
 }
