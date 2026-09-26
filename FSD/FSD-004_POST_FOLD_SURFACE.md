@@ -93,8 +93,8 @@ router-level layer for loopback, and an in-handler check for the others.
 | **M — org member** | a user key holding an `org_membership` role in the target org | an S-tier signature, plus the role read from persist's `org_membership` LWW state (§5.6.8.13) | HS256 JWT + `authorize_org_access(OrgRole)` |
 | **O — owner** | the responsible party bound to *this* node | `require_owner_bound` / `require_owner_session` (`auth/gate.rs`, `federation_peers.rs`) | nothing (the registry has no node-owner concept) |
 | **L — loopback** | an operator on the node's host | `require_loopback` layer (`auth/loopback.rs`) | nothing |
-| **A — licensing authority** | the key that *is* an `authority_id`, or a key on a live `delegates_to` chain bearing the `license` scope that resolves to it (CC 4.4.3.4.3.1). An org-named authority resolves through its `OrgAdmin` / `KeyManager` members, and its `authority_id` is the **org UUID**, never the registration number (CC 3.3.9, #139) | the delegation resolver (`reachable_under_scope`) with the one refusal rc5 adds, `licensure_delegator_not_authority`; the emitter must resolve to the authority for the row to enter that authority's fold | `RegisterPartner` / `RevokeEntity(license)` under SYSTEM_ADMIN |
-| **B — blessed key** | a key whose record carries an accord-conferred `infra:attest` (or `infra:serve`); `infra:attest` MAY be attenuated to one family, `infra:attest:licensure:{authority_id}` (CC 4.4.3.4.3.1, rc5) | `mesh_genesis::carries_scope` over the scrub-signed `registration_envelope.roles`; the #138 walk does exactly this. **Sub-scope matching is directional**: a parent token satisfies a check for its child, a child never satisfies its parent, and an unknown caveat fails closed. A `starts_with("infra:attest")` test is a defect | `REGISTRY_ADMIN_TOKEN` + `trusted_primitive_keys` |
+| **A — licensing authority** | the key that *is* an `authority_id`, or a key on a live `delegates_to` chain bearing the `license` scope that resolves to it (the `license` scope in CC 4.4.3.4.3's emission-authority table). An org-named authority resolves through its `OrgAdmin` / `KeyManager` members, and its `authority_id` is the **org UUID**, never the registration number (CC 3.3.9, #139) | persist's delegation resolver (`federation/admission.rs`) with the one refusal rc5 adds, `licensure_delegator_not_authority`; the emitter must resolve to the authority for the row to enter that authority's fold | `RegisterPartner` / `RevokeEntity(license)` under SYSTEM_ADMIN |
+| **B — blessed key** | a key whose record carries an accord-conferred `infra:attest` (or `infra:serve`); `infra:attest` MAY be attenuated to one family, `infra:attest:licensure:{authority_id}` (CC 4.4.3.4.3, rc5) | `mesh_genesis::carries_scope` over the scrub-signed `registration_envelope.roles`; the #138 walk does exactly this. **Sub-scope matching is directional**: a parent token satisfies a check for its child, a child never satisfies its parent, and an unknown caveat fails closed. A `starts_with("infra:attest")` test is a defect | `REGISTRY_ADMIN_TOKEN` + `trusted_primitive_keys` |
 | **Q — accord quorum** | ≥2 of 3 accord holders (A1/B1/C1), hardware-held | the propose/cosign ceremonies (`accord_provision.rs`), `accord/halt` | SYSTEM_ADMIN JWT (`RegistryAdminService`) |
 
 **Retired outright, with no post-fold equivalent:**
@@ -167,7 +167,7 @@ Dispositions:
 | `GET /v1/transparency/witnesses`, `/v1/transparency/sth/{n}/witnesses` | same paths | P | all | `federation_keys` identity_type `witness` + `transparency_log:cosigned:{n}` attestations | KEEP paths. Blocked on CIRISPersist#102 (witness vocabulary); until then the per-region PG tables stay |
 | gRPC `HealthCheck`, `GetCapabilities`, `GetMetrics` | server `/v1/federation/conformance` capabilities | P | all | — | SERVER |
 
-### 4.2 Registry decisions (tier Q or M, human-signed)
+### 4.2 Registry decisions (tier Q, A or M, human-signed)
 
 Rule 1 in practice: each of these becomes a **signed CEG envelope** authored by a human
 key and **admitted** by blessed nodes. The post-fold transport for the envelope is the
@@ -212,7 +212,7 @@ key whose `org_membership` role is sufficient**. The `OrgRole` ladder
 | `GetAuditLog`, `ExportAuditLog`, `CreateAuditEntry` | persist audit (`cirisaudit`) | M (Viewer read / Operator write) | persist audit | REPLACE |
 | `GenerateComplianceReport` | derived from the audit reads | M (OrgAdmin) | — | OPEN: Portal-side rendering |
 | `RegisterWebhook`, `ListWebhooks`, `DeleteWebhook` | node-local | O | node config | OPEN: likely DROP in favour of the event stream |
-| `ListExpiringLicenses` | the licensure fold with `valid_until` inside the window, per authority | A (an authority listing its own issuances) or P for a subject's own | `list_attestations_for` | REPLACE. A lapse is a `lapsed` status row the authority emits, never a consumer inference from a date |
+| `ListExpiringLicenses` | the licensure fold with `valid_until` inside the window, per authority | A (an authority listing its own issuances) or P for a subject's own | `list_attestations_for` | REPLACE. A row whose `valid_until` has passed is no longer live (CC 2.1); `lapsed` is the authority saying so on the record. A consumer reads either and fabricates neither a `lapsed` nor a `revoked` |
 | `GetPartnerActivity` | reads over `partner_record` | P | `list_partner_records_since` | REPLACE |
 | `CleanupTestRecords` | none | — | — | DROP |
 
@@ -287,7 +287,7 @@ limit**: the composition root owns that layer, as it does for lens.
   `delegates_to` chain; every other row is testimony and is returned, if at all, under
   a separate `testimony` member at consumer confidence.
 - Statuses are a **set**. Never collapse to one scalar; never derive `revoked` from
-  `suspended`; never derive `lapsed` from a date the authority has not acted on.
+  `suspended`; an expired `valid_until` makes a row not-live (CC 2.1); it does not make the licence `revoked`.
 - Scope matching is **directional and exact**. `infra:attest:licensure:{A}` satisfies a
   check for `infra:attest:licensure:{A}` only; `infra:attest` satisfies both; an
   unrecognised sub-scope fails closed. No prefix tests.
@@ -356,8 +356,8 @@ Each item carries a recommendation, but none of them is settled by this document
 10. **The Constitution still carries a community licence.** Rc5's CC 3.1.1 keeps
     `partner_role:{role}` with `community` / `community_plus` values, and CC 3.3.9's
     `partner_record.license_type` still enumerates `community | community_plus |
-    professional_*`. Both contradict rule 4 read with CC 3.2 T1 and the F1 bet
-    ("separates earned standing from purchasable token"). *Recommend:* file against
+    professional_*`. Both contradict rule 4 read with CC 3.2 T1 and CC 8.3.5's F1 first-adopter
+    exposure ("separates earned standing from purchasable token"). *Recommend:* file against
     CIRISConstitution: drop the community values from `partner_role`, and re-state
     `partner_record` as recognition only (no `license_type`, no `capabilities_*`),
     with the licence carried by `licensure:{authority_id}` and the obligations by
