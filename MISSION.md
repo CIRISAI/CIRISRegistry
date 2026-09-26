@@ -43,7 +43,7 @@ A Rust crate (today) and gRPC service (today). Five functions over the shared su
 1. **Agent identity verification.** Cryptographic verification of legitimate agent builds and their declared capabilities. Distinguishes a build that came from a known, signed source from a build that did not. [Deployed]
 2. **Partner authorization.** License management for organizations deploying CIRIS agents in regulated contexts. Records which org holds which capability grants (`PROFESSIONAL_MEDICAL`, `PROFESSIONAL_LEGAL`, etc.) and surfaces those grants to verifiers. [Deployed]
 3. **Revocation distribution.** Real-time status of compromised or revoked agents / partners / licenses, distributed via multi-source channels (DNS US + DNS EU + HTTPS API). "Any revocation from any source is immediately enforced." [Deployed]
-4. **Steward attestation.** Per-install registry-steward keys (US / EU / APAC) self-publish to persist's federation directory, cross-attest each other (`vouches_for`), and attest primitive build-signing keys. [Spec — migration in flight per `CIRISRegistry#17`]
+4. **Steward attestation.** Human-rooted steward keys, conferred by accord co-scrub, attest primitive build-signing keys and the licences the CIRIS authority issues; the regional installs hold that standing as infrastructure and attest nothing on their own authority (§2.1). [Spec — the conferral ceremony ships in CIRISServer; the registry-side emission is fold work per `FSD/FSD-004_POST_FOLD_SURFACE.md`]
 5. **HUMANITY_ACCORD recognition.** Registry's `SystemRole` enum carries `HUMANITY_ACCORD` (3 named, 2-of-3, permanent, hardware-rooted) and Registry's `EmergencyShutdown` admin surface carries `CONSTITUTIONAL` severity, invocable only by 2-of-3 humanity-accord multi-sig. The role-recognition policy + verifier logic live here; the actual key material lives in the substrate (`federation_keys` `identity_type="accord_holder"`). [Spec — `CIRISRegistry#16`]
 
 What Registry is **not**: an ethical evaluator, a behavior monitor, a billing system, or an authoritative key store after the substrate-conformance migration completes. Behavior evaluation is `CIRISAgent`'s job (PDMA / CSDMA / DSDMA / IDMA). Billing is `CIRISBilling` + `CIRISPortal`. Post-#17, authoritative key state lives in `CIRISPersist`; Registry composes policy verdicts over the substrate rather than holding state.
@@ -109,37 +109,54 @@ If a principal would be exempt from a constraint at any of these primitives, the
 
 ---
 
-## 2. Trust shape — per-install stewards over a humanity accord substrate
+## 2. Trust shape — accord-conferred stewards over member installs
 
-### 2.1 Per-install stewards (US / EU / APAC) — Option A
+### 2.1 Stewards are human-rooted keys; installs are members
 
-Three Registry installs, each holding its own `registry-steward` keypair:
+**Ruling (2026-09-22, recorded on CIRISServer#537): infrastructure does not vote.**
+Voting for infrastructure is done only by the accord; a canonical node's *owner* handles
+its configuration (CC 3.4.5 `config:*` is self-or-owner). CC 3.4.7.1 already says it:
+`node` is "steward + `infra:*` reach only, never agency", and CC 3.2's own
+`ciris-canonical` example lists the founders as steward keys, human-rooted, not node keys.
+The earlier text of this section (per-install steward keypairs in each install's HSM
+casting a 2-of-3) read the other way and is withdrawn.
 
-| Position | Install | Steward identity (post-migration) | Status |
+Two kinds of key, never fused (CC 3.4.7.3: `node` is exclusive of `agent` / `user`):
+
+| Key | Held by | Conferred how | May do |
 |---|---|---|---|
-| 1 | US | `registry-steward-us` | [Deployed (US)] pre-migration as unified steward; post-#17 splits to per-install |
-| 2 | EU | `registry-steward-eu` | [Deployed (EU)] pre-migration as unified steward; post-#17 splits to per-install |
-| 3 | APAC | `registry-steward-apac` | [Spec] new install |
+| **Steward key** (`registry-steward-{us,eu,apac}` as names for the people who hold them) | a human, hardware-rooted | accord co-scrub on the key record, roles inside the scrub-signed registration envelope (CC 3.2 T2, ceremony plane) | sign licences as the CIRIS authority, sign `partner_record` as part of its steward quorum, confer `infra:attest` on pipeline keys, vouch for primitive keys |
+| **Install key** (`ciris-canonical-{1,2,3}`, the US / EU / APAC nodes) | the install, owner-bound to a human | admission into the `ciris-canonical` community by the accord's quorum; `infra:serve` / `infra:attest` carried in the genesis grant | admit, store, replicate and serve signed records; emit `provenance:*` as the steward's infrastructure; **cast no vote, issue no verdict** |
 
-Each steward is published as a `federation_keys` row in persist with `identity_type="steward"`, `identity_ref="registry-{us|eu|apac}"`, self-signed (the bootstrap case — `scrub_key_id == key_id`). All three cross-attest each other via `federation_attestations(attestation_type="vouches_for")`. M-of-N steward attestations gate any primitive-key vouch. **The steward keys are human-rooted and accord-conferred, never the installs' node keys** (§2.1.1 ruling): the per-install *node* holds the steward's standing as infrastructure and casts no vote of its own.
+Three installs, one per region, each a `member` of `ciris-canonical` (§2.1.1). Their
+job is availability and replication: no single install can issue a federation-scope
+attestation, because no install can issue one at all. What the regions distribute is
+*serving*, not *authority*. Authority is distributed by the accord's roster and by the
+M-of-N steward quorum over `partner_record` (CC 3.3.9), both human-held.
 
-**Why three, not one.** A single unified steward is a single point of compromise (THREAT_MODEL AV-14). The federation cannot decentralize while Registry's authority is held by one key. Three regional stewards distribute the operational authority geographically (US / EU / APAC) and organizationally (each install's HSM custody is separable). The threshold for cross-region attestations is policy-tunable; the substrate is built for M-of-N (`CIRISPersist/docs/FEDERATION_DIRECTORY.md` §"Trust contract").
+**Why the split matters (THREAT_MODEL AV-14).** A single unified steward key was a single
+point of compromise. Moving the key into three HSMs would have split custody without
+changing what a compromised install could do. Taking authority off the install keys
+altogether means a compromised node can serve stale or missing records, which consumers
+detect (§3, `authoritative` and the witness-cosigned STH), but cannot mint a licence, a
+key record or a revocation that verifies.
 
-**Rotation arc** (mirrors `FEDERATION_ANNOUNCEMENT.md` §4.2):
+**Rotation arc (all steps human-signed):**
 
 | Step | What | Signed by | Effect |
 |---|---|---|---|
-| Initial | One unified steward | Itself | Pre-migration state |
-| Add EU + APAC | New `federation_keys` rows for EU + APAC stewards | US steward (during transition) | Three stewards exist; threshold still 1 |
-| Cross-attest | Mutual `vouches_for` between all three | All three pairwise | Trust topology is triangular |
-| Raise threshold | `bootstrap_threshold = 2` policy update | 2-of-3 from {us, eu, apac} | From now on, all federation-scope steward attestations require 2-of-3 |
-| Routine rotation | Add a 4th regional steward (e.g. SA, AU) | 2-of-3 current set | Topology evolves at federation cadence |
+| Confer a steward | accord co-scrub on a human key record carrying the steward roles | 2-of-3 accord holders | the key may sign as steward; `trust:confers:v1` edge |
+| Add an install | admission of the install's key into `ciris-canonical` as `member` | the accord's entrenched quorum over the community record | the install serves and replicates; no vote |
+| Raise the steward quorum | change the `partner_record` M-of-N | the current steward set, human-signed | professional licences need the new M |
+| Retire a steward | `withdraws` on the conferral, `revoked_after` bound if compromised | 2-of-3 accord holders | rows signed before the bound stand; after it, do not |
+| Un-trust from the consumer side | delete the `trust:accepts:v1` edge | the consuming node's owner | one row; every downstream gate fails closed (CC 3.2 T3) |
 
-No protocol bump at any step. The mechanism is configuration over substrate, not new wire surface.
+No protocol bump at any step: every row is an existing `delegates_to` / `attestation`
+primitive carrying a `trust:*` dimension (CC 3.1.1).
 
 ### 2.1.1 The canonical services are a *governed global `community`*, not a `family` (LOCKED)
 
-**Decision (2026-06-05).** The CIRIS canonical/bootstrap services — Registry, Lens, Node — are modeled as a single **governed global `community`** (CEG [§5.6.8.10](FSD/CEG/README.md) / [§8.1.13](FSD/CEG/README.md)), NOT as a `family` and NOT as a single identity with occurrences. The three regional stewards of §2.1 are the community's **founding core**; the steward keys, custody, and rotation arc above are unchanged — what changes is the *trust shape consumers anchor on*.
+**Decision (2026-06-05).** The CIRIS canonical/bootstrap services — Registry, Lens, Node — are modeled as a single **governed global `community`** (CEG [§5.6.8.10](FSD/CEG/README.md) / [§8.1.13](FSD/CEG/README.md)), NOT as a `family` and NOT as a single identity with occurrences. The three steward keys of §2.1 are the community's **founding core**; the three regional installs are its first `member`s. What changes is the *trust shape consumers anchor on*.
 
 ```
 community {
@@ -155,7 +172,7 @@ community {
 }
 ```
 
-**Ruling (2026-09-22, recorded on CIRISServer#537): infrastructure does not vote.** Voting for infrastructure is done only by the accord; a canonical node's *owner* handles its configuration (CC 3.4.5 `config:*` is self-or-owner). CC 3.4.7.1 already says it: `node` is "steward + `infra:*` reach only, never agency", and CC 3.2's own `ciris-canonical` example lists the founders as steward keys, human-rooted, not node keys. Consequences for this section, stated so nothing below is read the old way: (1) the `founding_core` above is the set of accord-conferred *steward* keys, and a Registry / Lens / Node install joins as a `member` under those keys' standing; (2) "admitted by core quorum" means admitted by the accord's quorum over the community record, never a quorum of node keys; (3) a node running the registry slice therefore gains **neither a vote nor a verdict** (`FSD/FSD-004_POST_FOLD_SURFACE.md` §1 rule 1), and the fold's trust-root swap is steward key → accord quorum. CIRISServer `FSD/REGISTRY_FOLD_DERISK.md` §1 and `src/quorum.rs` still read the old way and are being re-cut on that issue.
+**Founders and members after the §2.1 ruling.** `founding_core` above is the set of accord-conferred *steward* keys; a Registry / Lens / Node install joins as a `member` under those keys' standing; "admitted by core quorum" means the accord's quorum over the community record, never a quorum of node keys; and a node running the registry slice gains neither a vote nor a verdict (`FSD/FSD-004_POST_FOLD_SURFACE.md` §1 rule 1). CIRISServer `FSD/REGISTRY_FOLD_DERISK.md` §1 and `src/quorum.rs` still read the old way and are being re-cut on CIRISServer#537.
 
 **Why `community`, not `family` (the delta).** Both primitives share the *same* `consensus_protocol` machinery, so governance strength is identical (quorum:2/3 either way). The fork is content-model + trajectory:
 
@@ -337,8 +354,8 @@ Each agent embeds `ciris-registry-core` and maintains its own local cache of aut
 
 - **Transport for `ciris-registry-core` → persist.** In-process Engine share (shared connection pool, but different driver layers — sqlx vs tokio-postgres), gRPC server (persist has a `server` feature), or direct DB access (Registry's sqlx queries `federation_*` tables directly, bypassing the trait)? Decision deferred to Phase 1 of #17 execution; surfaced as part of B-persist.
 - **Replication semantics for `identity_type="accord_holder"` rows.** Cross-region replication is required (every Registry install must see the same accord-holder set), but the persist trait surface today doesn't distinguish replication scopes. Surfaced as part of B-persist.
-- **Multi-steward pinning UX on the consumer side.** Today `GET /v1/steward-key` returns one fingerprint; consumers pin it. With three per-install stewards, do consumers pin all three? Pin one with an attestation-walk fallback? Pin the accord-holder set as ultimate root? Surfaced as part of B-verify.
-- **Bootstrap path for the third (APAC) install.** Lands as a new `federation_keys` row signed by the existing US + EU stewards (2-of-2 attestation), or as a self-signed bootstrap row out-of-band-anchored same as US + EU? Decision deferred to per-install steward rollout.
+- ~~**Multi-steward pinning UX on the consumer side.**~~ Answered (v3.0.0, #133): consumers pin the accord-conferred `GenesisBundle` served at `GET /v1/steward-key` and `GET /v1/trust-root/bundle`; the bundle is self-authenticating and there is no per-steward fingerprint to pin.
+- ~~**Bootstrap path for the third (APAC) install.**~~ Answered (§2.1 ruling): an install is admitted into `ciris-canonical` by the accord's quorum; it does not bootstrap a steward key.
 - **Selection authority for HUMANITY_ACCORD replacement.** Boot phase: CIRIS L3C CEO under advisement of CIRIS L3C board ([`FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5.3). Formalization of the selection process to remove the CEO-as-single-party dependency is deferred (open question 18 in `FEDERATION_ANNOUNCEMENT.md` §7).
 - **`PartnerRecord` integration with persist's federation directory.** Today `PartnerRecord` lives in Registry's Postgres. Post-#17, does it become a `federation_keys` row with `identity_type="partner"` (per persist's existing identity_type vocabulary) + a Registry-composed capability join? Or does it stay Registry-private with substrate attestation linking to it? Surfaced as part of B-persist + B-self.
 
