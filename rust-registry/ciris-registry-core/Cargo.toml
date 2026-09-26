@@ -84,32 +84,39 @@ rsa = { version = "0.9", features = ["sha2"] }
 # Originally tracked as CIRISRegistry#10; resolved this phase.
 
 # ── PINNED TO CIRISSERVER'S EXACT TRIPLE, NOT TO LATEST (#76) ────────────────
-#   ciris-verify  v14.1.0  (carries ciris-crypto + ciris-keyring at the same tag)
-#   ciris-persist v40.0.0
-#   ciris-edge    v20.1.1
+#   ciris-verify  v16.1.0  (carries ciris-crypto + ciris-keyring at the same tag)
+#   ciris-persist v48.0.0
+#   ciris-edge    v31.0.0
 #
-# The set is internally coherent, which is what makes it takeable: edge v20.1.1
-# pins persist v40.0.0, and edge AND persist BOTH pin the verify family at
-# v14.1.0 — so there is one verify in the graph, not two.
+# These are the tags CIRISServer 0.5.217 pins (and its in-tree ciris-lens-core
+# with them), resolving to ONE verify in the graph: edge v31.0.0 pins persist
+# v48.0.0, and both pin the verify family at v16.1.0.
 #
-# NOTE verify v14.2.0 EXISTS and is deliberately NOT taken. Nothing pins it yet;
-# taking it would fork verify rather than upgrade it (the tag-is-source-id rule
-# above). It becomes available to us when persist and edge repin, not before.
+# NOTE newer verify tags EXIST (v17.x at time of writing) and are deliberately
+# NOT taken. Nothing in the triple pins them; taking one would fork verify
+# rather than upgrade it (the tag-is-source-id rule below). The verify pin
+# moves only when persist and edge repin, not before.
 #
-# These are the tags CIRISServer 0.5.177 pins, and matching them EXACTLY is the
-# whole point of the bump: registry-core is being absorbed into that workspace,
-# so any divergence here becomes a duplicate substrate rev in the composed
-# build — which is precisely why CIRISServer held registry-core OUT of its
-# dependency graph while this crate sat on the 5.5.5/2.2.2/5.1.3 floor.
+# Matching CIRISServer EXACTLY is the whole point: registry-core is being
+# absorbed into that workspace, so any divergence here becomes a duplicate
+# substrate rev in the composed build — which is precisely why CIRISServer
+# holds registry-core OUT of its dependency graph until this crate matches.
 #
-# DO NOT "helpfully" bump these to the newest tags (at time of writing
-# persist v36.1.0 / edge v17.8.0 / verify v13.4.0). CIRISServer#340 measured
+# The `version = "N"` alongside each tag is the MAJOR caret guard the server's
+# in-tree lens-core carries: cargo refuses the build if a tag ever resolves to
+# a different major, so a stray repin surfaces here, not in the composed build.
+#
+# DO NOT "helpfully" bump these to the newest tags. CIRISServer#340 measured
 # what happens: persist and edge BOTH pin verify by git `tag`, and a cargo git
 # tag is part of the SOURCE ID, not a semver range. Moving the verify pin alone
 # does not upgrade verify, it FORKS it — the graph then carries two
 # `ciris_keyring` + `ciris_verify_core` crates and every substrate type that
 # crosses the seam becomes two incompatible types. The verify pin moves only as
 # part of a persist+edge co-bump, upstream first.
+#
+# edge v31 note: its leviculum-std pulls bluer → dbus with the `vendored`
+# feature on Linux, so libdbus is built from source and statically linked —
+# no system libdbus at build or runtime.
 #
 # What the 31-major persist gap actually cost, measured before the bump: the
 # federation surface this crate consumes changed in five fields total —
@@ -119,10 +126,10 @@ rsa = { version = "0.9", features = ["sha2"] }
 # at all, the `From<federation::Error>` match ends in a catch-all arm, and this
 # crate declares its OWN 8-method FederationDirectory trait rather than
 # implementing persist's (so persist growing that trait is invisible here).
-ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v14.1.0", features = ["pqc-ml-dsa"] }
-ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v14.1.0", default-features = false, features = ["software", "pqc-ml-dsa"] }
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v40.0.0", features = ["postgres", "sqlite"] }
-ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v20.1.1", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
+ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v16.1.0", version = "16", features = ["pqc-ml-dsa"] }
+ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v16.1.0", version = "16", default-features = false, features = ["software", "pqc-ml-dsa"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v48.0.0", version = "48", features = ["postgres", "sqlite"] }
+ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v31.0.0", version = "31", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
 
 # Force libsqlite3-sys to build with bundled libsqlite3 so the final
 # binary statically links sqlite3 and does NOT require libsqlite3.so.0
@@ -171,7 +178,7 @@ libsqlite3-sys = { version = "0.28", features = ["bundled"] }
 #
 # default-features = false + "pqc": we want the hybrid verifier and nothing
 # else — no keyring hardware backends, no license cache, no test-support.
-ciris-verify-core = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v14.1.0", default-features = false, features = ["pqc"] }
+ciris-verify-core = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v16.1.0", version = "16", default-features = false, features = ["pqc"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

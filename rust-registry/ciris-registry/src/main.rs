@@ -111,8 +111,11 @@ async fn main() -> Result<()> {
     // by (WHO + transport identity). Unset env / init failure → None →
     // /v1/identity emits the 4-of-6 bundle. The native mirror of CIRISLens's
     // edge_runtime.py (CIRISLens#20).
-    let transport_pubkeys =
-        ciris_registry_core::edge_runtime::init_transport_identity(crypto.key_id()).await;
+    let transport_pubkeys = ciris_registry_core::edge_runtime::init_transport_identity(
+        crypto.key_id(),
+        crypto.build_edge_local_signer()?,
+    )
+    .await;
 
     // Boot-seed the registry's own steward pubkey as a trusted primitive
     // key (project='ciris-registry') ONLY IF NO ROW EXISTS — gives a

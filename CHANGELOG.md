@@ -21,6 +21,23 @@ Prior to v1.1.0 baseline tagging, per-feature commit history lives in
 
 ## [Unreleased]
 
+**Substrate catch-up to CIRISServer 0.5.217's exact triple — the registry-core fold can now land without a second substrate rev.** No wire change.
+
+### Substrate (#76 follow-through)
+
+persist `v40.0.0 → v48.0.0`, edge `v20.1.1 → v31.0.0`, verify `v14.1.0 → v16.1.0`: the same tags CIRISServer 0.5.217 and its in-tree `ciris-lens-core` pin, so the lock carries one verify family, one persist, one edge. Newer verify tags (v17.x) are not taken, for the reason #76 already recorded: persist and edge pin v16.1.0, and moving verify alone would fork it. No source changes were needed across 8 persist and 11 edge majors. Each git pin now also carries a `version = "N"` major guard, the way the server's lens-core does, so a stray repin fails here and not in the composed build. The bin crate's `rust-version` moves from 1.84 to the workspace's 1.86, which is still verify's floor. edge v31 brings in `leviculum-std` → `bluer` → `dbus` on Linux with `vendored`, which builds libdbus from source and links it statically. The binary gains no new runtime `.so` dependency and the Dockerfile is unchanged. The workspace also builds on the Docker image's `rust:1.93`.
+
+### Fix — `/v1/identity` was serving 4 of 6 keys again
+
+Since the v3.0.0 co-bump, edge refuses to build a Reticulum transport without a federation signer (CIRISEdge#333: every announce must be self-attested). `edge_runtime` built it with `signer: None`, so startup logged a WARN, and `/v1/identity` stopped publishing the two `reticulum_*_pubkey_b64` keys the `ciris-canonical` enrollment resolves a member by (#56). The fix adds `HybridCrypto::build_edge_local_signer`, which gives the transport the registry's existing federation identity (same `key_id`, same Ed25519 + ML-DSA-65 keys; the transport identity is still a separate dual-key, AV-17). With it, the six keys are back. The transport is still dropped as soon as its pubkeys are read: nothing federates and nothing stays listening on :4242.
+
+Verified: 109 lib, 19 crypto_properties, 26 capability_properties and 16 db_integration tests pass. The v3.0.0 binary was booted against Postgres 16 with dual-write on, then this build was booted on the same database: it applied persist V136–V152 cleanly and served `/health`, `/v1/steward-key` and `/v1/identity` (6/6).
+
+**Rollback metadata:**
+- **Digest**: (operator-resolvable via `crane digest …`)
+- **Migrations**: persist applies **V136–V152** (17 lens-schema migrations, additive) at boot against `FEDERATION_PERSIST_DSN`. **Rollback floor:** after they apply, a v3.0.0 image **will not boot** against that database with dual-write on. persist's migrator refuses with `migration V136__tasks_status_rejected is missing from the filesystem`. Snapshot before deploying if you might need to roll back. The registry's own sqlx migrations are unchanged.
+- **Config**: none new. `CIRIS_REGISTRY_EDGE_IDENTITY_PATH` now actually takes effect, as it was documented to.
+
 ## [3.0.0] — 2026-09-04
 
 **MAJOR: registry adopts the ratified CIRIS Constitution (1.0-rc4) and navigates the CEG-native manifest transition honestly.** Per the versioning rule, adopting a new spec series bumps MAJOR: 2.x was CEG 0.2; 3.x is CC 1.0-rc4. This is the fold-prep release — the last major cut before `ciris-registry-core` is absorbed into CIRISServer (#62). It ships the substrate at the Server 0.6 floor and two wire-facing changes that stop the registry asserting trust it never verified.
