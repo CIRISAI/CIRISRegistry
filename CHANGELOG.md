@@ -21,6 +21,22 @@ Prior to v1.1.0 baseline tagging, per-feature commit history lives in
 
 ## [Unreleased]
 
+### Security — `PortalService.GetUser` / `GetUserByEmail` had no authorization
+
+Any holder of any valid JWT could read any user record and all of that user's org memberships. Both RPCs now require the caller to be the user, a SYSTEM_ADMIN, or hold a role (Viewer or better) in an org the target belongs to. That last clause is the visibility `ListOrgMembers` already grants, so no legitimate caller loses access. Non-admins get the same `PermissionDenied` for "not found" as for "not allowed", so the RPCs cannot be used to probe which ids or emails exist. Denials are audit-logged. Verified over gRPC against Postgres 16: stranger by id, by email and for a nonexistent id → denied; self, shared-org Viewer and SYSTEM_ADMIN → allowed.
+
+Found, not changed: `POST /v1/integrity/auth` reports `authenticated`/`authorized: true` for any `Bearer ` prefix without validating the token (FSD-004 §7). Its consumers need checking before the fix.
+
+### Fold surface — FSD-004 and the `standalone` / fold build split
+
+- **FSD-004 (draft)** — the post-fold registry surface: every route and RPC mapped to its post-fold path, substrate call, caller tier (public / signed / org-member / owner / loopback / blessed `infra:*` key / accord quorum) and node posture (client / proxy / unblessed server / blessed server). §6 lists the nine decisions it needs before any new route or capability name ships.
+- **`ciris-registry-core` builds two ways.** `standalone` (default, unchanged deployment) keeps sqlx, tonic, persist's `postgres` backend, the gRPC services and the full HTTP router. Without default features the crate is what CIRISServer can depend on: no sqlx, no tonic, no tokio-postgres in its graph (CI now fails the build if any creeps back in). Proto messages still compile in both, as plain prost types.
+- **`fold::router(engine, node_key_id)`** — the registry slice's router for `compose_registry`, over the server's shared persist Engine. It serves the FSD-004 KEEP routes that already ran on persist alone: `/v1/steward-key`, `/v1/trust-root/bundle`, `/v1/agent_files/{kind}`. The standalone HTTP server mounts the same handlers (the fold state is taken out of its own state), so the two deployments share one implementation. It deliberately does not mount `/v1/identity`, `/v1/accord-holders` or health: the server owns those. A new `tests/fold_router.rs` mounts it on a SQLite Engine and passes in both builds.
+
+No wire change: every route answers exactly as before in the standalone build.
+
+### Substrate catch-up
+
 **Substrate catch-up to CIRISServer 0.5.217's exact triple — the registry-core fold can now land without a second substrate rev.** No wire change.
 
 ### Substrate (#76 follow-through)

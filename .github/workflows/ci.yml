@@ -73,6 +73,19 @@ jobs:
           cargo test --locked -p ciris-registry-core --test crypto_properties
           cargo test --locked -p ciris-registry-core --test capability_properties
 
+      # FSD-004 §5 — the build CIRISServer depends on: no sqlx, no tonic, no
+      # persist `postgres`. The graph check fails the job if any of them creeps
+      # back in through a default feature.
+      - name: Fold build (no default features)
+        working-directory: rust-registry
+        run: |
+          cargo test --locked -p ciris-registry-core --no-default-features
+          for dep in sqlx tonic tokio-postgres; do
+            if cargo tree --locked -p ciris-registry-core --no-default-features -e normal -i "$dep" >/dev/null 2>&1; then
+              echo "::error::$dep is in the fold build's dependency graph"; exit 1
+            fi
+          done
+
       - name: Clippy (informational — not gating, see header)
         working-directory: rust-registry
         continue-on-error: true

@@ -2,7 +2,7 @@
 name = "ciris-registry-core"
 version = "3.0.0"
 edition = "2021"
-rust-version = "1.84"
+rust-version = "1.86"
 authors = ["CIRIS AI <hello@ciris.ai>"]
 description = "Federation registry library — agent + partner + license identity surface for CIRISAgent cohabitation alongside ciris-lens-core + ciris-node-core."
 license = "AGPL-3.0-or-later"
@@ -27,10 +27,26 @@ autobenches = false
 name = "ciris_registry_core"
 path = "src/lib.rs"
 
+# FSD-004 §5 — two builds of one crate.
+#
+# `standalone` (default): today's deployment. The registry's own Postgres
+#   (sqlx), the three gRPC services (tonic), JWT middleware and the full HTTP
+#   router in `api::http`.
+# no default features: the fold build CIRISServer depends on. Only what runs
+#   on the server's shared persist Engine: `fold::router`, `federation`,
+#   `edge_transport`, `crypto`, `build_manifest`. No sqlx and no tonic in the
+#   graph — neither exists in CIRISServer's workspace, and the fold must not
+#   bring them.
+[features]
+default = ["standalone"]
+standalone = ["dep:sqlx", "dep:tonic", "dep:tonic-reflection", "ciris-persist/postgres"]
+
 [dependencies]
-# gRPC / Protocol Buffers
-tonic = { version = "0.12", features = ["gzip", "tls"] }
-tonic-reflection = "0.12"
+# gRPC / Protocol Buffers. The prost message types are compiled in every build
+# (`crypto` signs into `proto::HybridSignature`); the tonic service stubs only
+# under `standalone`.
+tonic = { version = "0.12", features = ["gzip", "tls"], optional = true }
+tonic-reflection = { version = "0.12", optional = true }
 prost = "0.13"
 prost-types = "0.13"
 
@@ -39,7 +55,7 @@ tokio = { version = "1.44", features = ["full"] }
 async-trait = "0.1"
 
 # Database
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.8", optional = true, features = [
     "runtime-tokio-rustls",
     "postgres",
     "uuid",
@@ -128,7 +144,7 @@ rsa = { version = "0.9", features = ["sha2"] }
 # implementing persist's (so persist growing that trait is invisible here).
 ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v16.1.0", version = "16", features = ["pqc-ml-dsa"] }
 ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v16.1.0", version = "16", default-features = false, features = ["software", "pqc-ml-dsa"] }
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v48.0.0", version = "48", features = ["postgres", "sqlite"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v48.0.0", version = "48", features = ["sqlite"] } # + "postgres" via `standalone`
 ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v31.0.0", version = "31", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
 
 # Force libsqlite3-sys to build with bundled libsqlite3 so the final

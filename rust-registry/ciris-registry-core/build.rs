@@ -13,9 +13,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR")?);
     let descriptor_path = out_dir.join("ciris_registry_descriptor.bin");
 
+    // The gRPC service stubs exist only in the `standalone` build; the fold
+    // build compiles the proto messages as plain prost types (no tonic).
+    let standalone = std::env::var_os("CARGO_FEATURE_STANDALONE").is_some();
+
     tonic_build::configure()
-        .build_server(true)
-        .build_client(true)
+        .build_server(standalone)
+        .build_client(standalone)
         // Generate file descriptor set for reflection
         .file_descriptor_set_path(&descriptor_path)
         // Output directory
