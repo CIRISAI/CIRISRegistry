@@ -48,8 +48,12 @@ applies them to the registry's surface.
    **Consequence:** every registry *decision* (register an agent, grant a license,
    revoke, halt) is a signature by a human-held key. The node admits, stores and
    serves it. No registry route lets a node, including a canonical one, decide on its
-   own key's authority. This is the route-level form of MISSION §1.5: "a node
-   running the registry slice gains a *vote*, never a *verdict*."
+   own key's authority. **Nor does a node vote** (ruling of 2026-09-22 on
+   CIRISServer#537): infrastructure holds no agency, so the `ciris-canonical`
+   community is a roster the accord admits installs into, not a body that votes.
+   Its founders are accord-conferred, human-rooted steward keys; its admission
+   quorum is the accord's; a canonical node's *owner* configures it (CC 3.4.5
+   `config:*` is self-or-owner). A node gains neither a vote nor a verdict.
 2. **Authority is conferred, not self-published (#133, settled).** Post-fold the
    registry is an accord-scrub-conferred canonical server. It does not publish its own
    trust root. `REGISTRY_ADMIN_TOKEN`, the SYSTEM_ADMIN JWT god-mode and

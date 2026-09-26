@@ -5,7 +5,7 @@
 **Status**: Draft v1.0 (substrate-conformance migration in flight; surface stable, backend mid-migration).
 **Crate identifier (target)**: `ciris-registry-core` (sub-crate trajectory per [`CIRISNodeCore/MISSION.md`](../CIRISNodeCore/MISSION.md) §1.3 cohabitation arc).
 **Deployed service identifier**: `*.registry.ciris-services-1.ai` (CIRIS L3C flagship deployments — US / EU / APAC).
-**Last updated**: 2026-05-24 (initial publication; coupled with `FSD/FSD-002_FEDERATION_SURFACE.md` v1.0).
+**Last updated**: 2026-09-26 (§2.1.1 carries the 2026-09-22 ruling that infrastructure does not vote; the fold target and surface are specified in `FSD/FSD-004_POST_FOLD_SURFACE.md`). Initial publication 2026-05-24, coupled with `FSD/FSD-002_FEDERATION_SURFACE.md` v1.0.
 **Cross-references**: [`CIRISPersist`](https://github.com/CIRISAI/CIRISPersist) (substrate: `federation_keys` / `federation_attestations` / `federation_revocations`); [`CIRISVerify`](https://github.com/CIRISAI/CIRISVerify) (verifier consumers anchored on Registry's steward attestations); [`CIRISEdge`](https://github.com/CIRISAI/CIRISEdge) (federation transport, absorbs into CIRISAgent 2.9.2); [`CIRISNodeCore`](https://github.com/CIRISAI/CIRISNodeCore) (peer second-tier consensus crate); [`CIRISAgent/ACCORD.md`](https://github.com/CIRISAI/CIRISAgent) §M-1 (meta-goal grounding); [`CIRISNodeCore/CIRIS_FEDERATION.md`](../CIRISNodeCore/CIRIS_FEDERATION.md) (system claim — "decentralized ethical superintelligence"); [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5 (humanity accord); `docs/FEDERATION_CLIENT.md` (registry-side complement to persist's federation directory); `docs/TRUST_CONTRACT.md` (consumer-facing trust shape); `FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md` (protocol surface); `CIRISRegistry#16` (HUMANITY_ACCORD); `CIRISRegistry#17` (substrate-conformance migration).
 
 **Implementation Status Legend** (mirrors NodeCore convention):
@@ -121,7 +121,7 @@ Three Registry installs, each holding its own `registry-steward` keypair:
 | 2 | EU | `registry-steward-eu` | [Deployed (EU)] pre-migration as unified steward; post-#17 splits to per-install |
 | 3 | APAC | `registry-steward-apac` | [Spec] new install |
 
-Each steward is published as a `federation_keys` row in persist with `identity_type="steward"`, `identity_ref="registry-{us|eu|apac}"`, self-signed (the bootstrap case — `scrub_key_id == key_id`). All three cross-attest each other via `federation_attestations(attestation_type="vouches_for")`. M-of-N steward attestations gate any primitive-key vouch.
+Each steward is published as a `federation_keys` row in persist with `identity_type="steward"`, `identity_ref="registry-{us|eu|apac}"`, self-signed (the bootstrap case — `scrub_key_id == key_id`). All three cross-attest each other via `federation_attestations(attestation_type="vouches_for")`. M-of-N steward attestations gate any primitive-key vouch. **The steward keys are human-rooted and accord-conferred, never the installs' node keys** (§2.1.1 ruling): the per-install *node* holds the steward's standing as infrastructure and casts no vote of its own.
 
 **Why three, not one.** A single unified steward is a single point of compromise (THREAT_MODEL AV-14). The federation cannot decentralize while Registry's authority is held by one key. Three regional stewards distribute the operational authority geographically (US / EU / APAC) and organizationally (each install's HSM custody is separable). The threshold for cross-region attestations is policy-tunable; the substrate is built for M-of-N (`CIRISPersist/docs/FEDERATION_DIRECTORY.md` §"Trust contract").
 
@@ -144,13 +144,18 @@ No protocol bump at any step. The mechanism is configuration over substrate, not
 ```
 community {
   community_key_id: "ciris-canonical"            // the one anchor consumers pin
-  founding_core:    [registry-steward-us, -eu, -apac]
-  consensus_protocol:           "quorum:2/3"      // admission door — no SPOF
+  founding_core:    [registry-steward-us, -eu, -apac]   // human-rooted steward keys,
+                                                        // conferred by accord co-scrub
+  consensus_protocol:           "quorum:2/3"      // admission door — no SPOF; the
+                                                  // quorum is the accord's, not the nodes'
   consensus_protocol_entrenched: true             // the door cannot be lowered
   members (grow over time):  Registry installs, Lens installs, Node installs,
-                             and future independent operators admitted by core quorum
+                             and future independent operators — member role only;
+                             a member install holds standing, never a vote
 }
 ```
+
+**Ruling (2026-09-22, recorded on CIRISServer#537): infrastructure does not vote.** Voting for infrastructure is done only by the accord; a canonical node's *owner* handles its configuration (CC 3.4.5 `config:*` is self-or-owner). CC 3.4.7.1 already says it: `node` is "steward + `infra:*` reach only, never agency", and CC 3.2's own `ciris-canonical` example lists the founders as steward keys, human-rooted, not node keys. Consequences for this section, stated so nothing below is read the old way: (1) the `founding_core` above is the set of accord-conferred *steward* keys, and a Registry / Lens / Node install joins as a `member` under those keys' standing; (2) "admitted by core quorum" means admitted by the accord's quorum over the community record, never a quorum of node keys; (3) a node running the registry slice therefore gains **neither a vote nor a verdict** (`FSD/FSD-004_POST_FOLD_SURFACE.md` §1 rule 1), and the fold's trust-root swap is steward key → accord quorum. CIRISServer `FSD/REGISTRY_FOLD_DERISK.md` §1 and `src/quorum.rs` still read the old way and are being re-cut on that issue.
 
 **Why `community`, not `family` (the delta).** Both primitives share the *same* `consensus_protocol` machinery, so governance strength is identical (quorum:2/3 either way). The fork is content-model + trajectory:
 
