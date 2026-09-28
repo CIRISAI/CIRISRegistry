@@ -3,6 +3,7 @@
 //! Maps internal errors to gRPC status codes and v1.1.0 RegistryErrorCode values
 
 use thiserror::Error;
+#[cfg(feature = "standalone")]
 use tonic::Status;
 
 use crate::proto;
@@ -77,6 +78,7 @@ pub enum RegistryError {
     InsufficientRole { required: String, has: String },
 
     // Infrastructure errors (5000-5999)
+    #[cfg(feature = "standalone")]
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
@@ -157,6 +159,7 @@ impl RegistryError {
             }
 
             // Infrastructure errors
+            #[cfg(feature = "standalone")]
             Self::Database(_) => RegistryErrorCode::RegistryErrorDatabaseError as i32,
             Self::MerkleProofInvalid => RegistryErrorCode::RegistryErrorMerkleProofInvalid as i32,
             Self::SnapshotStale(_) => RegistryErrorCode::RegistryErrorSnapshotStale as i32,
@@ -198,8 +201,9 @@ impl RegistryError {
             | Self::InvalidSignature(_) => proto::Retryable::RetryNo,
 
             // Retry with backoff
-            Self::Database(_)
-            | Self::HsmUnavailable(_)
+            #[cfg(feature = "standalone")]
+            Self::Database(_) => proto::Retryable::RetryBackoff,
+            Self::HsmUnavailable(_)
             | Self::ServiceUnavailable(_)
             | Self::WebhookDeliveryFailed(_) => proto::Retryable::RetryBackoff,
 
@@ -231,6 +235,7 @@ impl RegistryError {
     }
 }
 
+#[cfg(feature = "standalone")]
 impl From<RegistryError> for Status {
     fn from(err: RegistryError) -> Status {
         use tonic::Code;
@@ -265,10 +270,11 @@ impl From<RegistryError> for Status {
 
             RegistryError::Conflict(_) => Code::AlreadyExists,
 
+            RegistryError::Database(_) => Code::Internal,
+
             RegistryError::RateLimited => Code::ResourceExhausted,
 
-            RegistryError::Database(_)
-            | RegistryError::Internal(_)
+            RegistryError::Internal(_)
             | RegistryError::MerkleProofInvalid
             | RegistryError::SnapshotStale(_) => Code::Internal,
 

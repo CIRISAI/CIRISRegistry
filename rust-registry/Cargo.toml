@@ -14,7 +14,7 @@ members = [
 edition = "2021"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/CIRISAI/CIRISRegistry"
-# 1.86 is verify v13.3.1's floor (persist v32.3.0 is 1.83, edge v17.4.1 is 1.75);
+# 1.86 is verify v16.1.0's floor (persist v48.0.0 is 1.83, edge v31.0.0 is 1.75);
 # build with the highest of the three.
 rust-version = "1.86"
 authors = ["CIRIS AI <hello@ciris.ai>"]

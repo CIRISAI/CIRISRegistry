@@ -189,6 +189,32 @@ impl HybridCrypto {
         Ok(Arc::new(local_signer))
     }
 
+    /// Build a `ciris_edge::LocalSigner` from this hybrid crypto's keys.
+    ///
+    /// Edge's signer is a distinct type from persist's (keyring trait objects,
+    /// not a raw `SigningKey`), so the two are built side by side from the same
+    /// retained seeds — same identity, same `key_id`. Since CIRISEdge#333 the
+    /// Reticulum transport refuses to construct without one: every announce is
+    /// self-attested by the federation key. The transport identity itself stays
+    /// a separate dual-key keypair (AV-17); this signer only attests it.
+    pub fn build_edge_local_signer(&self) -> Result<std::sync::Arc<ciris_edge::LocalSigner>> {
+        use std::sync::Arc;
+        let classical = ciris_keyring::Ed25519SoftwareSigner::from_bytes(
+            &self.ed25519_seed,
+            self.key_id.clone(),
+        )
+        .map_err(|e| RegistryError::HsmUnavailable(format!("edge LocalSigner Ed25519: {}", e)))?;
+        let pqc_signer = MlDsa65Signer::from_seed(&self.mldsa_seed)
+            .map_err(|e| RegistryError::HsmUnavailable(format!("edge LocalSigner PQC: {}", e)))?;
+        let classical: Arc<dyn ciris_keyring::HardwareSigner> = Arc::new(classical);
+        let pqc: Arc<dyn ciris_keyring::PqcSigner> = Arc::new(pqc_signer);
+        Ok(Arc::new(ciris_edge::LocalSigner::new(
+            self.key_id.clone(),
+            classical,
+            Some(pqc),
+        )))
+    }
+
     /// Generate ephemeral keys (development / tests / one-shot custodied
     /// keypair generation for partner agents).
     pub fn generate_ephemeral() -> Result<Self> {
@@ -431,5 +457,24 @@ mod tests {
         let signer = Ed25519Signer::from_seed(&seed_arr).unwrap();
         let reconstructed_pubkey = signer.public_key().unwrap();
         assert_eq!(pubkey, reconstructed_pubkey);
+    }
+
+    /// The edge signer is the registry's own federation identity, not a new
+    /// one: same key_id, same Ed25519 and ML-DSA-65 public keys.
+    #[tokio::test]
+    async fn test_edge_local_signer_is_same_identity() {
+        let crypto = HybridCrypto::generate_ephemeral().unwrap();
+        let signer = crypto.build_edge_local_signer().unwrap();
+
+        assert_eq!(signer.key_id, crypto.key_id());
+        assert_eq!(
+            signer.classical.public_key().await.unwrap(),
+            crypto.ed25519_public_key()
+        );
+        let pqc = signer
+            .pqc
+            .as_ref()
+            .expect("hybrid signer carries the PQC half");
+        assert_eq!(pqc.public_key().await.unwrap(), crypto.mldsa_public_key());
     }
 }

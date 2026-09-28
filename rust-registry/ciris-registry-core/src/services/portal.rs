@@ -10,7 +10,8 @@ use crate::config::Environment;
 use crate::crypto::HybridCrypto;
 use crate::db::{self, Database};
 use crate::middleware::authz::{
-    authorize_org_access, authorize_system_admin, claims_from_request, OrgRole,
+    authorize_org_access, authorize_system_admin, authorize_user_read, claims_from_request,
+    OrgRole,
 };
 use crate::proto::portal_service_server::PortalService as PortalServiceTrait;
 use crate::proto::{
@@ -1731,6 +1732,7 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetUserRequest>,
     ) -> Result<Response<GetUserResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -1744,8 +1746,11 @@ impl PortalServiceTrait for PortalService {
             let memberships = db::get_user_memberships(self.db.pool(), &req.user_id)
                 .await
                 .map_err(|e| Status::internal(e.to_string()))?;
+            authorize_user_read(self.db.pool(), &claims, Some((&u.user_id, &memberships)))
+                .await?;
             Some(u.to_proto(memberships.iter().map(|m| m.to_proto()).collect()))
         } else {
+            authorize_user_read(self.db.pool(), &claims, None).await?;
             None
         };
 
@@ -1761,6 +1766,7 @@ impl PortalServiceTrait for PortalService {
         &self,
         request: Request<GetUserByEmailRequest>,
     ) -> Result<Response<GetUserResponse>, Status> {
+        let claims = claims_from_request(&request)?.clone();
         let req = request.into_inner();
         let request_id = req.context.as_ref().map(|c| c.request_id.clone());
 
@@ -1774,8 +1780,11 @@ impl PortalServiceTrait for PortalService {
             let memberships = db::get_user_memberships(self.db.pool(), &u.user_id)
                 .await
                 .map_err(|e| Status::internal(e.to_string()))?;
+            authorize_user_read(self.db.pool(), &claims, Some((&u.user_id, &memberships)))
+                .await?;
             Some(u.to_proto(memberships.iter().map(|m| m.to_proto()).collect()))
         } else {
+            authorize_user_read(self.db.pool(), &claims, None).await?;
             None
         };
 

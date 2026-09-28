@@ -26,8 +26,12 @@
 //! Init failure is non-fatal (logged WARN); the registry serves normally.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use ciris_edge::transport::reticulum::{ReticulumAuth, ReticulumTransport, ReticulumTransportConfig};
+use ciris_edge::transport::reticulum::{
+    ReticulumAuth, ReticulumTransport, ReticulumTransportConfig,
+};
+use ciris_edge::LocalSigner;
 
 /// The env var naming the persisted transport-identity file. Mirrors the
 /// lens `CIRISLENS_EDGE_IDENTITY_PATH`; prod sets it alongside the steward
@@ -39,21 +43,25 @@ pub const IDENTITY_PATH_ENV: &str = "CIRIS_REGISTRY_EDGE_IDENTITY_PATH";
 /// 32-byte halves — or `None` when the identity path is unset or init fails.
 ///
 /// `local_key_id` is the registry's federation `key_id`, used to label the
-/// transport config. We construct the transport with `signer: None`: the
-/// federation signer is only used to self-sign the RNS *announce*
-/// attestation (CIRISEdge#15), which matters only for self-authenticating
-/// peer discovery over a running announce loop — not for *exposing* the
-/// identity. The durable, trusted source of truth for the `key_id →
-/// transport` binding is the signed `identity_occurrence.transport_destination`
-/// envelope (§5.6.8.8.1) the registry emits via persist, not the announce
-/// app-data. Signing the announce + running the loop is the deeper-scope
-/// federation step (cf. CIRISLens#18 §2 / CIRISRegistry#62), matching the
-/// lens's current non-federating posture.
+/// transport config. `signer` is the registry's federation identity as an
+/// edge `LocalSigner` ([`crate::crypto::HybridCrypto::build_edge_local_signer`]).
+/// Since CIRISEdge#333 the transport refuses `signer: None` outright — every
+/// announce must be self-attested — so constructing without it fails and
+/// `/v1/identity` silently falls back to 4-of-6 keys. Passing the signer here
+/// does not federate: no bootstrap peers are configured and the transport is
+/// dropped once the pubkeys are read. The durable, trusted source of truth for
+/// the `key_id → transport` binding remains the signed
+/// `identity_occurrence.transport_destination` envelope (§5.6.8.8.1) the
+/// registry emits via persist. Running the announce loop is the fold's job
+/// (the server owns the shared Edge — CIRISRegistry#62).
 ///
 /// The constructed transport is dropped after the pubkeys are read: we only
 /// expose the identity here. The identity file on disk keeps the
 /// destination stable across restarts.
-pub async fn init_transport_identity(local_key_id: &str) -> Option<(String, String)> {
+pub async fn init_transport_identity(
+    local_key_id: &str,
+    signer: Arc<LocalSigner>,
+) -> Option<(String, String)> {
     let identity_path = match std::env::var(IDENTITY_PATH_ENV) {
         Ok(p) if !p.is_empty() => p,
         _ => {
@@ -67,9 +75,10 @@ pub async fn init_transport_identity(local_key_id: &str) -> Option<(String, Stri
         }
     };
 
-    let config = ReticulumTransportConfig::new(PathBuf::from(&identity_path), local_key_id.to_string());
+    let config =
+        ReticulumTransportConfig::new(PathBuf::from(&identity_path), local_key_id.to_string());
     let auth = ReticulumAuth {
-        signer: None,
+        signer: Some(signer),
         ..Default::default()
     };
 

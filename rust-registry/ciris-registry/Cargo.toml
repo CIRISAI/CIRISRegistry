@@ -2,7 +2,7 @@
 name = "ciris-registry"
 version = "3.0.0"
 edition = "2021"
-rust-version = "1.84"
+rust-version = "1.86"
 authors = ["CIRIS AI <hello@ciris.ai>"]
 description = "Federation registry binary — gRPC + HTTP server entrypoint for standalone Registry deployments (Stripe billing, public installer endpoint, admin UI backing)."
 license = "AGPL-3.0-or-later"
@@ -39,4 +39,4 @@ metrics-exporter-prometheus = "0.16"
 anyhow = "1.0"
 
 # Required for ciris_persist::engine::Engine::with_signer at boot.
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v40.0.0", features = ["postgres", "sqlite"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v48.0.0", version = "48", features = ["postgres", "sqlite"] }

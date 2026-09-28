@@ -168,6 +168,75 @@ pub async fn authorize_system_admin(
     Err(Status::permission_denied("system admin role required"))
 }
 
+/// Authorize reading a user record (`get_user`, `get_user_by_email`).
+///
+/// Allowed: SYSTEM_ADMIN, the user themself (`claims.sub == target_user_id`),
+/// or a caller holding any role (Viewer or better) in an org the target
+/// belongs to. The last clause is the visibility `list_org_members` already
+/// grants at Viewer, so no caller sees more than before this check existed;
+/// strangers stop seeing anyone.
+///
+/// `target` is `None` when the lookup found nothing. A non-admin then gets
+/// the same `PermissionDenied` as an unauthorized read, so the RPC cannot be
+/// used to probe which user ids or emails exist.
+pub async fn authorize_user_read(
+    db: &PgPool,
+    claims: &Claims,
+    target: Option<(&str, &[db::MembershipRow])>,
+) -> Result<(), Status> {
+    let is_admin = claims.role == ROLE_SYSTEM_ADMIN;
+    let mut caller_roles = Vec::new();
+    if let Some((target_user_id, memberships)) = target {
+        if !is_admin && claims.sub != target_user_id {
+            for m in memberships {
+                let role = db::get_user_role_in_org(db, &claims.sub, &m.org_id)
+                    .await
+                    .map_err(|e| Status::internal(format!("authz lookup failed: {}", e)))?;
+                caller_roles.push(role);
+            }
+        }
+    }
+
+    if user_read_allowed(is_admin, &claims.sub, target.map(|(id, _)| id), &caller_roles) {
+        return Ok(());
+    }
+
+    let _ = db::create_audit_entry(
+        db,
+        AuditActionType::AuditAccessDenied,
+        Some(&claims.sub),
+        Some(&claims.org_id),
+        None,
+        Some("portal_rpc"),
+        None,
+        "User read denied: caller is not the user, SYSTEM_ADMIN, or a member of the user's orgs",
+        None,
+    )
+    .await;
+
+    Err(Status::permission_denied("not authorized to read this user"))
+}
+
+/// The pure decision behind [`authorize_user_read`]. `caller_roles` holds the
+/// caller's role in each of the target's orgs (`None` = not a member).
+fn user_read_allowed(
+    is_admin: bool,
+    caller_sub: &str,
+    target_user_id: Option<&str>,
+    caller_roles: &[Option<i32>],
+) -> bool {
+    if is_admin {
+        return true;
+    }
+    let Some(target_user_id) = target_user_id else {
+        return false;
+    };
+    caller_sub == target_user_id
+        || caller_roles
+            .iter()
+            .any(|r| matches!(r, Some(r) if *r > 0 && *r <= OrgRole::Viewer as i32))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,6 +285,37 @@ mod tests {
         let req: Request<()> = Request::new(());
         let err = claims_from_request(&req).unwrap_err();
         assert_eq!(err.code(), tonic::Code::Unauthenticated);
+    }
+
+    #[test]
+    fn user_read_admin_sees_everyone_including_missing() {
+        assert!(user_read_allowed(true, "admin", Some("u-2"), &[]));
+        assert!(user_read_allowed(true, "admin", None, &[]));
+    }
+
+    #[test]
+    fn user_read_self_is_allowed() {
+        assert!(user_read_allowed(false, "u-1", Some("u-1"), &[]));
+    }
+
+    #[test]
+    fn user_read_shared_org_member_is_allowed() {
+        assert!(user_read_allowed(false, "u-1", Some("u-2"), &[None, Some(4)]));
+        assert!(user_read_allowed(false, "u-1", Some("u-2"), &[Some(1)]));
+    }
+
+    #[test]
+    fn user_read_stranger_is_denied() {
+        assert!(!user_read_allowed(false, "u-1", Some("u-2"), &[]));
+        assert!(!user_read_allowed(false, "u-1", Some("u-2"), &[None, None]));
+        // Out-of-range role values never grant access.
+        assert!(!user_read_allowed(false, "u-1", Some("u-2"), &[Some(0), Some(5)]));
+    }
+
+    #[test]
+    fn user_read_missing_target_is_denied_for_non_admin() {
+        // Same answer as unauthorized, so existence cannot be probed.
+        assert!(!user_read_allowed(false, "u-1", None, &[]));
     }
 
     // Note: authorize_org_access requires a live DB pool to test the

@@ -43,6 +43,7 @@
 //! bin crate, keeping only the cohabit-target surface in the lib.
 
 pub mod api;
+#[cfg(feature = "standalone")]
 pub mod app_attest;
 // Note: `auth` lives under `middleware::auth` (the JWT validator); no
 // top-level auth module exists.
@@ -50,14 +51,20 @@ pub mod build_manifest;
 pub mod capabilities;
 pub mod config;
 pub mod crypto;
+#[cfg(feature = "standalone")]
 pub mod db;
 pub mod edge_runtime;
 pub mod edge_transport;
 pub mod error;
 pub mod federation;
+pub mod fold;
+#[cfg(feature = "standalone")]
 pub mod middleware;
+#[cfg(feature = "standalone")]
 pub mod play_integrity;
+#[cfg(feature = "standalone")]
 pub mod rate_limiter;
+#[cfg(feature = "standalone")]
 pub mod services;
 pub mod validation;
 
@@ -67,7 +74,9 @@ pub mod validation;
 /// `protocol/ciris_registry.proto`. The `FILE_DESCRIPTOR_SET` is used
 /// by `tonic-reflection` for the gRPC reflection service.
 pub mod proto {
-    tonic::include_proto!("ciris.registry.v1");
+    // Plain `include!` rather than `tonic::include_proto!` so the message
+    // types build without tonic (the fold build has none).
+    include!(concat!(env!("OUT_DIR"), "/ciris.registry.v1.rs"));
     pub const FILE_DESCRIPTOR_SET: &[u8] =
-        tonic::include_file_descriptor_set!("ciris_registry_descriptor");
+        include_bytes!(concat!(env!("OUT_DIR"), "/ciris_registry_descriptor.bin"));
 }
