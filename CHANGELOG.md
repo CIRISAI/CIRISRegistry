@@ -13,6 +13,7 @@ discipline + release process.
 | 1.x | FSD-002 v1.4.3 baseline |
 | 2.x | CEG 0.2 |
 | 3.x | CC 1.0-rc4 (fold-prep; Server 0.6 substrate floor) |
+| 4.x | CC 1.0-rc5 (authority triad; last pre-fold release) |
 
 Prior to v1.1.0 baseline tagging, per-feature commit history lives in
 `git log`; the CHANGELOG starts from this baseline forward.
@@ -20,6 +21,20 @@ Prior to v1.1.0 baseline tagging, per-feature commit history lives in
 ---
 
 ## [Unreleased]
+
+## [4.0.0] — 2026-10-01
+
+**MAJOR: the last pre-fold registry release. Adopts CC 1.0-rc5's authority triad on the wire, closes an authorization hole, and lands on CIRISServer 0.5.218's substrate.** 3.x was CC 1.0-rc4; 4.x is rc5 (rc6 is open upstream and not cut). After this, `ciris-registry-core` composes into CIRISServer (#62, CIRISServer#537).
+
+### Wire changes (read these first)
+
+- **`GET /v1/partner/{key_id}` → `licensure[].authority_id` is the organisation's `org_id` UUID** (#139; CC 2.4.1.2.1, part_3 §3.3.9). It previously emitted `partners.organization_id` — the Tax ID / registration number — on a public, unauthenticated route. rc5 names this Registry when ruling that out. The id is resolved through `organizations.partner_id` (oldest row, deterministic); a partner with no organisation, or whose `org_id` is not UUID-shaped, now gets **no** licensure entry rather than a guess.
+- **`licensure[].status` uses the rc5 canonical vocabulary and no longer collapses `suspended` into `revoked`.** The old mapping was `active` / `inactive`, so SUSPENDED and REVOKED were one token — destroying the one distinction rc5 says a consumer MUST honour (`suspended` is reversible, `revoked` is terminal). Now `issued` / `suspended` / `revoked`; an unrecognised status emits the deliberately non-canonical `unspecified`, which withholds instead of escalating.
+- **`CEG-Version` header: `1.0-rc4` → `1.0-rc5`.**
+
+### Fix — partner lookups failed on any database this binary migrated itself
+
+`ebe637a` added `responsible_party` and `public_contact_email` to every partner query but put the `ALTER` only in the legacy `database/migrations/` tree, never in the sqlx tree the binary runs. On such a database `LookupPartner` errored and `/v1/partner/{key_id}` silently served an empty composition (the handler discards the error). New idempotent migration **031** adds both columns; a database that already has them is untouched. Found by booting this release against a fresh Postgres 16 and seeding partners.
 
 ### Security — `PortalService.GetUser` / `GetUserByEmail` had no authorization
 
@@ -34,15 +49,15 @@ Found, not changed: `POST /v1/integrity/auth` reports `authenticated`/`authorize
 - **`ciris-registry-core` builds two ways.** `standalone` (default, unchanged deployment) keeps sqlx, tonic, persist's `postgres` backend, the gRPC services and the full HTTP router. Without default features the crate is what CIRISServer can depend on: no sqlx, no tonic, no tokio-postgres in its graph (CI now fails the build if any creeps back in). Proto messages still compile in both, as plain prost types.
 - **`fold::router(engine, node_key_id)`** — the registry slice's router for `compose_registry`, over the server's shared persist Engine. It serves the FSD-004 KEEP routes that already ran on persist alone: `/v1/steward-key`, `/v1/trust-root/bundle`, `/v1/agent_files/{kind}`. The standalone HTTP server mounts the same handlers (the fold state is taken out of its own state), so the two deployments share one implementation. It deliberately does not mount `/v1/identity`, `/v1/accord-holders` or health: the server owns those. A new `tests/fold_router.rs` mounts it on a SQLite Engine and passes in both builds.
 
-No wire change: every route answers exactly as before in the standalone build.
+The fold split itself changes no wire behaviour in the standalone build; the wire changes in this release are the licensure ones above.
 
 ### Substrate catch-up
 
-**Substrate catch-up to CIRISServer 0.5.217's exact triple — the registry-core fold can now land without a second substrate rev.** No wire change.
+**Substrate catch-up to CIRISServer 0.5.218's exact triple — the registry-core fold can now land without a second substrate rev.**
 
 ### Substrate (#76 follow-through)
 
-persist `v40.0.0 → v48.0.0`, edge `v20.1.1 → v31.0.0`, verify `v14.1.0 → v16.1.0`: the same tags CIRISServer 0.5.217 and its in-tree `ciris-lens-core` pin, so the lock carries one verify family, one persist, one edge. Newer verify tags (v17.x) are not taken, for the reason #76 already recorded: persist and edge pin v16.1.0, and moving verify alone would fork it. No source changes were needed across 8 persist and 11 edge majors. Each git pin now also carries a `version = "N"` major guard, the way the server's lens-core does, so a stray repin fails here and not in the composed build. The bin crate's `rust-version` moves from 1.84 to the workspace's 1.86, which is still verify's floor. edge v31 brings in `leviculum-std` → `bluer` → `dbus` on Linux with `vendored`, which builds libdbus from source and links it statically. The binary gains no new runtime `.so` dependency and the Dockerfile is unchanged. The workspace also builds on the Docker image's `rust:1.93`.
+persist `v40.0.0 → v52.0.1`, edge `v20.1.1 → v38.1.0`, verify `v14.1.0 → v18.0.0` (via 48 / 31 / 16.1, then again when Server moved): the same tags CIRISServer 0.5.218 and its in-tree `ciris-lens-core` pin, so the lock carries one verify family, one persist, one edge. Newer verify tags (v17.x) are not taken, for the reason #76 already recorded: persist and edge pin v16.1.0, and moving verify alone would fork it. No source changes were needed across 8 persist and 11 edge majors. Each git pin now also carries a `version = "N"` major guard, the way the server's lens-core does, so a stray repin fails here and not in the composed build. The bin crate's `rust-version` moves from 1.84 to the workspace's 1.86, which is still verify's floor. edge v31 brings in `leviculum-std` → `bluer` → `dbus` on Linux with `vendored`, which builds libdbus from source and links it statically. The binary gains no new runtime `.so` dependency and the Dockerfile is unchanged. The workspace also builds on the Docker image's `rust:1.93`.
 
 ### Fix — `/v1/identity` was serving 4 of 6 keys again
 
@@ -50,9 +65,11 @@ Since the v3.0.0 co-bump, edge refuses to build a Reticulum transport without a 
 
 Verified: 109 lib, 19 crypto_properties, 26 capability_properties and 16 db_integration tests pass. The v3.0.0 binary was booted against Postgres 16 with dual-write on, then this build was booted on the same database: it applied persist V136–V152 cleanly and served `/health`, `/v1/steward-key` and `/v1/identity` (6/6).
 
+Verified for 4.0.0: 117 lib, 19 crypto_properties, 26 capability_properties, 3 fold_router; the no-default-features fold build passes with sqlx / tonic / tokio-postgres absent from its graph. Booted against Postgres 16 with persist on Postgres and dual-write on: persist applied 161 migrations through V166, sqlx through 031 (031 applied over existing partner rows), `/v1/identity` served 6/6 keys, and `/v1/partner/{key_id}` was exercised over seeded ACTIVE / SUSPENDED / REVOKED partners — UUID authority, three distinct statuses, no tax id in any response.
+
 **Rollback metadata:**
 - **Digest**: (operator-resolvable via `crane digest …`)
-- **Migrations**: persist applies **V136–V152** (17 lens-schema migrations, additive) at boot against `FEDERATION_PERSIST_DSN`. **Rollback floor:** after they apply, a v3.0.0 image **will not boot** against that database with dual-write on. persist's migrator refuses with `migration V136__tasks_status_rejected is missing from the filesystem`. Snapshot before deploying if you might need to roll back. The registry's own sqlx migrations are unchanged.
+- **Migrations**: persist applies **V136–V166** (additive) at boot against `FEDERATION_PERSIST_DSN`. **Rollback floor:** after they apply, a v3.0.0 image **will not boot** against that database with dual-write on. persist's migrator refuses with `migration V136__tasks_status_rejected is missing from the filesystem`. Snapshot before deploying if you might need to roll back. The registry's own sqlx migrations are unchanged.
 - **Config**: none new. `CIRIS_REGISTRY_EDGE_IDENTITY_PATH` now actually takes effect, as it was documented to.
 
 ## [3.0.0] — 2026-09-04
@@ -774,7 +791,8 @@ have a stable referent.
 
 ---
 
-[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/CIRISAI/CIRISRegistry/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v4.0.0
 [3.0.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v3.0.0
 [2.3.0]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.3.0
 [2.2.1]: https://github.com/CIRISAI/CIRISRegistry/releases/tag/v2.2.1

@@ -79,6 +79,44 @@ pub async fn get_organization(pool: &PgPool, org_id: &str) -> Result<Option<Orga
     Ok(row)
 }
 
+/// The `org_id` UUID of the organisation that holds `partner_id`, if any.
+///
+/// CC 1.0-rc5 part_3 §3.3.9 rules that when a licensing authority is an
+/// organisation, the `authority_id` segment of `licensure:{authority_id}` is its
+/// **`org_id`** — the UUID `org_membership.org_id` joins on, through which the
+/// organisation's keys resolve — and explicitly **not** the legal registration
+/// number `PartnerRecord.organization_id` carries, which is jurisdiction-scoped,
+/// mutable and PII-adjacent. That ruling names this Registry as the reference
+/// implementation, so this lookup is what makes the emit site conformant.
+///
+/// The link runs organisation→partner (`organizations.partner_id REFERENCES
+/// partners(partner_id)`), so resolving a partner's authority is this reverse
+/// join. `idx_organizations_partner` covers it.
+///
+/// The value is returned as stored. `org_id` is TEXT here, so the emit site
+/// verifies it parses as a UUID before publishing it as an `authority_id` — a
+/// non-UUID org id is withheld rather than emitted (CC part_3 §3.3.9 names the
+/// org **UUID**).
+///
+/// Multiple organisations MAY reference one partner — the column is indexed but
+/// not unique — so this returns the oldest by `created_at`, deterministically.
+/// An authority_id that flipped between rows on equal timestamps would be worse
+/// than a wrong one: it would be an unstable licence provenance.
+pub async fn org_id_for_partner(pool: &PgPool, partner_id: &str) -> Result<Option<String>> {
+    // `organizations.org_id` and `.partner_id` are TEXT in the schema this binary
+    // migrates (migrations/001), holding UUID *strings* — not the UUID column
+    // type the legacy `database/migrations/` tree declares. Bind and decode as
+    // text; the caller checks the value is UUID-shaped before emitting it.
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT org_id FROM organizations WHERE partner_id = $1 \
+         ORDER BY created_at ASC, org_id ASC LIMIT 1",
+    )
+    .bind(partner_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|(id,)| id))
+}
+
 pub async fn create_organization(pool: &PgPool, org: &proto::Organization) -> Result<String> {
     let org_id = uuid::Uuid::new_v4().to_string();
 

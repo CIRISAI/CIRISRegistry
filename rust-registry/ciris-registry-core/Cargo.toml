@@ -1,6 +1,6 @@
 [package]
 name = "ciris-registry-core"
-version = "3.0.0"
+version = "4.0.0"
 edition = "2021"
 rust-version = "1.86"
 authors = ["CIRIS AI <hello@ciris.ai>"]
@@ -100,13 +100,13 @@ rsa = { version = "0.9", features = ["sha2"] }
 # Originally tracked as CIRISRegistry#10; resolved this phase.
 
 # ── PINNED TO CIRISSERVER'S EXACT TRIPLE, NOT TO LATEST (#76) ────────────────
-#   ciris-verify  v16.1.0  (carries ciris-crypto + ciris-keyring at the same tag)
-#   ciris-persist v48.0.0
-#   ciris-edge    v31.0.0
+#   ciris-verify  v18.0.0  (carries ciris-crypto + ciris-keyring at the same tag)
+#   ciris-persist v52.0.1
+#   ciris-edge    v38.1.0
 #
-# These are the tags CIRISServer 0.5.217 pins (and its in-tree ciris-lens-core
-# with them), resolving to ONE verify in the graph: edge v31.0.0 pins persist
-# v48.0.0, and both pin the verify family at v16.1.0.
+# These are the tags CIRISServer 0.5.218 pins (and its in-tree ciris-lens-core
+# with them), resolving to ONE verify in the graph: edge v38.1.0 pins persist
+# v52.0.1, and both pin the verify family at v18.0.0.
 #
 # NOTE newer verify tags EXIST (v17.x at time of writing) and are deliberately
 # NOT taken. Nothing in the triple pins them; taking one would fork verify
@@ -142,10 +142,10 @@ rsa = { version = "0.9", features = ["sha2"] }
 # at all, the `From<federation::Error>` match ends in a catch-all arm, and this
 # crate declares its OWN 8-method FederationDirectory trait rather than
 # implementing persist's (so persist growing that trait is invisible here).
-ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v16.1.0", version = "16", features = ["pqc-ml-dsa"] }
-ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v16.1.0", version = "16", default-features = false, features = ["software", "pqc-ml-dsa"] }
-ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v48.0.0", version = "48", features = ["sqlite"] } # + "postgres" via `standalone`
-ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v31.0.0", version = "31", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
+ciris-crypto  = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v18.0.0", version = "18", features = ["pqc-ml-dsa"] }
+ciris-keyring = { git = "https://github.com/CIRISAI/CIRISVerify",  tag = "v18.0.0", version = "18", default-features = false, features = ["software", "pqc-ml-dsa"] }
+ciris-persist = { git = "https://github.com/CIRISAI/CIRISPersist", tag = "v52.0.1", version = "52", features = ["sqlite"] } # + "postgres" via `standalone`
+ciris-edge    = { git = "https://github.com/CIRISAI/CIRISEdge",    tag = "v38.1.0", version = "38", features = ["transport-reticulum-tcp-server", "transport-reticulum-tcp-client"] }
 
 # Force libsqlite3-sys to build with bundled libsqlite3 so the final
 # binary statically links sqlite3 and does NOT require libsqlite3.so.0
@@ -194,7 +194,7 @@ libsqlite3-sys = { version = "0.28", features = ["bundled"] }
 #
 # default-features = false + "pqc": we want the hybrid verifier and nothing
 # else — no keyring hardware backends, no license cache, no test-support.
-ciris-verify-core = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v16.1.0", version = "16", default-features = false, features = ["pqc"] }
+ciris-verify-core = { git = "https://github.com/CIRISAI/CIRISVerify", tag = "v18.0.0", version = "18", default-features = false, features = ["pqc"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
