@@ -9,7 +9,10 @@
 //! 2. the **manifest bytes**, a commons blob addressed by that hash.
 //!
 //! The Contribution is only worth anything if the pipeline key holds
-//! `infra:attest` from a trust root THIS node accepts. That is the whole
+//! `infra:attest` from a trust root THIS node accepts: a live
+//! `delegates_to(root → pipeline, infra:attest)` grant. A role on the
+//! pipeline's key record is not enough; the capability walk reads a co-scrubbed
+//! record as "this key is itself a root", which a pipeline is not. That is the whole
 //! authority model: no admin bearer, no registry signature, no allowlist of CI
 //! keys kept here. `capability_roots_to_trusted_root` answers it, the same walk
 //! the server's registry-slice gate uses for itself.
@@ -400,18 +403,102 @@ pub struct Accepted {
     pub newly_stored: bool,
 }
 
+/// The pipeline's credentials, carried beside a Contribution so a node that
+/// has never heard of the pipeline can check it without a second round trip.
+///
+/// Both are self-authenticating and neither is trusted for arriving here: the
+/// record is judged by persist's key admission, the grant by its signature
+/// against the granter's key in THIS node's directory, and whether the granter
+/// is a root this node accepts is the capability walk's question afterwards.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PipelineCredentials {
+    /// The pipeline's key record.
+    #[serde(default)]
+    pub pipeline_record: Option<SignedKeyRecord>,
+    /// The bless: `delegates_to(root → pipeline, infra:attest)`, signed by the
+    /// root. This is what the accord's CI-key ceremony produces.
+    #[serde(default)]
+    pub pipeline_grant: Option<SignedContribution>,
+}
+
+/// Rebuild a signed row from the mirror its author signed, checking the
+/// signature against the author's key in the directory. No re-stamp: a fresh
+/// stamp would mint an id the signature does not cover.
+async fn adopt_row(
+    directory: &dyn FederationDirectory,
+    signed: &SignedContribution,
+) -> Result<Attestation, Refusal> {
+    let core = EnvelopeCore::from_value(signed.signed_envelope.clone())
+        .map_err(|_| Refusal::Malformed("envelope"))?;
+    let mirror = core
+        .row
+        .clone()
+        .ok_or(Refusal::Malformed("no signed `row` mirror (CIRISPersist#643)"))?;
+    let author = directory
+        .lookup_public_key(&mirror.attesting_key_id)
+        .await
+        .map_err(substrate)?
+        .ok_or_else(|| Refusal::UnknownPipeline(mirror.attesting_key_id.clone()))?;
+    let canonical = attestation_emit::canonicalize(&signed.signed_envelope).map_err(substrate)?;
+    if !signature_verifies(
+        &author,
+        &canonical,
+        &signed.ed25519_signature_base64,
+        Some(&signed.mldsa65_signature_base64),
+    ) {
+        return Err(Refusal::SignatureInvalid);
+    }
+    let expires_at = match core.expires_at.as_deref() {
+        Some(raw) => Some(
+            chrono::DateTime::parse_from_rfc3339(raw)
+                .map(|t| t.with_timezone(&chrono::Utc))
+                .map_err(|_| Refusal::Malformed("expires_at"))?,
+        ),
+        None => None,
+    };
+    let mut input = EmitAttestationInput::with_envelope(
+        mirror.attestation_type.clone(),
+        core,
+        mirror.cohort_scope.clone(),
+    );
+    input.attested_key_id = Some(mirror.attested_key_id.clone());
+    input.subject_key_ids = mirror.subject_key_ids.clone();
+    input.expires_at = expires_at;
+    input.weight = mirror.weight.as_ref().and_then(serde_json::Number::as_f64);
+
+    let decode = |s: &str| B64.decode(s).map_err(|_| Refusal::SignatureInvalid);
+    let signature = ciris_crypto::HybridSignature {
+        crypto_kind: ciris_crypto::CRYPTO_KIND_CIRIS_V1,
+        classical: ciris_crypto::TaggedClassicalSignature {
+            algorithm: ciris_crypto::ClassicalAlgorithm::Ed25519,
+            signature: decode(&signed.ed25519_signature_base64)?,
+            public_key: Vec::new(),
+        },
+        pqc: ciris_crypto::TaggedPqcSignature {
+            algorithm: ciris_crypto::PqcAlgorithm::MlDsa65,
+            signature: decode(&signed.mldsa65_signature_base64)?,
+            public_key: Vec::new(),
+        },
+        mode: ciris_crypto::SignatureMode::HybridRequired,
+    };
+    let (row, _) = attestation_emit::assemble(author.key_id, &canonical, signature, input)
+        .map_err(substrate)?;
+    Ok(row)
+}
+
 /// Admit a Contribution and its manifest bytes.
 ///
-/// Order is cheapest-first and nothing is written until every check has
-/// passed, except the pipeline's own key record: that is self-authenticating,
-/// persist's role-admission gate judges it, and it has to be in the directory
-/// before the signature can be checked against it.
+/// Order is cheapest-first. The Contribution and its blob are written only
+/// after every check has passed. The pipeline's credentials are written
+/// before, because the checks read them: each is self-authenticating, and
+/// storing a key record or a grant confers nothing that the capability walk
+/// would not have refused anyway.
 pub async fn submit(
     engine: &Arc<Engine>,
     node_key_id: &str,
     contribution: SignedContribution,
     manifest: &[u8],
-    pipeline_record: Option<SignedKeyRecord>,
+    credentials: PipelineCredentials,
 ) -> Result<Accepted, Refusal> {
     if manifest.len() > MAX_MANIFEST_BYTES {
         return Err(Refusal::ManifestTooLarge(manifest.len()));
@@ -438,7 +525,7 @@ pub async fn submit(
     }
 
     let directory = engine.federation_directory();
-    if let Some(record) = pipeline_record {
+    if let Some(record) = credentials.pipeline_record {
         if record.record.key_id != mirror.attesting_key_id {
             return Err(Refusal::Malformed("pipeline_record is for a different key"));
         }
@@ -448,63 +535,25 @@ pub async fn submit(
             tracing::debug!(pipeline = %mirror.attesting_key_id, "pipeline_record not stored: {e}");
         }
     }
-    let pipeline = directory
-        .lookup_public_key(&mirror.attesting_key_id)
-        .await
-        .map_err(substrate)?
-        .ok_or_else(|| Refusal::UnknownPipeline(mirror.attesting_key_id.clone()))?;
-
-    let canonical =
-        attestation_emit::canonicalize(&contribution.signed_envelope).map_err(substrate)?;
-    if !signature_verifies(
-        &pipeline,
-        &canonical,
-        &contribution.ed25519_signature_base64,
-        Some(&contribution.mldsa65_signature_base64),
-    ) {
-        return Err(Refusal::SignatureInvalid);
+    if let Some(grant) = credentials.pipeline_grant {
+        let row = adopt_row(directory.as_ref(), &grant).await?;
+        if row.attestation_type != attestation_type::DELEGATES_TO
+            || row.attested_key_id != mirror.attesting_key_id
+        {
+            return Err(Refusal::Malformed("pipeline_grant is not a delegates_to naming this pipeline"));
+        }
+        // A grant already held is fine. One persist refuses is not fatal here
+        // either: the pipeline may hold another, and the walk below decides.
+        if let Err(e) = directory.put_attestation(SignedAttestation { attestation: row }).await {
+            tracing::debug!(pipeline = %mirror.attesting_key_id, "pipeline_grant not stored: {e}");
+        }
     }
-    let grant = blessing(directory.as_ref(), node_key_id, &pipeline.key_id)
+
+    let row = adopt_row(directory.as_ref(), &contribution).await?;
+    let pipeline_key_id = row.attesting_key_id.clone();
+    let grant = blessing(directory.as_ref(), node_key_id, &pipeline_key_id)
         .await?
-        .ok_or_else(|| Refusal::PipelineNotBlessed(pipeline.key_id.clone()))?;
-
-    // Rebuild the row from the mirror the pipeline signed. No re-stamp: a fresh
-    // stamp would mint an id the signature does not cover.
-    let expires_at = match core.expires_at.as_deref() {
-        Some(raw) => Some(
-            chrono::DateTime::parse_from_rfc3339(raw)
-                .map(|t| t.with_timezone(&chrono::Utc))
-                .map_err(|_| Refusal::Malformed("expires_at"))?,
-        ),
-        None => None,
-    };
-    let mut input = EmitAttestationInput::with_envelope(
-        mirror.attestation_type.clone(),
-        core,
-        mirror.cohort_scope.clone(),
-    );
-    input.attested_key_id = Some(mirror.attested_key_id.clone());
-    input.subject_key_ids = mirror.subject_key_ids.clone();
-    input.expires_at = expires_at;
-    input.weight = mirror.weight.as_ref().and_then(serde_json::Number::as_f64);
-
-    let decode = |s: &str| B64.decode(s).map_err(|_| Refusal::SignatureInvalid);
-    let signature = ciris_crypto::HybridSignature {
-        crypto_kind: ciris_crypto::CRYPTO_KIND_CIRIS_V1,
-        classical: ciris_crypto::TaggedClassicalSignature {
-            algorithm: ciris_crypto::ClassicalAlgorithm::Ed25519,
-            signature: decode(&contribution.ed25519_signature_base64)?,
-            public_key: Vec::new(),
-        },
-        pqc: ciris_crypto::TaggedPqcSignature {
-            algorithm: ciris_crypto::PqcAlgorithm::MlDsa65,
-            signature: decode(&contribution.mldsa65_signature_base64)?,
-            public_key: Vec::new(),
-        },
-        mode: ciris_crypto::SignatureMode::HybridRequired,
-    };
-    let (row, _) = attestation_emit::assemble(pipeline.key_id.clone(), &canonical, signature, input)
-        .map_err(substrate)?;
+        .ok_or_else(|| Refusal::PipelineNotBlessed(pipeline_key_id.clone()))?;
     let attestation_id = row.attestation_id.clone();
 
     // Bytes first. A row whose blob is missing sends every peer that receives
@@ -514,7 +563,7 @@ pub async fn submit(
             &sha,
             BlobBody::Inline(manifest.to_vec()),
             Some("application/json"),
-            &pipeline.key_id,
+            &pipeline_key_id,
             chrono::Utc::now(),
             uuid::Uuid::new_v4(),
         )
@@ -529,7 +578,7 @@ pub async fn submit(
     Ok(Accepted {
         attestation_id,
         manifest_sha256: facts.manifest_hash,
-        pipeline_key_id: pipeline.key_id,
+        pipeline_key_id,
         conferred_by: grant.root_key_id,
         newly_stored,
     })
@@ -571,15 +620,15 @@ pub fn router(engine: Arc<Engine>, node_key_id: String) -> Router {
 struct SubmitBody {
     contribution: SignedContribution,
     manifest_base64: String,
-    #[serde(default)]
-    pipeline_record: Option<SignedKeyRecord>,
+    #[serde(flatten)]
+    credentials: PipelineCredentials,
 }
 
 async fn submit_build(State(st): State<BuildsState>, Json(body): Json<SubmitBody>) -> Response {
     let Ok(manifest) = B64.decode(body.manifest_base64.as_bytes()) else {
         return Refusal::Malformed("manifest_base64").into_response();
     };
-    match submit(&st.engine, &st.node_key_id, body.contribution, &manifest, body.pipeline_record)
+    match submit(&st.engine, &st.node_key_id, body.contribution, &manifest, body.credentials)
         .await
     {
         Ok(accepted) => {
