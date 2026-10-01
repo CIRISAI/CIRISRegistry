@@ -487,6 +487,12 @@ async fn partner_composition(
     // the fail-secure one (unknown → restricted, never escalated).
     let licensure: Vec<LicensureEntry> = match &partner_row {
         Some(row) => match db::org_id_for_partner(state.db.pool(), &row.partner_id).await {
+            // §3.3.9 names the org UUID. `org_id` is a TEXT column, so check the
+            // shape rather than trust it: a non-UUID value is withheld.
+            Ok(Some(org_id)) if uuid::Uuid::parse_str(&org_id).is_err() => {
+                warn!("partner_composition: org_id {org_id:?} is not a UUID; licensure withheld");
+                Vec::new()
+            }
             Ok(Some(org_id)) => vec![LicensureEntry {
                 authority_id: org_id,
                 status: licensure_status(row.status).to_string(),
