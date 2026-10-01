@@ -1527,7 +1527,9 @@ async fn verified_manifest_contribution(
     use ciris_verify_core::threshold::{verify_threshold_signatures, ThresholdMember, ThresholdSignature};
 
     let roster = crate::fold::accord_holder_roster();
-    let want_dim = format!("provenance:build_manifest:{}", row.target);
+    // CC 3.1.7 R3: the family carries a trailing version segment, and persist
+    // refuses a row without one, so the unversioned spelling can never match.
+    let want_dim = crate::fold_builds::build_manifest_dimension(&row.target);
     let want_version = normalize_release_version(&row.version);
 
     let nodes = match federation

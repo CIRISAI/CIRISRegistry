@@ -58,6 +58,7 @@ pub mod edge_transport;
 pub mod error;
 pub mod federation;
 pub mod fold;
+pub mod fold_builds;
 #[cfg(feature = "standalone")]
 pub mod middleware;
 #[cfg(feature = "standalone")]
