@@ -43,6 +43,7 @@ fn facts(manifest: &[u8]) -> BuildFacts {
         binary_hash: "aa".repeat(32),
         binary_version: "9.9.9".to_string(),
         manifest_hash: hex::encode(Sha256::digest(manifest)),
+        manifest_size: manifest.len() as u64,
     }
 }
 
@@ -179,9 +180,24 @@ async fn a_manifest_that_does_not_hash_to_the_attested_value_is_refused() {
     let pipeline = HybridSigningIdentity::generate("ci-swap").unwrap();
     let c = sign(&pipeline, contribution_envelope(&facts(MANIFEST))).await;
     let (status, json) =
-        post(&engine, body(&c, b"{\"files\":{}}", Some(&self_record(&pipeline).await))).await;
+        // Same length, different bytes: the size check passes, the hash does not.
+        post(&engine, body(&c, &MANIFEST.to_ascii_uppercase(), Some(&self_record(&pipeline).await))).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(json["error"], "manifest_hash_mismatch");
+}
+
+/// Size is checked before the hash (CC 5.3.2.5).
+#[tokio::test]
+async fn a_manifest_of_the_wrong_length_is_refused_before_it_is_hashed() {
+    let engine = engine().await;
+    let pipeline = HybridSigningIdentity::generate("ci-size").unwrap();
+    let mut f = facts(MANIFEST);
+    f.manifest_size += 1;
+    let c = sign(&pipeline, contribution_envelope(&f)).await;
+    let (status, json) =
+        post(&engine, body(&c, MANIFEST, Some(&self_record(&pipeline).await))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(json["error"], "manifest_size_mismatch");
 }
 
 #[tokio::test]

@@ -95,6 +95,10 @@ pub struct BuildFacts {
     /// SHA-256 of the manifest bytes, 64 lowercase hex chars. This is the
     /// blob's address and the Contribution's `evidence_refs[0]`.
     pub manifest_hash: String,
+    /// Length of the manifest in bytes (CC 5.3.2.5: every blob carries its
+    /// size). A reader checks this before hashing, so an oversized body is
+    /// refused without being read to the end.
+    pub manifest_size: u64,
 }
 
 /// The unsigned Contribution envelope for `facts`, ready for
@@ -135,6 +139,8 @@ pub enum Refusal {
     DimensionMismatch { expected: String, found: String },
     /// The submitted bytes do not hash to `build.manifest_hash`.
     ManifestHashMismatch { expected: String, found: String },
+    /// The submitted bytes are not `build.manifest_size` long.
+    ManifestSizeMismatch { expected: u64, found: u64 },
     /// The manifest is larger than [`MAX_MANIFEST_BYTES`].
     ManifestTooLarge(usize),
     /// The signing key is not in this node's directory.
@@ -150,9 +156,10 @@ pub enum Refusal {
 impl Refusal {
     fn status(&self) -> StatusCode {
         match self {
-            Self::Malformed(_) | Self::DimensionMismatch { .. } | Self::ManifestHashMismatch { .. } => {
-                StatusCode::BAD_REQUEST
-            }
+            Self::Malformed(_)
+            | Self::DimensionMismatch { .. }
+            | Self::ManifestHashMismatch { .. }
+            | Self::ManifestSizeMismatch { .. } => StatusCode::BAD_REQUEST,
             Self::ManifestTooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Self::UnknownPipeline(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::SignatureInvalid => StatusCode::UNAUTHORIZED,
@@ -168,6 +175,7 @@ impl Refusal {
             Self::Malformed(_) => "contribution_malformed",
             Self::DimensionMismatch { .. } => "dimension_mismatch",
             Self::ManifestHashMismatch { .. } => "manifest_hash_mismatch",
+            Self::ManifestSizeMismatch { .. } => "manifest_size_mismatch",
             Self::ManifestTooLarge(_) => "manifest_too_large",
             Self::UnknownPipeline(_) => "unknown_pipeline",
             Self::SignatureInvalid => "signature_invalid",
@@ -187,6 +195,10 @@ impl std::fmt::Display for Refusal {
             Self::ManifestHashMismatch { expected, found } => write!(
                 f,
                 "the manifest bytes hash to {found}, but the Contribution attests {expected}"
+            ),
+            Self::ManifestSizeMismatch { expected, found } => write!(
+                f,
+                "the manifest is {found} bytes, but the Contribution attests {expected}"
             ),
             Self::ManifestTooLarge(n) => {
                 write!(f, "manifest is {n} bytes; the limit is {MAX_MANIFEST_BYTES}")
@@ -296,6 +308,10 @@ pub struct VerifiedBuild {
     pub pipeline_key_id: String,
     /// The trust root the pipeline's `infra:attest` roots in.
     pub conferred_by: String,
+    /// The grant the walk found, so a reader can fetch and check it.
+    pub grant_attestation_id: String,
+    /// The Contribution exactly as the pipeline signed it.
+    pub contribution: SignedContribution,
 }
 
 /// Check a stored row end to end. `None` for anything that is not a currently
@@ -359,6 +375,12 @@ async fn verify_row(
         attestation_id: row.attestation_id.clone(),
         pipeline_key_id: pipeline.key_id.clone(),
         conferred_by: grant.root_key_id,
+        grant_attestation_id: grant.grant_attestation_id,
+        contribution: SignedContribution {
+            signed_envelope: row.attestation_envelope.clone(),
+            ed25519_signature_base64: row.scrub_signature_classical.clone(),
+            mldsa65_signature_base64: row.scrub_signature_pqc.clone().unwrap_or_default(),
+        },
     })
 }
 
@@ -504,6 +526,13 @@ pub async fn submit(
         return Err(Refusal::ManifestTooLarge(manifest.len()));
     }
     let facts = facts_of(&contribution.signed_envelope)?;
+    // Size first, then the hash (CC 5.3.2.5).
+    if manifest.len() as u64 != facts.manifest_size {
+        return Err(Refusal::ManifestSizeMismatch {
+            expected: facts.manifest_size,
+            found: manifest.len() as u64,
+        });
+    }
     let sha: [u8; 32] = Sha256::digest(manifest).into();
     let found = hex::encode(sha);
     if found != facts.manifest_hash {
@@ -675,7 +704,24 @@ struct BuildResponse {
     /// Whether this node holds the manifest bytes. `false` means the
     /// Contribution arrived and the blob has not: ask again, or ask a holder.
     manifest_held: bool,
+    /// The declared size of the manifest, from the signed facts.
+    manifest_size: u64,
     federation_provenance: ProvenanceBlock,
+    /// The Contribution as the pipeline signed it. A reader re-verifies this
+    /// against the pipeline's key and does not have to take the fields above
+    /// on this node's word (CC 5.3.4).
+    contribution: SignedContribution,
+    /// Whose walk said the pipeline has standing, and what it found. The
+    /// walk is this node's; a reader that wants its own fetches the grant.
+    standing: Standing,
+}
+
+#[derive(Serialize)]
+struct Standing {
+    scope: &'static str,
+    root_key_id: String,
+    grant_attestation_id: String,
+    walked_by: String,
 }
 
 async fn respond(st: &BuildsState, build: VerifiedBuild) -> Response {
@@ -687,6 +733,14 @@ async fn respond(st: &BuildsState, build: VerifiedBuild) -> Response {
         build_hash: build.facts.binary_hash.clone(),
         file_manifest_hash: build.facts.manifest_hash.clone(),
         manifest_held: bytes.is_some(),
+        manifest_size: build.facts.manifest_size,
+        contribution: build.contribution.clone(),
+        standing: Standing {
+            scope: INFRA_ATTEST_SCOPE,
+            root_key_id: build.conferred_by.clone(),
+            grant_attestation_id: build.grant_attestation_id.clone(),
+            walked_by: st.node_key_id.clone(),
+        },
         file_manifest_json: bytes.and_then(|b| serde_json::from_slice(&b).ok()),
         federation_provenance: ProvenanceBlock {
             attestations_consumed: vec![ProvenanceEntry {
