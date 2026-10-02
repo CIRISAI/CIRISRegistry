@@ -16,6 +16,8 @@
 //!   bundle (#133).
 //! - `GET /v1/agent_files/{kind}` — three-layer trust composition over the
 //!   federation directory.
+//! - `POST /v1/builds`, `GET /v1/builds/…` — CEG-native build manifests
+//!   ([`crate::fold_builds`]); mounted by [`router`] only.
 //!
 //! Not here, because the server already serves them: `/v1/identity`,
 //! `/v1/accord-holders`, health and metrics.
@@ -48,11 +50,15 @@ pub fn router(engine: Arc<ciris_persist::engine::Engine>, node_key_id: String) -
     let federation: Arc<dyn FederationDirectory> = Arc::new(
         crate::federation::persist_client::PersistFederationClient::new(Arc::clone(&engine)),
     );
-    routes().with_state(FoldState {
-        engine: Some(engine),
-        federation,
-        node_key_id,
-    })
+    routes()
+        .with_state(FoldState {
+            engine: Some(Arc::clone(&engine)),
+            federation,
+            node_key_id: node_key_id.clone(),
+        })
+        // CEG-native builds. Server-only: the standalone binary still serves
+        // `/v1/builds` from its Postgres build table.
+        .merge(crate::fold_builds::router(engine, node_key_id))
 }
 
 /// The fold routes, unbound. `api::http` merges these into the standalone
