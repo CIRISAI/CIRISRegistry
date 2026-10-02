@@ -9,13 +9,12 @@
 //! 2. the **manifest bytes**, a commons blob addressed by that hash.
 //!
 //! The Contribution is only worth anything if the pipeline key holds
-//! `infra:attest` from a trust root THIS node accepts: a live
-//! `delegates_to(root → pipeline, infra:attest)` grant. A role on the
-//! pipeline's key record is not enough; the capability walk reads a co-scrubbed
-//! record as "this key is itself a root", which a pipeline is not. That is the whole
+//! `infra:attest`, by either of two authorities ([`Blessing`]): a live
+//! `delegates_to(root → pipeline, infra:attest)` grant from a trust root THIS
+//! node accepts, or the accord's co-scrub of the role onto the pipeline's key
+//! record, which is what the CI-key ceremony produces. That is the whole
 //! authority model: no admin bearer, no registry signature, no allowlist of CI
-//! keys kept here. `capability_roots_to_trusted_root` answers it, the same walk
-//! the server's registry-slice gate uses for itself.
+//! keys kept here. persist answers both questions.
 //!
 //! # Why the envelope is persist's, not verify's
 //!
@@ -213,8 +212,9 @@ impl std::fmt::Display for Refusal {
             }
             Self::PipelineNotBlessed(k) => write!(
                 f,
-                "pipeline key {k:?} holds no {INFRA_ATTEST_SCOPE} from a trust root this node \
-                 accepts; a build manifest is valid only from a blessed pipeline"
+                "pipeline key {k:?} holds no {INFRA_ATTEST_SCOPE}: no grant from a trust root \
+                 this node accepts, and no accord-conferred role on its key record. A build \
+                 manifest is valid only from a blessed pipeline"
             ),
             Self::Substrate(e) => write!(f, "substrate: {e}"),
         }
@@ -282,19 +282,76 @@ fn signature_verifies(key: &KeyRecord, canonical: &[u8], ed: &str, pqc: Option<&
     verify_threshold_signatures(canonical, std::slice::from_ref(&member), &[sig], 1) == Ok(1)
 }
 
-/// Is `pipeline` blessed to attest builds, as far as `node` is concerned?
+/// How a pipeline came to hold `infra:attest`. Serialized with a `standing`
+/// discriminator, the shape verify's `PipelineBlessing` takes (FSD-006 §5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "standing", rename_all = "snake_case")]
+pub enum Blessing {
+    /// A live `delegates_to(root → pipeline, infra:attest)` from a single-key
+    /// root this node accepts.
+    Delegation { root_key_id: String, grant_attestation_id: String },
+    /// The same grant, signed by enough seated holders of a family this node
+    /// accepts that it is a grant by the family.
+    FamilyQuorum { root_key_id: String, grant_attestation_id: String },
+    /// The accord co-scrubbed `infra:attest` onto the pipeline's key record,
+    /// and no quorum has withdrawn it. This is what the CI-key ceremony
+    /// (`POST /v1/accord/ci-key/{propose,cosign}`) produces. It names no root
+    /// and no grant: the evidence is the key record itself.
+    AccordRole,
+}
+
+impl Blessing {
+    fn summary(&self) -> String {
+        match self {
+            Self::Delegation { root_key_id, .. } => format!("delegation:{root_key_id}"),
+            Self::FamilyQuorum { root_key_id, .. } => format!("family_quorum:{root_key_id}"),
+            Self::AccordRole => "accord_role".to_string(),
+        }
+    }
+}
+
+/// Is `pipeline` blessed to attest builds? Two authorities, either suffices.
 ///
-/// "As far as this node is concerned" is the point. The root must be one this
-/// node accepts, so an operator who withdraws that acceptance stops serving
-/// builds rooted in it without touching this code.
+/// 1. **The capability walk**, relative to this node: a grant from a root this
+///    node accepts. An operator who withdraws that acceptance stops serving
+///    builds rooted in it.
+/// 2. **The accord role**, persist's `is_infra_attest_effective`
+///    (CIRISPersist#422/#424): the role is on the stored key record, which
+///    persist's admission gate lets through only on an accord co-scrub, and no
+///    withdrawal tombstone names it. Not reader-relative.
+///
+/// The walk alone is not enough. Its co-scrub arm treats the blessed key as a
+/// root in its own right and asks for a charter, a recovery commitment and a
+/// heartbeat, none of which a pipeline has, so it answers `None` for every
+/// pipeline the ceremony blesses.
 async fn blessing(
     directory: &dyn FederationDirectory,
     node_key_id: &str,
     pipeline_key_id: &str,
-) -> Result<Option<TrustedGrant>, Refusal> {
-    capability_roots_to_trusted_root(directory, node_key_id, pipeline_key_id, INFRA_ATTEST_SCOPE)
-        .await
-        .map_err(substrate)
+) -> Result<Option<Blessing>, Refusal> {
+    use ciris_persist::federation::trust_root::ConferralPlane;
+    let walked: Option<TrustedGrant> =
+        capability_roots_to_trusted_root(directory, node_key_id, pipeline_key_id, INFRA_ATTEST_SCOPE)
+            .await
+            .map_err(substrate)?;
+    if let Some(grant) = walked {
+        return Ok(Some(match grant.conferral_plane {
+            ConferralPlane::Delegation => Blessing::Delegation {
+                root_key_id: grant.root_key_id,
+                grant_attestation_id: grant.grant_attestation_id,
+            },
+            ConferralPlane::FamilyQuorum => Blessing::FamilyQuorum {
+                root_key_id: grant.root_key_id,
+                grant_attestation_id: grant.grant_attestation_id,
+            },
+            ConferralPlane::AccordCoScrub => Blessing::AccordRole,
+        }));
+    }
+    let by_role =
+        ciris_persist::federation::admission::is_infra_attest_effective(directory, pipeline_key_id)
+            .await
+            .map_err(substrate)?;
+    Ok(by_role.then_some(Blessing::AccordRole))
 }
 
 /// A stored Contribution that passed every check, now.
@@ -306,10 +363,11 @@ pub struct VerifiedBuild {
     pub attestation_id: String,
     /// The pipeline key that signed it.
     pub pipeline_key_id: String,
-    /// The trust root the pipeline's `infra:attest` roots in.
-    pub conferred_by: String,
-    /// The grant the walk found, so a reader can fetch and check it.
-    pub grant_attestation_id: String,
+    /// How the pipeline holds `infra:attest`.
+    pub blessing: Blessing,
+    /// The pipeline's key record. Under [`Blessing::AccordRole`] this is the
+    /// evidence: a reader re-checks its co-scrubs against the accord anchor.
+    pub pipeline_record: KeyRecord,
     /// The Contribution exactly as the pipeline signed it.
     pub contribution: SignedContribution,
 }
@@ -355,8 +413,8 @@ async fn verify_row(
         );
         return None;
     }
-    let grant = match blessing(directory, node_key_id, &pipeline.key_id).await {
-        Ok(Some(g)) => g,
+    let blessing = match blessing(directory, node_key_id, &pipeline.key_id).await {
+        Ok(Some(b)) => b,
         Ok(None) => {
             tracing::info!(
                 attestation = %row.attestation_id,
@@ -374,8 +432,8 @@ async fn verify_row(
         facts,
         attestation_id: row.attestation_id.clone(),
         pipeline_key_id: pipeline.key_id.clone(),
-        conferred_by: grant.root_key_id,
-        grant_attestation_id: grant.grant_attestation_id,
+        blessing,
+        pipeline_record: pipeline.clone(),
         contribution: SignedContribution {
             signed_envelope: row.attestation_envelope.clone(),
             ed25519_signature_base64: row.scrub_signature_classical.clone(),
@@ -419,8 +477,9 @@ pub struct Accepted {
     pub manifest_sha256: String,
     /// The pipeline key that signed.
     pub pipeline_key_id: String,
-    /// The trust root its `infra:attest` roots in.
-    pub conferred_by: String,
+    /// How the pipeline holds `infra:attest`.
+    #[serde(flatten)]
+    pub blessing: Blessing,
     /// `false` when this exact Contribution was already held.
     pub newly_stored: bool,
 }
@@ -580,7 +639,7 @@ pub async fn submit(
 
     let row = adopt_row(directory.as_ref(), &contribution).await?;
     let pipeline_key_id = row.attesting_key_id.clone();
-    let grant = blessing(directory.as_ref(), node_key_id, &pipeline_key_id)
+    let blessing = blessing(directory.as_ref(), node_key_id, &pipeline_key_id)
         .await?
         .ok_or_else(|| Refusal::PipelineNotBlessed(pipeline_key_id.clone()))?;
     let attestation_id = row.attestation_id.clone();
@@ -608,7 +667,7 @@ pub async fn submit(
         attestation_id,
         manifest_sha256: facts.manifest_hash,
         pipeline_key_id,
-        conferred_by: grant.root_key_id,
+        blessing,
         newly_stored,
     })
 }
@@ -711,17 +770,21 @@ struct BuildResponse {
     /// against the pipeline's key and does not have to take the fields above
     /// on this node's word (CC 5.3.4).
     contribution: SignedContribution,
-    /// Whose walk said the pipeline has standing, and what it found. The
-    /// walk is this node's; a reader that wants its own fetches the grant.
+    /// How the pipeline holds `infra:attest`, and which node decided so.
+    /// `standing.standing` is `delegation`, `family_quorum` or `accord_role`;
+    /// the root and grant are present only for the first two.
     standing: Standing,
+    /// The pipeline's key record: what `contribution` verifies against, and
+    /// under `accord_role` the evidence of the blessing itself.
+    pipeline_record: KeyRecord,
 }
 
 #[derive(Serialize)]
 struct Standing {
     scope: &'static str,
-    root_key_id: String,
-    grant_attestation_id: String,
-    walked_by: String,
+    #[serde(flatten)]
+    blessing: Blessing,
+    decided_by: String,
 }
 
 async fn respond(st: &BuildsState, build: VerifiedBuild) -> Response {
@@ -737,10 +800,10 @@ async fn respond(st: &BuildsState, build: VerifiedBuild) -> Response {
         contribution: build.contribution.clone(),
         standing: Standing {
             scope: INFRA_ATTEST_SCOPE,
-            root_key_id: build.conferred_by.clone(),
-            grant_attestation_id: build.grant_attestation_id.clone(),
-            walked_by: st.node_key_id.clone(),
+            blessing: build.blessing.clone(),
+            decided_by: st.node_key_id.clone(),
         },
+        pipeline_record: build.pipeline_record.clone(),
         file_manifest_json: bytes.and_then(|b| serde_json::from_slice(&b).ok()),
         federation_provenance: ProvenanceBlock {
             attestations_consumed: vec![ProvenanceEntry {
@@ -749,15 +812,15 @@ async fn respond(st: &BuildsState, build: VerifiedBuild) -> Response {
                 confidence: 1.0,
                 attester_key_id: build.pipeline_key_id.clone(),
                 evidence_summary: format!(
-                    "pipeline={} conferred_by={} manifest_hash={} attestation_id={}",
+                    "pipeline={} standing={} manifest_hash={} attestation_id={}",
                     build.pipeline_key_id,
-                    build.conferred_by,
+                    build.blessing.summary(),
                     build.facts.manifest_hash,
                     build.attestation_id
                 ),
             }],
-            note: "pipeline-signed Contribution, re-verified on this read; the pipeline holds \
-                   infra:attest from a trust root this node accepts"
+            note: "pipeline-signed Contribution, re-verified on this read; see `standing` for \
+                   how the pipeline holds infra:attest"
                 .to_string(),
         },
     };

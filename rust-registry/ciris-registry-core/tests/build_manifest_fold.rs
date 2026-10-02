@@ -49,6 +49,12 @@ fn facts(manifest: &[u8]) -> BuildFacts {
 
 /// A self-signed `node` record for `id`: a real key, blessed by nobody.
 async fn self_record(id: &HybridSigningIdentity) -> SignedKeyRecord {
+    self_record_claiming(id, &[]).await
+}
+
+/// The same, with the record CLAIMING `roles` — signed by the key itself, so
+/// the claim is backed by nobody.
+async fn self_record_claiming(id: &HybridSigningIdentity, roles: &[&str]) -> SignedKeyRecord {
     let m = id.directory_member().expect("member");
     let rec = produce_scrubbed_key_record(
         id,
@@ -57,7 +63,7 @@ async fn self_record(id: &HybridSigningIdentity) -> SignedKeyRecord {
             pubkey_ed25519_base64: m.ed25519_public_key_base64.clone(),
             pubkey_ml_dsa_65_base64: m.mldsa65_public_key_base64.clone().expect("hybrid"),
             identity_type: "node".to_string(),
-            roles: vec![],
+            roles: roles.iter().map(|r| (*r).to_string()).collect(),
         },
         &chrono::Utc::now().to_rfc3339(),
         None,
@@ -132,6 +138,26 @@ async fn a_valid_signature_from_an_unblessed_pipeline_is_refused_and_nothing_is_
         StatusCode::NOT_FOUND,
         "the manifest bytes of a refused Contribution must not be served"
     );
+}
+
+/// The accord-role authority reads a role off the stored key record, so the
+/// thing that must not work is a key writing that role onto its own record.
+/// persist's admission gate is the enforcement point; this pins that the door
+/// inherits it and does not admit a build on a self-declared role.
+#[tokio::test]
+async fn a_pipeline_that_declares_its_own_infra_attest_role_is_not_blessed() {
+    let engine = engine().await;
+    let pipeline = HybridSigningIdentity::generate("ci-self-declared").unwrap();
+    let record = self_record_claiming(&pipeline, &["infra:attest"]).await;
+    let c = sign(&pipeline, contribution_envelope(&facts(MANIFEST))).await;
+
+    let (status, json) = post(&engine, body(&c, MANIFEST, Some(&record))).await;
+    assert_ne!(status, StatusCode::CREATED, "a self-declared role bought a build: {json}");
+    assert!(
+        json["error"] == "unknown_pipeline" || json["error"] == "pipeline_not_blessed",
+        "expected the record or the blessing to be refused, got {json}"
+    );
+    assert_eq!(get(&engine, "/v1/builds/9.9.9").await, StatusCode::NOT_FOUND);
 }
 
 /// The read re-checks. A row that reached the directory some other way (here:
