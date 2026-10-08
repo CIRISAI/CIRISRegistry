@@ -92,6 +92,18 @@ fields:
     example: true
     renders: "'Reinstate' on a suspended row — a `withdraws` on the suspended row, never a new `issued`; absent on a revoked row"
     tag: "proposed:btn_licence_reinstate_*"
+  - ceg: x_private:licence_visibility
+    use: emit
+    type: "enum[public,re-stamped]"
+    example: "public"
+    renders: "'Who can verify this' — Public: the row and the affiliation's authority head go at federation scope; Re-stamped: they are re-emitted to the named readers who must validate it (a regulator, a hospital's verifier) and nobody else. Chosen per licence; the default is Public"
+    tag: "proposed:select_licence_visibility"
+  - ceg: x_private:re_stamped_readers
+    use: emit
+    type: "list[string]"
+    example: ["wa-state-board-verifier-3c0e"]
+    renders: "'Readers' — present only when Re-stamped; each gets the licence AND the authority head it needs to fold it, as a targeted grant"
+    tag: "proposed:list_licence_readers"
   - ceg: x_private:subject_view
     use: display-only
     type: "list[string]"
@@ -133,12 +145,13 @@ error:     {tag: "proposed:txt_licences_error", renders: "Couldn't read licences
 
 | What | Route | Owner | State |
 |---|---|---|---|
-| issue / change status (write a `licensure:{authority_id}:v1` scores row about the subject) | none today | CIRISServer | `blocked_by: FSD-005 §7` |
+| issue / change status (write a `licensure:{authority_id}:v1` scores row about the subject) as an act of the affiliation under its current `consensus_protocol` — the `/changes/{envelope,cosign,assemble}` pattern; one signer only where the protocol says so | none today | CIRISServer | `blocked_by: FSD-005 §7` |
+| re-stamp a licence and the authority head to named readers | none | CIRISServer, CIRISPersist | `blocked_by: FSD-005 §7` |
 | reinstate (a `withdraws` on the suspended row) | none | CIRISServer | `blocked_by: FSD-005 §7` |
 | attach a duty (`duty:{kind}:v1` row referencing the licence) | none | CIRISServer | `blocked_by: FSD-005 §7` |
 | read a subject's licences per authority, as a status set | none (FSD-004 proposed `GET /v1/licensure/{key_id}?authority=`) | CIRISServer | `blocked_by: FSD-005 §7` |
 | admission refuses an issuer that is neither the authority nor a `license`-scoped delegate (`licensure_delegator_not_authority`) | CIRISPersist | CIRISPersist | unconfirmed — FSD-005 §7 |
-| the authority of an affiliation resolves to its quorum / founders' keys | CIRISPersist | CIRISPersist | unconfirmed — FSD-005 §7 |
+| the authority of an affiliation resolves to whatever its active `consensus_protocol` admits, selectable at founding and changeable by the active quorum | CIRISPersist | CIRISPersist | unconfirmed — FSD-005 §7 |
 
 ## 4. Flow
 

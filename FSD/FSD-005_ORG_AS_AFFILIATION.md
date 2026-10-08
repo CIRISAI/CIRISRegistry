@@ -145,6 +145,14 @@ auditors' estimates.
    `ciris_edge::chat::new_room_community_key_id()` (`communities.rs:1485`), a random
    id, not a key. **Design decision needed:** is one founder enough to issue, or must
    the affiliation's quorum co-sign a licence? CC 3.3.9 says "by quorum".
+   **Ruled (maintainer, 2026-10-08):** the full range of persist's quorum models is
+   selectable when the affiliation is founded (`consensus_protocol`: founder-only,
+   everyone, majority, `quorum:M/N`, …) and may be changed later by a decision of the
+   active quorum on the active roster. Persist handles all of that. A licence is
+   therefore an act of the affiliation under its current `consensus_protocol`, the same
+   way a roster change is: one founder suffices only where the protocol says so. The
+   persist arm is "authority set = whatever the affiliation's active protocol admits",
+   and Server's door is the existing `/changes/{envelope,cosign,assemble}` pattern.
 2. **Outsiders cannot verify an affiliation's licence (Persist + Edge, CC ruling).**
    Community records, rosters and the internal `delegates_to` hierarchy replicate only
    to member nodes (persist `replication_audience.rs:603-640`; edge `is_public_group`
@@ -155,6 +163,15 @@ auditors' estimates.
    or publish a licensing affiliation's authority head (founders + `consensus_protocol`
    + `license`-scoped edges) at federation scope, the way `infrastructure` does. The
    second conflicts with CC's "public = replicated on join"; it needs a ruling.
+   **Ruled (maintainer, 2026-10-08):** a licence is public (federation scope) by
+   default; where public visibility is not acceptable, the licence **and the authority
+   head a verifier needs** are **re-stamped** for the consumers who must validate it:
+   the affiliation re-emits the rows at an audience that names those readers (a
+   targeted grant or consent to the verifier), rather than widening its roster to
+   everyone. Visibility is the affiliation's per-licence choice, and both choices
+   carry what the reader needs to fold the row as the authority's licensure, not as
+   testimony. The CC ask narrows to: the authority head of a licensing affiliation
+   travels with its licences at whatever audience the licence has.
 3. **A registry node cannot serve rows to "any client" (Edge, M).** A peer is served a
    federation-scope row only if the serving node has authored a `consent:replication`
    grant naming it (`resolved_state.rs:76-110`); otherwise it gets first-contact reach,

@@ -84,6 +84,12 @@ fields:
     example: "privacy-seeking"
     renders: "'Who can read what we publish' — whole cohort under the DEK, or per-class promotion to Commons"
     tag: "proposed:select_disclosure"
+  - ceg: x_private:consensus_protocol
+    use: emit
+    type: string
+    example: "quorum:2/3"
+    renders: "'How this organization decides' — the full range of persist's quorum models, chosen at founding (CSD-102 offers it for any community) and changeable later by a decision of the active quorum; the same rule signs a licence, a role, a charter change"
+    tag: "proposed:select_consensus_protocol"
   - ceg: x_private:parent_affiliation
     use: emit
     type: string
