@@ -86,12 +86,15 @@ founder is a person: a node has no agency and cannot found, hold a role, or be a
 to an accountable human"). An agent may be a member and hold a role through its
 partnership (CC 4.4.3.4.3); it is never the root.
 
-**Authority decays.** Every role edge carries a term (`delegation_valid_until`,
-default one year), renewed by re-conferral; a perpetual edge is the exception a founder
-chooses, not the default (ciris.ai/constitutional-mesh: "It decays like everyone
-else's, seniority included. It never becomes permanent sovereignty"). CC 4.4.3.2.8 C
-makes the term optional; this document makes the default a term and leaves the steward
-the choice of refusing perpetual edges outright.
+**Authority decays, and a perpetual edge is refused (maintainer ruling, 2026-10-08).**
+Every role edge carries a term (`delegation_valid_until`, at most one year) and is
+renewed by re-conferral; an edge with no term, or a term past the maximum, is refused
+at the door (ciris.ai/constitutional-mesh: "It decays like everyone else's, seniority
+included. It never becomes permanent sovereignty"). This costs nothing structurally:
+the founders are the roster root, not an edge, so when every admin's term lapses the
+quorum chosen in §7.1 still re-confers, and the subtree below a lapsed edge lapses with
+it. CC 4.4.3.2.8 C makes the term optional; this is an ask on the Constitution to make
+it required for delegation edges (§6).
 
 Everything below the root is attenuated: an OrgAdmin created by sub-delegation holds a
 subset of what their delegator held, never more, and a withdrawal at any link removes
@@ -262,7 +265,7 @@ it, and what had to change.
 | values | Fidelity & Transparency: "Clearly communicate uncertainty" | a single-source CIRIS licence shows confidence ≤ 0.5 (CSD-122 chip); error is never rendered as empty (every card §2 states) | none |
 | values | "No principle grants license to violate another" | the model's refusals: a `license`-scoped delegate cannot widen scope in Beneficence's name; admission refuses, it does not weigh | none |
 | constitutional-mesh | "Standing comes from being answerable, traceable through a live chain to an accountable human, not from wealth" | the root of every affiliation's chain is its founders' keys, which are human-held (CC 3.2, CC 3.4.7.3: a node has no agency and cannot found or hold a role); a delegation chain therefore always resolves to a person | **added** to §4 and CSD-124: the chain's root is a human; a node or agent is never the root of an authority tree |
-| constitutional-mesh | "earned authority stays bounded, revocable, and open to appeal. It decays like everyone else's, seniority included. It never becomes permanent sovereignty" | bounded: attenuation; revocable: withdrawal cascade; appeal: `reconsideration` (`review` scope, CC 4.4.3.4.3) | **added**: role presets default to a **term** (`delegation_valid_until`, one year, renewable) rather than perpetual, so authority decays unless re-conferred (CSD-121, CSD-124). CC makes the term optional; the mesh page makes decay the rule. Decision for the steward: whether the default is a year, or whether a perpetual edge is refused outright |
+| constitutional-mesh | "earned authority stays bounded, revocable, and open to appeal. It decays like everyone else's, seniority included. It never becomes permanent sovereignty" | bounded: attenuation; revocable: withdrawal cascade; appeal: `reconsideration` (`review` scope, CC 4.4.3.4.3) | **ruled**: a perpetual delegation edge is refused; every role edge carries a term of at most one year and is renewed by re-conferral (CSD-121, CSD-124). CC makes the term optional; the ask to make it required for delegation edges goes to the Constitution |
 | constitutional-mesh | "the admission quorums that matter count founders, not the crowd" | founding is the founders' quorum (CSD-120 via CSD-102); roles are conferred from that root | none |
 | constitutional-mesh | "The CIRIS root is the shipped default, never the only option … every client chooses which roots to trust" | licensure is open-emitter; a reader weights an authority by consumer policy (CC 4.4.4) | **stated** in CSD-122/123: no card ranks authorities; the reader's trust does |
 | philosophy | "The floor is the test, not the ceiling" | a five-person committee sets one field and has a complete charter (CSD-120) | none |
