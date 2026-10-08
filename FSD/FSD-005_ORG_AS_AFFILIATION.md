@@ -99,9 +99,10 @@ it required for delegation edges (§6).
 Everything below the root is attenuated: an OrgAdmin created by sub-delegation holds a
 subset of what their delegator held, never more, and a withdrawal at any link removes
 every role beneath it (CC 4.5). A role is a leaf of the one tree, with two kinds of leaf
-(a licence, a grant) hanging off the same tree. Depth is capped at 5 (CC 4.1.1), which
-bounds an affiliation's hierarchy to five tiers below its root; a deeper secretariat
-nests a sub-affiliation (CC 4.4.3.2.8 C).
+(a licence, a grant) hanging off the same tree. The default depth cap is 5 (CC 4.1.1,
+"configurable"), and CC 4.4.3.2.8 C lets an affiliation declare a deeper cap for a deep
+secretariat; this document takes the default and treats a deeper cap as a charter
+declaration (CSD-120), never a silent widening.
 
 ## 5. The authority tree, and that it closes
 
