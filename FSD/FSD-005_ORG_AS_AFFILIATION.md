@@ -286,7 +286,7 @@ it, and what had to change.
 | mdd | "Why are we building it, and does this choice serve that purpose?" | each CSD §1 names the principle it serves and the sentence that falsifies it; FSD-005 §2 states why the translation is owed | none |
 | mdd | "Tests that the system refuses to cross ethical boundaries" | `formal/authority_tree/` checks refusals as properties (I4–I7), and every CSD §4 flow includes a refusal step | none |
 
-## 9. How the changes enter: the filing plan (2026-10-08, not yet filed)
+## 9. How the changes enter: the filing plan (approved and filed 2026-10-08)
 
 The Constitution's own process (STEWARDSHIP.md; README "Versioning"; `EVIDENCE.md`;
 `tools/check_claims.py`): the steward rules and lands text; every new MUST gets a
@@ -306,26 +306,26 @@ ask by ask against rc7's text and register.
 | The quorum model is chosen at founding and amended under its own rule | CC 3.3.4, 4.4.3.4.2 | — |
 | Per-recipient `key_grant` | CC 3.3.2 (#143) | `CLM-key-grant-rows` — staged on CIRISPersist#989; CIRISEdge#808 |
 
-### 9.2 Needs a Constitution ruling — four asks on CIRISConstitution, filed first
+### 9.2 Needs a Constitution ruling — four asks on CIRISConstitution, filed first (#161, #162, #163, #164)
 
 | Draft | Rules | Covers FSD-005 |
 |---|---|---|
-| **A** | An organization is an affiliation; `authority_id` is the `community_key_id`; the three CC 3.3.9 kinds **move on the release that adopts A** (no "transitional with a named exit": #143 rejected that shape), their anti-rollback, skew bound, payment-id rejection and field set ported; roles are non-normative presets over scope sets, the `role:` enum struck. Sub-answers as reviewed: admin scopes are open vocabulary with a closed canonical set; a delegate never stands in for the protocol on a roster change; a keyless affiliation's key manager holds the registration binding under the quorum's cosignature. | §1, §3, §4; CIRISRegistry#112's counterpart under #115 |
-| **B** | A community-named authority's set is whatever its current `consensus_protocol` admits; a licence is a cosigned row whose protocol source is the authority named in the dimension; authority is judged **at issuance**: the row's signed `asserted_at` under the cosigned-row rule, never receipt, because this is a shared verdict every node must compute identically (unlike the halt fuse), so a later withdrawal stops issuance without reclassifying history; **no public default** (CC 1.13.3.4): the scope is the authority's declared choice per licence class, and the authority head travels with the licence at that scope, re-stamped to named readers where the class is not public. Asks whether re-stamping is re-emission or carriage, and which member names the readers. | §7.1 blockers 1–2; the two maintainer rulings |
-| **C** | A `delegates_to` carrying `sub_delegation`, `license`, `grant`, `moderate`, `takedown`, `review` or `slash`, or sitting in an affiliation's `hierarchy`, MUST carry `delegation_valid_until`; the **one-year ceiling is constitutional, the term a charter parameter**; renewed only by fresh conferral; a perpetual edge refused at admission (token to be named); a lapsed `moderate` edge is a CC 4.5.4 moderator lapse (auto-promote or fail-secure in the same step). Owner-binding out of scope. Precedents: the 30-day cap on a membership proposal, the teen pre-authorisation ceiling. | §4 ruling B; closes the remainder of CIRISRegistry#128 |
-| **D** | A licensee's contest path is `reconsideration:{grounds}`, never withdrawal: extend the CC 2.4.1.1 carve-out to `licensure:*` and `revocation:*` (a single-signer licence is otherwise withdrawable by its subject under rule 2); the duty-holders for a reconsideration against `licensure:{A}` are A's authority set plus any `review`-scoped chain from it; and one sentence that a licence subject can see every licence about them (a read over rows they are party to; the sentence is what makes the executive summary's redress promise checkable). | §8 Respect for Autonomy |
+| **A** = CIRISConstitution#161 | An organization is an affiliation; `authority_id` is the `community_key_id`; the three CC 3.3.9 kinds **move on the release that adopts A** (no "transitional with a named exit": #143 rejected that shape), their anti-rollback, skew bound, payment-id rejection and field set ported; roles are non-normative presets over scope sets, the `role:` enum struck. Sub-answers as reviewed: admin scopes are open vocabulary with a closed canonical set; a delegate never stands in for the protocol on a roster change; a keyless affiliation's key manager holds the registration binding under the quorum's cosignature. | §1, §3, §4; CIRISRegistry#112's counterpart under #115 |
+| **B** = CIRISConstitution#162 | A community-named authority's set is whatever its current `consensus_protocol` admits; a licence is a cosigned row whose protocol source is the authority named in the dimension; authority is judged **at issuance**: the row's signed `asserted_at` under the cosigned-row rule, never receipt, because this is a shared verdict every node must compute identically (unlike the halt fuse), so a later withdrawal stops issuance without reclassifying history; **no public default** (CC 1.13.3.4): the scope is the authority's declared choice per licence class, and the authority head travels with the licence at that scope, re-stamped to named readers where the class is not public. Asks whether re-stamping is re-emission or carriage, and which member names the readers. | §7.1 blockers 1–2; the two maintainer rulings |
+| **C** = CIRISConstitution#163 | A `delegates_to` carrying `sub_delegation`, `license`, `grant`, `moderate`, `takedown`, `review` or `slash`, or sitting in an affiliation's `hierarchy`, MUST carry `delegation_valid_until`; the **one-year ceiling is constitutional, the term a charter parameter**; renewed only by fresh conferral; a perpetual edge refused at admission (token to be named); a lapsed `moderate` edge is a CC 4.5.4 moderator lapse (auto-promote or fail-secure in the same step). Owner-binding out of scope. Precedents: the 30-day cap on a membership proposal, the teen pre-authorisation ceiling. | §4 ruling B; closes the remainder of CIRISRegistry#128 |
+| **D** = CIRISConstitution#164 | A licensee's contest path is `reconsideration:{grounds}`, never withdrawal: extend the CC 2.4.1.1 carve-out to `licensure:*` and `revocation:*` (a single-signer licence is otherwise withdrawable by its subject under rule 2); the duty-holders for a reconsideration against `licensure:{A}` are A's authority set plus any `review`-scoped chain from it; and one sentence that a licence subject can see every licence about them (a read over rows they are party to; the sentence is what makes the executive summary's redress promise checkable). | §8 Respect for Autonomy |
 
 ### 9.3 Substrate-only — the text already says MUST; file on the implementing repo citing the §
 
 | Repo | Issue | Cites | Register action |
 |---|---|---|---|
-| CIRISPersist | Refuse the cycle-closing `delegates_to` at admission | CC 4.1.1 "MUST detect cycles … and reject the cycle-closing emission" | the Constitution session re-stages `CLM-anti-pattern-delegation` here on receipt of the issue number (it sits on CIRISServer#536, a manifest ticket) |
-| CIRISPersist | The `license`/`grant` walk honours `delegation_valid_until` and `as_of` | CC 2.1 `valid_until`; 4.5.5 "live chain" | — |
-| CIRISPersist | The positive `grant` arm: a `grant`-scoped delegate may issue; `consent:scope:*` ownership check | CC 2.4.1.2.1, 4.4.3.4.3 | note that `CLM-issuance-scope` overstates what is built |
-| CIRISPersist | Typed CC 4.4.3.2.8 config record + affiliation discriminator at founding + the V089 `CHECK` fix | CC 4.4.3.2.8 | ask CC for a `CLM-affiliation-config-record` row staged here; link CIRISServer#649 |
-| CIRISPersist | Licensure gate/fold agreement (chain depth, the discarded `delegation_id`) and a public read + list-by-authority | CC 2.4.1.2.1 "what the fold keys on" | — |
-| CIRISEdge | Default delegation depth 4 → 5 | CC 4.1.1 | — |
-| CIRISServer | Walk cap 4 → 5; the durable scoped delegation door (one scope kept, 600 s term today) | CC 4.1.1, 4.4.3.4.3 | — |
+| CIRISPersist#1031 | Refuse the cycle-closing `delegates_to` at admission | CC 4.1.1 "MUST detect cycles … and reject the cycle-closing emission" | the Constitution session re-stages `CLM-anti-pattern-delegation` here on receipt of the issue number (it sits on CIRISServer#536, a manifest ticket) |
+| CIRISPersist#1032 | The `license`/`grant` walk honours `delegation_valid_until` and `as_of` | CC 2.1 `valid_until`; 4.5.5 "live chain" | — |
+| CIRISPersist#1033 | The positive `grant` arm: a `grant`-scoped delegate may issue; `consent:scope:*` ownership check | CC 2.4.1.2.1, 4.4.3.4.3 | note that `CLM-issuance-scope` overstates what is built |
+| CIRISPersist#1034 | Typed CC 4.4.3.2.8 config record + affiliation discriminator at founding + the V089 `CHECK` fix | CC 4.4.3.2.8 | ask CC for a `CLM-affiliation-config-record` row staged here; link CIRISServer#649 |
+| CIRISPersist#1035 | Licensure gate/fold agreement (chain depth, the discarded `delegation_id`) and a public read + list-by-authority | CC 2.4.1.2.1 "what the fold keys on" | — |
+| CIRISEdge#851 | Default delegation depth 4 → 5 | CC 4.1.1 | — |
+| CIRISServer#751 | Walk cap 4 → 5; the durable scoped delegation door (one scope kept, 600 s term today) | CC 4.1.1, 4.4.3.4.3 | — |
 
 ### 9.4 Waits on A–D before filing
 
