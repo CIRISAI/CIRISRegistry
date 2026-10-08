@@ -327,12 +327,18 @@ ask by ask against rc7's text and register.
 | CIRISEdge#851 | Default delegation depth 4 → 5 | CC 4.1.1 | — |
 | CIRISServer#751 | Walk cap 4 → 5; the durable scoped delegation door (one scope kept, 600 s term today) | CC 4.1.1, 4.4.3.4.3 | — |
 
-### 9.4 Waits on A–D before filing
+### 9.4 Landed and adopted
 
-Persist's affiliation authority-set arm and `as_of` lens (B); the edge commons reach
-and authority-head carriage (B); every Server write door for licences, partners and
-roles (A, B); the `no_term` refusal (C). Their tickets are opened when the ruling lands,
-so the CC rows can be staged on open tickets (rc7 cut criterion 3).
+#161–#164 landed at CIRISConstitution `c3a0a13` on `rc8` with the steward's go
+(2026-10-08). Rulings as landed: `licensure:{community_key_id}` is a cosigned row with the
+authority named in the dimension as the **third protocol source**; authority judged at the
+signed `asserted_at` (`as_of` lens), withdrawal stops future issuance only; no public
+default, scope per licence class in the charter; **re-emission to named readers is new
+cosigned rows with the readers in `subject_key_ids`**; the refusal token for a termless
+edge is **`delegation_term_required`**; a lapsed `moderate` edge is CC 4.5.4. Adopter
+tickets, on which the CC rows are staged: **CIRISPersist#1036** (authority-set arm, `as_of`
+lens, audience), **CIRISServer#752** (the doors), **CIRISEdge#852** (carriage of the
+authority head). CIRISRegistry#112 and #128 close on #161 and #163.
 
 ### 9.5 Housekeeping
 

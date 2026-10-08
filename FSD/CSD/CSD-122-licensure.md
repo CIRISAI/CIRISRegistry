@@ -102,7 +102,7 @@ fields:
     use: emit
     type: "list[string]"
     example: ["wa-state-board-verifier-3c0e"]
-    renders: "'Readers' — present only for a class scoped to named readers; each gets the licence AND the authority head it needs to fold it, as a targeted grant"
+    renders: "'Readers' — present only for a class scoped to named readers; the re-emission is NEW cosigned rows (the licence and the authority head) with the readers in subject_key_ids (CIRISConstitution#162 as landed), never a carriage of the public rows"
     tag: "proposed:list_licence_readers"
   - ceg: x_private:subject_view
     use: display-only

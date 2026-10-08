@@ -107,7 +107,7 @@ fields:
     tag: "proposed:sheet_delegation_revoke_cascade_*"
   - ceg: x_private:admission_refusal
     use: display-only
-    type: "enum[licensure_delegator_not_authority,scope_not_held,depth_exceeded,cycle,not_on_roster,no_term]"
+    type: "enum[licensure_delegator_not_authority,scope_not_held,depth_exceeded,cycle,not_on_roster,delegation_term_required]"
     example: "scope_not_held"
     renders: "'The node refused this: you do not hold `grant` to hand on.' — the door's own token, shown as a refusal"
     tag: "proposed:txt_delegation_refused"
