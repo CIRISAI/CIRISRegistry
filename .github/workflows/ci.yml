@@ -91,6 +91,22 @@ jobs:
         continue-on-error: true
         run: cargo clippy --workspace --all-targets --locked
 
+  # The authority state tree (FSD-005 §5): licensure, grant and delegation as one
+  # state machine, every reachable state of a small universe checked against the
+  # nine invariants CC 2.4.1.2.1 / 4.1.1 / 4.4.3.4.3 / 4.5 make normative. Pure
+  # Python, no deps, ~30 s. Fails on any invariant violation or if the depth
+  # chain does not close at the cap.
+  authority-tree:
+    name: authority tree closes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Enumerate
+        run: python3 formal/authority_tree/authority_tree.py
+
   # `tests/db_integration.rs` uses `sqlx::test`, which needs a real Postgres and
   # creates/migrates a database per test. Split from the main gate so a database
   # outage never masks a genuine compile or logic regression.
