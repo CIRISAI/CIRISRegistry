@@ -275,3 +275,58 @@ it, and what had to change.
 | philosophy | "Universal application of rules to CIRIS itself" | CIRIS L3C is an affiliation like any other; its licences are `licensure:{its community_key_id}`; it uses the same seven cards | **stated** in §1 |
 | mdd | "Why are we building it, and does this choice serve that purpose?" | each CSD §1 names the principle it serves and the sentence that falsifies it; FSD-005 §2 states why the translation is owed | none |
 | mdd | "Tests that the system refuses to cross ethical boundaries" | `formal/authority_tree/` checks refusals as properties (I4–I7), and every CSD §4 flow includes a refusal step | none |
+
+## 9. How the changes enter: the filing plan (2026-10-08, not yet filed)
+
+The Constitution's own process (STEWARDSHIP.md; README "Versioning"; `EVIDENCE.md`;
+`tools/check_claims.py`): the steward rules and lands text; every new MUST gets a
+`claims.tsv` row; a row is `staged` on an **open** ticket in the implementing repo and
+becomes `established` when that repo publishes a matching `evidence/cc_impl.tsv` row
+that CC pins and re-reads at the same decimal. So: **a Constitution ask first for
+anything the text does not yet say; a substrate issue citing the section for anything
+it already says MUST; nothing re-asked that rc7 already rules.** Coverage was checked
+ask by ask against rc7's text and register.
+
+### 9.1 Already ruled — cite, do not ask
+
+| Ask | Where | Register |
+|---|---|---|
+| Only delegation chains; `license` / `grant` convey the right to issue; attenuation | CC 2.4.1.2.1, 4.4.3.4.3 (#100, rc5) | `CLM-authority-triad`, `CLM-issuance-scope`, `CLM-scope-attenuation` — established on persist |
+| Depth cap 5 by default, configurable | CC 4.1.1 | `CLM-delegation-depth-default` — established |
+| The quorum model is chosen at founding and amended under its own rule | CC 3.3.4, 4.4.3.4.2 | — |
+| Per-recipient `key_grant` | CC 3.3.2 (#143) | `CLM-key-grant-rows` — staged on CIRISPersist#989; CIRISEdge#808 |
+
+### 9.2 Needs a Constitution ruling — four asks on CIRISConstitution, filed first
+
+| Draft | Rules | Covers FSD-005 |
+|---|---|---|
+| **A** | An organization is an affiliation; `authority_id` is the `community_key_id`; the three CC 3.3.9 kinds become transitional with a named exit (the #143 shape), their anti-rollback, skew bound, payment-id rejection and field set ported; roles are non-normative presets over scope sets, the `role:` enum struck. Asks the steward three sub-questions: open-vocabulary admin scopes; whether a delegate can ever stand in for the protocol on roster changes (our reading: no); what `KeyManager` means for a keyless affiliation. | §1, §3, §4; CIRISRegistry#112's counterpart under #115 |
+| **B** | A community-named authority's set is whatever its current `consensus_protocol` admits; a licence is a cosigned row whose protocol source is the authority named in the dimension; authority is judged **at issuance** (`as_of asserted_at`, the signed-instant rule cosigned rows and `revoked_after` already use), so a later withdrawal stops issuance without reclassifying history; the authority head travels with the licence at whatever audience the licence has, re-stamped to named readers when public is not acceptable. Asks whether re-stamping is re-emission or carriage, and which member names the readers. | §7.1 blockers 1–2; the two maintainer rulings |
+| **C** | A `delegates_to` carrying `sub_delegation`, `license`, `grant`, `moderate`, `takedown`, `review` or `slash`, or sitting in an affiliation's `hierarchy`, MUST carry `delegation_valid_until` ≤ one year; renewed only by fresh conferral; a perpetual edge refused at admission (token to be named). Owner-binding out of scope. Precedents: the 30-day cap on a membership proposal, the teen pre-authorisation ceiling. | §4 ruling B; closes the remainder of CIRISRegistry#128 |
+| **D** | A licensee's contest path is `reconsideration:{grounds}`, never withdrawal: extend the CC 2.4.1.1 carve-out to `licensure:*` and `revocation:*` (a single-signer licence is otherwise withdrawable by its subject under rule 2); the duty-holders for a reconsideration against `licensure:{A}` are A's authority set plus any `review`-scoped chain from it. | §8 Respect for Autonomy |
+
+### 9.3 Substrate-only — the text already says MUST; file on the implementing repo citing the §
+
+| Repo | Issue | Cites | Register action |
+|---|---|---|---|
+| CIRISPersist | Refuse the cycle-closing `delegates_to` at admission | CC 4.1.1 "MUST detect cycles … and reject the cycle-closing emission" | ask CC to re-stage `CLM-anti-pattern-delegation` here (it sits on CIRISServer#536, a manifest ticket) |
+| CIRISPersist | The `license`/`grant` walk honours `delegation_valid_until` and `as_of` | CC 2.1 `valid_until`; 4.5.5 "live chain" | — |
+| CIRISPersist | The positive `grant` arm: a `grant`-scoped delegate may issue; `consent:scope:*` ownership check | CC 2.4.1.2.1, 4.4.3.4.3 | note that `CLM-issuance-scope` overstates what is built |
+| CIRISPersist | Typed CC 4.4.3.2.8 config record + affiliation discriminator at founding + the V089 `CHECK` fix | CC 4.4.3.2.8 | ask CC for a `CLM-affiliation-config-record` row staged here; link CIRISServer#649 |
+| CIRISPersist | Licensure gate/fold agreement (chain depth, the discarded `delegation_id`) and a public read + list-by-authority | CC 2.4.1.2.1 "what the fold keys on" | — |
+| CIRISEdge | Default delegation depth 4 → 5 | CC 4.1.1 | — |
+| CIRISServer | Walk cap 4 → 5; the durable scoped delegation door (one scope kept, 600 s term today) | CC 4.1.1, 4.4.3.4.3 | — |
+
+### 9.4 Waits on A–D before filing
+
+Persist's affiliation authority-set arm and `as_of` lens (B); the edge commons reach
+and authority-head carriage (B); every Server write door for licences, partners and
+roles (A, B); the `no_term` refusal (C). Their tickets are opened when the ruling lands,
+so the CC rows can be staged on open tickets (rc7 cut criterion 3).
+
+### 9.5 Housekeeping
+
+CIRISRegistry#142: the registry is in neither `evidence_pins.tsv` nor the checker's
+manifest table; the row graduates on Server's manifest after the fold, as #142 itself
+offers. CIRISConstitution#115: the Constitution session is doing the intake of the
+sixteen `fold:move-to-constitution` issues; #112 is held a day for draft A.
