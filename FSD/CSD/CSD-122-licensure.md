@@ -93,16 +93,16 @@ fields:
     renders: "'Reinstate' on a suspended row — a `withdraws` on the suspended row, never a new `issued`; absent on a revoked row"
     tag: "proposed:btn_licence_reinstate_*"
   - ceg: x_private:licence_visibility
-    use: emit
-    type: "enum[public,re-stamped]"
-    example: "public"
-    renders: "'Who can verify this' — Public: the row and the affiliation's authority head go at federation scope; Re-stamped: they are re-emitted to the named readers who must validate it (a regulator, a hospital's verifier) and nobody else. Chosen per licence; the default is Public"
-    tag: "proposed:select_licence_visibility"
+    use: display-only
+    type: "enum[federation,affiliations,named_readers]"
+    example: "federation"
+    renders: "'Who can verify this' — the scope the licence's CLASS declares in the charter (CSD-120), the smallest that fits (CC 1.13.3.4); a practice licence meant for strangers is federation-scope by its nature, an internal credential is not. There is no public default. The authority head travels with the licence at this scope"
+    tag: "proposed:txt_licence_visibility"
   - ceg: x_private:re_stamped_readers
     use: emit
     type: "list[string]"
     example: ["wa-state-board-verifier-3c0e"]
-    renders: "'Readers' — present only when Re-stamped; each gets the licence AND the authority head it needs to fold it, as a targeted grant"
+    renders: "'Readers' — present only for a class scoped to named readers; each gets the licence AND the authority head it needs to fold it, as a targeted grant"
     tag: "proposed:list_licence_readers"
   - ceg: x_private:subject_view
     use: display-only

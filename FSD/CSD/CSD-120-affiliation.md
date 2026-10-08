@@ -90,6 +90,18 @@ fields:
     example: "quorum:2/3"
     renders: "'How this organization decides' — the full range of persist's quorum models, chosen at founding (CSD-102 offers it for any community) and changeable later by a decision of the active quorum; the same rule signs a licence, a role, a charter change"
     tag: "proposed:select_consensus_protocol"
+  - ceg: x_private:role_term
+    use: emit
+    type: string
+    example: "P90D"
+    renders: "'How long a role lasts' — the charter's term for every role and issuance edge, at most one year (the constitutional ceiling); a small affiliation may choose ninety days; renewal is a fresh conferral"
+    tag: "proposed:select_role_term"
+  - ceg: x_private:licence_class_scope
+    use: emit
+    type: "list[string]"
+    example: ["practice: federation", "internal_credential: affiliations"]
+    renders: "'Who can check each kind of licence' — per licence class, the scope the licence and its authority head are placed at; the smallest that fits (CC 1.13.3.4); no public default"
+    tag: "proposed:list_licence_class_scope"
   - ceg: x_private:parent_affiliation
     use: emit
     type: string

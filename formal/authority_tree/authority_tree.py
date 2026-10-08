@@ -39,14 +39,35 @@ makes normative:
 every invariant holds in every state, and the resolver terminates in every
 state (I2 and I8 together bound every walk).
 
+What a leaf IS in this model, and why. The first cut stored a licence as a
+(authority, subject, issuer) row and a grant as (asset, recipient, issuer), rows
+that never leave; the general universe then multiplied the link state by a
+powerset of issuer-tagged rows and exhausted 8 GB at two links (measured by the
+Constitution session on 968a063; at one link it was 300,304 states, almost all
+leaf combinations). For I4-I6 the only fact that matters afterwards is WHICH
+KEY holds a licence under A, or a grant over R: four bits each in a four-key
+universe. The issuer matters only at the door, where it is checked and counted.
+So a leaf is a bit, and the door's verdicts are counted as they happen.
+
 Two universes are run. The GENERAL one has four keys and every action
 interleaved, so the cascade and ordering properties are checked over every
 history. The DEPTH one is a chain of DEPTH_CAP + 2 keys with delegation only, so
 closure at the cap is checked at depth 6, which the general universe is too
 small to reach.
 
-Run:  python3 formal/authority_tree/authority_tree.py
-Exit 0 iff every invariant holds in every reachable state of both universes.
+Run:  python3 formal/authority_tree/authority_tree.py        # CI runs this
+Exit 0 iff every invariant holds in every reachable state of every universe.
+
+Measured on 2026-10-08 (the shape above, `ulimit -v 2500000`, 27 s):
+  general          4 keys, links <= 2, every action interleaved:
+                   153,856 states; 1,057,792 issuances admitted at the door;
+                   4,621,056 refusals; 295,680 withdrawals checked for cascade;
+                   16 distinct (issuer, holder) pairs per leaf kind; 0 violations.
+  delegation-only  4 keys, links <= 3: 2,218 states, depth 3, 0 violations.
+  depth-chain      8 keys, every sub_delegation-bearing scope set at every
+                   link: 4096/2304/1024/400/144 links admitted at depths 1-5,
+                   4,096 refused past the cap, 0 conferred past it.
+Three links with leaves interleaved exceeds the 2.5 GB cap and is not claimed.
 """
 
 from __future__ import annotations
@@ -80,32 +101,18 @@ class Link:
     scope: FrozenSet[str]
 
 
-@dataclass(frozen=True, order=True)
-class Licence:
-    """A live `licensure:{authority}` row about `subject`, issued by `issuer`."""
-
-    authority: str
-    subject: str
-    issuer: str
-
-
-@dataclass(frozen=True, order=True)
-class Grant:
-    """A live `key_grant` over `asset` to `recipient`, issued by `issuer`."""
-
-    asset: str
-    recipient: str
-    issuer: str
-
-
 @dataclass(frozen=True)
 class State:
+    """Live links, plus WHO holds a licence under the one authority and WHO
+    holds a grant over the one asset. Leaves carry no issuer: that is judged
+    and counted at the door (`issue_licence` / `issue_grant`)."""
+
     links: FrozenSet[Link]
-    licences: FrozenSet[Licence]
-    grants: FrozenSet[Grant]
+    licensees: FrozenSet[str]
+    grantees: FrozenSet[str]
 
     def key(self) -> Tuple:
-        return (self.links, self.licences, self.grants)
+        return (self.links, self.licensees, self.grantees)
 
 
 # ───────────────────────────── the resolver ─────────────────────────────
@@ -178,14 +185,14 @@ def delegate(state: State, root: str, src: str, dst: str, scope: FrozenSet[str])
         SUB in eff and scope <= eff and d < DEPTH_CAP for d, eff in paths(state, root, src)
     ):
         return None
-    return State(state.links | {Link(src, dst, scope)}, state.licences, state.grants)
+    return State(state.links | {Link(src, dst, scope)}, state.licensees, state.grantees)
 
 
 def withdraw(state: State, link: Link) -> State:
     """A `withdraws` on one link. The row is removed; nothing else is touched,
     and I3 checks that every authority derived through it is gone AND that no
     authority not derived through it changed."""
-    return State(state.links - {link}, state.licences, state.grants)
+    return State(state.links - {link}, state.licensees, state.grantees)
 
 
 def issue_licence(state: State, authority: str, issuer: str, subject: str) -> Optional[State]:
@@ -193,10 +200,9 @@ def issue_licence(state: State, authority: str, issuer: str, subject: str) -> Op
     # `license`-scoped delegation whose chain resolves to it.
     if not (issuer == authority or holds(state, authority, issuer, LICENSE)):
         return None
-    row = Licence(authority, subject, issuer)
-    if row in state.licences:
+    if subject in state.licensees:
         return None
-    return State(state.links, state.licences | {row}, state.grants)
+    return State(state.links, state.licensees | {subject}, state.grantees)
 
 
 def issue_grant(state: State, owner: str, asset: str, issuer: str, recipient: str) -> Optional[State]:
@@ -204,10 +210,9 @@ def issue_grant(state: State, owner: str, asset: str, issuer: str, recipient: st
     # recipient re-granting on possession is refused.
     if not (issuer == owner or holds(state, owner, issuer, GRANT)):
         return None
-    row = Grant(asset, recipient, issuer)
-    if row in state.grants:
+    if recipient in state.grantees:
         return None
-    return State(state.links, state.licences, state.grants | {row})
+    return State(state.links, state.licensees, state.grantees | {recipient})
 
 
 # ───────────────────────────── the invariants ───────────────────────────
@@ -241,20 +246,21 @@ def check(state: State, root: str, keys: Tuple[str, ...], asset: str) -> None:
             for i in range(1, len(chain)):
                 if SUB not in frozenset(SCOPES).intersection(*(l.scope for l in chain[:i])):
                     raise Violation(f"I7 chain continues without sub_delegation: {chain}")
-    # I4: a licence confers no issuance authority. A subject holding a licence
-    # and no delegation of its own must be refused as an issuer.
-    for lic in state.licences:
-        if lic.subject != lic.authority and not any(
-            True for _ in chains(state, lic.authority, lic.subject)
-        ):
-            if issue_licence(state, lic.authority, lic.subject, "anyone") is not None:
-                raise Violation(f"I4 licence chained: {lic} in {state}")
+    # I4: a licence confers no issuance authority. A licensee with no live
+    # `license` chain of its own must be refused as an issuer, whatever else
+    # it holds.
+    for k in state.licensees:
+        if k != root and not holds(state, root, k, LICENSE):
+            if issue_licence(state, root, k, "anyone") is not None:
+                raise Violation(f"I4 licence chained at {k}: {state}")
     # I5: a grant confers no issuance authority.
-    for g in state.grants:
-        if g.recipient != root and not any(True for _ in chains(state, root, g.recipient)):
-            if issue_grant(state, root, g.asset, g.recipient, "anyone") is not None:
-                raise Violation(f"I5 grant chained: {g} in {state}")
-    _ = asset
+    for k in state.grantees:
+        if k != root and not holds(state, root, k, GRANT):
+            if issue_grant(state, root, asset, k, "anyone") is not None:
+                raise Violation(f"I5 grant chained at {k}: {state}")
+    # I6 (standing half): a leaf exists only for a key the door admitted;
+    # the door's own check is asserted at admission in `enumerate_universe`.
+    # A licence or a grant never appears for a key no action issued it to.
 
 
 def authority_snapshot(state: State, root: str, keys: Tuple[str, ...]) -> FrozenSet[Tuple[str, str]]:
@@ -277,6 +283,9 @@ def enumerate_universe(
 ) -> dict:
     start = State(frozenset(), frozenset(), frozenset())
     seen = {start.key(): start}
+    # Per I6: every leaf must have been admitted at a door. Keys that ever
+    # received one, for the final report.
+    leaves_admitted = {"licence": set(), "grant": set()}
     # I9: for each reachable row-set, the snapshot it yields; a second history
     # reaching the same rows must yield the same snapshot. Dedup on the row-set
     # is exactly that check, provided the snapshot is recomputed and compared.
@@ -327,6 +336,7 @@ def enumerate_universe(
                         # I6 at admission: the issuer resolves to the authority now.
                         assert issuer == root or holds(state, root, issuer, LICENSE)
                         admissions += 1
+                        leaves_admitted["licence"].add((issuer, subject))
                         successors.append(nxt)
         if with_grants:
             for issuer in keys:
@@ -337,6 +347,7 @@ def enumerate_universe(
                     else:
                         assert issuer == root or holds(state, root, issuer, GRANT)
                         admissions += 1
+                        leaves_admitted["grant"].add((issuer, recipient))
                         successors.append(nxt)
 
         for nxt in successors:
@@ -357,6 +368,7 @@ def enumerate_universe(
         "refusals": refusals,
         "issuances": admissions,
         "withdrawals_checked": cascades_checked,
+        "distinct_issuer_leaf_pairs_admitted": {k: len(v) for k, v in leaves_admitted.items()},
     }
 
 
@@ -439,7 +451,8 @@ def main() -> int:
         print(r)
     d = results[-1]
     ok = (
-        d["authority_conferred_past_cap"] == 0
+        all(r.get("max_delegation_depth", 0) <= DEPTH_CAP for r in results[:-1])
+        and d["authority_conferred_past_cap"] == 0
         and d["links_refused_past_cap"] > 0
         and max(d["links_admitted_per_depth"]) == DEPTH_CAP
         and results[0]["max_delegation_depth"] <= DEPTH_CAP

@@ -63,8 +63,11 @@ settles which survives: the affiliation.
 - `GetOrgUserByEmail`: an email is not a federation identifier (FSD-004 §4.3).
 - `license_type` as an enum on the wire: the practised domain is the `authority_id`; the
   tier is `partner_role:{role}`; obligations are `duty:{kind}`.
-- The `organization` / `org_membership` / `partner_record` subject kinds: retired from
-  the wire once the affiliation path serves them (§6, a Constitution and Persist change).
+- The `organization` / `org_membership` / `partner_record` subject kinds: **not**
+  "transitional with a named exit". The steward rejected that shape for key grants on
+  2026-10-05 (#143: "if it is moving to scores it needs to move"). They move on the
+  release that adopts ruling A, with the Portal's data migrated in the same cut; until
+  that release CC 3.3.9 stands as it is.
 
 ## 4. Roles as presets over delegation scopes
 
@@ -87,14 +90,17 @@ to an accountable human"). An agent may be a member and hold a role through its
 partnership (CC 4.4.3.4.3); it is never the root.
 
 **Authority decays, and a perpetual edge is refused (maintainer ruling, 2026-10-08).**
-Every role edge carries a term (`delegation_valid_until`, at most one year) and is
-renewed by re-conferral; an edge with no term, or a term past the maximum, is refused
-at the door (ciris.ai/constitutional-mesh: "It decays like everyone else's, seniority
-included. It never becomes permanent sovereignty"). This costs nothing structurally:
-the founders are the roster root, not an edge, so when every admin's term lapses the
-quorum chosen in §7.1 still re-confers, and the subtree below a lapsed edge lapses with
-it. CC 4.4.3.2.8 C makes the term optional; this is an ask on the Constitution to make
-it required for delegation edges (§6).
+Every role edge carries a term (`delegation_valid_until`) and is renewed by
+re-conferral; an edge with no term, or a term past the ceiling, is refused at the door
+(ciris.ai/constitutional-mesh: "It decays like everyone else's, seniority included. It
+never becomes permanent sovereignty"). **The one-year ceiling is constitutional; the
+term itself is a charter parameter** (CSD-120), so a small affiliation may choose
+ninety days. This costs nothing structurally: the founders are the roster root, not an
+edge, so when every admin's term lapses the quorum chosen in §7.1 still re-confers, and
+the subtree below a lapsed edge lapses with it. **A lapsed `moderate` edge is a
+moderator lapse under CC 4.5.4**: auto-promotion or fail-secure in the same step, never
+an unmoderated window. CC 4.4.3.2.8 C makes the term optional; this is an ask on the
+Constitution to make it required for delegation edges (§6).
 
 Everything below the root is attenuated: an OrgAdmin created by sub-delegation holds a
 subset of what their delegator held, never more, and a withdrawal at any link removes
@@ -107,7 +113,10 @@ declaration (CSD-120), never a silent widening.
 ## 5. The authority tree, and that it closes
 
 `formal/authority_tree/authority_tree.py` models the triad as one state machine and
-enumerates every reachable state of a small universe, checking nine invariants in each:
+enumerates every reachable state of a small universe (measured 2026-10-08: 153,856
+states with every action interleaved at two links, 2,218 delegation-only states at
+three, the depth chain closing at five with 4,096 refusals past the cap; 0 violations;
+27 s; in CI), checking nine invariants in each:
 attenuation, the depth cap, revocation cascade, licence closure (holding a licence never
 confers issuance), grant closure (holding a grant never confers re-granting), enforced
 admission, the `sub_delegation` requirement, acyclicity, and history-independence of
@@ -167,15 +176,16 @@ auditors' estimates.
    or publish a licensing affiliation's authority head (founders + `consensus_protocol`
    + `license`-scoped edges) at federation scope, the way `infrastructure` does. The
    second conflicts with CC's "public = replicated on join"; it needs a ruling.
-   **Ruled (maintainer, 2026-10-08):** a licence is public (federation scope) by
-   default; where public visibility is not acceptable, the licence **and the authority
-   head a verifier needs** are **re-stamped** for the consumers who must validate it:
-   the affiliation re-emits the rows at an audience that names those readers (a
-   targeted grant or consent to the verifier), rather than widening its roster to
-   everyone. Visibility is the affiliation's per-licence choice, and both choices
-   carry what the reader needs to fold the row as the authority's licensure, not as
-   testimony. The CC ask narrows to: the authority head of a licensing affiliation
-   travels with its licences at whatever audience the licence has.
+   **Ruled (maintainer, 2026-10-08; corrected by the Constitution session's review of
+   the same day):** a licence is a claim about a person, so CC 1.13.3.4 applies and
+   **there is no public default**: the scope of a licence is the authority's declared
+   choice per licence class, the smallest that fits. A practice licence meant to be
+   checked by strangers is public by its nature; many licences are not. Whatever the
+   class's scope, the licence **and the authority head a verifier needs** travel
+   together at that scope, re-stamped to named readers where the class is not public,
+   never by widening the roster. The CC ask: the authority head of a licensing
+   affiliation travels with its licences at whatever audience the licence has, and the
+   affiliation's charter declares the scope per licence class.
 3. **A registry node cannot serve rows to "any client" (Edge, M).** A peer is served a
    federation-scope row only if the serving node has authored a `consent:replication`
    grant naming it (`resolved_state.rs:76-110`); otherwise it gets first-contact reach,
@@ -300,9 +310,9 @@ ask by ask against rc7's text and register.
 
 | Draft | Rules | Covers FSD-005 |
 |---|---|---|
-| **A** | An organization is an affiliation; `authority_id` is the `community_key_id`; the three CC 3.3.9 kinds become transitional with a named exit (the #143 shape), their anti-rollback, skew bound, payment-id rejection and field set ported; roles are non-normative presets over scope sets, the `role:` enum struck. Asks the steward three sub-questions: open-vocabulary admin scopes; whether a delegate can ever stand in for the protocol on roster changes (our reading: no); what `KeyManager` means for a keyless affiliation. | §1, §3, §4; CIRISRegistry#112's counterpart under #115 |
-| **B** | A community-named authority's set is whatever its current `consensus_protocol` admits; a licence is a cosigned row whose protocol source is the authority named in the dimension; authority is judged **at issuance**: the row's signed `asserted_at` under the cosigned-row rule, never receipt, because this is a shared verdict every node must compute identically (unlike the halt fuse), so a later withdrawal stops issuance without reclassifying history; the authority head travels with the licence at whatever audience the licence has, re-stamped to named readers when public is not acceptable. Asks whether re-stamping is re-emission or carriage, and which member names the readers. | §7.1 blockers 1–2; the two maintainer rulings |
-| **C** | A `delegates_to` carrying `sub_delegation`, `license`, `grant`, `moderate`, `takedown`, `review` or `slash`, or sitting in an affiliation's `hierarchy`, MUST carry `delegation_valid_until` ≤ one year; renewed only by fresh conferral; a perpetual edge refused at admission (token to be named). Owner-binding out of scope. Precedents: the 30-day cap on a membership proposal, the teen pre-authorisation ceiling. | §4 ruling B; closes the remainder of CIRISRegistry#128 |
+| **A** | An organization is an affiliation; `authority_id` is the `community_key_id`; the three CC 3.3.9 kinds **move on the release that adopts A** (no "transitional with a named exit": #143 rejected that shape), their anti-rollback, skew bound, payment-id rejection and field set ported; roles are non-normative presets over scope sets, the `role:` enum struck. Sub-answers as reviewed: admin scopes are open vocabulary with a closed canonical set; a delegate never stands in for the protocol on a roster change; a keyless affiliation's key manager holds the registration binding under the quorum's cosignature. | §1, §3, §4; CIRISRegistry#112's counterpart under #115 |
+| **B** | A community-named authority's set is whatever its current `consensus_protocol` admits; a licence is a cosigned row whose protocol source is the authority named in the dimension; authority is judged **at issuance**: the row's signed `asserted_at` under the cosigned-row rule, never receipt, because this is a shared verdict every node must compute identically (unlike the halt fuse), so a later withdrawal stops issuance without reclassifying history; **no public default** (CC 1.13.3.4): the scope is the authority's declared choice per licence class, and the authority head travels with the licence at that scope, re-stamped to named readers where the class is not public. Asks whether re-stamping is re-emission or carriage, and which member names the readers. | §7.1 blockers 1–2; the two maintainer rulings |
+| **C** | A `delegates_to` carrying `sub_delegation`, `license`, `grant`, `moderate`, `takedown`, `review` or `slash`, or sitting in an affiliation's `hierarchy`, MUST carry `delegation_valid_until`; the **one-year ceiling is constitutional, the term a charter parameter**; renewed only by fresh conferral; a perpetual edge refused at admission (token to be named); a lapsed `moderate` edge is a CC 4.5.4 moderator lapse (auto-promote or fail-secure in the same step). Owner-binding out of scope. Precedents: the 30-day cap on a membership proposal, the teen pre-authorisation ceiling. | §4 ruling B; closes the remainder of CIRISRegistry#128 |
 | **D** | A licensee's contest path is `reconsideration:{grounds}`, never withdrawal: extend the CC 2.4.1.1 carve-out to `licensure:*` and `revocation:*` (a single-signer licence is otherwise withdrawable by its subject under rule 2); the duty-holders for a reconsideration against `licensure:{A}` are A's authority set plus any `review`-scoped chain from it; and one sentence that a licence subject can see every licence about them (a read over rows they are party to; the sentence is what makes the executive summary's redress promise checkable). | §8 Respect for Autonomy |
 
 ### 9.3 Substrate-only — the text already says MUST; file on the implementing repo citing the §

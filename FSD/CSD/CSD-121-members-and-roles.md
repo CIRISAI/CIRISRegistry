@@ -31,11 +31,13 @@ its partnership (CC 4.4.3.4.3) and may hold a role (ciris.ai/philosophy: one
 Constitution for NHI). The chain every role hangs from roots in the founders, who are
 people (CC 3.4.7.3); a node is never a member of record and never a root.
 
-**A role has a term, always.** `delegation_valid_until` is required, at most one year
-out; re-conferral renews it (ciris.ai/constitutional-mesh: authority "decays like
-everyone else's"). An edge with no term is refused at the door, so the card does not
-offer one: the founders are the roster root, not an edge, and re-confer when terms
-lapse.
+**A role has a term, always.** `delegation_valid_until` is required; the charter's
+`role_term` (CSD-120) sets it, under the constitutional ceiling of one year;
+re-conferral renews it (ciris.ai/constitutional-mesh: authority "decays like everyone
+else's"). An edge with no term is refused at the door, so the card does not offer one:
+the founders are the roster root, not an edge, and re-confer when terms lapse. A lapsed
+`moderate` role is a moderator lapse under CC 4.5.4: the room auto-promotes or fails
+secure in the same step, never an unmoderated window.
 
 **Membership and role are two rows and two lists.** Membership is the
 `membership:{stage}` sequence onto the roster (CSD-103 renders it). A role is a
@@ -95,7 +97,7 @@ fields:
     use: emit
     type: timestamp
     example: "2027-06-30T00:00:00Z"
-    renders: "'Until' — required, at most one year from conferral; an expired role confers nothing and reads 'expired — renew?'; renewal is a new edge"
+    renders: "'Until' — required, set from the charter's role_term (ceiling one year); an expired role confers nothing and reads 'expired — renew?'; renewal is a new edge"
     tag: "proposed:input_role_until_*"
   - ceg: x_private:role_revoke_cascade
     use: display-only

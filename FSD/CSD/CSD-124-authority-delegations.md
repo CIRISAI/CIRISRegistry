@@ -25,9 +25,10 @@ and `sub_delegation` as the only way a chain grows (CC 4.4.3.4.3).
 
 **The root is a human, and authority decays.** Every chain this card shows ends at
 an accountable person: the founders of an affiliation, or the person themselves
-(CC 3.4.7.3; ciris.ai/constitutional-mesh). Every edge carries a term of at most one
-year and is renewed by re-conferral; a perpetual edge is refused at the door, and the
-card shows an edge's remaining term beside its depth.
+(CC 3.4.7.3; ciris.ai/constitutional-mesh). Every edge carries a term, the charter's
+`role_term` under the constitutional ceiling of one year, and is renewed by
+re-conferral; a perpetual edge is refused at the door, and the card shows an edge's
+remaining term beside its depth.
 
 **Why this is not CSD-055.** CSD-055 is the device-code flow: a person offers a
 code, a device approves it, the scopes are a person's own verbs. This card is
@@ -96,7 +97,7 @@ fields:
     use: emit
     type: timestamp
     example: "2027-06-30T00:00:00Z"
-    renders: "'Until' — required, at most one year; an expired edge confers nothing and the card says 'expired', never hides it"
+    renders: "'Until' — required, from the charter's role_term (ceiling one year); an expired edge confers nothing and the card says 'expired', never hides it"
     tag: "proposed:input_delegation_until"
   - ceg: x_private:revoke_cascade
     use: display-only
