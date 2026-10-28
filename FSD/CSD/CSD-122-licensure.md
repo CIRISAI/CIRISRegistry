@@ -56,9 +56,14 @@ the serve nodes and the birth record, and nothing else is a root).
 
 **Any affiliation is its own licensor, on the same rule.** A state board, a
 clinic, a guild issues `licensure:{its community_key_id}:v1` cosigned under its
-own `consensus_protocol` (deltas 4a, TEXT SAYS: "Anyone"; whether a social
-community may be a licensor is `pending: CC ruling 7
-(affiliation_vs_community_deltas_2026-10-28)`). A Sovereign key scoring
+own `consensus_protocol` (deltas 4a, TEXT SAYS: "Anyone"). **A community may
+license too** (CC 4.4.3.2.8 P4:661 on rc13 5298190): "Anyone may be an authority under
+their own key, a community included; the licence classes an authority issues are its
+charter's declaration, and a community whose charter declares a class with legal
+weight has taken on the affiliation's duties for it — the data limbs of this record
+bind the issuer of such a licence whatever its `declared_cohort` says." So the issuing
+side of this card is offered to every community, and a class with legal weight brings
+CSD-120's limbs (and CSD-132's records duties) with it. A Sovereign key scoring
 `licensure:CA_medical_board` is wire-identical to a steward scoring it
 (CC 4.4.4).
 
@@ -181,7 +186,7 @@ fields:
     use: display-only
     type: string
     example: "medical"
-    renders: "'Class: medical' — the class the row carries; honoured only if the authority's charter declares it (TrustSet.lean `undeclared_class_never_honoured`; CC 4.4.3.8 rc13: the charter is read at read, so an undeclared class is a licence that does not match, never a refusal). Whether the charter MUST enumerate classes at issuance is `pending: CC ruling 2 (affiliation_vs_community_deltas_2026-10-28)`"
+    renders: "'Class: medical' — the class the row carries; honoured only if the authority's charter declares it (TrustSet.lean `undeclared_class_never_honoured`; CC 4.4.3.2.8 P4:655 on rc13 5298190: the charter enumerates the classes it issues, and a row in an undeclared class is admitted as a row and honoured by no reader, `licence_class_not_trusted`; the charter is read at read, so a class a later amendment drops stops matching)"
     tag: "proposed:txt_licence_class_*"
   - ceg: "trust:{job}:{version}"
     bind: {job: accepts, version: v1}
@@ -232,14 +237,22 @@ is not the only trust knob: a reader that removes it keeps every licensor entry 
 added, and the licences that reached through those entries stay honoured
 (`removal_only_removes`); what it loses is federation at the server tier until it
 attaches another root (CC 4.4.3.8 items 4–5: licensor trust is not root trust).
-What of an affiliation is Commons-visible once the 3.3.9 kinds are gone (its key,
-its roster, its licences) is `pending: CC ruling 8
-(affiliation_vs_community_deltas_2026-10-28)`.
+What of an affiliation is Commons-visible is now text (CC 4.4.3.2.8 P4:657 on rc13 5298190):
+its existence, its `community_key_id`, its officers' roles and the licence classes its
+charter declares; "a licence keeps no public default, being a claim about a person
+scoped per class in the charter". So a verifier can always find the authority and learn
+which classes it issues, and never learns who holds a licence except at the class's
+declared scope (CSD-120 carries the public face).
 
 **`lapsed` and `expired` are different words on purpose.** A row whose
 `valid_until` has passed is no longer live; `lapsed` is the authority saying so
-on the record. The card never fabricates a `lapsed` or a `revoked` from a date
-(FSD-004 §4.3).
+on the record — or the record saying so: when the authority is dissolved (the
+`withdraws` of its record, CC 4.4.3.2.8 P4:659 on rc13 5298190) "an issued licence
+stands, authority having been judged at issuance, and reads `lapsed` from the
+dissolution instant for every later use, nobody being left to suspend or revoke it;
+a reader's trust walk no longer reaches a dissolved authority." The card renders
+that `lapsed` with 'the authority was dissolved on {when}' and never fabricates a
+`lapsed` or a `revoked` from a date alone (FSD-004 §4.3).
 
 **Nothing on this card has a price.** No fee, no bond, no tier, no "contact
 sales"; a licence class is a line in the charter, and whether anyone honours it
@@ -269,6 +282,7 @@ error:     {tag: "proposed:txt_licences_error", renders: "Couldn't read licences
 | the reader's Who-I-trust walk at read (`honoured` / `licence_issuer_not_trusted` / `licence_class_not_trusted`); `trust_classes` + `trust_depth` on `trust:accepts:v1` | persist | CIRISPersist | `blocked_by: CIRISPersist#1142` (open; CC 4.4.3.8 rc13 `CLM`-row pending) |
 | add / remove a Who-I-trust entry (any authority, a class set, a depth), the root included | none; `POST /v1/trust-root/import` and `DELETE /v1/trust-root/{id}` write and remove a ROOT's edge only | CIRISServer | CSD-105 extension (`COMMON_CARDS_ANALYSIS.md`); the door is in the README's asks of CIRISServer |
 | authority judged at issuance; contest by reconsideration | — | — | deltas 4f, 4e TEXT SAYS (CC 2.4.1.2.1 P2:340; CC 4.5.5 P4:1475) |
+| a licence under a dissolved authority reads `lapsed` from the dissolution instant; a class the charter does not declare is admitted and honoured by no reader | persist fold / reader walk | CIRISPersist | `blocked_by: CIRISPersist#1143` (`CLM-affiliation-dissolution`) and #1142 (the walk) |
 
 ## 3a. Topology (CSD/4)
 

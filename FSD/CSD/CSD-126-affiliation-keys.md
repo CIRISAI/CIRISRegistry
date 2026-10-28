@@ -46,7 +46,13 @@ cosigned under the affiliation's protocol, and `slash` and `quarantine` reach th
 affiliation's keys as well as the steward's (2g: P3:805); `archive_custody` is the
 affiliation-only custodian role that lets retained records survive member turnover
 where a community gets rotation only (7e: P4:665). The escrow custodian this card
-names is that role when the charter declares it.
+names is that role when the charter declares it. On dissolution (the record's
+`withdraws`, CC 4.4.3.2.8 P4:659 on rc13 5298190) the `KeyManager` binding ends with every
+other hierarchy edge, but "custody rows and the record itself stand on the record":
+the keys' public records, their revocations and the escrow index stay readable, and
+rows those keys signed before the instant still verify; the card lists them struck
+through under 'the organization was dissolved on {when}'. `blocked_by:
+CIRISPersist#1143` (`CLM-affiliation-dissolution`).
 
 ## 2. Surface (what)
 

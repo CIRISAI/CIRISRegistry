@@ -130,8 +130,10 @@ are non-normative presets over scope sets (2c: P3:1592); in an affiliation every
 role edge is termed where a community terms only duty-bearing edges (2e: P2:276,
 P4:670); an organisation on the bond is reached by `slash` and `quarantine`
 (2g: P3:805). SILENT, so this document does not decide them: the "closed canonical
-set" of admin scopes (`pending: CC ruling 3`); succession when the last founder
-leaves (`pending: CC ruling 5`). The cards cite the same rows.
+set" of admin scopes and succession, both landed on rc13 5298190 (CC 4.4.3.2.8 P4:653:
+the admin presets are data on the family model manifest, CIRISConstitution#189; P4:659:
+a successor seat or `dissolves_at`, else dissolution at the last seat's lapse). The cards
+cite the same rows.
 
 *The protocol floor, landed (rc13 3cac7b9, 2026-10-28; the former rulings 4 and 6).*
 CC 4.4.3.2.8 now carries three normative paragraphs: the assumption each tier carries
@@ -453,6 +455,22 @@ the governance row, the Lean model and CIRISPersist#1143; CC 3.3.9 (P3:1592) ret
 three operational kinds by amendment, names kept so citations resolve. The deltas table
 (`review/notes/affiliation_vs_community_deltas_2026-10-28.md`, rc13) remains the source
 for the rulings still pending: 1, 2, 3, 5, 7, 8, 10, 11.
+
+**The remainder landed (rc13 5298190, 2026-10-28; no deltas ruling is pending).** CC
+4.4.3.2.8 gains six more normative paragraphs: the record (P4:653, `declared_cohort`,
+one record one kind, the config schema as manifest data); charter defaults (P4:655,
+absent `role_term` = the 365-day ceiling, lower never raise; licence classes enumerated,
+an undeclared class admitted and honoured by no reader); the public face (P4:657,
+existence, key, officers' roles and declared classes Commons-visible, `cohort_subkind:
+public` admissible, a non-public affiliation's `community:listing:v1` row; a licence
+keeps no public default); succession and dissolution (P4:659, a successor seat or
+`dissolves_at`; dissolution is the record's `withdraws`: seats lapse, edges and grants
+end, custody and the record stand, licences stand and read `lapsed`; no merge, no
+split); who may license (P4:661, anyone, a community included; a legal-weight class
+brings the affiliation's duties); the scopes (P4:663, `affiliations` beside `community`).
+Register rows `CLM-affiliation-public-face` and `CLM-affiliation-dissolution` join
+`CLM-affiliation-one-voice-countersign` on CIRISPersist#1143. §3's table and the cards
+are updated; the former gap card CSD-133 (public face) folds into CSD-120.
 
 **CSD/4.** The cards carry the LOCKED form (`CIRISServer/FSD/CSD4.md`): a `csd:tests`
 block on catalogue entry T6 ("an affiliation, a licensing authority, a delegation chain",

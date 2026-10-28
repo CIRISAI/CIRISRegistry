@@ -665,7 +665,7 @@ after this set is adopted.
 | Decisions | *(none)* | — | **pending cosignatures**: the affiliation's held changes of every kind (charter supersession, roster, licence issue/suspend/revoke, a root delegation edge), each a `/changes/{envelope,cosign,assemble}` 409 `quorum_pending` that CSD-102 renders only for roster changes on the Rules hub | **GAP → CSD-131** (or EXTEND CSD-102's held-change rendering with a Decisions door; a number is proposed so the slot is not empty) |
 | Record | Audit (CSD-071) | all circles | the record feed; every "the receipt opens" in this set reads it; the Portal's compliance export is retired, not migrated | existing |
 | Record | *(none)* | — | **records duties**: retention floors and ceilings per class, `legal_hold`, `erasure_policy` (Art 17(3) refused-with-reason), `disclosure_accounting`, `breach_notification`, `archive_custody` (deltas C1: affiliation-only, TEXT SAYS) | **GAP → CSD-132** |
-| People / Rules | *(none)* | — | **the public face of an affiliation**: a `community:listing` row, its officers, which licences are verifiable by strangers; `pending: CC ruling 8` | **GAP → CSD-133**, held until ruling 8 |
+| People / Rules | *(none)* | — | **the public face of an affiliation**: existence, `community_key_id`, officers' roles, declared licence classes, Commons-visible; a non-public affiliation's `community:listing:v1` row naming those four and nothing else (CC 4.4.3.2.8 P4:657 on rc13 5298190) | folded into CSD-120 (the four things are members of the record it already renders; the listing row is signed at its found door); the former GAP CSD-133 is withdrawn |
 
 **Numbers.** `numbers.tsv` on the client reserves CSD-118 and CSD-119 on #179
 ("Never allowed", "Guardian bond"), so they are not free; CSD-129 is in the server's
@@ -693,15 +693,20 @@ own terms:
    species | biosphere | federation`, and the circles run Just me, Family,
    Neighbours, Communities and Businesses, Everyone: the affiliations circle sits
    between the local community and the Commons already. Whether `affiliations` is
-   *wider* than `community` (a promotion) is `pending: CC ruling 11
-   (affiliation_vs_community_deltas_2026-10-28)`; the circle's position does not
-   depend on the answer, the promotion arrow does.
-4. **Why the tier is distinct at all** (deltas preface, the why column): the
-   data-handling and retention duties are affiliation-only in the text (C1,
-   TEXT SAYS); the interest/necessity split is stated as the motive (A1); wider
-   moderation latitude is SILENT and the text, where it speaks, tightens
-   affiliations (B1). So the tier exists to carry duties, sharing the community's
-   crypto tier and feed band (8a).
+   *wider* than `community` is now text (CC 4.4.3.2.8 P4:663 on rc13 5298190):
+   "`affiliations` sits beside `community`, neither wider nor narrower, so a re-sign
+   between them is a new placement, never a promotion and never the narrowing a
+   placement-touching re-sign may make; the order of widening is `self`, `family`,
+   then `community` and `affiliations` side by side, then `species`, `biosphere` and
+   `federation`." The two circles are siblings, and no arrow runs between them.
+4. **Why the tier is distinct at all** (now text, CC 4.4.3.2.8 P4:647 on rc13
+   3cac7b9): a community is presumed pro-social and the floors protect peers from one
+   another and from one voice; an affiliation carries no such presumption and the data
+   limbs bind it alone. And the line between the two is the licence class, not the
+   label (P4:661 on 5298190): anyone may license, a community included, and "a
+   community whose charter declares a class with legal weight has taken on the
+   affiliation's duties for it". So the tier exists to carry duties, sharing the
+   community's crypto tier and feed band (8a).
 
 So: keep the `layer-global-communities` nav id (renaming it churns every tag the
 flows name), declare `cohort_scope: affiliations` on its row in CSD-050 §2, and let
@@ -726,7 +731,7 @@ scope CC does not have.
 | Safety › lawful access, transparency obligations | — | none | **GAP → CSD-130** | new card; CC 4.4.3.2.8 D |
 | Decisions › pending cosignatures | — | CSD-102 (roster held changes only) | **GAP → CSD-131** | new card, or CSD-102's held-change rendering with a Decisions door |
 | Record › records duties | — | CSD-071 (the feed only) | **GAP → CSD-132** | new card; deltas C1 |
-| People / Rules › public face | — | none; CSD-102's public rooms are a different thing | **GAP → CSD-133**, held | `pending: CC ruling 8` |
+| People / Rules › public face | — (now CSD-120's) | none; CSD-102's public rooms are a different thing | **folded into CSD-120** (the former GAP CSD-133 withdrawn) | CSD-120 §2: `declared_cohort`, `public_face`, `listing_row`; CC 4.4.3.2.8 P4:657 |
 | Files, Chats, Contacts, Moderation, ChildSafety, Consent ×2, HealthReputation, Audit | — | CSD-007, 110, 005, 065, 066, 053, 054, 044, 071 | **existing** | unchanged (Moderation: the designated official discharges the duty for an affiliation, P4:651) |
 | Rules › Billing; People › Users | — | CSD-056, CSD-043 | **leave the tier** | Billing's Portal leg is retired; Users moves per its own §6 |
 
@@ -742,9 +747,11 @@ After the recommendations the client maintains, for the affiliations tier:
   its door on this circle's Rules › Trust row);
 * **four retired numbers**: 120, 121, 124, 126, each a `retired` row in
   `numbers.tsv` naming its carrier (as CSD-001 and CSD-034);
-* **four gaps with proposed numbers**: CSD-130 lawful access and transparency
-  obligations, CSD-131 pending cosignatures, CSD-132 records duties, CSD-133 the
-  public face of an affiliation (held on CC ruling 8);
+* **three gaps with proposed numbers**: CSD-130 lawful access and transparency
+  obligations, CSD-131 pending cosignatures, CSD-132 records duties (the fourth,
+  CSD-133 the public face, is withdrawn: CC 4.4.3.2.8 P4:657 on rc13 5298190 makes
+  the public face four members of the record CSD-120 already renders, so it is
+  CSD-120's §2, not a card);
 * **two rows that leave the tier**: Billing (CSD-056 placement) and Users (CSD-043,
   per its own §6);
 * **unchanged**: CSD-007, 110, 005, 065, 066, 053, 054, 044, 071, 095, 104, 106,

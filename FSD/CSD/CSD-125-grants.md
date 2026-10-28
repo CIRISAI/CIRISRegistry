@@ -36,6 +36,12 @@ blocker are gone.
 new epoch, a new DEK, and the recipient is not in the new wrap set. The card's
 "end access" is therefore "rotate and exclude", and it says so.
 
+**A grant ends with its record.** When the affiliation that owns or stewards the
+asset is dissolved (the `withdraws` of its record, CC 4.4.3.2.8 P4:659 on rc13 5298190),
+every grant over its assets ends with it, the DEK rotates no more, and no new grant is
+issued; what a recipient already fetched stays theirs, which is the same sentence the
+end-access confirm already says. `blocked_by: CIRISPersist#1143` (`CLM-affiliation-dissolution`).
+
 **A grant is judged at its signed instant.** Persist v60 judges a `key_grant`
 row's sealer chain, and a `grant`-scoped delegate's chain, at the row's
 `asserted_at` (§8 item 2), so a sealer whose delegation later lapses does not

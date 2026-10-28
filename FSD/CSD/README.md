@@ -73,7 +73,9 @@ in the circles model." The circle is **Communities and Businesses**
 seven tabs (`CirclesNav.kt`). `COMMON_CARDS_ANALYSIS.md` places every slot and
 recommends the tier stay that circle, made explicit as `cohort_scope: affiliations`,
 rather than a sixth circle (a circle IS a `cohort_scope`, and "global communities" is
-not one of CC's seven; scope order `pending: CC ruling 11`).
+not one of CC's seven; the order is now text, CC 4.4.3.2.8 P4:663 on rc13 5298190:
+`affiliations` sits beside `community`, neither wider nor narrower, the two circles
+siblings in the order of widening).
 
 | tab › row | card | stood in for (PortalService, now retired) | CSD/4 entry | verdict on adoption |
 |---|---|---|---|---|
@@ -88,7 +90,7 @@ not one of CC's seven; scope order `pending: CC ruling 11`).
 | Safety › lawful access, transparency obligations | — | — | — | GAP → CSD-130 |
 | Decisions › pending cosignatures | — | — | — | GAP → CSD-131 |
 | Record › records duties (retention, legal hold, erasure, disclosure accounting) | — | — | — | GAP → CSD-132 |
-| People / Rules › public face of an affiliation | — | — | — | GAP → CSD-133, held on CC ruling 8 |
+| People / Rules › public face of an affiliation | CSD-120 (`declared_cohort`, `public_face`, `listing_row`) | — | T6 | folded into CSD-120 (CC 4.4.3.2.8 P4:657); the former GAP CSD-133 withdrawn |
 | Files, Chats, Contacts, Moderation, ChildSafety, Consent, Health & Reputation, Audit | CSD-007, 110, 005, 065, 066, 053/054, 044, 071 | — | — | existing, unchanged |
 | Rules › Billing; People › Users | CSD-056, CSD-043 | — | — | leave the tier |
 
@@ -105,7 +107,11 @@ the record at any size, so a sole practitioner is an affiliation; the floors bin
 over members, not the count of voices (appointment is two consents; a one-seat body acts
 against a member only with an outside countersign, else it is a CC 4.5.5 proposal; the
 designated official discharges the named-moderator duty; two or more seats decide as a
-community). The tier shares the community's crypto tier and feed band (deltas 8a).
+community). The tier shares the community's crypto tier and feed band (deltas 8a), and
+sits beside `community` in the order of widening, neither wider nor narrower (P4:663 on
+5298190). The line between the tiers is the licence class, not the label: anyone may
+license, a community included, and a class with legal weight brings the affiliation's
+duties with it whatever the record's `declared_cohort` says (P4:661).
 
 Not in this set, because the client already has the card: audit (CSD-071), the device
 delegation flow (CSD-055), community founding and governance (CSD-102/103; CSD-120 is
@@ -212,12 +218,11 @@ check, persist's CHANGELOG and CC's `claims.tsv`, and should be re-read once.
 - CIRISEdge#851 (depth 4 → 5) and CIRISEdge#808 (per-recipient `key_grant` carriage)
   were not re-checked.
 - The server's `requirements.yaml` entries for CSD-121–126 (the asks above).
-- The eleven rulings of the CC rc13 deltas note that the cards mark `pending: CC ruling
-  <n> (affiliation_vs_community_deltas_2026-10-28)`: 1 discriminator on the record, 2
-  charter defaults, 3 admin scope set, 5 succession, 7 a social community as licensor, 8
-  the public face, 10 lifecycle, 11 scope order. Settled: ruling 9 (the reader's edge:
-  Who I trust, CIRISPersist#1142 for the wire shape); rulings 4 and 6 together (rc13
-  3cac7b9, CC 4.4.3.2.8 P4:647–651: one member is enough; the floors bind power over
-  members; the designated official discharges the moderator duty; governance row
-  `affiliation_member_action`; `formal/affiliation/Affiliation.lean`; wire door
-  CIRISPersist#1143).
+- *(Settled 2026-10-28.)* All eleven rulings of the CC rc13 deltas note are landed and
+  no card carries a pending-ruling marker any more: 9 (Who I trust, CC 4.4.3.8, CIRISPersist#1142);
+  4 and 6 (rc13 3cac7b9, CC 4.4.3.2.8 P4:647–651, CIRISPersist#1143); 1, 2, 3, 5, 7, 8, 10, 11
+  (rc13 5298190, CC 4.4.3.2.8 P4:653 the record, P4:655 charter defaults, P4:657 public
+  face, P4:659 succession and dissolution, P4:661 who may license, P4:663 the scopes;
+  `CLM-affiliation-public-face` and `CLM-affiliation-dissolution` staged on
+  CIRISPersist#1143; the admin presets as manifest data, CIRISConstitution#189). What
+  remains is substrate: #1142, #1143, CIRISServer#752, #663, CIRISEdge#895/#896.

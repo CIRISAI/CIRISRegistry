@@ -52,10 +52,14 @@ never an unmoderated window.
 SAYS: admission is two consents in both kinds and an `OrgAdmin` cannot seat anyone
 alone (2a, 2b: P3:215, P3:1592); the presets are non-normative over scope sets
 (2c: P3:1592); in an affiliation every role edge is termed, in a community only
-duty-bearing edges are (2e: P2:276, P4:670). Pending: the "closed canonical set"
-of admin scopes `pending: CC ruling 3`; what `role: founder` confers and what
-happens when the last founder leaves `pending: CC ruling 5` (both
-`affiliation_vs_community_deltas_2026-10-28`).
+duty-bearing edges are (2e: P2:276, P4:670). Landed on rc13 5298190: the admin presets
+are DATA, the family model manifest carrying the config record's schema (CC
+4.4.3.2.8 P4:653; CIRISConstitution#189), not a closed set in the text, so the four
+preset names below are what the manifest ships and an affiliation may name its own;
+succession is the charter's (P4:659): a successor seat or `dissolves_at`, and when the
+last deciding seat lapses with neither the affiliation is dissolved at that instant
+(every role edge ends with it; a community whose last founder leaves continues under
+its protocol and may seat a founder by it).
 
 **The floors bind power over members, not the count of voices (landed: CC rc13 3cac7b9,
 CC 4.4.3.2.8 P4:651, the former rulings 4 and 6 / rows 3c and 3g).** Appointment is

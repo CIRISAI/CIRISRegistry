@@ -72,6 +72,12 @@ fields:
     example: "ciris-canonical"
     renders: "the affiliation's id, shown as the id its licences will carry: 'Licences you issue are signed as licensure:ciris-canonical:v1'"
     tag: "proposed:txt_affiliation_id"
+  - ceg: x_private:declared_cohort
+    use: emit
+    type: "enum[community,affiliations]"
+    example: "affiliations"
+    renders: "set at the found door and shown read-only after: 'This record is an affiliation' — the one member that names the kind (CC 4.4.3.2.8 P4:653 on rc13); a key that wants both founds two records; the card never offers to flip it"
+    tag: "proposed:txt_declared_cohort"
   - ceg: x_private:affiliation_archetype
     use: emit
     type: "enum[informal_adhoc,nonprofit_board,healthcare_provider,legal_practice,gov_body,igo,custom]"
@@ -112,7 +118,7 @@ fields:
     use: emit
     type: int
     example: 90
-    renders: "'How long a role lasts, in days' — the charter's term for every role and issuance edge, integer days 1..=365 (CC 4.4.3.2.8 C, the constitutional ceiling; CC#163 landed); a small affiliation may choose ninety; renewal is a fresh conferral; an edge past it is refused `federation_delegation_term_required` (`over_role_term`)"
+    renders: "'How long a role lasts, in days' — the charter's term for every role and issuance edge, integer days 1..=365 (CC 4.4.3.2.8 C, the constitutional ceiling; CC#163 landed); absent means the 365-day ceiling applies, and a supersession may lower it and never raise it (P4:655 on rc13); a small affiliation may choose ninety; renewal is a fresh conferral; an edge past it is refused `federation_delegation_term_required` (`over_role_term`)"
     tag: "proposed:select_role_term"
     assert:
       number: {"proposed:select_role_term": {min: 1, max: 365}}
@@ -120,7 +126,7 @@ fields:
     use: emit
     type: "list[string]"
     example: ["practice: federation", "internal_credential: affiliations"]
-    renders: "'Who can check each kind of licence' — per licence class, the cohort_scope the licence and its authority head are placed at (`affiliation_config.licence_audiences`, persist v60 item 3); the smallest that fits (CC 1.13.3.4); no public default; a class not declared public cannot be issued at commons scope (`licence_audience_refused: class_not_declared_public`)"
+    renders: "'The kinds of licence we issue, and who can check each' — the charter ENUMERATES the licence classes (P4:655 on rc13) and, per class, the cohort_scope the licence and its authority head are placed at (`affiliation_config.licence_audiences`, persist v60 item 3); the smallest that fits (CC 1.13.3.4); no public default; a class not declared public cannot be issued at commons scope (`licence_audience_refused: class_not_declared_public`); a row in a class not listed here is admitted and honoured by no reader (`licence_class_not_trusted`), and the sheet says so before an issuer tries"
     tag: "proposed:list_licence_audiences"
   - ceg: x_private:parent_affiliation
     use: emit
@@ -128,12 +134,42 @@ fields:
     example: "aff-ciris-l3c-9f2a"
     renders: "'Part of' — nests this affiliation under a parent (CC 4.4.3.2.8 C: hierarchy may nest sub-affiliations); replaces parent_org_id"
     tag: "proposed:input_parent_affiliation"
+  - ceg: x_private:succession
+    use: emit
+    type: "enum[successor_seat,dissolves_at]"
+    example: "successor_seat"
+    renders: "'If the last deciding seat lapses' — a successor seat, or a wind-down date; with neither, the affiliation is dissolved the instant its last seat lapses (P4:659 on rc13), and the sheet says so"
+    tag: "proposed:select_succession"
   - ceg: x_private:dissolves_at
     use: emit
     type: timestamp
     example: "2027-01-01T00:00:00Z"
     renders: "'Winds down on' — optional; a committee that ends with its event leaves no zombie cohort"
     tag: "proposed:input_dissolves_at"
+  - ceg: x_private:dissolution_facts
+    use: display-only
+    type: "list[string]"
+    example: ["seats lapse", "roles and grants end", "licences stand, read lapsed", "custody stands", "no merge, no split"]
+    renders: "the dissolve confirm's facts (P4:659 on rc13): this is a `withdraws` of the record; every seat lapses at its effective_at; every role edge and grant ends with it; what the organization issued STANDS and reads `lapsed` from this instant (nobody is left to revoke); custody rows and the record itself stand; members keep what they can already read and may re-sign it into a new cohort; there is no merge and no split — a successor founds a new record"
+    tag: "proposed:sheet_dissolve_facts"
+  - ceg: x_private:public_face
+    use: display-only
+    type: "list[string]"
+    example: ["exists", "ciris-canonical", "officers: A1 founder, B1 founder, C1 founder", "classes: practice"]
+    renders: "'What strangers can see' — existence, the id, officers' roles, declared licence classes (P4:657 on rc13): Commons-visible for every affiliation, with no privacy presumption; the roster beyond the officers reaches members only"
+    tag: "proposed:txt_public_face"
+  - ceg: x_private:listing_row
+    use: emit
+    type: bool
+    example: true
+    renders: "'Publish our listing' — for an affiliation that is not `cohort_subkind: public`: a federation-scope `community:listing:v1` row (reserved family, founder-signed; the founders' quorum signs it at the found door) naming the four public-face things and nothing else; a public affiliation needs none"
+    tag: "proposed:btn_publish_listing"
+  - ceg: "community:listing"
+    use: display-only
+    type: string
+    example: "community:listing:v1"
+    renders: "'Listed since {when}' — the row strangers find the organization by; absent for a `public` affiliation, which is the listing"
+    tag: "proposed:txt_listing_row"
   - ceg: x_private:charter_version
     use: display-only
     type: int
@@ -154,13 +190,25 @@ fields:
 charter's limbs are the affiliation's and a social community declares none of
 them (1c, 1d: P4:649, P4:647, P4:670); `dissolves_at` is the affiliation's
 wind-down (7a: P4:683); the scope is a `cohort_scope` value sharing the
-community crypto tier and feed band (8a: P2:30, P4:408, P4:715). Pending, and
-the card does not guess: where the discriminator lives on the record (persist's
-`declared_cohort` is the implementer's shape) `pending: CC ruling 1`; whether an
-absent `role_term` is 365 or refused, and whether licence classes must be
-enumerated, `pending: CC ruling 2`; what dissolution does to the DEK, the seats and the issued licences,
-`pending: CC ruling 10`; the order of `community` and `affiliations`, `pending:
-CC ruling 11` (all `affiliation_vs_community_deltas_2026-10-28`).
+community crypto tier and feed band (8a: P2:30, P4:408, P4:715). The remainder landed on
+rc13 5298190 (CC 4.4.3.2.8): **the record** declares its kind in one member,
+`declared_cohort` (`community` or `affiliations`), one record is one kind, a key
+that wants both founds two, and the config record's schema rides the family model
+manifest as data (P4:653); **charter defaults**: an absent `role_term` means the
+365-day ceiling, a charter may lower it and never raise it; the charter enumerates
+the licence classes it issues, and a row in an undeclared class is admitted and
+honoured by no reader (P4:655); **public face**: existence, `community_key_id`,
+officers' roles and declared licence classes are Commons-visible, `cohort_subkind:
+public` is admissible, and a non-public affiliation carries a federation-scope
+`community:listing:v1` row naming those four things and nothing else (P4:657);
+**succession and dissolution**: the charter names a successor seat or
+`dissolves_at`; dissolution is the record's `withdraws`; seats lapse at its
+`effective_at`, hierarchy edges and grants end with it, custody rows and the record
+stand, content stays readable to its key holders and may be re-signed into a new
+cohort, an issued licence stands and reads `lapsed`; there is no merge and no split
+(P4:659); **the scopes**: `affiliations` sits beside `community`, neither wider nor
+narrower (P4:663). Register rows `CLM-affiliation-public-face` and
+`CLM-affiliation-dissolution` are staged on CIRISPersist#1143.
 
 **One member is enough (landed: CC rc13 3cac7b9, CC 4.4.3.2.8 P4:649, the former ruling
 4 / row 3c).** "An affiliation may have one member — a sole practitioner — and holds,
@@ -200,7 +248,10 @@ error:     {tag: "proposed:txt_charter_error", renders: "Couldn't read this orga
 | write / supersede the charter (typed config record) | none today | CIRISServer | `blocked_by: CIRISServer#649` — the storage side shipped (CIRISPersist#1034, v60: `AffiliationConfig`, declared cohort, V089 CHECK fix); the door is in CIRISServer#752 |
 | read the charter | none today | CIRISServer | `blocked_by: CIRISServer#649` |
 | nest under a parent | charter member `hierarchy` | CIRISPersist | confirmed — typed in `AffiliationConfig` (v60) |
-| dissolve | CSD-102's `DELETE /v1/communities/{id}` | CIRISServer | confirmed by CSD-102 §3 |
+| dissolve (the record's `withdraws`; seats lapse, edges and grants end, custody and licences stand, licences read `lapsed`) | CSD-102's `DELETE /v1/communities/{id}` for the door | CIRISServer; CIRISPersist for the semantics | door confirmed by CSD-102 §3; semantics `blocked_by: CIRISPersist#1143` (`CLM-affiliation-dissolution`) |
+| `declared_cohort` set at the found door; one record is one kind | `POST /v1/communities` | CIRISServer; persist `declared_cohort` shipped (#1034) | `blocked_by: CIRISServer#752` (the door takes `tier`, not the record member) |
+| the public face: the four Commons-visible things; `cohort_subkind: public`; the `community:listing:v1` row for a non-public affiliation | none | CIRISServer; CIRISPersist | `blocked_by: CIRISPersist#1143` (`CLM-affiliation-public-face`) |
+| succession: a successor seat or `dissolves_at`; dissolution at the last seat's lapse with neither | charter member | CIRISPersist | `blocked_by: CIRISPersist#1143` |
 | `licence_audiences` validated at the community door | `licence_audience_invalid` | CIRISPersist | confirmed — v60.0.0 §8 item 3 |
 
 ## 3a. Topology (CSD/4)
@@ -245,5 +296,6 @@ names the charter version they accepted.
 ## 5. Acceptance
 
 Unsigned. What this card will not test: the DEK cascade and forward secrecy on
-removal (CSD-102's), lawful-access declarations (CC 4.4.3.2.8 D — a later card,
-never covert, always `hard_case:*`).
+removal (CSD-102's), lawful-access declarations (CC 4.4.3.2.8 D — CSD-130, never
+covert, always `hard_case:*`). The public face is this card's (the four things are
+members of the record; the former gap CSD-133 is folded here, `COMMON_CARDS_ANALYSIS.md`).

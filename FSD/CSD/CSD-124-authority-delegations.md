@@ -53,9 +53,13 @@ for). Any affiliation does the same under its own protocol with its own id.
 SAYS: `license` issues on behalf of a delegator that holds licence authority by
 quorum, refused `licensure_delegator_not_authority` otherwise, and the chain roots
 at that quorum (4b: P4:849, P4:852, P2:340); every edge in a hierarchy is termed
-(2e: P2:276). Pending: whether a `withdraws` of the affiliation's record ends its
-live edges at once, or they lapse by their terms, `pending: CC ruling 10
-(affiliation_vs_community_deltas_2026-10-28)` (7d).
+(2e: P2:276). Landed on rc13 5298190 (CC 4.4.3.2.8 P4:659): a `withdraws` of the affiliation's
+record ends every hierarchy edge and grant with it, "standing under a withdrawn
+record is gone for every later use" (CC 3.2 T4), while licences already issued stand
+and read `lapsed`; the cascade sheet names dissolution as the one event that ends
+every edge at once. An edge whose scope names a licence class the charter does not
+declare confers the right to issue a row no reader honours (P4:655), and the sheet
+says so when the scope is picked.
 
 **Why this is not CSD-055.** CSD-055 is the device-code flow: a person offers a
 code, a device approves it, the scopes are a person's own verbs. This card is

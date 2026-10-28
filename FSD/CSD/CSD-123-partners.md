@@ -43,10 +43,13 @@ migrated**. `partner_role:{role}` is open vocabulary (`{role}` is a `vocab`
 segment) naming what the partner IS to the recogniser — `supervising_physician`,
 `vendor`, `member_practice`, `auditor` — never what it paid.
 
-**Pending.** Whether an affiliation may be `cohort_subkind: public` or carry a
-`community:listing` row so a partner can find it, and what of it is
-Commons-visible, is `pending: CC ruling 8 (affiliation_vs_community_deltas_2026-10-28)`
-(5b, 5f); until then a partner is added by id or code, as the field below says.
+**A partner can be found (CC 4.4.3.2.8 P4:657 on rc13 5298190).** Every affiliation's
+existence, `community_key_id`, officers' roles and declared licence classes are
+Commons-visible; a non-public one carries a `community:listing:v1` row naming those
+four things (CSD-120). So the partner picker below resolves an id or a code against
+that public face and shows the four things before the recognising act; a social
+community may be recognised and may itself license (P4:661), the partner's
+`declared_cohort` being shown, never a gate.
 
 **"Anyone can define their own partners."** Recognition is a `scores` row by the
 recognising affiliation about the partner's key, cosigned under its own
