@@ -1,16 +1,15 @@
 # FSD-001: CIRISRegistry Protocol Specification
 
 **Version:** 1.1.0
-**Status:** Draft
 **Authors:** CIRIS L3C
-**Date:** 2025-01-26
 
-## Changelog
+`FSD/FSD-004_POST_FOLD_SURFACE.md` maps every route and RPC in this specification to its disposition in the registry slice composed into CIRISServer.
 
-### v1.1.0 (2025-01-26)
-Major update based on feedback from Partner, Admin, and Systems Integrator perspectives:
+## Feature rationale
 
-| Category | Addition | Rationale |
+The surface beyond the core lookups was shaped by Partner, Admin, and Systems Integrator requirements:
+
+| Category | Feature | Rationale |
 |----------|----------|-----------|
 | **Error Handling** | Standardized RegistryErrorCode enum | Partners reported inability to programmatically handle errors; enables machine-parseable error handling across all languages/SDKs |
 | **Tracing** | RequestContext/ResponseContext messages | Systems integrators need to trace requests across microservices for debugging and observability |
@@ -26,9 +25,6 @@ Major update based on feedback from Partner, Admin, and Systems Integrator persp
 | **Webhooks** | WebhookConfig, webhook events | CI/CD needs real-time notifications without polling; event-driven deployments |
 | **Compliance** | ComplianceReport, ExportAuditLog | Partners need SOC2/HIPAA/GDPR compliance automation |
 | **Testing** | is_test_record, test_tag, CleanupTestRecords | Staging environments need isolated test records that don't affect SLA calculations |
-
-### v1.0.0 (2025-01-25)
-- Initial specification
 
 ---
 
@@ -475,7 +471,7 @@ Registry security incidents follow CIRIS Incident Response Plan:
 
 ---
 
-## v1.1.0 Feature Specifications
+## Feature Specifications
 
 ### Standardized Error Handling
 
@@ -784,11 +780,3 @@ Recovery is asynchronous with 24-hour expiration and requires steward approval.
 - `test_tag` for batching test records (e.g., "e2e-pr-1234")
 - `CleanupTestRecords` endpoint to remove all records with a given tag
 
----
-
-## Document History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.1.0 | 2025-01-26 | Added error handling, tracing, batch ops, incident response, offline verification, key rotation/escrow, HSM support, build attestation, webhooks, compliance, test records |
-| 1.0.0 | 2025-01-25 | Initial specification |

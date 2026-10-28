@@ -1,9 +1,6 @@
-# CIRISRegistry v1.1.0 Comprehensive QA Plan
+# CIRISRegistry QA Plan
 
-**Version:** 2.0.0
-**Last Updated:** 2026-01-26
-**Registry Version:** 1.1.0
-**Total Endpoints:** 54 gRPC methods + 2 HTTP endpoints
+**Scope:** the standalone registry's gRPC services and HTTP health and metrics endpoints.
 
 ---
 
@@ -964,11 +961,4 @@ All responses include context for debugging:
 | Role | Contact |
 |------|---------|
 | Backend Lead | registry@ciris.ai |
-| QA Lead | TBD |
 | Security | security@ciris.ai |
-
----
-
-*Document Version: 2.0.0*
-*Last Updated: 2026-01-26*
-*Registry Version: 1.1.0*

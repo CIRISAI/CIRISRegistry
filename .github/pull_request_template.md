@@ -1,8 +1,8 @@
 <!--
 CONTRIBUTION POLICY — please read before opening.
 
-CIRISRegistry is the trust backbone of the CIRIS federation. PRs touching the
-CEG spec (FSD/CEG/**), MISSION.md, or migrations/ require maintainer review.
+CIRISRegistry is the trust backbone of the CIRIS federation. PRs touching
+MISSION.md, the FSDs, or migrations/ require maintainer review.
 
 We WELCOME human contributions. We do NOT accept:
 - Autonomous-agent / bot-opened PRs (no human in the loop).
@@ -11,8 +11,7 @@ We WELCOME human contributions. We do NOT accept:
 - Drive-by "bounty" PRs (e.g. `/bounty`, payout-wallet solicitations). No bounty
   program is offered; such PRs are closed without review.
 
-These will be closed without review (see CIRISRegistry hardening / OpenSSF AI-slop
-best practices).
+These will be closed without review (OpenSSF AI-slop best practices).
 -->
 
 ## What & why
@@ -27,5 +26,5 @@ Fixes #
 
 ## Checklist
 - [ ] A human author understands and stands behind this change
-- [ ] If touching `FSD/CEG/**`: preserves the 1+4 wire-format lockdown (or explains the amendment per §11.2)
+- [ ] If touching the wire format: the change is ratified in CIRISConstitution (the 1+4 primitive set is locked there)
 - [ ] Tests / build pass

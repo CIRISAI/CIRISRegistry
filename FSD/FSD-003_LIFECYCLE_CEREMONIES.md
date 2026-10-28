@@ -1,12 +1,9 @@
 # FSD-003 — Self / Family / Community Lifecycle Ceremony Envelopes
 
-**Status**: Proposed
-**Date**: 2026-06-05
 **Authors**: CIRIS L3C
-**Tracks**: [CIRISRegistry#52](https://github.com/CIRISAI/CIRISRegistry/issues/52) Ask 1 (ceremony envelope vocabulary).
 **Companion**: [CIRISPersist#161](https://github.com/CIRISAI/CIRISPersist/issues/161) (substrate revocation/removal primitives — the sister-spec for the persist side).
 
-> **Normative-source notice.** The wire format is normative in [`FSD/CEG/`](CEG/README.md) — specifically §5.6.8.8 (`identity_occurrence`), §5.6.8.9 (`family`), §5.6.8.10 (`community`), §5.6.8.11 (`location_proof`), §4 (envelope fields `family_id` / `community_id` / `listed` / `history_on_join`), §7.7 + §7.8 (substrate-emitted reserved prefixes), §11.7 + §11.8 (governance). This FSD **does not redefine** any of those; it specifies the canonical signed **ceremony envelopes** Registry emits and CIRISVerify counter-signs — the orchestration layer that composes the locked CEG primitives into auditable lifecycle operations. Where this FSD and CEG disagree, CEG wins; report the divergence as a bug against this FSD.
+> **Normative-source notice.** The wire format is normative in the CIRIS Constitution; this FSD cites it by the former CEG section numbers, which [`FSD/CEG/README.md`](CEG/README.md) maps to CC Parts — §5.6.8.8 (`identity_occurrence`), §5.6.8.9 (`family`), §5.6.8.10 (`community`), §5.6.8.11 (`location_proof`), §4 (envelope fields `family_id` / `community_id` / `listed` / `history_on_join`), §7.7 + §7.8 (substrate-emitted reserved prefixes), §11.7 + §11.8 (governance). This FSD **does not redefine** any of those; it specifies the canonical signed **ceremony envelopes** Registry emits and CIRISVerify counter-signs — the orchestration layer that composes the locked CEG primitives into auditable lifecycle operations. Where this FSD and CEG disagree, CEG wins; report the divergence as a bug against this FSD.
 
 ---
 
@@ -15,7 +12,7 @@
 The CEG spec locks the lifecycle **semantics** (consensus_protocol vocabulary, Option-A forward secrecy, single-vouch self-occurrence, consensus-gated family/community membership, rough-only location). It deliberately does **not** specify the ceremony-orchestration layer — CEG §11.7.6 explicitly excludes "the CIRISPersist#152 at-rest encryption flow details (substrate-side; persist spec)"; the symmetric exclusion is that ceremony orchestration is Registry's, not CEG's.
 
 - **CIRISVerify** is signing/verification only. It counter-signs ceremony envelopes Registry emits and aggregates witness signatures via its existing `HybridVerifier`; it does not orchestrate ceremonies. This FSD specifies the envelope schema Verify validates against, not any Verify change.
-- **CIRISPersist** stores what the chain admits. Persist's current admission is value-validation only (form check); its inline docs (`src/federation/mod.rs:307-311`, `:352-357`) explicitly defer "the v3.13+ admission gate that needs the trust-graph walk." That gate's *home* is Registry. Persist's removal/revocation primitives are tracked in CIRISPersist#161.
+- **CIRISPersist** stores what the chain admits. Persist's admission is value-validation only (form check); its inline docs (`src/federation/mod.rs`) defer the admission gate that needs the trust-graph walk. That gate's *home* is Registry. Persist's removal/revocation primitives are tracked in CIRISPersist#161.
 - **CIRISRegistry** already owns user-credential lifecycle (partner records, bond, license attestations, triple witnessing) and the portal UX baseline ([`UIUX-001_PORTAL_SCREENS.md`](UIUX-001_PORTAL_SCREENS.md)). Consensus-model ceremonies are the natural extension.
 
 ---
@@ -52,11 +49,11 @@ The CEG spec locks the lifecycle **semantics** (consensus_protocol vocabulary, O
 
 ### §0.1 What this FSD locks
 
-The canonical signed ceremony-envelope vocabulary for every self / family / community lifecycle operation named in CIRISRegistry#52 Ask 1. For each ceremony: the payload fields, who signs (proposer), the witness-set requirement, what CIRISVerify counter-signs, and the resulting substrate effect (which CIRISPersist V059 / V060 / V061 row it produces).
+The canonical signed ceremony-envelope vocabulary for every self / family / community lifecycle operation. For each ceremony: the payload fields, who signs (proposer), the witness-set requirement, what CIRISVerify counter-signs, and the resulting substrate effect (which CIRISPersist V059 / V060 / V061 row it produces).
 
 ### §0.2 What this FSD does NOT cover
 
-See [§9](#9-what-this-spec-does-not-do). In short: this FSD does **not** implement the signature-counting predicate (Ask 2 — separate phase), does **not** build the portal UX (Ask 4), and does **not** re-spec the wire format (CEG is normative).
+See [§9](#9-what-this-spec-does-not-do). In short: this FSD does **not** implement the signature-counting predicate (§5 names the gate; NodeCore ships the predicate), does **not** build the portal UX, and does **not** re-spec the wire format (CC is normative).
 
 ### §0.3 Key-id representation
 
@@ -107,7 +104,7 @@ Every lifecycle ceremony is a single signed JSON object with this outer frame. T
 | `proposed_at` | yes | RFC 3339 canonical per CEG §0.5. |
 | `payload` | yes | Per-ceremony object (§2-§4). The unit over which `witness_set` signatures are computed (JCS-canonical per CEG §0.9). |
 | `witness_set` | yes | List of `{ signer_key_id, signature }`. Each signature is a hybrid Ed25519 + ML-DSA signature over `canonical(payload)`. Cardinality + which keys may sign are governed by the ceremony's consensus gate ([§5](#5-ceremony--consensus_protocol-gate-map)). Minimum one entry (the proposer self-witnesses). |
-| `verify_countersignature` | added by Verify | Absent in the proposed envelope; populated by CIRISVerify **after** the consensus gate passes (Ask 2 predicate). Verify signs over `canonical(payload ‖ witness_set)` — binding both the payload AND the witness set it validated. This is what makes the counter-signature a receipt for "the gate saw this exact witness set and it satisfied the protocol." |
+| `verify_countersignature` | added by Verify | Absent in the proposed envelope; populated by CIRISVerify **after** the consensus gate passes (§5). Verify signs over `canonical(payload ‖ witness_set)` — binding both the payload AND the witness set it validated. This is what makes the counter-signature a receipt for "the gate saw this exact witness set and it satisfied the protocol." |
 
 **Why Verify counter-signs over `payload ‖ witness_set`, not `payload` alone.** The counter-signature must attest to *the validated witness set*, not merely the payload. If Verify signed only the payload, a relay could swap a satisfying witness set for a non-satisfying one and the counter-signature would still verify. Binding both closes that gap and gives persist a single field to verify (the counter-signature) that transitively covers the witness set.
 
@@ -188,7 +185,7 @@ Admit a new occurrence (device / agent) to an existing identity. **Single-vouch*
 | `occurrence` | yes | §5.6.8.8 `identity_occurrence` | Same shape as §2.1 `root_occurrence`. |
 
 - **Proposer**: the vouching key — either `identity_key_id` itself OR any currently-admitted occurrence of `identity_key_id` (Signal-style "trust any device I've already onboarded").
-- **Witness-set requirement**: exactly one — the single vouch. The signer MUST be `identity_key_id` OR a current occurrence of it. The gate (Ask 2) verifies the signer's membership in the identity's current occurrence set via persist's `list_identity_occurrences_active(identity_key_id)`.
+- **Witness-set requirement**: exactly one — the single vouch. The signer MUST be `identity_key_id` OR a current occurrence of it. The gate (§5) verifies the signer's membership in the identity's current occurrence set via persist's `list_identity_occurrences_active(identity_key_id)`.
 - **Verify counter-signs**: the `(identity_key_id, occurrence)` binding after confirming the single-vouch rule.
 - **Substrate effect**: one `put_identity_occurrence(SignedIdentityOccurrence)` → one new V059 row.
 - **Reserved-prefix emission**: `hard_case:identity_occurrence_added:{identity_key_id}` (CEG §7.7).
@@ -228,7 +225,7 @@ Remove an occurrence from a self-collective. Forward-secrecy (Option A) per CEG 
 - **Proposer**: the root `identity_key_id` OR any currently-admitted occurrence (a `withdraws` against an `identity_occurrence` is issued by `identity_key_id` or any current occurrence per CEG §5.6.8.8). Same single-vouch authority as `add_occurrence`.
 - **Witness-set requirement**: exactly one — the single vouch (same rule as §2.2). The signer MUST be a *currently-active* member of the identity's occurrence set. **A revoked occurrence cannot witness its own re-admission or further revocations** once `effective_at` has passed.
 - **Verify counter-signs**: the revocation binding after confirming the single-vouch rule against the *active* occurrence set.
-- **Substrate effect**: one `put_identity_occurrence_revocation(SignedIdentityOccurrenceRevocation)` (CIRISPersist#161 Ask 1) → one V061 `federation_identity_occurrence_revocations` row. This flips the occurrence to inactive in `list_identity_occurrences_active(...)` (CIRISPersist#161 Ask 2) and triggers the Option-A forward-secrecy gate (CIRISPersist#161 Ask 4 — stop wrapping new `key_grant`s to the revoked occurrence).
+- **Substrate effect**: one `put_identity_occurrence_revocation(SignedIdentityOccurrenceRevocation)` (CIRISPersist#161) → one V061 `federation_identity_occurrence_revocations` row. This flips the occurrence to inactive in `list_identity_occurrences_active(...)` (CIRISPersist#161 Ask 2) and triggers the Option-A forward-secrecy gate (CIRISPersist#161 Ask 4 — stop wrapping new `key_grant`s to the revoked occurrence).
 - **Reserved-prefix emission**: **GAP — see [§8.1](#81-occurrence-removal-has-no-symmetric-reserved-prefix-ceg-spec-amendment).** CEG §7.7 has `identity_occurrence_added` (add only) with no symmetric removal prefix.
 
 ---
@@ -320,7 +317,7 @@ Admit a new identity to `family.members`. Consensus-gated per the family's curre
 
 - **Proposer**: any current member (CEG §5.6.8.9 membership-change ceremony step 1).
 - **Witness-set requirement**: **governed by the family's `consensus_protocol`** evaluated against the membership snapshot pinned by `supersedes_row_hash`. See [§5](#5-ceremony--consensus_protocol-gate-map). If the rule is not yet satisfied, the proposal is held pending until additional member signatures arrive (CEG §5.6.8.9 step 2 — configurable window, operator policy).
-- **Verify counter-signs**: the expanded roster after the consensus gate (Ask 2 predicate) confirms the witness set satisfies the protocol.
+- **Verify counter-signs**: the expanded roster after the consensus gate (§5) confirms the witness set satisfies the protocol.
 - **Substrate effect**: one `put_family(SignedFamily)` with `resulting_members` → supersedes the prior V059 row. On admission, substrate emits retroactive `key_grant`s wrapping all `cohort_scope: family` content DEKs to the new member (CEG §5.6.8.9 step 3 / CIRISPersist#152).
 - **Reserved-prefix emission**: `hard_case:family_membership_change:{family_key_id}` (CEG §7.7).
 
@@ -659,9 +656,9 @@ This is not a standalone lifecycle ceremony that creates a roster row; it is a *
 
 ## §5 Ceremony → consensus_protocol gate map
 
-Each ceremony must pass a gate before Verify counter-signs. The gate is the **signature-counting predicate** — Ask 2 of CIRISRegistry#52, a **separate issue/phase**. This FSD names *which* gate each ceremony invokes and the witness-set rule per protocol; it does NOT implement the predicate (see [§9](#9-what-this-spec-does-not-do)).
+Each ceremony must pass a gate before Verify counter-signs. The gate is the **signature-counting predicate**. This FSD names *which* gate each ceremony invokes and the witness-set rule per protocol; it does NOT implement the predicate (see [§9](#9-what-this-spec-does-not-do)).
 
-**Single-implementation rule (the gate CALLS NodeCore's shipped predicate — it does NOT reimplement it).** The signature-counting predicate already exists: NodeCore shipped `ciris_node_core::evaluate_consensus_protocol(protocol, current_members, witness_sigs) → ConsensusResult` (commit [7469dcc](https://github.com/CIRISAI/CIRISNodeCore/commit/7469dcc), per [CIRISNodeCore#30](https://github.com/CIRISAI/CIRISNodeCore/issues/30)) — all six canonical kinds + `WeightedRubricResolver` / `CustomPredicateResolver` hooks, non-member-sig filtering, duplicate-sig dedup. The Ask-2 Registry gate is **orchestration that calls this predicate**, NOT a fresh `match protocol.as_str() { … }` reimplementation. A reimplementation would be the *third* copy of signature-counting (Registry gate + NodeCore evaluator + any Persist re-check) and would drift the moment one adds a 7th protocol kind. The predicate is implemented **exactly once** (NodeCore); the gate's novel surface is witness-set collection → call the predicate → entrenchment refusal → Verify counter-sign → emit Contribution. This composes in-process under the CEWP single-process cohabitation model (registry-core + node-core + persist in one process). Full boundary table at [CIRISRegistry#52 comment](https://github.com/CIRISAI/CIRISRegistry/issues/52#issuecomment-4635757400).
+**Single-implementation rule (the gate CALLS NodeCore's predicate — it does NOT reimplement it).** The signature-counting predicate exists: NodeCore ships `ciris_node_core::evaluate_consensus_protocol(protocol, current_members, witness_sigs) → ConsensusResult` — all six canonical kinds + `WeightedRubricResolver` / `CustomPredicateResolver` hooks, non-member-sig filtering, duplicate-sig dedup. The Registry gate is **orchestration that calls this predicate**, NOT a fresh `match protocol.as_str() { … }` reimplementation. A reimplementation would be the *third* copy of signature-counting (Registry gate + NodeCore evaluator + any Persist re-check) and would drift the moment one adds a 7th protocol kind. The predicate is implemented **exactly once** (NodeCore); the gate's novel surface is witness-set collection → call the predicate → entrenchment refusal → Verify counter-sign → emit Contribution. This composes in-process under the single-process cohabitation model (registry-core + node-core + persist in one process).
 
 The §5.2 per-protocol rules below are therefore the **documented contract of NodeCore's `evaluate_consensus_protocol` arms**, not a second specification of them.
 
@@ -692,7 +689,7 @@ For the consensus-gated ceremonies, the witness-set requirement per the six cano
 | `founder_only` | ≥ 1 valid witness signature from a member with `role: founder`. |
 | `unanimous` | A valid witness signature from **every** current member counted by the rule (for removal/dissolution: every member except the one being removed — [§8.3](#83-self-removal-counting-is-not-addressed-by-ceg-1175)). |
 | `majority` | Valid witness signatures from **> 50%** of the counted roster. |
-| `quorum:{m}/{n}` | Valid witness signatures from **≥ m** members — `m` is **absolute** (never rescales with roster growth); `n` is documentary. **RESOLVED in CEG §8.1.12.3.1** (was flagged at [§8.6](#86-quorummn-n-vs-live-roster-size-precedence-is-resolved)): a `quorum:2/3` collective grown to 5 still admits at 2 sigs. Operators wanting roster-proportional quorum use `weighted:{rubric}`, not `quorum:`. |
+| `quorum:{m}/{n}` | Valid witness signatures from **≥ m** members — `m` is **absolute** (never rescales with roster growth); `n` is documentary (CEG §8.1.12.3.1; [§8.6](#86-quorummn--n-vs-live-roster-size-precedence-is-resolved)): a `quorum:2/3` collective grown to 5 still admits at 2 sigs. Operators wanting roster-proportional quorum use `weighted:{rubric}`, not `quorum:`. |
 | `weighted:{rubric}` | Sum of member weights (per the named operator rubric) of the valid witnesses **exceeds the rubric's threshold**. The rubric is operator-defined; **CEG does not specify where the rubric's weight table or threshold lives — see [§8.7](#87-weightedrubric-rubric-resolution-is-not-specified)**. |
 | `custom:{id}` | Operator-defined predicate. CEG §11.7.5 leaves this fully open; the gate dispatches to an operator-registered predicate. **Not resolvable from CEG — operator-supplied.** |
 
@@ -709,30 +706,29 @@ Registry emits the counter-signed ceremony envelope as a Contribution. Persist a
 | Ceremony | Persist entrypoint | Substrate version |
 |---|---|---|
 | `establish_identity`, `add_occurrence` | `put_identity_occurrence(SignedIdentityOccurrence)` | V059 |
-| `revoke_occurrence` | `put_identity_occurrence_revocation(SignedIdentityOccurrenceRevocation)` | V061 (CIRISPersist#161 Ask 1) |
+| `revoke_occurrence` | `put_identity_occurrence_revocation(SignedIdentityOccurrenceRevocation)` | V061 (CIRISPersist#161) |
 | `create_family`, `add_family_member`, `amend_family_consensus_protocol`, `dissolve_family` | `put_family(SignedFamily)` | V059 |
-| `remove_family_member`, `dissolve_family` | `put_family_membership_revocation(SignedFamilyMembershipRevocation)` | V061 (CIRISPersist#161 Ask 1) |
+| `remove_family_member`, `dissolve_family` | `put_family_membership_revocation(SignedFamilyMembershipRevocation)` | V061 (CIRISPersist#161) |
 | `create_community`, `add_community_member` | `put_community(SignedCommunity)` | V060 |
-| `remove_community_member` | `put_community_membership_revocation(SignedCommunityMembershipRevocation)` | V061 (CIRISPersist#161 Ask 1) |
+| `remove_community_member` | `put_community_membership_revocation(SignedCommunityMembershipRevocation)` | V061 (CIRISPersist#161) |
 | `location_proof` | standard Contribution put (not a V059/V060 row) | — |
 
-**Persist v4.0 DAS convergence (verified 2026-06-05 against `../CIRISPersist`).** Persist's own [v4.0 Data Access Surface FSD](https://github.com/CIRISAI/CIRISPersist/blob/main/FSD/V4_0_DATA_ACCESS_SURFACE.md) §4.6 **already defers to this FSD** — its `put_*` admission table reads: *"`put_identity_occurrence` / `put_family` / `put_community` — Membership-roster writes — admission is the ceremony witness-set (CIRISRegistry#52), not a cohort_scope claim; no downgrade concept."* The two specs are convergent; Persist is waiting on FSD-003, not diverging from it. Confirmed substrate state:
-- `src/federation/` is **NOT** moved by the v4.0 `src/read/* → src/ceg/*` reorg (DAS §3.3 explicit) — the `put_*` entrypoints below keep their `src/federation/` home; the `src/ceg/{family,community,identity}/` modules are the *read-surface* that consumes the federation substrate, not a replacement.
-- Substrate tables are `federation_keys` / `federation_identity_occurrences` / `federation_families` / `federation_communities`. V060 (`federation_communities`) **landed** (Persist commit `bae5e72`). V059 (identity_occurrence + family) present. V061 (revocations) is Persist#161-pending.
-- `src/ceg/streaming/` exists — the CEG 0.10 streaming substrate (Persist#142) is beginning to land.
+**Persist Data Access Surface alignment.** Persist's [Data Access Surface FSD](https://github.com/CIRISAI/CIRISPersist/blob/main/FSD/V4_0_DATA_ACCESS_SURFACE.md) §4.6 defers membership-roster admission to this FSD — its `put_*` admission table reads: *"`put_identity_occurrence` / `put_family` / `put_community` — Membership-roster writes — admission is the ceremony witness-set, not a cohort_scope claim; no downgrade concept."* Substrate state the boundary relies on:
+- The `put_*` entrypoints live in `src/federation/`; the `src/ceg/{family,community,identity}/` modules are the *read-surface* that consumes the federation substrate, not a replacement.
+- Substrate tables are `federation_keys` / `federation_identity_occurrences` / `federation_families` (V059) / `federation_communities` (V060). The revocation tables (V061) are CIRISPersist#161.
 
 ### §6.2 The `witness_set` field is the boundary contract
 
-Persist's current admission is **value-validation only** (form check) — its `src/federation/mod.rs` inline docs (the `self-vouch / single-vouch admission per §5.6.8.8 ... v3.13+ admission gate` + `consensus-protocol enforcement ... v3.13+ admission gate` notes, ~mod.rs:308/311/356) defer the consensus enforcement to "the v3.13+ admission gate." This FSD pins the field that carries the Registry-validated decision across the boundary:
+Persist's admission is **value-validation only** (form check) — its `src/federation/mod.rs` inline docs defer the consensus enforcement to the admission gate this FSD homes at Registry. This FSD pins the field that carries the Registry-validated decision across the boundary:
 
 - Each `Signed*` substrate type carries a `witness_set` field (CIRISPersist#161 sketches `witness_set: Vec<KeyId>` on the revocation types; read as `Vec<String>` per [§0.3](#03-key-id-representation)). For the ceremony layer the carried value is the **full `{ signer_key_id, signature }` set from the envelope**, not just the key-ids — so persist can re-verify cryptographically, not merely trust a count.
 - Persist's `engine.rs` already has a `witness_set: None` slot (`src/engine.rs:2276`) — the materialization point for this contract.
 - **What persist verifies**: persist re-checks each witness signature over the canonical envelope bytes (via CIRISVerify's `HybridVerifier` multi-sig aggregation) AND verifies the `verify_countersignature` over `canonical(payload ‖ witness_set)`. The counter-signature transitively attests the gate ran; the witness-set re-verification is defense-in-depth so persist never admits a Registry-asserted membership change it cannot itself cryptographically confirm.
-- **What persist does NOT do**: persist does NOT re-run the consensus-counting predicate (that is the Registry-side gate, Ask 2). Persist verifies signatures and the counter-signature; it trusts the *count decision* to Registry + Verify. This keeps the trust-graph walk upstream (CEG §11.7.6 symmetric exclusion) and persist append-only.
+- **What persist does NOT do**: persist does NOT re-run the consensus-counting predicate (that is the Registry-side gate, §5). Persist verifies signatures and the counter-signature; it trusts the *count decision* to Registry + Verify. This keeps the trust-graph walk upstream (CEG §11.7.6 symmetric exclusion) and persist append-only.
 
 ### §6.3 Active-state read semantics
 
-The revocation rows (V061) drive persist's `list_*_active(...)` read paths (CIRISPersist#161 Ask 2): a binding is active iff it was admitted AND no matching revocation exists with `effective_at <= now()`. `CallerAdmission` resolution (CIRISPersist#160 §4.1) populates `family_key_ids` + `community_key_ids` from the active set — so a removed member stops being admitted at the read boundary, closing the naively-inclusive gap CIRISPersist#161 names.
+The revocation rows (V061) drive persist's `list_*_active(...)` read paths (CIRISPersist#161): a binding is active iff it was admitted AND no matching revocation exists with `effective_at <= now()`. `CallerAdmission` resolution (CIRISPersist#160 §4.1) populates `family_key_ids` + `community_key_ids` from the active set — so a removed member stops being admitted at the read boundary, closing the naively-inclusive gap CIRISPersist#161 names.
 
 ---
 
@@ -752,13 +748,13 @@ Per CEG §7.7 + §7.8, the `hard_case:*` membership-event prefixes are **substra
 | community amendment refused | `hard_case:community_consensus_protocol_violation:{community_key_id}` | On gate rejection |
 | `location_proof` rejected (`cell_resolution > 7`) | `hard_case:location_proof_resolution_violation` (against producer `key_id`) | On gate rejection |
 
-The trigger boundary: Registry tells persist *"this ceremony is admitted"* by calling the corresponding `put_*`; persist emits the reserved-prefix event as part of that write. The full trigger-semantics spec (when exactly Registry decides a ceremony "succeeded enough") is Ask 5 of CIRISRegistry#52 — a later phase. This FSD names the mapping; it does not spec the Ask 5 trigger machinery.
+The trigger boundary: Registry tells persist *"this ceremony is admitted"* by calling the corresponding `put_*`; persist emits the reserved-prefix event as part of that write. This FSD names the mapping; the trigger semantics (when exactly Registry decides a ceremony "succeeded enough") are specified separately.
 
 ---
 
 ## §8 Known gaps flagged for review
 
-These are points where CEG §11.7 / §11.8 (or the envelope layer) is ambiguous or silent for an implementable ceremony schema. Per the issue's instruction, they are reported rather than invented-around.
+These are points where CEG §11.7 / §11.8 (or the envelope layer) is ambiguous or silent for an implementable ceremony schema. They are reported rather than invented around.
 
 ### §8.1 Occurrence-removal has no symmetric reserved prefix (CEG-spec amendment)
 
@@ -770,7 +766,7 @@ CEG §7.7 has `hard_case:identity_occurrence_added:{identity_key_id}` (**add onl
 
 **Fallback (no amendment): `revoke_occurrence` emits no reserved-prefix event.** Acceptable but loses substrate-self-report observability for occurrence removal — operators cannot watch occurrence-eviction the way they watch family membership change. Not recommended.
 
-**This is a CEG-spec amendment, not a Registry-only call.** It must route through the CEG §11.2 amendment process (federation Contribution + WA quorum + 1-of-6 sign-off). This FSD recommends the rename and flags it for the CEG-authority maintainers; it cannot land the change unilaterally. CIRISPersist#161 Ask 5 makes the parallel observation from the substrate side ("ensure the substrate emission path covers both directions").
+**This is a CC amendment, not a Registry-only call.** It must route through the amendment process (federation Contribution + WA quorum + 1-of-6 sign-off). This FSD recommends the rename and flags it for the constitution's maintainers; it cannot make the change unilaterally. CIRISPersist#161 makes the parallel observation from the substrate side ("ensure the substrate emission path covers both directions").
 
 ### §8.2 `create_family` bootstrap witness rule is under-specified in CEG
 
@@ -790,7 +786,7 @@ CEG §4 defines `listed` as a per-Contribution envelope field (CEG 0.10), not a 
 
 ### §8.6 `quorum:{m}/{n}` — `n` vs live roster size precedence is RESOLVED
 
-~~CEG §5.6.8.9 leaves it ambiguous whether the literal `{n}` is fixed or rescales with the live roster.~~ **RESOLVED in CEG [§8.1.12.3.1](CEG/README.md)** (pinned 2026-06-05): **`m` is absolute, `n` is documentary.** A `quorum:2/3` collective grown to 5 members still admits at **2** signatures; `m` never rescales. Rationale: matches NodeCore's shipped `evaluate_consensus_protocol` (already treats `m` as absolute), simpler invariant for a deterministic gate, and roster-proportional quorum stays expressible via `weighted:{rubric}` (members weight 1, threshold = `ceil(roster/2)` recomputed by the rubric resolver). Applies identically to community admission (CEG §8.1.13.2). The gate is no longer under-specified for non-entrenched `quorum:` families whose roster ≠ `{n}`.
+CEG [§8.1.12.3.1](CEG/README.md) resolves it: **`m` is absolute, `n` is documentary.** A `quorum:2/3` collective grown to 5 members still admits at **2** signatures; `m` never rescales. Rationale: matches NodeCore's shipped `evaluate_consensus_protocol` (already treats `m` as absolute), simpler invariant for a deterministic gate, and roster-proportional quorum stays expressible via `weighted:{rubric}` (members weight 1, threshold = `ceil(roster/2)` recomputed by the rubric resolver). Applies identically to community admission (CEG §8.1.13.2). The gate is no longer under-specified for non-entrenched `quorum:` families whose roster ≠ `{n}`.
 
 ### §8.7 `weighted:{rubric}` rubric resolution is not specified
 
@@ -800,13 +796,13 @@ CEG §5.6.8.9 names `weighted:{rubric}` ("sum of member weights per a named oper
 
 ## §9 What this spec does NOT do
 
-- **Does NOT implement the signature-counting predicate.** The `check_consensus_admission(...)` gate (counting witness signatures per the protocol's rule) is **Ask 2** of CIRISRegistry#52 — a separate issue/phase. This FSD names which gate each ceremony invokes ([§5](#5-ceremony--consensus_protocol-gate-map)) and the per-protocol witness rule, but the deterministic predicate is not specified here.
-- **Does NOT build portal UX.** The create-family wizard, membership-management screens, occurrence-onboarding QR flow, community founder UX, and amendment-ceremony feedback are **Ask 4** (extends [`UIUX-001_PORTAL_SCREENS.md`](UIUX-001_PORTAL_SCREENS.md)) — a later phase.
+- **Does NOT implement the signature-counting predicate.** The `check_consensus_admission(...)` gate (counting witness signatures per the protocol's rule) is specified separately. This FSD names which gate each ceremony invokes ([§5](#5-ceremony--consensus_protocol-gate-map)) and the per-protocol witness rule, but the deterministic predicate is not specified here.
+- **Does NOT build portal UX.** The create-family wizard, membership-management screens, occurrence-onboarding QR flow, community founder UX, and amendment-ceremony feedback extend [`UIUX-001_PORTAL_SCREENS.md`](UIUX-001_PORTAL_SCREENS.md) and are specified separately.
 - **Does NOT re-spec the wire format.** CEG §5.6.8.8 / §5.6.8.9 / §5.6.8.10 / §5.6.8.11 + §4 envelope shape + §7.7/§7.8 reserved prefixes are **normative**. This FSD composes those locked primitives into ceremony envelopes; it does not redefine them. Where this FSD and CEG disagree, CEG wins.
 - **Does NOT spec CIRISVerify changes.** Verify's `HybridVerifier` already does multi-sig aggregation. This FSD specifies the envelope schema Verify validates against and the `verify_countersignature` it adds; no new Verify primitive is required.
 - **Does NOT build the persist substrate primitives.** The `put_*_revocation` methods + V061 tables + Option-A forward-secrecy gate are **CIRISPersist#161**. This FSD specifies the ceremony envelopes those primitives absorb and the boundary contract ([§6](#6-persist--registry-boundary)); it does not implement the substrate side.
 - **Does NOT introduce a `KeyId` newtype.** Key fields are plain strings throughout ([§0.3](#03-key-id-representation)).
-- **Does NOT spec the Ask 5 reserved-prefix trigger machinery.** [§7](#7-reserved-prefix-emission-triggers) names the ceremony → prefix mapping; the full "when does Registry decide a ceremony succeeded enough to instruct persist to emit" trigger semantics are Ask 5.
+- **Does NOT spec the reserved-prefix trigger machinery.** [§7](#7-reserved-prefix-emission-triggers) names the ceremony → prefix mapping; the full "when does Registry decide a ceremony succeeded enough to instruct persist to emit" trigger semantics are specified separately.
 
 ---
 
@@ -817,8 +813,7 @@ CEG §5.6.8.9 names `weighted:{rubric}` ("sum of member weights per a named oper
 - [`FSD/CEG/README.md`](CEG/README.md) §7.7 + §7.8 — substrate-emitted reserved prefixes
 - [`FSD/CEG/README.md`](CEG/README.md) §11.7 + §11.8 — self/family + geographic-community governance (normative semantics)
 - [`FSD/FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md) §5 — envelope-schema documentation style this FSD mirrors
-- [`FSD/UIUX-001_PORTAL_SCREENS.md`](UIUX-001_PORTAL_SCREENS.md) — portal UX baseline (Ask 4 extends)
-- [CIRISRegistry#52](https://github.com/CIRISAI/CIRISRegistry/issues/52) — parent issue (this FSD = Ask 1)
+- [`FSD/UIUX-001_PORTAL_SCREENS.md`](UIUX-001_PORTAL_SCREENS.md) — portal UX baseline
 - [CIRISPersist#161](https://github.com/CIRISAI/CIRISPersist/issues/161) — sister-spec: substrate revocation/removal primitives
-- CIRISPersist `src/federation/mod.rs:307-311` + `:352-357` — the deferred "v3.13+ admission gate" this FSD homes at Registry
+- CIRISPersist `src/federation/mod.rs` — the deferred admission gate this FSD homes at Registry
 - CIRISPersist `src/federation/mod.rs:312` (`put_identity_occurrence`) / `:358` (`put_family`) / `:391` (`put_community`); `src/engine.rs:2276` (`witness_set` materialization slot)

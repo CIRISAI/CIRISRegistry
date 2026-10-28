@@ -1,14 +1,12 @@
 # FSD-004 — The Post-Fold Registry Surface
 
-**Status:** DRAFT for decision (2026-09-26, revised for CC 1.0-rc5). No NEW route or
-capability name in this document is on the wire yet; §6 lists the decisions it needs
-first. What HAS landed is §5's shape for the routes already marked KEEP:
-`ciris_registry_core::fold::router` (a build without default features carries no sqlx,
-tonic or persist-postgres).
+**Status:** The specification of the registry slice's surface. The routes marked KEEP
+that `ciris_registry_core::fold::router` mounts are on the wire (§5; a build without
+default features carries no sqlx, tonic or persist-postgres). No route or capability
+name marked NEW or OPEN is on the wire; §6 lists the decision each needs.
 
-**Constitution pin:** CC 1.0-rc5 at `CIRISConstitution@44ae7b2` (the `rc5` branch tip
-of 2026-09-19, the same commit CIRISClient pins in `client/ceg/README.md`). Rc5's
-CC 2.4.1.2.1 (#100, with the CIRISPersist#814 ruling) is what §1 rule 4 and §4.5 apply.
+**Constitution pin:** CC 1.0-rc5 (the same pin CIRISClient carries in
+`client/ceg/README.md`). CC 2.4.1.2.1 is what §1 rule 4 and §4.5 apply.
 
 **Scope:** every route and RPC `ciris-registry` serves today, and what each one
 becomes once `ciris-registry-core` folds into CIRISServer as the registry slice
@@ -16,11 +14,10 @@ becomes once `ciris-registry-core` folds into CIRISServer as the registry slice
 substrate call behind it, and **who may call it** by caller tier (§2) and by node
 posture (§3).
 
-**Why this exists:** no document in either repo specifies it. FSD-002 §8 maps the gRPC
-methods to backends but assumes a singleton host with HS256 JWTs. CIRISServer's
-`FSD/REGISTRY_FOLD_DERISK.md` §4 item 7 leaves the registry-specific surface as one
-line. CIRISClient already calls a route (`GET /v1/registry/lookup`) that matches
-nothing in either repo (CIRISClient `FSD/AGENTS_AND_NODE_TIER.md`).
+**Why this exists:** FSD-002 §8 maps the gRPC methods to backends but assumes a
+singleton host with HS256 JWTs. This document is the route-level specification of the
+slice CIRISServer composes, including the route CIRISClient calls
+(`GET /v1/registry/lookup`, CIRISClient `FSD/AGENTS_AND_NODE_TIER.md`).
 
 **Format precedent:** CIRISServer `src/auth/ABSORPTION.md`. That is the same table,
 built for the agent's auth fold: route → substrate call → fabric home → status →
@@ -29,10 +26,7 @@ conflict.
 **Companions:** FSD-002 §8–§9 (the pre-fold backend map), CIRISServer
 `FSD/REGISTRY_FOLD_DERISK.md`, `FSD/TRUST_ROOT_CAPABILITY_GATE.md`,
 `FSD/NAMING_THE_TRUST_ROOT.md`, `MISSION.md` §1.5, CC 2.4.1.2.1 / 3.3.9 / 3.4.9 (rc5),
-CIRISClient `CSD.md` (CSD/3, the form each Portal surface becomes). Issues: #41 (handler cutover),
-#58 (Spock removal), #62 (fold epic), #65/#66 (key-registration routes), #133
-(registry becomes a conferred canonical server), CIRISServer#442 (registry-slice role
-gate), CIRISServer#499 (capability declaration).
+CIRISClient `CSD.md` (CSD/3, the form each Portal surface becomes).
 
 ---
 
@@ -48,13 +42,13 @@ applies them to the registry's surface.
    **Consequence:** every registry *decision* (register an agent, grant a license,
    revoke, halt) is a signature by a human-held key. The node admits, stores and
    serves it. No registry route lets a node, including a canonical one, decide on its
-   own key's authority. **Nor does a node vote** (ruling of 2026-09-22 on
-   CIRISServer#537): infrastructure holds no agency, so the `ciris-canonical`
+   own key's authority. **Nor does a node vote**: infrastructure holds no agency, so
+   the `ciris-canonical`
    community is a roster the accord admits installs into, not a body that votes.
    Its founders are accord-conferred, human-rooted steward keys; its admission
    quorum is the accord's; a canonical node's *owner* configures it (CC 3.4.5
    `config:*` is self-or-owner). A node gains neither a vote nor a verdict.
-2. **Authority is conferred, not self-published (#133, settled).** Post-fold the
+2. **Authority is conferred, not self-published.** Post-fold the
    registry is an accord-scrub-conferred canonical server. It does not publish its own
    trust root. `REGISTRY_ADMIN_TOKEN`, the SYSTEM_ADMIN JWT god-mode and
    `trusted_primitive_keys` are all forms of "the registry operator says so". Each
@@ -63,8 +57,8 @@ applies them to the registry's surface.
 3. **Signed objects authenticate themselves; the route does not.** A read route
    serving a signed CEG envelope needs no caller auth, because the consumer
    re-verifies the signature. This is already the shape of `/v1/steward-key`
-   (#133: "signing the wrapper would prove only that the relay said so") and of
-   the #138 provenance walk. What a route cannot make self-authenticating is
+   ("signing the wrapper would prove only that the relay said so") and of
+   the provenance walk. What a route cannot make self-authenticating is
    **absence**: "no record" is only as good as the serving node's replica. That is
    why §3 separates serving from answering negatively.
 4. **Licensure, grant and delegation are three objects, and only delegation chains
@@ -97,8 +91,8 @@ router-level layer for loopback, and an in-handler check for the others.
 | **M — org member** | a user key holding an `org_membership` role in the target org | an S-tier signature, plus the role read from persist's `org_membership` LWW state (§5.6.8.13) | HS256 JWT + `authorize_org_access(OrgRole)` |
 | **O — owner** | the responsible party bound to *this* node | `require_owner_bound` / `require_owner_session` (`auth/gate.rs`, `federation_peers.rs`) | nothing (the registry has no node-owner concept) |
 | **L — loopback** | an operator on the node's host | `require_loopback` layer (`auth/loopback.rs`) | nothing |
-| **A — licensing authority** | the key that *is* an `authority_id`, or a key on a live `delegates_to` chain bearing the `license` scope that resolves to it (the `license` scope in CC 4.4.3.4.3's emission-authority table). An org-named authority resolves through its `OrgAdmin` / `KeyManager` members, and its `authority_id` is the **org UUID**, never the registration number (CC 3.3.9, #139) | persist's delegation resolver (`federation/admission.rs`) with the one refusal rc5 adds, `licensure_delegator_not_authority`; the emitter must resolve to the authority for the row to enter that authority's fold | `RegisterPartner` / `RevokeEntity(license)` under SYSTEM_ADMIN |
-| **B — blessed key** | a key whose record carries an accord-conferred `infra:attest` (or `infra:serve`); `infra:attest` MAY be attenuated to one family, `infra:attest:licensure:{authority_id}` (CC 4.4.3.4.3, rc5) | `mesh_genesis::carries_scope` over the scrub-signed `registration_envelope.roles`; the #138 walk does exactly this. **Sub-scope matching is directional**: a parent token satisfies a check for its child, a child never satisfies its parent, and an unknown caveat fails closed. A `starts_with("infra:attest")` test is a defect | `REGISTRY_ADMIN_TOKEN` + `trusted_primitive_keys` |
+| **A — licensing authority** | the key that *is* an `authority_id`, or a key on a live `delegates_to` chain bearing the `license` scope that resolves to it (the `license` scope in CC 4.4.3.4.3's emission-authority table). An org-named authority resolves through its `OrgAdmin` / `KeyManager` members, and its `authority_id` is the **org UUID**, never the registration number (CC 3.3.9) | persist's delegation resolver (`federation/admission.rs`) with the one refusal rc5 adds, `licensure_delegator_not_authority`; the emitter must resolve to the authority for the row to enter that authority's fold | `RegisterPartner` / `RevokeEntity(license)` under SYSTEM_ADMIN |
+| **B — blessed key** | a key whose record carries an accord-conferred `infra:attest` (or `infra:serve`); `infra:attest` MAY be attenuated to one family, `infra:attest:licensure:{authority_id}` (CC 4.4.3.4.3, rc5) | `mesh_genesis::carries_scope` over the scrub-signed `registration_envelope.roles`; the provenance walk does exactly this. **Sub-scope matching is directional**: a parent token satisfies a check for its child, a child never satisfies its parent, and an unknown caveat fails closed. A `starts_with("infra:attest")` test is a defect | `REGISTRY_ADMIN_TOKEN` + `trusted_primitive_keys` |
 | **Q — accord quorum** | ≥2 of 3 accord holders (A1/B1/C1), hardware-held | the propose/cosign ceremonies (`accord_provision.rs`), `accord/halt` | SYSTEM_ADMIN JWT (`RegistryAdminService`) |
 
 **Retired outright, with no post-fold equivalent:**
@@ -164,40 +158,40 @@ Dispositions:
 | gRPC `GetPublicKeys`; `GET /v1/verify/key/{fingerprint}` | `GET /v1/verify/key/{fingerprint}` | P | all | `lookup_public_key` | KEEP path, backend → `federation_keys` |
 | `GET /v1/rotation-history` | `GET /v1/keys/{key_id}/history` | P | all | `list_key_registration_history` (persist V148) | REPLACE. Registry steward rotation is retired; per-key history is persist's |
 | `GET /v1/agent_files/{kind}` | same | P | all | `list_attestations_for` | KEEP (already persist-only) |
-| `GET /v1/builds/{version}`, `/v1/builds/hash/{h}`; `GET /v1/verify/{binary,function,build}-manifest*` | same paths | P | all | manifest **bytes**: OPEN (§6.2). Provenance: #138 walk (`list_attestations_for`, blessed `infra:attest`) | KEEP paths; storage OPEN |
+| `GET /v1/builds/{version}`, `/v1/builds/hash/{h}`, `/v1/builds/manifest/{h}`; `GET /v1/verify/{binary,function,build}-manifest*` | same paths | P | all | `/v1/builds*`: the signed manifest claim and its bytes from the federation directory (`list_attestations_for`, blessed `infra:attest`). `/v1/verify/*-manifest`: manifest **bytes** from the standalone binary's tables, OPEN (§6.2) | KEEP paths; `/v1/builds*` on the slice; `/v1/verify/*` storage OPEN |
 | gRPC `GetBuildAttestation` | folded into `/v1/builds/*` provenance | P | all | as above | REPLACE |
 | gRPC `GetEmergencyStatus` | server `GET /v1/accord/halt-status` | P | all | accord halt state | SERVER |
 | gRPC `GetOfflinePackage`, `GetOfflineDelta` | OPEN | P | blessed | a `list_signed_*_since` bundle | OPEN (§6.4): the CEG anti-entropy plane may make it redundant |
-| `GET /v1/transparency/witnesses`, `/v1/transparency/sth/{n}/witnesses` | same paths | P | all | `federation_keys` identity_type `witness` + `transparency_log:cosigned:{n}` attestations | KEEP paths. Blocked on CIRISPersist#102 (witness vocabulary); until then the per-region PG tables stay |
+| `GET /v1/transparency/witnesses`, `/v1/transparency/sth/{n}/witnesses` | same paths | P | all | `federation_keys` identity_type `witness` + `transparency_log:cosigned:{n}` attestations | KEEP paths. The standalone binary serves them from per-region PG tables; the directory-backed form depends on persist's `witness` identity_type (CIRISPersist#102) |
 | gRPC `HealthCheck`, `GetCapabilities`, `GetMetrics` | server `/v1/federation/conformance` capabilities | P | all | — | SERVER |
 
 ### 4.2 Registry decisions (tier Q, A or M, human-signed)
 
 Rule 1 in practice: each of these becomes a **signed CEG envelope** authored by a human
 key and **admitted** by blessed nodes. The post-fold transport for the envelope is the
-anti-entropy plane (#58), not an HTTP write. Where an HTTP door exists, it is an
+anti-entropy plane, not an HTTP write. Where an HTTP door exists, it is an
 S-tier "submit this signed envelope" route; the route's own auth proves nothing.
 
 | Today | Post-fold | Tier (of the envelope's signer) | Substrate | Disposition |
 |---|---|---|---|---|
 | `RegisterAgent`, `BatchRegisterAgents` | `SignedKeyRecord` identity_type `agent` | Q; the delegation depth is OPEN (§6.5) | `put_public_key` | REPLACE |
-| `RegisterPartner`, `UpgradeToPartner`, `CreateLicenseeOrganization` — the **recognition** half | `partner_record` envelope (the org is a recognised partner; its steward quorum) | Q-style M-of-N steward quorum over identical JCS bytes (CC 3.3.9), monotonic on `revision` | `put_partner_record` | REPLACE. This is the org's standing as a partner, not a licence; #139: any authority the org names itself as uses its org UUID |
+| `RegisterPartner`, `UpgradeToPartner`, `CreateLicenseeOrganization` — the **recognition** half | `partner_record` envelope (the org is a recognised partner; its steward quorum) | Q-style M-of-N steward quorum over identical JCS bytes (CC 3.3.9), monotonic on `revision` | `put_partner_record` | REPLACE. This is the org's standing as a partner, not a licence; any authority the org names itself as uses its org UUID |
 | `RegisterPartner` (`license_type`, `capabilities_granted`), `ListExpiringLicenses` renewal — the **licence** half | one `licensure:{authority_id}` `scores` row per status, on the subject key, signed by the authority or its `license`-scoped delegate | **A** | `put_attestation`; admission refuses `licensure_delegator_not_authority` | REPLACE. The registry signs as the CIRIS authority (`authority_id` = the CIRIS org UUID) and CIRISVerify co-signs (CC 3.4.9; single-source rows compose at confidence ≤ 0.5). No `professional_*` enum survives on the wire: the practised domain is the `authority_id`, e.g. a medical board, and the obligations ride `duty:{kind}` |
 | `RevokeEntity(license)`, `MassRevoke(license)` | a `licensure:{authority_id}` row carrying `suspended` (reversible) or `revoked` (terminal), or `lapsed` / `surrendered` / `reduced` | **A**, the same authority or its delegate | `put_attestation` | REPLACE. Not a `SignedRevocation`: a licence ends by its authority, and a consumer MUST NOT infer `revoked` from `suspended` (CC 3.1.1). Reinstating is a `withdraws` on the `suspended` row |
 | `RevokeEntity(agent)`, `RevokeEntity(partner)`, `MassRevoke` of keys | `SignedRevocation` | Q for authority keys; M (OrgAdmin) for an org's own keys | `put_revocation` | REPLACE |
 | `SetEmergencyShutdown`, `ClearEmergencyShutdown` | server `POST /v1/accord/halt` (+ clear) | Q | accord halt | SERVER |
 | `RotateSigningKey`, `GetActiveSigningKey`, `ListSigningKeys` | none: the node key is per-node and conferred | — | — | DROP |
 | `RegisterTrustedPrimitiveKey`, `List…`, `Revoke…` | server `/v1/accord/ci-key/{propose,cosign}` | Q | accord co-scrub → `infra:attest` | SERVER |
-| `RegisterBuildAttestation`, gRPC `RegisterBuild` | pipeline-signed `provenance:build_manifest:{target}` Contribution | B (`infra:attest`) | `put_attestation` | REPLACE (#138's consumer side already reads this) |
-| `POST /v1/builds`, `POST /v1/verify/build-manifest` (admin bearer + signed body) | same paths, **S-tier submit** | B: the signature must be an `infra:attest` key; the bearer is dropped | Contribution + manifest bytes (§6.2) | KEEP paths, auth REPLACED |
+| `RegisterBuildAttestation`, gRPC `RegisterBuild` | pipeline-signed `provenance:build_manifest:{target}` Contribution | B (`infra:attest`) | `put_attestation` | REPLACE (the provenance walk's consumer side reads this) |
+| `POST /v1/builds`, `POST /v1/verify/build-manifest` (admin bearer + signed body) | same paths, **S-tier submit** | B: the signature must be an `infra:attest` key, blessed by a `delegates_to(root → pipeline, infra:attest)` grant or the accord role on its record; the bearer is dropped | Contribution + manifest bytes (§6.2) | KEEP paths, auth REPLACED; `POST /v1/builds` is on the slice |
 | `POST /v1/verify/binary-manifest`, `POST /v1/verify/function-manifest` (admin bearer; **the registry signs**) | none | — | — | DROP. "The registry signs what the operator uploaded" is exactly the self-published authority #133 retired; use the B-tier routes above |
 | `POST /v1/transparency/witnesses` (admin bearer) | witness `SignedKeyRecord` | Q | `put_public_key` | REPLACE (CIRISPersist#102) |
 | `POST /v1/transparency/sth/cosign` | same path | S (the witness's own hybrid signature; this is unchanged) | cosign attestation | KEEP |
 
 ### 4.3 Org and Portal operations (tier M, O or L)
 
-The operational planes already exist in persist v48 (`federation/operational.rs`:
-`organization` / `org_membership` LWW, `partner_record` monotonic-quorum; CIRISRegistry#70).
+The operational planes exist in persist (`federation/operational.rs`:
+`organization` / `org_membership` LWW, `partner_record` monotonic-quorum).
 The authority for an org action moves **from a JWT's claimed role to a signature by a
 key whose `org_membership` role is sufficient**. The `OrgRole` ladder
 (`OrgAdmin=1 … Viewer=4`) survives unchanged as the value of `org_membership.role`.
@@ -211,8 +205,8 @@ key whose `org_membership` role is sufficient**. The `OrgRole` ladder
 | `GetOrgUser`, `ListOrgUsers`, `ListOrgMembers`, `GetOrgUserByEmail` | reads over `org_membership` | M (Viewer) | `list_org_memberships_for` | REPLACE. **Email lookup does not survive:** an email is not a federation identifier and the operational planes refuse off-federation identifiers |
 | `GetUser`, `GetUserByEmail`, `CreateUser`, `*SystemUser*`, `*OAuth*` | server auth (`wa_cert`, `/v1/auth/*` session + OAuth) | server's own | `WaCertService` | SERVER. User accounts are the node's login surface, not registry data |
 | `GenerateKeyPair`, `RequestSignature` (the registry **holds** partner private keys) | none | — | — | DROP (§6.1, settled by rule 4). The registry signing *as* a partner with no `delegates_to` edge is delegation laundering (CC 4.1.1) and judgment on a node key (rule 1) |
-| `ActivateKey`, `RotateKey`, `RevokeKey`, `GetRegistrationChallenge`, `RegisterPublicKey`, `Activate/RotateSelfCustodyKey` | the #65/#66 key-registration flow: a self-signed `SignedKeyRecord` + an OrgAdmin `org_membership` binding | S (self) + M (KeyManager) | `put_public_key`, `list_key_registration_history` | REPLACE (#65) |
-| `RequestKeyEscrow`, `RequestKeyRecovery`, `ListKeyEscrows` | node-local working index | O (the node is the custodian) + M (OrgAdmin) to request | `registry_key_escrows` (CIRISPersist#752, built for this fold) | KEEP semantics, backend → persist |
+| `ActivateKey`, `RotateKey`, `RevokeKey`, `GetRegistrationChallenge`, `RegisterPublicKey`, `Activate/RotateSelfCustodyKey` | the key-registration flow: a self-signed `SignedKeyRecord` + an OrgAdmin `org_membership` binding | S (self) + M (KeyManager) | `put_public_key`, `list_key_registration_history` | REPLACE |
+| `RequestKeyEscrow`, `RequestKeyRecovery`, `ListKeyEscrows` | node-local working index | O (the node is the custodian) + M (OrgAdmin) to request | `registry_key_escrows` (CIRISPersist#752) | KEEP semantics, backend → persist |
 | `GetAuditLog`, `ExportAuditLog`, `CreateAuditEntry` | persist audit (`cirisaudit`) | M (Viewer read / Operator write) | persist audit | REPLACE |
 | `GenerateComplianceReport` | derived from the audit reads | M (OrgAdmin) | — | OPEN: Portal-side rendering |
 | `RegisterWebhook`, `ListWebhooks`, `DeleteWebhook` | node-local | O | node config | OPEN: likely DROP in favour of the event stream |
@@ -270,10 +264,11 @@ This mirrors the lens precedent: `LensCore::attach_handler(&edge, engine)` plus
 pub fn router(engine: Arc<Engine>, node_key_id: String) -> axum::Router;
 ```
 
-Landed with the three routes that already ran on persist alone (`/v1/steward-key`,
-`/v1/trust-root/bundle`, `/v1/agent_files/{kind}`). Each further KEEP / REPLACE route
-moves into this router as its backend moves to persist. The router applies **no rate
-limit**: the composition root owns that layer, as it does for lens.
+The router mounts the trust-root routes (`/v1/steward-key`, `/v1/trust-root/bundle`),
+`/v1/agent_files/{kind}` and the `/v1/builds*` routes (submit, read per version, read
+per manifest hash, manifest bytes). Each further KEEP / REPLACE route moves into this
+router as its backend moves to persist. The router applies **no rate limit**: the
+composition root owns that layer, as it does for lens.
 
 - **No own storage.** The slice never opens a pool. Everything in §4 marked KEEP /
   REPLACE reads and writes the shared `Engine`.
@@ -281,7 +276,7 @@ limit**: the composition root owns that layer, as it does for lens.
   server's. `edge_runtime` stays in the standalone binary only.
 - **No gRPC.** The server has no tonic. RegistryService's reads become the P-tier HTTP
   routes in §4.1; its writes become envelopes (§4.2). The standalone binary keeps
-  tonic during the transition, behind the `standalone` feature, which is on by default.
+  tonic behind the `standalone` feature, which is on by default.
 - **Declared capabilities.** Covered by §6.8.
 
 **Rule-4 obligations on the slice's code**, so they are not rediscovered at review:
@@ -311,7 +306,9 @@ Each item carries a recommendation, but none of them is settled by this document
    (CIRISPersist#752, CC `archive_custody`). What remains open is only the migration:
    each custodied key's owner must register a self-custody key before the cutover.
 2. **Manifest bytes.** `builds` / `binary_manifests` / `function_manifests` are the
-   last registry-owned blobs. #41 says to keep them local; no persist table holds them.
+   last registry-owned blobs. No persist table holds them; the standalone binary keeps
+   them local. `/v1/builds*` serves the CEG-native manifest and its bytes from the
+   directory; this decision covers the `/v1/verify/*-manifest` tables.
    *Recommend:* ask persist for a consumer table like `registry_key_escrows`
    (the #751 pattern), keyed by `(project, version, target, manifest_hash)`. Serving
    bytes is P-tier, and the Contribution carries the authority.
@@ -327,8 +324,8 @@ Each item carries a recommendation, but none of them is settled by this document
    confers a `license`-scoped `delegates_to` on a human registrar (or attenuates
    `infra:attest:licensure:ciris` onto a pipeline key), and admission refuses an
    issuance whose chain does not resolve to the authority. For **agent key records**
-   and **org recognition** the same shape applies with the accord's own delegation
-   (#128). *Recommend:* delegated registrar, never a node key; the `license` scope for
+   and **org recognition** the same shape applies with the accord's own delegation.
+   *Recommend:* delegated registrar, never a node key; the `license` scope for
    licences, a registrar scope for key records, both attenuated per CC 4.5.
 6. **Which org facts are public.** Org name and partner status are needed by verifiers;
    member lists are not. *Recommend:* `organization` + `partner_record` are P; the
@@ -365,22 +362,21 @@ Each item carries a recommendation, but none of them is settled by this document
     CIRISConstitution: drop the community values from `partner_role`, and re-state
     `partner_record` as recognition only (no `license_type`, no `capabilities_*`),
     with the licence carried by `licensure:{authority_id}` and the obligations by
-    `duty:{kind}`. Until ruled, the registry emits no `community` rows (§4.5) and
-    treats `license_type` as a legacy projection.
-11. **`partner_record` versus the licensure fold, during transition.** Verify reads
+    `duty:{kind}`. The registry emits no `community` rows (§4.5) and treats
+    `license_type` as a legacy projection.
+11. **`partner_record` versus the licensure fold.** Verify reads
     `attestation:license_validity` today from `partner_record`. *Recommend:* the
     registry emits both for one release: the `partner_record` (recognition, unchanged
     bytes for Verify) and the `licensure:ciris` row set. Verify moves its L4 read to
     the fold, then `license_type` is dropped from the envelope (decision 10).
 
-## 7. Before the fold (pre-existing gaps found while mapping)
+## 7. Pre-existing gaps found while mapping
 
 - `PortalService.get_user` / `get_user_by_email` performed **no authorization**: any
-  valid JWT could read any user and all of that user's memberships. **Fixed alongside
-  this FSD:** the caller must be the user, a SYSTEM_ADMIN, or hold at least Viewer in
-  an org the target belongs to. That is the same visibility `list_org_members` already
-  grants.
+  valid JWT could read any user and all of that user's memberships. **Fixed:** the
+  caller must be the user, a SYSTEM_ADMIN, or hold at least Viewer in an org the
+  target belongs to. That is the same visibility `list_org_members` already grants.
 - `POST /v1/integrity/auth` reports `authenticated`/`authorized` from the mere presence
-  of a `Bearer ` prefix (§4.4). **Not changed here:** CIRISVerify and the mobile
-  client may consume those fields, so the fix (validate, or stop claiming) needs a
-  consumer check first.
+  of a `Bearer ` prefix (§4.4). **Open:** CIRISVerify and the mobile client may
+  consume those fields, so the fix (validate, or stop claiming) needs a consumer
+  check first.

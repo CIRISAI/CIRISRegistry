@@ -91,51 +91,47 @@ docker compose up -d
 
 ```
 CIRISRegistry/
-├── rust-registry/                 # Rust implementation
-│   ├── src/
-│   │   ├── main.rs               # Application entrypoint
-│   │   ├── config.rs             # Configuration management
-│   │   ├── error.rs              # Error types
-│   │   ├── services/             # gRPC service implementations
-│   │   │   ├── registry.rs       # RegistryService (public lookups)
-│   │   │   ├── portal.rs         # PortalService (Portal operations)
-│   │   │   └── admin.rs          # RegistryAdminService
-│   │   ├── db/                   # Database layer (13 modules)
-│   │   │   ├── mod.rs            # Database connection pool
-│   │   │   ├── agents.rs         # Agent CRUD operations
-│   │   │   ├── partners.rs       # Partner CRUD operations
-│   │   │   ├── organizations.rs  # Organization management
-│   │   │   ├── users.rs          # User management
-│   │   │   ├── keys.rs           # Key management
-│   │   │   ├── audit.rs          # Audit logging
-│   │   │   ├── revocations.rs    # Revocation operations
-│   │   │   ├── webhooks.rs       # Webhook configuration
-│   │   │   ├── signing_keys.rs   # Registry signing keys
-│   │   │   ├── build_attestations.rs  # SLSA provenance
-│   │   │   ├── emergency_status.rs    # Emergency lockdown
-│   │   │   ├── escrows.rs        # Key escrow tracking
-│   │   │   └── snapshots.rs      # Offline verification
-│   │   ├── crypto/               # Cryptography
-│   │   │   └── mod.rs            # Hybrid Ed25519 + ML-DSA-65
-│   │   ├── middleware/           # Request middleware
-│   │   │   ├── auth.rs           # JWT/mTLS validation
-│   │   │   ├── metrics.rs        # Prometheus metrics
-│   │   │   └── tracing.rs        # Request tracing
-│   │   └── api/                  # HTTP API
-│   │       └── http.rs           # Health/metrics endpoints
-│   ├── migrations/               # SQL migrations
-│   ├── Cargo.toml                # Dependencies
+├── rust-registry/                 # Rust workspace
+│   ├── ciris-registry-core/      # LIB: the crate CIRISServer composes
+│   │   ├── src/
+│   │   │   ├── lib.rs            # Module declarations
+│   │   │   ├── config.rs         # Configuration management
+│   │   │   ├── error.rs          # Error types
+│   │   │   ├── fold.rs           # Registry-slice router (trust root, agent_files)
+│   │   │   ├── fold_builds.rs    # CEG-native /v1/builds on the slice
+│   │   │   ├── build_manifest.rs # BuildManifest wire shape + verifier
+│   │   │   ├── services/         # gRPC services (standalone feature)
+│   │   │   │   ├── registry.rs   # RegistryService (public lookups)
+│   │   │   │   ├── portal.rs     # PortalService (Portal operations)
+│   │   │   │   └── admin.rs      # RegistryAdminService
+│   │   │   ├── db/               # Database layer (sqlx, standalone feature)
+│   │   │   ├── federation/       # Persist federation-directory client
+│   │   │   ├── edge_transport/   # CEG transport helpers (TTL, SHA, agent_files)
+│   │   │   ├── crypto/           # Hybrid Ed25519 + ML-DSA-65
+│   │   │   ├── middleware/       # auth.rs, authz.rs, metrics, rate limit, tracing
+│   │   │   └── api/              # HTTP API (http.rs, error.rs)
+│   │   ├── migrations/           # sqlx migrations
+│   │   └── tests/                # Integration tests
+│   ├── ciris-registry/           # BIN: the standalone server entrypoint
+│   ├── Cargo.toml                # Workspace root
 │   ├── Dockerfile                # Container build
 │   └── docker-compose.yml        # Local dev stack
 │
 ├── protocol/                      # Protocol definitions
-│   └── ciris_registry.proto      # gRPC/protobuf (v1.1.0)
+│   └── ciris_registry.proto      # gRPC/protobuf
 │
 ├── FSD/                          # Functional Specifications
 │   ├── FSD-001_CIRISREGISTRY_PROTOCOL.md  # Protocol spec
+│   ├── FSD-002_FEDERATION_SURFACE.md      # Federation surface (design history)
+│   ├── FSD-003_LIFECYCLE_CEREMONIES.md    # Ceremony envelopes
+│   ├── FSD-004_POST_FOLD_SURFACE.md       # The registry slice's surface
 │   └── UIUX-001_PORTAL_SCREENS.md         # Portal UI guide
 │
 ├── docs/                         # Documentation
+│   ├── THREAT_MODEL.md           # Threat model
+│   ├── TRUST_CONTRACT.md         # Consumer-facing trust shape
+│   ├── FEDERATION_CLIENT.md      # Registry over persist's federation directory
+│   ├── MANIFEST_VALIDATION_API.md # Endpoint reference for verifiers
 │   └── QA_INTEGRATION_PLAN.md    # QA test plan
 │
 ├── scripts/                      # Utility scripts
@@ -416,7 +412,7 @@ The issuance fee and bond are a **Sybil-resistance deposit, not a price of admis
 - Community-tier issuance MAY be sponsored by an existing participant, or waived on non-capital Sybil proof (vouching by ≥1 bonded participant, or completion of the Sovereign coherence window) — no participant is excluded from holding an identity solely for inability to access payment rails
 - Bond forfeited on revocation by default; admin can manually refund via Stripe dashboard
 - Community tier provided AS-IS without warranty or guarantees
-- Paid tiers (Professional+) not yet available for self-service — contact sales@ciris.ai
+- Paid tiers (Professional+) are provisioned through sales@ciris.ai, not self-service
 - All billing handled by CIRISPortal + Stripe; Registry has no billing logic
 
 ### Node Access Control
@@ -424,8 +420,6 @@ The issuance fee and bond are a **Sybil-resistance deposit, not a price of admis
 CIRISNode instances can restrict which org IDs they service via `allowed_org_ids` config:
 - `node.ciris.ai`: Restricted to CIRIS.ai org only (WBD routing, full features)
 - `ethicsengine.org`: Open to all orgs (benchmarking only, WBD routing disabled)
-
-WBD routing via node.ciris.ai will be an additional charge for community agents in a future release.
 
 ## Testing
 
@@ -468,9 +462,9 @@ grpcurl -plaintext -d '{
 - Test capability intersection logic: `effective = agent ∩ partner.granted - partner.denied`
 - **Test Portal integration** - verify API endpoints work correctly with Portal
 
-### PortalService Handler Convention (v1.3 Phase 4-6)
+### PortalService Handler Convention
 
-Every authenticated PortalService handler must follow this 4-step preamble before doing any work. The pattern was established by the v1.3 hardening waterfall (AV-15 Phase 4, AV-35 Phase 5, AV-14 W2 Phase 6) and is the floor of trust for the federation's per-tenant + per-actor guarantees.
+Every authenticated PortalService handler must follow this 4-step preamble before doing any work. The pattern closes `docs/THREAT_MODEL.md` AV-15, AV-35 and AV-14 and is the floor of trust for the federation's per-tenant + per-actor guarantees.
 
 ```rust
 async fn handler_name(
@@ -487,7 +481,7 @@ async fn handler_name(
     //    For inner-proto org_id (e.g., req.user.org_id, req.org.org_id,
     //    req.sign_request.org_id), authz against the INNER value — not
     //    a separate top-level req.org_id, which can be desynced from
-    //    the field that actually controls the write (W3 finding).
+    //    the field that actually controls the write.
     authorize_org_access(self.db.pool(), &claims, &req.<target_org_id>, OrgRole::<role>).await?;
     // OR for cross-org god-mode operations:
     // authorize_system_admin(self.db.pool(), &claims).await?;
@@ -495,7 +489,7 @@ async fn handler_name(
     // 3. Use claims.sub as the actor for any audit-log writes or
     //    "set rotated_by / revoked_by / created_by" DB columns.
     //    NEVER use req.requester_user_id or req.actor_user_id —
-    //    they're forgeable by any authenticated caller (W1 finding).
+    //    they're forgeable by any authenticated caller.
     let _ = db::create_audit_entry(
         self.db.pool(),
         AuditActionType::AuditXxx,
@@ -511,7 +505,7 @@ async fn handler_name(
 }
 ```
 
-**Required-role mapping** (per-method, decided in Phase 4):
+**Required-role mapping** (per method):
 
 | Operation type | OrgRole |
 |---|---|
@@ -535,7 +529,7 @@ async fn handler_name(
 - Health/probe/metrics, `LookupAgent`, `LookupPartner`, `GetRevocationList`, `GetPublicKeys`, `GetOfflinePackage`, `GetEmergencyStatus`, `VerifyDeployment`, `GetBuildAttestation`. These are public-by-design lookup paths.
 - All HTTP GET paths under `/v1/builds/`, `/v1/verify/*`, `/v1/revocation/*`, `/v1/steward-key`. Same.
 
-These remain rate-limited per Phase 2 but require no JWT.
+These remain rate-limited per `docs/THREAT_MODEL.md` AV-9 but require no JWT.
 
 **See also**:
 - `middleware/authz.rs` — `claims_from_request`, `authorize_org_access`, `authorize_system_admin`, `OrgRole` enum.
@@ -545,9 +539,9 @@ These remain rate-limited per Phase 2 but require no JWT.
 
 ### Database Migration Notes
 
-> **⚠️ DIRECTION (LOCKED 2026-06-05): Spock is being removed; replication becomes CEG-native.** Cross-region convergence is moving OFF Postgres multi-master (Spock) and UP to the federation layer: every cross-region state change becomes a **signed CEG envelope** propagated over Edge and applied with R1/Q1 quorum-merge + anti-rollback monotonicity (the Persist V058 `federation_revocations` / `federation_revocation_quorum_state` machinery, generalized). Scope is **everything cross-region** — trust data (keys/attestations/revocations/communities) AND operational Portal data (orgs/users/licenses/partners). Tracking epic: see the Spock-removal issue. The Spock-specific rules below are **TRANSITIONAL** — still operative until the cutover lands, but **do not add new Spock dependencies**; new cross-region tables follow the CEG-native replication-intent rule (see "Replication intent" below). After the cutover, `db/mod.rs::exclude_sqlx_migrations_from_spock_replication` and all `spock.repset_add_table(...)` enrollments get removed.
+> **Replication is CEG-native.** Cross-region convergence of registry state is not Postgres multi-master replication. Every cross-region state change is a **signed CEG envelope** propagated over Edge and applied with R1/Q1 quorum-merge + anti-rollback monotonicity (persist's `federation_revocations` / `federation_revocation_quorum_state` machinery, generalized). Scope is **everything cross-region** — trust data (keys/attestations/revocations/communities) AND operational Portal data (orgs/users/licenses/partners). The standalone deployment still loads Spock on its per-region Postgres for the legacy tables enrolled in `migrations/023_*`; **do not add new Spock dependencies**. New cross-region tables follow the CEG-native replication-intent rule (see "Replication intent" below).
 
-**Idempotency requirement (still required, per-node migrations)**: All schema-changing migrations MUST be idempotent — re-applying must yield identical state. Each region executes its own migrations independently against its own Postgres (this stays true post-Spock — only the *data* replication mechanism changes, not the per-node schema execution). A non-idempotent migration that crashes mid-flight cannot be retried. *(Transitional: while Spock is still loaded we also exclude `_sqlx_migrations` from replication at boot in `db/mod.rs::exclude_sqlx_migrations_from_spock_replication`; this exclusion is removed with Spock.)*
+**Idempotency requirement**: All schema-changing migrations MUST be idempotent — re-applying must yield identical state. Each region executes its own migrations independently against its own Postgres; only data replication crosses regions, never schema execution. A non-idempotent migration that crashes mid-flight cannot be retried. `db/mod.rs::exclude_sqlx_migrations_from_spock_replication` keeps `_sqlx_migrations` out of Spock replication at boot where Spock is loaded, so each node's migration runner tracks only what it executed locally.
 
 Required patterns:
 - `CREATE TABLE IF NOT EXISTS ...` for tables.
@@ -557,12 +551,12 @@ Required patterns:
 - For constraint changes: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '...') THEN ALTER TABLE ... ADD CONSTRAINT ... END IF; END $$;` (see `migrations/021_project_namespace.sql` for the canonical example).
 - Naturally idempotent statements (`ALTER ... SET DEFAULT`, `UPDATE ... WHERE`) are acceptable.
 
-**Do NOT use `spock.replicate_ddl_command(...)`**: DDL is per-node sqlx execution. (Post-Spock this is unconditional; during transition it also avoids errors in single-node dev where Spock isn't loaded.)
+**Do NOT use `spock.replicate_ddl_command(...)`**: DDL is per-node sqlx execution, and single-node dev has no Spock loaded.
 
-**Replication intent must be declared in the migration that creates the table.** The *failure mode* is unchanged (forgetting how a table's rows reach other regions → silent US/EU divergence, the CIRISRegistry#4 lesson); the *mechanism* is changing from Spock repsets to CEG envelopes. Every `CREATE TABLE` migration MUST pick one and document it in a comment header:
+**Replication intent must be declared in the migration that creates the table.** Forgetting how a table's rows reach other regions produces silent US/EU divergence (CIRISRegistry#4). Every `CREATE TABLE` migration MUST pick one and document it in a comment header:
 
-- **Cross-region → CEG-native (TARGET).** The table's rows are NOT replicated at the Postgres layer. Cross-region convergence rides a **signed CEG envelope** (name the subject_kind / federation-directory path that carries it — e.g. `key_grant`, `federation_attestations`, `federation_revocations`, `community`, or the operational-data envelope once defined) applied with R1/Q1 quorum-merge. The table is a per-region *materialized view* of the merged envelope stream. Document which envelope carries it.
-  - *Transitional only (do NOT add new):* legacy cross-region tables still enrolled via `spock.repset_add_table('default', 'public.<name>', false)` (e.g. `partner_keys`, `trusted_primitive_keys`, ref `migrations/023_*`). These get migrated to the CEG-native path + de-enrolled by the Spock-removal epic. New tables must NOT add repset enrollment.
+- **Cross-region → CEG-native.** The table's rows are NOT replicated at the Postgres layer. Cross-region convergence rides a **signed CEG envelope** (name the subject_kind / federation-directory path that carries it — e.g. `key_grant`, `federation_attestations`, `federation_revocations`, `community`, or the operational-data envelope) applied with R1/Q1 quorum-merge. The table is a per-region *materialized view* of the merged envelope stream. Document which envelope carries it.
+  - *Legacy:* `partner_keys` and `trusted_primitive_keys` are enrolled in the Spock repset via `spock.repset_add_table('default', 'public.<name>', false)` in `migrations/023_*`. New tables do not add repset enrollment.
 - **Per-region** (node-local state, per-node steward identity, bookkeeping — e.g. `_sqlx_migrations`, `registry_signing_keys`): genuinely local; never crosses regions by any mechanism. Add a comment header explaining the intentional per-node scope.
 
 **Array columns**: Any `TEXT[]` or `BYTEA[]` column added via migration MUST use `Option<Vec<T>>` in the Rust struct, or add `DEFAULT '{}'` in the migration SQL. This avoids decode failures on pre-existing rows.
@@ -571,6 +565,7 @@ Required patterns:
 
 | Component | Purpose | Integration |
 |-----------|---------|-------------|
+| **CIRISServer** | The node | Composes `ciris-registry-core` as its registry slice |
 | **CIRISPortal** | Partner portal and key custody | Writes to Registry API |
 | **CIRISVerify** | Hardware-rooted license verification | Reads from Registry API |
 | **CIRISAgent** | Core ethical governance framework | Uses CIRISVerify |

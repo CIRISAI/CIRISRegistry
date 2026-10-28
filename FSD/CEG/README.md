@@ -3,23 +3,25 @@
 The CIRIS Ethical Grammar is no longer maintained in this repository. It has been
 absorbed into **the CIRIS Constitution**, which is the single source of truth:
 
-> **https://github.com/CIRISAI/CIRISConstitution** — currently **1.0-rc4**
+> **https://github.com/CIRISAI/CIRISConstitution**
 
 Consumers vendor and pin from that repo. Nothing in this directory is normative.
+The registry's `CEG-Version` header carries the constitution version it pins
+(`ciris-registry-core/src/api/error.rs::CEG_VERSION`).
 
 ## Why this stub exists rather than nothing
 
-Seven sibling repos (Server, Persist, Edge, Verify, Agent, Conformance, NodeCore)
-carry ~28 links into `CIRISRegistry/FSD/CEG/*.md`. This file is the signpost those
-links land on until they are repointed. It is not a mirror and will not be updated
-with spec content.
+Sibling repos (Server, Persist, Edge, Verify, Agent, Conformance, NodeCore) carry
+links into `CIRISRegistry/FSD/CEG/*.md`, and this repo's own FSDs cite the former
+section numbers. This file is the signpost those links land on. It is not a mirror
+and carries no spec content.
 
 ## Versioning — read this before citing a number
 
-The constitution is at **1.0-rc4**. The old `1.0-RC29` line that this directory
-used to declare was **discontinued at the re-home** — it is not a later revision
-than RC3 and must not be cited as one. Any code or doc still carrying an RC2x
-number, or the older `0.x` line, is on dead lineage.
+The old `1.0-RC29` line this directory once declared is **discontinued lineage** —
+it is not a later revision than the constitution's `1.0-rc` series and must not be
+cited as one. Any code or doc still carrying an RC2x number, or the older `0.x`
+line, is on dead lineage.
 
 ## Where each section went
 
