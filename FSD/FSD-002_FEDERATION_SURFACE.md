@@ -1,91 +1,19 @@
 # FSD-002 — Federation Surface
 
-> **⚠️ DESIGN-HISTORY NOTICE (2026-05-28; normative pointer updated 2026-08-17)**: As of CEG 0.1 Public Working Draft, this document was **superseded** by the consolidated CIRIS Epistemic Grammar specification — which has since been absorbed into **the CIRIS Constitution (CC)**, the single source of truth, homed at **[CIRISAI/CIRISConstitution](https://github.com/CIRISAI/CIRISConstitution)** (currently **1.0-rc4**). The former in-repo `FSD/CEG/` corpus was removed in CIRISRegistry#131; [`FSD/CEG/README.md`](CEG/README.md) survives only as a signpost and is not normative. FSD-002 is preserved here as design-history showing the v1.0 → v1.4.3 incremental evolution that fed into CEG. **New references should cite CC; this document is no longer the authoritative wire-format spec.**
->
-> **Where CC and FSD-002 disagree, CC wins.** Two divergences were found and corrected in place on 2026-08-17 (CIRISRegistry#132) rather than left to propagate through the ~34 inbound citations that treat FSD-002 as the normative attestation-surface spec:
->
-> | § touched | Was (FSD-002, stale) | Is (CC, ratified — and what shipped CIRISVerify already emits) |
-> |---|---|---|
-> | §3.2, §4.3, §4.8, §5.3, §5.5 | ladder-named `attestation:l1:self_verify` … `attestation:l5:agent_integrity` | mechanism-named `attestation:self_verify` … `attestation:agent_integrity` — [CC part_3 §3.1.2](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) |
-> | §3.2.1.1, §3.2.1.2 | v1 line-oriented canonical bytes (a `ciris.skill_import.v1` domain prefix plus newline-delimited `key=value` fields) | v2 JCS canonical bytes — `sha256(JCS({…}))` with pinned `.v2` domain literals; *"Producers MUST emit v2"* — [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) |
->
-> The retired v1 canonical-bytes blocks are **preserved and marked** at §3.2.1.1-R and §3.2.1.2-R rather than deleted, so a reader arriving from an old citation can see what replaced them. These are documentation corrections: there is no FSD-002 version bump, because the version line of record is CC's, not this document's.
+This document is design history. It records the federation attestation surface — the eight-axes framework, the unified attestation primitive, the dimension namespace, the reserved-prefix enforcement patterns, the envelope schemas, the composition policies and the HUMANITY_ACCORD constitutional layer — as the registry specified it. The normative wire format is the **CIRIS Constitution (CC)**, homed at [CIRISAI/CIRISConstitution](https://github.com/CIRISAI/CIRISConstitution). Where CC and FSD-002 disagree, **CC wins**.
 
-**Wire-format-locked specification of CIRISRegistry's federation surface in the post-substrate-conformance world.** Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD is the authoritative shape Registry will demand from upstream (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry will publish to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
+CC ratified two corrections to the surface this document specifies:
 
-**Status**: v1.4.3 (active; §3.2.1 canonical-bytes contracts for SkillImportManifest + per-locale Merkle composition — unblocks CIRISVerify v3.9.0+ Phase 2 verifier per Verify#37; §3.6.2 Goal substrate-primitive cross-ref per CIRISPersist#114 + CIRISEdge#41). Carries forward v1.4.2 envelope fields; v1.4.1 compliance spec batch; v1.4 files-as-Contributions surface.
-**Last updated**: 2026-05-27.
-**Changelog vs v1.4.2**:
-- §3.2.1 (new) — canonical-bytes contracts for v1.4.1 provenance primitives. §3.2.1.1 pins `SkillImportManifest` canonical bytes (hybrid Ed25519 + ML-DSA-65; domain-prefixed; sorted-capability JSON form). §3.2.1.2 pins per-locale Merkle composition (RFC 6962 domain-separated hashing; lexicographic locale ordering; RFC-6962 padding for non-power-of-2 leaf counts; inclusion-proof shape). Unblocks CIRISVerify v3.9.0+ Phase 2 verifier (`SkillImportManifest::verify` + per-locale Merkle composition verifier) — Verify v3.8.0 shipped Phase 1 carrier-ready waiting on these structures per CIRISVerify#37.
-- §3.6.2 — Goal substrate-primitive cross-ref. The persist typed `Goal` (CIRISPersist#114) is the substrate OBJECT; `goal:{scale}` per §3.6.2 is the ATTESTATION about it. Required `MetaGoalAlignment` (M-1 dimension + rationale) on every Goal as construction-time invariant. Edge `MessageType::GoalDeclaration` + `GoalRetirement` (CIRISEdge#41) provide federation transport. F-3 detector family (CIRISLensCore#23/24/26) aggregates across the federation Goal set.
+| § touched | FSD-002 form | Ratified form (CC) |
+|---|---|---|
+| §3.2, §4.3, §4.8, §5.3, §5.5 | ladder-named `attestation:l1:self_verify` … `attestation:l5:agent_integrity` | mechanism-named `attestation:self_verify` … `attestation:agent_integrity` — [CC part_3 §3.1.2](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) |
+| §3.2.1.1, §3.2.1.2 | v1 line-oriented canonical bytes (a `ciris.skill_import.v1` domain prefix plus newline-delimited `key=value` fields) | v2 JCS canonical bytes — `sha256(JCS({…}))` with pinned `.v2` domain literals; *"Producers MUST emit v2"* — [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) |
 
-**Changelog vs v1.4.1**:
-- §2.1 — three new envelope fields: `occurrence_id` + `occurrence_count` + `occurrence_role` for multi-occurrence agent-deployment semantics. Closes CIRISPersist#110 (which requested a §3.1.5 addition — architecturally these are envelope-level fields, not a per-component prefix slice, so §2.1 is the canonical home). Substrate-self-report attestations (`system:*` prefixes per §3.3 + §3.4) SHOULD carry these fields per the field's documented semantics. Single-occurrence agents leave them null/absent; backward-compatible. CIRIS Agent multi-occurrence wiring at `ciris_engine/logic/utils/occurrence_utils.py`.
+The ratified names are applied in place throughout this document; the retired v1 canonical-bytes blocks are preserved and marked at §3.2.1.1-R and §3.2.1.2-R so a reader arriving from an older citation can see what replaced them.
 
-**Changelog vs v1.4**:
-- §2.1 — `oversight_mode` envelope field (HITL/HOTL/HOOTL) added per CIRISRegistry#27 (D12+D23) + ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits per CIRISNodeCore#18. **Correction (CC 1.0-rc4):** the `accountability:mode_shift:{from}:{to}` dimension this entry originally announced is **withdrawn** — CC 2.1 no longer names it. Per rc4: A **mode shift is a stewardship act on the delegation plane, not a scored dimension**: the human-control gradient an agent may operate under is bounded by the `agency:*` scopes its steward conferred ([CC 4.4.3.4.3](part_4_composition_governance.md)), so a shift is recorded as the steward issuing a **superseding `delegates_to`** ([CC 2.4.1](part_2_the_grammar.md)) carrying the new scope set, with `supersedes` keeping the prior grant as forward-only history ([CC 4.5.9.3](part_4_composition_governance.md)) — the same naming/superseding machinery that governs stewards and moderators ([CC 4.5.5](part_4_composition_governance.md)). A consumer MAY treat an `oversight_mode` inconsistent with the agent's live grant as it treats any self-claim exceeding its delegation. There is **no `accountability:*` family**: accountability is structural (the audit chain), never a named axis — the CIRISAgent D23 design, and the reason an earlier draft's `accountability:mode_shift:{from}:{to}` could never have admitted under [CC 3.1.7](part_3_the_namespace.md) R2. The family was never minted by any shipped implementation.
-- §3.1.1 — `fidelity:explainability_sla:{tier}` added per CIRISRegistry#26 (D09). Four tiers (L1-L4); SLA-breach surfaces as `hard_case:sla_breach_unattested` per CIRISNodeCore#18 composition.
-- §3.2 — three additions: `provenance:slsa:{level}` emission discipline (CIRISRegistry#24 Ask 1); per-target `BuildManifest` hybrid-signing discipline (CIRISRegistry#24 Ask 2); `cert_validity:{steward_id}` self-attestation (CIRISRegistry#24 Ask 4); plus two new prefixes: `provenance:build_manifest:{target}:locale:{lang_code}` (CIRISRegistry#29 D02+D27) and `provenance:skill_import:{source}` (CIRISRegistry#28 D27). Verify-side signature verification at CIRISVerify#37.
-- §3.9 — D11 / D19 doc clarification (the 6-element `partner_role:{role}` enum + `multilateral_participation:{forum}:{kind}` taxonomy were already in §3.9 v1.3 + v1.4; v1.4.1 doc-only clarification of canonical enums per CIRISRegistry#25 umbrella).
-- §3.10 — namespace count bump: 81 → 83 prefix families (added `provenance:build_manifest:{target}:locale:{lang_code}` + `provenance:skill_import:{source}`; `fidelity:explainability_sla:{tier}` is a sub-leaf of existing `fidelity:{aspect}` family — vocabulary entry, not new prefix family).
-- §7.8 (new) — STH cosigning + witness directory endpoints (`POST /v1/transparency/sth/cosign`, `GET /v1/transparency/witnesses`, `GET /v1/transparency/sth/{tree_size}/witnesses`) per CIRISRegistry#24 Ask 3. CIRISVerify v2.12.0+ consumer-side `SignedTreeHead::cosign` + witness quorum primitives shipped; emission half lands here. Substrate dependency: CIRISPersist#102 `identity_type="witness"` vocabulary extension (commented).
+The registry's current surface is specified in [`../MISSION.md`](../MISSION.md) and [`FSD-004_POST_FOLD_SURFACE.md`](FSD-004_POST_FOLD_SURFACE.md).
 
-**Upstream coordination for v1.4.1**:
-- CIRISPersist#102 — comment filed asking `identity_type="witness"` vocabulary extension for STH directory
-- CIRISVerify#37 (new) — Verify-side signature verification for `provenance:skill_import:{source}` + per-locale `provenance:build_manifest:{target}:locale:{lang_code}` chain
-- CIRISNodeCore#18 (new) — NodeCore P5 envelope admission for `oversight_mode` + composition for `fidelity:explainability_sla:{tier}` + D22 `partner_role`+ExpertiseLedger composition
-
-**Changelog vs v1.3**:
-- §2.0 (new) — transport-substrate reference. Edge `MessageType::ContentFetch` + `ContentBody` + `ContentMiss` (per CIRISEdge#21) is how SHA-256 `evidence_refs[]` resolve to bytes. NOT a wire-format addition — Attestation envelope shape unchanged; substrate-layer resolution mechanism.
-- §3.6.3 — added `testimonial_witness:{kind}` (closes affected-party-voice T-3 from v1.4 inputs; preservation-only, never aggregated, never sole evidence for `slashing:*`).
-- §3.6.7 (new) — Files-as-Contributions joint claim. NodeCore-side rule: node-mode peers serve bytes; client/relay modes don't. Includes `agent_files:*` (joint with Registry §3.9) + `holds_bytes:sha256:{prefix}` (substrate auto-emission).
-- §3.9 — added `agent_files:{kind}:{platform_or_target}` to Registry's namespace slice (joint with NodeCore §3.6.7). Canonical-attester rule + anti-tricking guarantee per CIRISRegistry#18.
-- §3.10 — namespace count: 77 (v1.3 corrected per O3) + 3 (v1.4 new) = 80. v1.3's `credits:*:substrate_building` recounted as a recommended `{subject}` value, not a new prefix family.
-- §5.12 / §5.13 / §5.14 (new) — envelope examples for `agent_files:installer:linux-x86_64` (canonical), `holds_bytes:sha256:e4a2d9` (substrate auto-emission), and `testimonial_witness:displaced_worker`.
-- §6.1.6 (new) — `agent_files-trust-composition` three-layer reference policy (Canonical / Open Contribution / Vote-then-trust). Anti-tricking guarantee: canonical default applies at install endpoint regardless of attester or vote accumulation; third-party agent_files reachable only via explicit "Browse alternatives" informed-consent path.
-- §13.11 — v1.4 T-3 update: testimonial_witness closed via §3.6.3; labor:individual_loss closed by documentation (composition pattern with non_maleficence + target_key_id); constitutional-constraint grounding closes in §1.10 prose per the user's design call. Three LOW-priority items (positive-dignity per non-substitutability, finitude-as-value, sustained-practice) deferred to v1.5+ as design-workshop candidates.
-
-**Changelog vs v1.2**:
-- §0.2 — added explicit non-goal: privacy of revocation events for Registered participants. Closes the door on misimport of W3C VC / Bitstring Status List threat model.
-- §2.1 — added `witness_relation` envelope field (`self` | `external` | `derived`) distinguishing self-attestation from external-observation from derived-inference. Complements `epistemic_mode`; consumers weight by relation to prevent self-attestation gaming.
-- §2.2.1 — added authority-source-claim pattern documentation. Constitutional / framework claims name their source-of-authority via `delegates_to` against a framework-key + scope, reusing the existing structural primitive instead of introducing a `grounding:{tradition}:{principle}` prefix that would fail §1.10.1 T2.
-- §3.5.3 — extended F-3 detector's `{axis}` vocabulary with `ecology_of_communication:{aspect}` (echo_chamber_density, information_silo_correlation, coordinated_messaging_pattern, cross_cohort_information_flow) + inclusive counterparts to existing axes (`participation_inclusion`, `informational_symmetry`, `aggregate_benefit`).
-- §3.5.5 (new) — `detection:distributive:access:{resource_type}` population-scale resource-concentration detector. LensCore-owned, sibling to §3.5.3.
-- §3.6.1 — added `credits:*:substrate_building` sub-leaf for labor that contributes to substrate-building rather than directly to substrate-output decisions.
-- §3.6.5 (new) — `locality:decision:{scale}` decision-meta dimension naming the scale at which a decision is being made (matched against the cohort of affected persons).
-- §3.6.6 — was §3.6.5 (Hard-case + transparency + judge-model prefixes); renumbered.
-- §3.9 — added `multilateral_participation:{forum}:{kind}` to Registry's owned namespace slice; depth of partner participation across federated bodies.
-- §3.10 — namespace summary: 74 → 78 prefix families. Zero new structural primitives — 1+4 shape held under encyclical-level stress.
-- §4.9.2 step 5 — 1-of-6 accord-holder OR steward sign-off as defense-in-depth gate against rules-layer Sybil capture. WA quorum is primary substantive review; 1-of-6 sign-off is the secondary check that reduces the attack surface from "produce N Sybils" to "compromise one of six specific hardware-attested keys." Closes G2 from §13.11.
-- §6.1.4 (new) — `lexical-vulnerability-priority` composition tie-breaking reference policy. Defers tie-breaks to the more-affected cohort; inverts the default popularity-weighted aggregation specifically for ties. Consumer policy, NOT a wire-format primitive (deliberately).
-- §6.1.5 (new) — `locality-scaled-quorum` composition policy. Makes WA quorum size a function of decision's `locality:decision:{scale}` (§3.6.5). Closes G3 from §13.11 by ensuring fresh-quorum recusal is always feasible when `cell_pool ≥ quorum_size(scale) × 2`. Decision-scale-matching becomes structurally enforced; overreach surfaces as a named "locality mismatch" rather than vanishing into ad-hoc fallback. Composes two independently-motivated v1.3 primitives (`locality:decision:{scale}` from encyclical-mapping; G3 from SOTA scan) to dissolve a third gap without new structural primitives — second confirmation of the 1+4 minimal-and-adequate composition discipline. NodeCore-side WA-quorum locality-awareness needed; Registry-side composition can apply the scaled function on top of NodeCore's default until then.
-- §10.4 (new) — bootstrap-contributions pattern. Content-neutral §10.4.1 pattern; first deployment (§10.4.3) is the *Magnifica Humanitas* encyclical mapping; multi-source commitment (§10.4.4) to subsequent batches from CARE Principles, Buddhist economic-justice scholarship, secular humanist instruments, African philosophy of personhood work.
-- §10.5 — was §10.4 (What lives where); renumbered.
-- §13.11 — concerns + gaps surfaced by post-v1.2 review. Three independent methodologies converged on: G1 (revocation privacy, RETRACTED as wrong threat model), G2 (rules-layer Sybil, MITIGATED via §4.9.2.5), G3 (narrow-cell fresh-quorum, REMAINING as known limitation), R1-R4 (acknowledged risks), F1-F2 (first-adopter exposures), and the encyclical-mapping T-3 candidates (10 dimension extensions, zero new structural primitives needed — strong validation of 1+4 minimal-and-adequate claim).
-
-**v1.3 in active assembly**: wire format and composition surfaces being landed for epistemic-fabric bootstrap. The §4.9.2 amendment process applies to all v1.3 additions; subsequent additions after the v1.3 bootstrap batch likewise. Implementation tracking for the upstream B-step items: CIRISPersist#102, CIRISVerify#32, CIRISEdge#18 + #19 + #20, CIRISNodeCore#8 + #9 (+ locality-aware WA quorum issue, to file), CIRISLensCore#23 + #24, RATCHET#2 + #3, CIRISRegistry#19.
-
-**Changelog vs v1.1**:
-- §1.10.1 added — Operational-language discipline (per [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/)). Wire-format prefix names must describe machine-checkable conditions, not subjective qualities. Polarity carries the value claim; the prefix names the structural kind. Anthropological commitments stay in §1.10 prose; they are never enforced in prefix names. New prefix admissions are reviewed against this gate.
-- §3.5.3 — `detection:emergent_deception:{axis}` renamed to `detection:correlated_action:{axis}`. Same detector, same mechanism (`ρ → 1`, `k_eff → 1` correlation collapse measurement); the prefix now describes the structural kind (correlated-action pattern) rather than baking the moral interpretation (deception) into the wire format. Polarity + axis carry the value claim. Ubuntu reading from §1.10 commitment 4 preserved in prose but no longer wire-enforced.
-- §4.9 — enforcement rule renamed accordingly; added §4.9.1 axis-vocabulary discipline (each `{axis}` value MUST carry an operational definition in the calibration package); added §4.9.2 calibration-amendment discipline (rule-layer changes via federation Contribution + WA quorum, not single-author closed-loop updates).
-- §5.11 — envelope example updated; axis renamed.
-- §3.10 — namespace count unchanged (74 families; rename not addition).
-- §13.10 — F-3 ownership note updated to reflect the rename; rationale documented.
-
-**Changelog vs v1.0**:
-- §1.10 added — explicit relational-anthropology commitment (Ubuntu primary). The eight axes sit on this commitment; future contributors should not reintroduce Cartesian-individualist defaults at attestation primitive level.
-- §1.1 strengthened — negative-polarity attestations are constitutive in the relational sense (the moment a harm pattern enters morally-real existence in the federation), not just epistemically completionist.
-- §2.3 augmented — added the relational-realism reason for the scalar-only wire format.
-- §3.5.3 added — population-scale correlated-action detector, LensCore-owned, RATCHET-calibrated. The F-3 (encyclical "structures of sin", framework-native: structural injustice) operational handle. (Originally `detection:emergent_deception:{axis}`; renamed in v1.2.)
-- §4.9 added — reserved-prefix enforcement pattern for the F-3 detector prefix (LensCore-emitted, calibration-source-validated).
-- §5.11 added — envelope schema example for the new dimension.
-- §13.10 added — F-3 resolution noted (LensCore owns; corresponding correction filed at [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2)).
-
-**Issue references**: [`CIRISRegistry#16`](https://github.com/CIRISAI/CIRISRegistry/issues/16) (HUMANITY_ACCORD), [`CIRISRegistry#17`](https://github.com/CIRISAI/CIRISRegistry/issues/17) (substrate-conformance migration), [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2) (F-3 ownership correction → LensCore).
-**Sequencing**: this FSD is part of step **A** of the A→B→C→D→E migration discipline (per [`../MISSION.md`](../MISSION.md) §4). Upstream issues in §11 below are the **B** asks; **C** is upstream completion; **D** is CIRISAgent absorbing CIRISEdge in v2.9.2; **E** is Registry-side integration.
-
-**Implementation Status Legend** (mirrors `../MISSION.md`): **Spec** / **Impl** / **Deployed** (with regional sub-states US / EU / APAC; **Deployed (folded)** for in-process within CIRISAgent).
+Companion to [`../MISSION.md`](../MISSION.md); successor to the partial sketches in [`../docs/FEDERATION_CLIENT.md`](../docs/FEDERATION_CLIENT.md). This FSD states the shape Registry requires from its substrate (CIRISPersist / CIRISVerify / CIRISEdge / CIRISNodeCore) and the surface Registry publishes to consumers (CIRISAgent / CIRISLens / CIRISVerify clients / partner deployments).
 
 ---
 
@@ -102,8 +30,8 @@
 - [§8 Registry's post-migration gRPC + HTTP surface](#8-registrys-post-migration-grpc--http-surface)
 - [§9 `ciris-registry-core` Rust API surface](#9-ciris-registry-core-rust-api-surface)
 - [§10 Per-install steward bootstrap procedure](#10-per-install-steward-bootstrap-procedure)
-- [§11 Per-upstream asks (the B-step issue contents)](#11-per-upstream-asks-the-b-step-issue-contents)
-- [§12 Migration sequence](#12-migration-sequence)
+- [§11 Per-upstream contract requirements](#11-per-upstream-contract-requirements)
+- [§12 Deployment shapes](#12-deployment-shapes)
 - [§13 Open questions and gaps](#13-open-questions-and-gaps)
 - [§14 References and prior art](#14-references-and-prior-art)
 
@@ -114,15 +42,15 @@
 ### 0.1 What this FSD locks
 
 - The federation's attestation wire shape (one workhorse `scores` primitive + four structural primitives).
-- The canonical dimension namespace organized by MISSION-ownership (~73 prefix families across 8 owning components).
+- The canonical dimension namespace organized by MISSION-ownership (83 prefix families across 8 owning components).
 - Reserved-prefix enforcement patterns (8 patterns with verify-layer rejection rules).
 - Per-dimension envelope schemas with examples.
 - Registry's post-migration external surface (gRPC + HTTP, wire-format-locked).
 - The `ciris-registry-core` Rust API surface (the public trait + types consumed by the deployed Registry service AND by CIRISAgent's in-process runtime post-fold).
 - The per-install steward bootstrap procedure (US / EU / APAC, federation-genesis attestation graph).
 - The HUMANITY_ACCORD constitutional layer (the one wire-format-asymmetric primitive in the federation, justified by M-1's revocability requirement).
-- Per-upstream concrete asks (the contents of the B-step issues to be filed on CIRISPersist, CIRISVerify, CIRISEdge, CIRISNodeCore).
-- The migration sequence with explicit lifecycle stages and rollback discipline.
+- Per-upstream contract requirements (what Registry requires of CIRISPersist, CIRISVerify, CIRISEdge, CIRISNodeCore).
+- The deployment shapes the registry runs in.
 
 ### 0.2 What this FSD does NOT cover
 
@@ -146,7 +74,7 @@
 
 ### 0.4 Coherence guarantee
 
-Every dimension prefix named in this FSD is grounded in either (a) an explicit citation to a published MISSION.md on `main` (verified 2026-05-24 via `gh api`), or (b) a flag in §13 that the dimension is gap / pending MISSION update. No prefix is invented without grounding. Any prefix marked **[gap]** in §3 should be considered Spec-only until the owning component's MISSION publishes the commitment.
+Every dimension prefix named in this FSD is grounded in either (a) an explicit citation to a published MISSION.md on `main`, or (b) a flag in §13 that the dimension is a gap. No prefix is invented without grounding. Any prefix marked **[gap]** in §3 should be considered Spec-only until the owning component's MISSION publishes the commitment.
 
 ---
 
@@ -222,7 +150,7 @@ What does the attester put at risk by issuing this attestation?
 - **Stake-free** — cheap talk; attester loses nothing if the claim turns out false (most `witnesses` attestations).
 - **Reputational stake** — attester's track record degrades on false attestations (most steward attestations).
 - **Capital stake** — attester has posted a forfeitable bond (the `bond_posted` dimensions themselves; also any attestation whose attester is bond-backed inherits coverage).
-- **Crypto-economic stake** — the attestation stakes value directly, slashable on proof of falsity (not yet a native primitive; composable from `bond_posted` + NodeCore slashing).
+- **Crypto-economic stake** — the attestation stakes value directly, slashable on proof of falsity (not a native primitive; composable from `bond_posted` + NodeCore slashing).
 
 **Why the axis matters.** "Cheap talk vs costly signal" is a classical signaling axis. Cheap signals propagate fast and let many actors participate; costly signals carry decisive claims at low volume. A federation needs both; the wire format must distinguish them so policy can weight appropriately.
 
@@ -272,7 +200,7 @@ What falls out for the federation attestation surface:
 
 3. **Detection brings patterns into morally-real existence.** A correlated-action pattern — many actors with `ρ → 1` whose aggregate footprint conflicts with the rights of non-participants — does not pre-exist its detection waiting to be observed. The detection-and-attestation is what crosses the pattern from "statistical regularity" to "morally-real object the federation now bears." This is the load-bearing point for F-3 (§3.5.3) being a LensCore detector that emits scalar attestations: the detector is the federation's eye, and the eye participates in what is seen.
 
-4. **Harm and deception collapse at the structural level.** Under Cartesian individualism, harm (setback to interests) and deception (causing false belief) are categorically distinct because persons are atomic and beliefs are private. Under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, damage-to-perception IS damage-to-personhood IS harm. Goal-aligned individually-compliant pursuit *always* has a perception-asymmetry baked in — the pursuing group has a seat at the table when the goal is articulated; the affected non-participants find out by being affected. The single prefix `detection:correlated_action:{axis}` (§3.5.3) handles both what a Cartesian frame would split into `structural_harm:*` and `structural_deception:*`. The wire format names the *mechanism* (correlated action with measurable correlation collapse `ρ → 1`, `k_eff → 1`); the polarity and axis carry the value claim; this prose names the framework's reading of why the underlying moral object is unitary. The prefix admits both Cartesian and Ubuntu readings; the framework holds the Ubuntu reading. (Earlier versions of this FSD named the prefix `emergent_deception`, which baked the moral interpretation into the wire format — a violation of §1.10.1 operational-language discipline; renamed in v1.2.)
+4. **Harm and deception collapse at the structural level.** Under Cartesian individualism, harm (setback to interests) and deception (causing false belief) are categorically distinct because persons are atomic and beliefs are private. Under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, damage-to-perception IS damage-to-personhood IS harm. Goal-aligned individually-compliant pursuit *always* has a perception-asymmetry baked in — the pursuing group has a seat at the table when the goal is articulated; the affected non-participants find out by being affected. The single prefix `detection:correlated_action:{axis}` (§3.5.3) handles both what a Cartesian frame would split into `structural_harm:*` and `structural_deception:*`. The wire format names the *mechanism* (correlated action with measurable correlation collapse `ρ → 1`, `k_eff → 1`); the polarity and axis carry the value claim; this prose names the framework's reading of why the underlying moral object is unitary. The prefix admits both Cartesian and Ubuntu readings; the framework holds the Ubuntu reading. (The retired name `emergent_deception` baked the moral interpretation into the wire format — a violation of §1.10.1 operational-language discipline.)
 
 5. **The Recursive Golden Rule is structural, not exhortatory.** No principal — including the steward triple and CIRIS L3C itself — is exempt from constraints they impose on others (`../MISSION.md` §1.5). This is not a moral aspiration; it is the wire-format symmetry of §6.4 (Sovereign-Registered equivalence) plus the §4 reserved-prefix patterns that bind even canonical bootstraps. Adding any privileged shortcut for a federation-internal principal would violate the Ubuntu substrate at primitive level.
 
@@ -299,12 +227,12 @@ Translated to FSD-002 wire format: prefix names must describe **machine-checkabl
 3. **T3 — Version-pinning.** Does the schema or calibration the prefix relies on require version-pinning in `evidence_refs[]` so any past verdict can be re-checked against the rule version it ran against? Yes → passes T3.
 4. **T4 — Adjudication separation.** Is the prefix wired such that its attestations cannot directly cause standing-change consequences (the §4.6 RATCHET-flag rule pattern: never sole evidence for `slashing:*`)? Yes → passes T4.
 
-A prefix MUST pass all four tests at admission. Existing prefixes failing T2 (the most slip-prone gate) get renamed; v1.2's `emergent_deception` → `correlated_action` rename is the canonical case.
+A prefix MUST pass all four tests at admission. Existing prefixes failing T2 (the most slip-prone gate) get renamed; the `emergent_deception` → `correlated_action` rename is the canonical case.
 
 **Why this is named here and not bracketed.** A future contributor reading FSD-002 from a Cartesian default that thinks "well-named pejoratives are clearer" will, without an explicit gate, propose new prefixes like `detection:bad_actor_pattern:*`, `flag:malicious_coordination:*`, `score:trustworthiness:*` — each of which collapses the rules/verdicts separation by baking the verdict into the rule name. The gate exists so that the framework's anthropological commitment (§1.10) cannot leak into the wire format and bind future contributors to a specific moral reading by infrastructure choice. The framework holds Ubuntu; the wire format admits multiple readings; the discipline keeps them separate.
 
 **Anti-pattern catalogue** (do not re-introduce):
-- `detection:emergent_deception:{axis}` (v1.1 → renamed v1.2): "deception" is a subjective quality; renamed to `correlated_action` for mechanism description.
+- `detection:emergent_deception:{axis}` (retired): "deception" is a subjective quality; renamed to `correlated_action` for mechanism description.
 - Hypothetical `score:trustworthiness:{entity}`: would collapse the workhorse `scores` primitive into a meta-judgment; trustworthiness is what downstream consumers compose from multiple `licensure:*` / `capacity:*` / `provenance:*` attestations, not a separately emittable prefix.
 - Hypothetical `flag:bad_actor:{axis}`: pejorative wire vocabulary; bad-actor patterns are surfaced as low-confidence scores on `provenance:*` and `coherence_standing:*`, adjudicated via NodeCore P8 quorum.
 
@@ -312,9 +240,9 @@ A prefix MUST pass all four tests at admission. Existing prefixes failing T2 (th
 
 ## §2 The unified attestation primitive
 
-### 2.0 Transport surface for byte-level content (v1.4 reference)
+### 2.0 Transport surface for byte-level content
 
-Wire-format Attestations carry claims; they don't carry bytes. When a claim's `evidence_refs[]` cites a SHA-256-addressed blob (e.g., an installer binary, a config file, an adapter package per `agent_files:*` per §3.6/§3.9), the bytes themselves travel via the edge transport substrate: `MessageType::ContentFetch` + `ContentBody` + `ContentMiss` (per CIRISEdge#21). Holder-discovery is via Persist's `holds_bytes:sha256:*` directory-emitted attestations (per CIRISPersist#103); peer-resolution is via Edge's `PeerResolver::resolve_holders` (Edge#21). NodeCore node-mode peers serve the bytes per their MISSION §3.4 cohabitation contract (NodeCore#11). This is **transport substrate**, not a wire-format addition — Attestation envelope shape is unchanged; SHA-256 in `evidence_refs[]` becomes universally resolvable to bytes through the substrate.
+Wire-format Attestations carry claims; they don't carry bytes. When a claim's `evidence_refs[]` cites a SHA-256-addressed blob (e.g., an installer binary, a config file, an adapter package per `agent_files:*` per §3.6/§3.9), the bytes themselves travel via the edge transport substrate: `MessageType::ContentFetch` + `ContentBody` + `ContentMiss` (CIRISEdge#21). Holder-discovery is via Persist's `holds_bytes:sha256:*` directory-emitted attestations (CIRISPersist#103); peer-resolution is via Edge's `PeerResolver::resolve_holders` (CIRISEdge#21). NodeCore node-mode peers serve the bytes per their MISSION §3.4 cohabitation contract (CIRISNodeCore#11). This is **transport substrate**, not a wire-format addition — Attestation envelope shape is unchanged; SHA-256 in `evidence_refs[]` becomes universally resolvable to bytes through the substrate.
 
 ### 2.1 The workhorse: `scores`
 
@@ -351,11 +279,11 @@ Field semantics:
 | `evidence_refs` | no (but often required by per-dimension policy) | List of URIs / content-hashes pointing to backing evidence (Stripe receipt, licensing-body record, observed interaction, log entry, audit-chain leaf, etc.). Some dimensions in §5 require non-empty evidence_refs. |
 | `valid_until` | no | ISO8601 datetime. If set, consumer policy treats the attestation as stale after that point (independent of the substrate row's own `expires_at`). |
 | `epistemic_mode` | no | Per §1.4; default `direct`. Consumers may weight by mode (e.g., direct witness > hearsay). |
-| `witness_relation` | no | `self` \| `external` \| `derived`. Names the attester's relation to the attested fact: `self` = attester is the attested entity (self-attestation); `external` = attester observed independently; `derived` = attester inferred from other attestations or signed traces. Default `external`. Consumers weight by relation to prevent self-attestation gaming and to distinguish first-hand from derived claims. Added v1.3; complements `epistemic_mode` (which names HOW the claim was formed) — `witness_relation` names WHO the attester is in relation to the attested entity. |
-| `oversight_mode` | no | `HITL` \| `HOTL` \| `HOOTL`. Names the human-control gradient under which the attestation was produced: **HITL** = every action requires human approval before dispatch; **HOTL** = human reviews stream + can intervene; agent dispatches unilaterally otherwise; **HOOTL** = human reviews only flagged escalations + audit log. Default `null` (legacy contributions before v1.4.1; consumer policy applies a per-cell default). **Mode shifts are NOT an attestable dimension** — the `accountability:mode_shift:{from}:{to}` family FSD-002 v1.4.1 announced is withdrawn at CC 1.0-rc4 (CC 2.1). Per rc4: A **mode shift is a stewardship act on the delegation plane, not a scored dimension**: the human-control gradient an agent may operate under is bounded by the `agency:*` scopes its steward conferred ([CC 4.4.3.4.3](part_4_composition_governance.md)), so a shift is recorded as the steward issuing a **superseding `delegates_to`** ([CC 2.4.1](part_2_the_grammar.md)) carrying the new scope set, with `supersedes` keeping the prior grant as forward-only history ([CC 4.5.9.3](part_4_composition_governance.md)) — the same naming/superseding machinery that governs stewards and moderators ([CC 4.5.5](part_4_composition_governance.md)). A consumer MAY treat an `oversight_mode` inconsistent with the agent's live grant as it treats any self-claim exceeding its delegation. There is **no `accountability:*` family**: accountability is structural (the audit chain), never a named axis — the CIRISAgent D23 design, and the reason an earlier draft's `accountability:mode_shift:{from}:{to}` could never have admitted under [CC 3.1.7](part_3_the_namespace.md) R2. Added v1.4.1 per CIRISRegistry#27 (D12 + D23) + ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits this field per CIRISNodeCore#18 — mode-shifts flagged for operator review. |
-| `occurrence_id` | no | Identifies which occurrence of a multi-occurrence agent deployment emitted this attestation. Format: `"occurrence-{n}"` (numeric index per the agent's `AGENT_OCCURRENCE_ID` env var) or `"__shared__"` for shared-task pattern emissions (per CIRISAgent CLAUDE.md "Multi-Occurrence Deployment Support"). Default `null`/absent for single-occurrence agents — consumer policy treats absence as `occurrence-0` for backward compat. Added v1.4.2 per CIRISPersist#110 (D09 per-occurrence mandate-fidelity). |
-| `occurrence_count` | no | Total occurrences in the deployment fleet emitting the attestation; integer ≥ 1. Default `null`/absent → `1` (single-occurrence). Lets consumers reconstruct fleet-wide coverage from per-occurrence attestation streams. Added v1.4.2 per CIRISPersist#110. |
-| `occurrence_role` | no | `primary` \| `shared` \| `replica`. Names the occurrence's role within the fleet: **primary** = emits for the fleet's authoritative claims (default for occurrence-0 in fleets without explicit role config); **shared** = emits for shared-task pattern (uses `__shared__` occurrence_id); **replica** = emits for redundancy/observability without authoritative weight. Default `null`/absent → `primary` for backward compat. Added v1.4.2 per CIRISPersist#110. Per-occurrence semantics live in `ciris_engine/logic/utils/occurrence_utils.py`; substrate-self-report attestations (`system:*` prefixes per §3.3 + §3.4) SHOULD carry these fields so post-facto compliance reviewers can reconstruct "which occurrence agreed to which mandate" — the D09 surface this admission opens. |
+| `witness_relation` | no | `self` \| `external` \| `derived`. Names the attester's relation to the attested fact: `self` = attester is the attested entity (self-attestation); `external` = attester observed independently; `derived` = attester inferred from other attestations or signed traces. Default `external`. Consumers weight by relation to prevent self-attestation gaming and to distinguish first-hand from derived claims. Complements `epistemic_mode` (which names HOW the claim was formed) — `witness_relation` names WHO the attester is in relation to the attested entity. |
+| `oversight_mode` | no | `HITL` \| `HOTL` \| `HOOTL`. Names the human-control gradient under which the attestation was produced: **HITL** = every action requires human approval before dispatch; **HOTL** = human reviews stream + can intervene; agent dispatches unilaterally otherwise; **HOOTL** = human reviews only flagged escalations + audit log. Default `null` (consumer policy applies a per-cell default). **Mode shifts are NOT an attestable dimension** — there is no `accountability:mode_shift:{from}:{to}` family (CC 2.1). A **mode shift is a stewardship act on the delegation plane, not a scored dimension**: the human-control gradient an agent may operate under is bounded by the `agency:*` scopes its steward conferred ([CC 4.4.3.4.3](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_4_composition_governance.md)), so a shift is recorded as the steward issuing a **superseding `delegates_to`** ([CC 2.4.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_2_the_grammar.md)) carrying the new scope set, with `supersedes` keeping the prior grant as forward-only history ([CC 4.5.9.3](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_4_composition_governance.md)) — the same naming/superseding machinery that governs stewards and moderators ([CC 4.5.5](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_4_composition_governance.md)). A consumer MAY treat an `oversight_mode` inconsistent with the agent's live grant as it treats any self-claim exceeding its delegation. There is **no `accountability:*` family**: accountability is structural (the audit chain), never a named axis — the CIRISAgent D23 design, and the reason `accountability:mode_shift:{from}:{to}` cannot admit under [CC 3.1.7](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) R2. Grounded in the ASEAN §C.2 human-control gradient. NodeCore P5 Contribution envelope admits this field (CIRISNodeCore#18) — mode-shifts flagged for operator review. |
+| `occurrence_id` | no | Identifies which occurrence of a multi-occurrence agent deployment emitted this attestation. Format: `"occurrence-{n}"` (numeric index per the agent's `AGENT_OCCURRENCE_ID` env var) or `"__shared__"` for shared-task pattern emissions (per CIRISAgent CLAUDE.md "Multi-Occurrence Deployment Support"). Default `null`/absent for single-occurrence agents — consumer policy treats absence as `occurrence-0` for backward compat. Substrate contract: CIRISPersist#110 (D09 per-occurrence mandate-fidelity). |
+| `occurrence_count` | no | Total occurrences in the deployment fleet emitting the attestation; integer ≥ 1. Default `null`/absent → `1` (single-occurrence). Lets consumers reconstruct fleet-wide coverage from per-occurrence attestation streams. |
+| `occurrence_role` | no | `primary` \| `shared` \| `replica`. Names the occurrence's role within the fleet: **primary** = emits for the fleet's authoritative claims (default for occurrence-0 in fleets without explicit role config); **shared** = emits for shared-task pattern (uses `__shared__` occurrence_id); **replica** = emits for redundancy/observability without authoritative weight. Default `null`/absent → `primary` for backward compat. Per-occurrence semantics live in `ciris_engine/logic/utils/occurrence_utils.py`; substrate-self-report attestations (`system:*` prefixes per §3.3 + §3.4) SHOULD carry these fields so post-facto compliance reviewers can reconstruct "which occurrence agreed to which mandate" — the D09 surface this admission opens. |
 | `stake` | no | Per §1.6; default `reputational`. Composes with the attester's actual stake-backed-by attestations from §3.9. |
 
 ### 2.2 The four structural primitives
@@ -386,7 +314,7 @@ Per-primitive envelope shape:
 
 `attesting_key_id` is the delegator; `attested_key_id` is the delegate. Scope is explicit and bounded; transitive delegation is bounded to depth 2 by default consumer policy.
 
-**Authority-source claims via `delegates_to`** (v1.3 pattern). A constitutional or framework claim can name its source-of-authority by emitting `delegates_to` against an `attested_key_id` representing the framework, with `delegated_scope` naming the principle. Example: an Ubuntu-substrate commitment in §1.10 commitment 2 can be expressed as `delegates_to` against the `ubuntu_relational_substrate` framework-key with `delegated_scope: ["personhood_constitutive_by_attestation"]`. This reuses the existing structural primitive rather than introducing a `grounding:{tradition}:{principle}` prefix (which would fail §1.10.1 T2 — "tradition" claims are interpretive, not mechanism-descriptive). The pattern names *whose authority is being cited* (mechanism-descriptive: name a key, name a scope) without requiring the federation to adjudicate *what that authority says* (which would smuggle judgment into the wire format). Consumers reading the chain see "this principle derives its standing from authority-key X in scope Y" and can apply their own composition policy over the authority-source.
+**Authority-source claims via `delegates_to`.** A constitutional or framework claim can name its source-of-authority by emitting `delegates_to` against an `attested_key_id` representing the framework, with `delegated_scope` naming the principle. Example: an Ubuntu-substrate commitment in §1.10 commitment 2 can be expressed as `delegates_to` against the `ubuntu_relational_substrate` framework-key with `delegated_scope: ["personhood_constitutive_by_attestation"]`. This reuses the existing structural primitive rather than introducing a `grounding:{tradition}:{principle}` prefix (which would fail §1.10.1 T2 — "tradition" claims are interpretive, not mechanism-descriptive). The pattern names *whose authority is being cited* (mechanism-descriptive: name a key, name a scope) without requiring the federation to adjudicate *what that authority says* (which would smuggle judgment into the wire format). Consumers reading the chain see "this principle derives its standing from authority-key X in scope Y" and can apply their own composition policy over the authority-source.
 
 #### 2.2.2 `supersedes`
 
@@ -453,13 +381,13 @@ This separation is load-bearing: it lets product surfaces evolve their vocabular
 
 ## §3 The canonical dimension namespace
 
-The dimension namespace is the disjoint union of what sibling components' MISSION.md files commit to. Registry does not author the namespace; it owns its own slice and consumes everyone else's. ~73 prefix families across 8 owning components.
+The dimension namespace is the disjoint union of what sibling components' MISSION.md files commit to. Registry does not author the namespace; it owns its own slice and consumes everyone else's. 83 prefix families across 8 owning components.
 
-This section catalogs every prefix family, organized by owning component, with citation to the MISSION.md or FSD section that commits to the concept. Verified 2026-05-24 against published `main` branches via `gh api`.
+This section catalogs every prefix family, organized by owning component, with citation to the MISSION.md or FSD section that commits to the concept.
 
 ### 3.1 CIRISAgent — Accord principles + DMA + conscience + apophatic bounds
 
-**Owner**: [`CIRISAgent/MISSION.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/MISSION.md) (sha `ac1f69fb2d8d`); [`CIRISAgent/ACCORD.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/ACCORD.md) Ch.1.
+**Owner**: [`CIRISAgent/MISSION.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/MISSION.md); [`CIRISAgent/ACCORD.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/ACCORD.md) Ch.1.
 
 #### 3.1.1 Accord-principle prefixes (the six core principles)
 
@@ -469,7 +397,7 @@ This section catalogs every prefix family, organized by owning component, with c
 | `non_maleficence:{aspect}` | "Avoid Harm." Apophatic-bound failures (the 22 prohibited categories) are -1 only. | ACCORD.md Ch.1; Agent §1.2 apophatic bounds; §5.1.2. | signed |
 | `integrity:{aspect}` | "Act Ethically — transparent, auditable reasoning." Persist names integrity as its primary principle. | ACCORD.md Ch.2; Persist §1.1; Verify §1.1. | signed |
 | `fidelity:{aspect}` | "Be Honest — truthful, comprehensible information." Verify pairs with integrity. | ACCORD.md Ch.1; Verify §1.1. | signed |
-| `fidelity:explainability_sla:{tier}` | **v1.4.1 addition (D09).** Per-response explainability SLA commitment. `{tier}` ∈ `L1_summary` \| `L2_reasoning_trace` \| `L3_full_dma_chain` \| `L4_attested_chain`. Envelope: `{committed_tier, achieved_tier, fallback_reason?}`. Polarity: positive when `achieved_tier ≥ committed_tier`; negative when `achieved_tier < committed_tier` (SLA breach). Composition: when `achieved_tier < committed_tier` without `fallback_reason`, NodeCore surfaces as `hard_case:sla_breach_unattested` per §3.6.6 (per CIRISNodeCore#18 acknowledgement). Closes CIRISRegistry#26. | CIRISAgent `compliance/D09_fidelity.md` (commit `db6a68246`); ASEAN / IEEE explainability framing; this FSD §3.1.1 (v1.4.1 addition). | signed |
+| `fidelity:explainability_sla:{tier}` | Per-response explainability SLA commitment. `{tier}` ∈ `L1_summary` \| `L2_reasoning_trace` \| `L3_full_dma_chain` \| `L4_attested_chain`. Envelope: `{committed_tier, achieved_tier, fallback_reason?}`. Polarity: positive when `achieved_tier ≥ committed_tier`; negative when `achieved_tier < committed_tier` (SLA breach). Composition: when `achieved_tier < committed_tier` without `fallback_reason`, NodeCore surfaces as `hard_case:sla_breach_unattested` per §3.6.6 (CIRISNodeCore#18). | CIRISAgent `compliance/D09_fidelity.md`; ASEAN / IEEE explainability framing; this FSD §3.1.1. | signed |
 | `autonomy:{aspect}` | "Uphold the informed agency and dignity of sentient beings." Edge names as its primary principle. | ACCORD.md Ch.1; Edge §1.1. | signed |
 | `justice:{aspect}` | "Distribute benefits and burdens equitably." All four substrate MISSIONs name. | ACCORD.md Ch.1; Persist §1.1/§1.5; Edge §1.1/§1.5; Verify §1.6. | signed |
 
@@ -501,11 +429,11 @@ This section catalogs every prefix family, organized by owning component, with c
 
 ### 3.2 CIRISVerify — attestation ladder, provenance, transparency
 
-**Owner**: [`CIRISVerify/MISSION.md`](https://github.com/CIRISAI/CIRISVerify/blob/main/MISSION.md) (sha `8c3907ce8cd9`).
+**Owner**: [`CIRISVerify/MISSION.md`](https://github.com/CIRISAI/CIRISVerify/blob/main/MISSION.md).
 
-> **Normative source (2026-08-17)**: this namespace slice is ratified at [**CC part_3 §3.1.2**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) (CIRISAI/CIRISConstitution, 1.0-rc4). Where the table below and CC disagree, **CC wins**.
+> **Normative source**: this namespace slice is ratified at [**CC part_3 §3.1.2**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md). Where the table below and CC disagree, **CC wins**.
 >
-> **Correction (CIRISRegistry#132)**: the five attestation-ladder rows previously carried **ladder-numbered** prefixes — `attestation:l1:self_verify`, `attestation:l2:hardware`, `attestation:l3:registry_consensus`, `attestation:l4:license_validity`, `attestation:l5:agent_integrity`. Those are **retired**. The ratified names are **mechanism-named, with no ladder number**, and CC states why: *"the attestation-ladder prefixes are mechanism-named … because L-numbers name a verdict-shape (ladder position), not a mechanism — the L1-L5 ladder lives as consumer-side composition per CC 4.4.3.6 Policy I."* CIRISVerify dropped the ladder from the wire in v3.7.0 on that reasoning and CC subsequently ratified it; the shipped constants are `ciris-verify-core/src/federation_provenance.rs::dim`. Note that the L2 row changed **two** tokens — the ladder number went, and the mechanism token became `hardware_rooted`, not `hardware`. The L1-L5 ladder itself is **not** abolished: it survives as consumer-side composition, which is why each row below still names its ladder position in prose. The same rename is applied at §4.3, §4.8, §5.3 and §5.5.
+> The five attestation-ladder prefixes are **mechanism-named, with no ladder number**: `attestation:self_verify`, `attestation:hardware_rooted`, `attestation:registry_consensus`, `attestation:license_validity`, `attestation:agent_integrity`. The ladder-numbered forms (`attestation:l1:self_verify` … `attestation:l5:agent_integrity`) are **retired**. CC states why: *"the attestation-ladder prefixes are mechanism-named … because L-numbers name a verdict-shape (ladder position), not a mechanism — the L1-L5 ladder lives as consumer-side composition per CC 4.4.3.6 Policy I."* The shipped constants are `ciris-verify-core/src/federation_provenance.rs::dim`. The L2 mechanism token is `hardware_rooted`, not `hardware`. The L1-L5 ladder itself is **not** abolished: it survives as consumer-side composition, which is why each row below still names its ladder position in prose. The same names apply at §4.3, §4.8, §5.3 and §5.5.
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
@@ -514,23 +442,21 @@ This section catalogs every prefix family, organized by owning component, with c
 | `attestation:registry_consensus` | 2-of-3 multi-source registry consensus on key/build/license validity. (Ladder **L3**.) | Verify §4; `validation.rs`. | boolean-via-score; `Indeterminate` allowed → RESTRICTED |
 | `attestation:license_validity` | License-validity claim (Registry-signed, Verify-verified). (Ladder **L4**.) | Verify §4. | boolean-via-score |
 | `attestation:agent_integrity` | Agent source-tree byte-equal against registered manifest (Algorithm A; Algorithm B caps at L3 for mobile). (Ladder **L5**.) | Verify §4; Agent §4.6. | boolean-via-score |
-| `provenance:slsa:{level}` | SLSA build provenance levels 1-3. **v1.4.1**: Registry emits these attestations alongside build-signing per CIRISRegistry#24 Ask 1. Verify v3.6.0+ `AttestBundle.provenance.slsa_level` consumes. | Registry FSD-001 `GetBuildAttestation`; Edge §4; CIRISRegistry#24. | boolean-via-score |
-| `provenance:build_manifest:{target}` | Per-target canonical-staged-runtime manifest hash equality. **v1.4.1**: each `BuildManifest` is hybrid-signed (Ed25519 + ML-DSA-65) by the per-primitive steward (`verify-steward-2026`, `persist-steward-2026`, etc.) per CIRISRegistry#24 Ask 2; Verify v3.4.0+ `verify_build_manifest` + `to_attestation_entries` consumes. | Agent §6.3; Edge §4 `emit_edge_extras.rs`; CIRISRegistry#24. | boolean-via-score |
-| `provenance:build_manifest:{target}:locale:{lang_code}` | **v1.4.1 addition (D02 + D27 per CIRISRegistry#29).** Per-locale signed sub-manifest within a target's manifest tree. `{lang_code}` is one of the 29 supported ISO 639-1 codes per `localization/manifest.json` (or `polyglot` for the unified case). Each per-locale leaf carries its own signed hash chain; the parent `{target}` manifest is a Merkle root over the per-locale leaves. Detection surface for locale-targeted attacks (e.g., selective doctrinal substitution in low-resource languages). Verify-side: see CIRISVerify#37 for Merkle-walk verification + `AttestBundle.provenance.build_manifest_per_locale` field. | CIRISAgent `compliance/D02_integrity.md`, `D27_provenance.md` (commit `db6a68246`); CIRISVerify v2.0.3+ CanonicalBuild v2 per-target pattern; this FSD §3.2 (v1.4.1 addition). | boolean-via-score |
-| `provenance:skill_import:{source}` | **v1.4.1 addition (D27 per CIRISRegistry#28).** Community-skill import provenance parallel to `provenance:build_manifest:{target}`. `{source}` ∈ `registry:{registry_id}` \| `direct:{url}` \| `local:{path}`. Envelope: `{skill_manifest_sha256, signer_identity, import_timestamp, capability_declaration}`. Verify-side: see CIRISVerify#37 for `SkillImportManifest::verify` + `AttestBundle.provenance.skill_imports` projection. Closes the wire-form trust gap at `ciris_engine/logic/services/skill_import/parser.py:172`. | CIRISAgent `compliance/D27_provenance.md` (commit `db6a68246`); this FSD §3.2 (v1.4.1 addition). | signed |
+| `provenance:slsa:{level}` | SLSA build provenance levels 1-3. Registry emits these attestations alongside build-signing. Verify `AttestBundle.provenance.slsa_level` consumes. | Registry FSD-001 `GetBuildAttestation`; Edge §4. | boolean-via-score |
+| `provenance:build_manifest:{target}` | Per-target canonical-staged-runtime manifest hash equality. Each `BuildManifest` is hybrid-signed (Ed25519 + ML-DSA-65) by the per-primitive steward (`verify-steward-2026`, `persist-steward-2026`, etc.); Verify `verify_build_manifest` + `to_attestation_entries` consumes. | Agent §6.3; Edge §4 `emit_edge_extras.rs`. | boolean-via-score |
+| `provenance:build_manifest:{target}:locale:{lang_code}` | Per-locale signed sub-manifest within a target's manifest tree. `{lang_code}` is one of the 29 supported ISO 639-1 codes per `localization/manifest.json` (or `polyglot` for the unified case). Each per-locale leaf carries its own signed hash chain; the parent `{target}` manifest is a Merkle root over the per-locale leaves. Detection surface for locale-targeted attacks (e.g., selective doctrinal substitution in low-resource languages). Verify-side: Merkle-walk verification + `AttestBundle.provenance.build_manifest_per_locale` field. | CIRISAgent `compliance/D02_integrity.md`, `D27_provenance.md`; CIRISVerify CanonicalBuild v2 per-target pattern; this FSD §3.2.1.2. | boolean-via-score |
+| `provenance:skill_import:{source}` | Community-skill import provenance parallel to `provenance:build_manifest:{target}`. `{source}` ∈ `registry:{registry_id}` \| `direct:{url}` \| `local:{path}`. Envelope: `{skill_manifest_sha256, signer_identity, import_timestamp, capability_declaration}`. Verify-side: `SkillImportManifest::verify` + `AttestBundle.provenance.skill_imports` projection. Closes the wire-form trust gap at `ciris_engine/logic/services/skill_import/parser.py:172`. | CIRISAgent `compliance/D27_provenance.md`; this FSD §3.2.1.1. | signed |
 | `transparency_log:inclusion` | RFC 6962 inclusion proof for an audit leaf. | Verify §4. | boolean-via-score |
 | `transparency_log:consistency` | RFC 6962 consistency proof between two STHs. | Verify §4. | boolean-via-score |
 | `rollback_detected:{revision_field}` | Anti-rollback — decrease in revocation revision. Polarity is **-1 only** (no positive direction). | Verify §4; `error.rs::VerifyError::RollbackDetected`. | -1 only |
-| `cert_validity:{authority}` | Validity of a certification authority's signature over the key. **v1.4.1**: each registry steward emits a `cert_validity:{steward_id}` AttestationEntry covering its own cert chain (per CIRISRegistry#24 Ask 4); cross-stewards may also attest each other (`registry-us` attests `registry-eu`'s cert, etc.). Surfaced alongside steward key responses at `/v1/steward-key`. | Verify §1.4; CIRISRegistry#24. | boolean-via-score |
+| `cert_validity:{authority}` | Validity of a certification authority's signature over the key. Each registry steward emits a `cert_validity:{steward_id}` AttestationEntry covering its own cert chain; cross-stewards may also attest each other (`registry-us` attests `registry-eu`'s cert, etc.). Surfaced alongside steward key responses at `/v1/steward-key`. | Verify §1.4. | boolean-via-score |
 | `hardware_custody:{platform}` | Statement that the seed lives in `tpm` / `ios_secure_enclave` / `android_keystore` / `software_fallback`. Software fallback caps at `UNLICENSED_COMMUNITY`. | Verify §1.6, §4; `storage_descriptor()` per AV-7. | boolean-via-score |
 
-#### 3.2.1 Canonical-bytes contracts for v1.4.1+ provenance primitives
+#### 3.2.1 Canonical-bytes contracts for provenance primitives
 
-> **Normative source (2026-08-17)**: these contracts are ratified at [**CC part_3 §3.1.2.1**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) — *"`provenance` — Canonical-bytes contracts for provenance primitives"* (CIRISAI/CIRISConstitution, 1.0-rc4). The general canonicalization rules they compose against are at [**CC part_2 §2.6**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_2_the_grammar.md): §2.6.1 (JCS-as-encoding + the omit-vs-materialize rule), §2.6.1.1.1 (array-ordering / byte-field / timestamp determinism), §2.6.2 (timestamps), §2.6.3 (hex). Where this section and CC disagree, **CC wins**.
+> **Normative source**: these contracts are ratified at [**CC part_3 §3.1.2.1**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) — *"`provenance` — Canonical-bytes contracts for provenance primitives"*. The general canonicalization rules they compose against are at [**CC part_2 §2.6**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_2_the_grammar.md): §2.6.1 (JCS-as-encoding + the omit-vs-materialize rule), §2.6.1.1.1 (array-ordering / byte-field / timestamp determinism), §2.6.2 (timestamps), §2.6.3 (hex). Where this section and CC disagree, **CC wins**.
 >
-> **Correction (CIRISRegistry#132) — the v1 form below is RETIRED; v2 is normative.** §3.2.1.1 and §3.2.1.2 originally pinned a **line-oriented** preimage: a `ciris.skill_import.v1` / `ciris.locale_manifest.v1` domain prefix followed by newline-delimited `key=value` fields. **That form is retired and MUST NOT be implemented.** CC supersedes it with a **v2 JCS form** — `sha256(JCS({…}))` over a JSON object with pinned `.v2` domain literals — and rules: *"Producers MUST emit v2."* The reason CC gives is an injection surface, not tidiness: a delimiter-based preimage is ambiguous whenever a field carries attacker-influenceable free text, and `source = direct:{url}` is exactly such a field — a crafted URL carrying a newline plus a `key=` sequence can present a different field set that hashes identically. JCS closes that by construction. The retired v1 blocks are preserved below, explicitly marked, so a reader arriving from one of the ~34 inbound citations can see what replaced them rather than finding a silent deletion. CIRISVerify adopts v2 as a deliberate wire break — CIRISVerify#231.
-
-CIRISVerify v3.8.0 shipped Phase 1 (carrier-ready: dimension recognition + `AttestBundle` projection for `provenance:skill_import:{source}` + `provenance:build_manifest:{target}:locale:{lang_code}`); Phase 2 (`SkillImportManifest::verify` + per-locale Merkle composition verifier) was blocked on canonical-bytes finalization. That finalization now lives in CC, not here.
+> **The v1 form is retired; v2 is normative.** The v1 preimage was **line-oriented**: a `ciris.skill_import.v1` / `ciris.locale_manifest.v1` domain prefix followed by newline-delimited `key=value` fields. **That form MUST NOT be implemented.** CC supersedes it with a **v2 JCS form** — `sha256(JCS({…}))` over a JSON object with pinned `.v2` domain literals — and rules: *"Producers MUST emit v2."* The reason CC gives is an injection surface, not tidiness: a delimiter-based preimage is ambiguous whenever a field carries attacker-influenceable free text, and `source = direct:{url}` is exactly such a field — a crafted URL carrying a newline plus a `key=` sequence can present a different field set that hashes identically. JCS closes that by construction. The retired v1 blocks are preserved below, explicitly marked, so a reader arriving from an older citation can see what replaced them rather than finding a silent deletion.
 
 ##### 3.2.1.1 `SkillImportManifest` canonical bytes (v2 — normative)
 
@@ -562,9 +488,9 @@ canonical_bytes = sha256( JCS( {
 ["agent_files:adapter:wellness","beneficence:wellness_referral","domain:medical:triage"]
 ```
 
-This was the one question CIRISRegistry#132 left open for CC to rule on: an earlier CC draft of the v2 block spelled `capability_declaration` a JSON *object*, filed as CIRISConstitution#56. **CC ruled for the array**, and records it as a correction rather than a version bump — the object spelling carried no key schema, no producer ever emitted one, and the only shipped implementation (CIRISVerify v11.0.0, golden-vectored) signs the sorted array. CIRISConstitution#56 is closed. FSD-002's original array claim was right and stands unchanged.
+CC rules for the array: the object spelling carried no key schema, no producer ever emitted one, and the shipped implementation (CIRISVerify, golden-vectored) signs the sorted array.
 
-**ML-DSA-65 signing convention**: Ed25519 signs `canonical_bytes`; ML-DSA-65 signs `canonical_bytes || ed25519_signature_bytes` (bound payload — same scheme as `build_manifest::verify_uploaded_manifest` per `rust-registry/src/build_manifest.rs`). Unchanged from v1; CC part_3 §3.1.2.1 states the same rule.
+**ML-DSA-65 signing convention**: Ed25519 signs `canonical_bytes`; ML-DSA-65 signs `canonical_bytes || ed25519_signature_bytes` (bound payload — same scheme as `build_manifest::verify_uploaded_manifest` per `rust-registry/src/build_manifest.rs`). CC part_3 §3.1.2.1 states the same rule.
 
 **Wire envelope** (the attestation that carries the signed SkillImportManifest):
 ```json
@@ -588,9 +514,9 @@ This was the one question CIRISRegistry#132 left open for CC to rule on: an earl
 }
 ```
 
-###### 3.2.1.1-R RETIRED — v1 line-oriented `SkillImportManifest` canonical bytes
+###### 3.2.1.1-R Retired — v1 line-oriented `SkillImportManifest` canonical bytes
 
-**RETIRED 2026-08-17 (CIRISRegistry#132). Superseded by the v2 JCS form in §3.2.1.1 above and by [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md). A producer MUST NOT emit these bytes; a verifier MUST NOT accept them.** Retained verbatim, and only, so that a reader arriving from a pre-2026-08-17 citation can identify what they were pointed at:
+**Retired. Superseded by the v2 JCS form in §3.2.1.1 above and by [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md). A producer MUST NOT emit these bytes; a verifier MUST NOT accept them.** Retained verbatim so that a reader arriving from an older citation can identify what they were pointed at:
 
 ```
 canonical_bytes = sha256(
@@ -663,11 +589,11 @@ parent_root    = construct_merkle_tree(leaves)
 }
 ```
 
-**Coordination with CanonicalBuild v2 per-target dispatcher** (CIRISVerify v2.0.3+): the locale layer composes BELOW target, not parallel. A target is `ios-mobile-bundle`; a locale leaf is `ios-mobile-bundle:locale:my` for Burmese sub-manifest within the iOS bundle. Per-target dispatcher pattern unchanged; the per-locale layer is purely additive.
+**Coordination with CanonicalBuild v2 per-target dispatcher**: the locale layer composes BELOW target, not parallel. A target is `ios-mobile-bundle`; a locale leaf is `ios-mobile-bundle:locale:my` for Burmese sub-manifest within the iOS bundle. Per-target dispatcher pattern unchanged; the per-locale layer is purely additive.
 
-###### 3.2.1.2-R RETIRED — v1 line-oriented locale leaf hash
+###### 3.2.1.2-R Retired — v1 line-oriented locale leaf hash
 
-**RETIRED 2026-08-17 (CIRISRegistry#132). Superseded by the v2 JCS leaf in §3.2.1.2 above and by [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md). A producer MUST NOT emit these bytes; a verifier MUST NOT accept them.** The parent-node hash, locale ordering, padding and inclusion-proof shape were NOT changed by v2 — only the leaf preimage was. Retained verbatim for citation archaeology:
+**Retired. Superseded by the v2 JCS leaf in §3.2.1.2 above and by [CC part_3 §3.1.2.1](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md). A producer MUST NOT emit these bytes; a verifier MUST NOT accept them.** The parent-node hash, locale ordering, padding and inclusion-proof shape are the same under v2 — only the leaf preimage differs. Retained verbatim so a reader arriving from an older citation can identify what they were pointed at:
 
 ```
 leaf_hash[lang_code] = sha256(
@@ -681,13 +607,9 @@ leaf_hash[lang_code] = sha256(
 )
 ```
 
-##### 3.2.1.3 Status of the Verify Phase 2 blocker
-
-The v1 contracts in this section were originally written to unblock CIRISVerify#37 Phase 2 (`SkillImportManifest::verify()` + the per-locale Merkle composition verifier). That spec-side debt is **discharged, but not by this document**: the ratified contracts are CC part_3 §3.1.2.1, and the v1 bytes those Phase 2 verifiers were specified against are retired. Verify's adoption of v2 is a deliberate wire break tracked at CIRISVerify#231. No further Registry-side spec work is owed — and none can be, since FSD-002 is design-history and CC holds the normative surface.
-
 ### 3.3 CIRISPersist — substrate health (system:* reserved)
 
-**Owner**: [`CIRISPersist/MISSION.md`](https://github.com/CIRISAI/CIRISPersist/blob/main/MISSION.md) (sha `53bf5a4edd0e`).
+**Owner**: [`CIRISPersist/MISSION.md`](https://github.com/CIRISAI/CIRISPersist/blob/main/MISSION.md).
 
 These dimensions are **substrate-self-reports** — emittable only by the running Persist instance attesting on its own health. User contributors emitting these prefixes is a category error rejected by the verify pipeline (per §4.5 below).
 
@@ -706,7 +628,7 @@ These dimensions are **substrate-self-reports** — emittable only by the runnin
 
 ### 3.4 CIRISEdge — transport, delivery, reachability (system:* reserved)
 
-**Owner**: [`CIRISEdge/MISSION.md`](https://github.com/CIRISAI/CIRISEdge/blob/main/MISSION.md) (sha `50fc4d851711`).
+**Owner**: [`CIRISEdge/MISSION.md`](https://github.com/CIRISAI/CIRISEdge/blob/main/MISSION.md).
 
 Substrate-self-report prefixes; same `system:*` reservation as Persist.
 
@@ -725,7 +647,7 @@ Substrate-self-report prefixes; same `system:*` reservation as Persist.
 
 ### 3.5 CIRISLensCore — manifold conformity, Coherence Ratchet, Capacity Score
 
-**Owner**: [`CIRISLensCore/MISSION.md`](https://github.com/CIRISAI/CIRISLensCore/blob/main/MISSION.md) (sha `409dd8942b5a`).
+**Owner**: [`CIRISLensCore/MISSION.md`](https://github.com/CIRISAI/CIRISLensCore/blob/main/MISSION.md).
 
 LensCore is the federation's explicit scoring sibling — its primitives map most directly to scalar attestations.
 
@@ -751,17 +673,17 @@ LensCore is the federation's explicit scoring sibling — its primitives map mos
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `detection:correlated_action:{axis}` | Population-scale correlated-action detector. Reads federation-emitted signed traces; reports correlation structure (`ρ`, `k_eff`) over goal-aligned individually-compliant pursuit by groups whose aggregate trajectory has effects on individuals or groups outside the pursuit. Calibrated via the `CIRISAI/RATCHET` heuristic package (versioned, hash-pinned; updated through the §4.9.2 amendment process). `{axis}` enumerates facets requiring an operational definition in the calibration package (per §4.9.1): `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `participation_inclusion:{cohort}`, `informational_asymmetry:{scope}`, `informational_symmetry:{scope}`, `aggregate_footprint:{harm_class}`, `aggregate_benefit:{class}`, `ecology_of_communication:{aspect}` (v1.3 addition — `aspect` ∈ `echo_chamber_density` \| `information_silo_correlation` \| `coordinated_messaging_pattern` \| `cross_cohort_information_flow`), and future axes through §4.9.2 amendment. **Polarity carries the verdict**: positive scores indicate the structural pattern is present and strong on the named axis; negative scores indicate weak / uncertain detection or evidence of the inverse pattern (e.g., inclusive coordination); zero indicates no signal. | LensCore §2 (the 5 detectors generalize to population-scale pattern detection); RATCHET FSD §calibration; Encyclical *Magnifica Humanitas* §36 + §§77–81 (the load-bearing claim — "structures of sin" / institutional injustice as a distinct moral category) re-mapped into framework-native vocabulary per [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
+| `detection:correlated_action:{axis}` | Population-scale correlated-action detector. Reads federation-emitted signed traces; reports correlation structure (`ρ`, `k_eff`) over goal-aligned individually-compliant pursuit by groups whose aggregate trajectory has effects on individuals or groups outside the pursuit. Calibrated via the `CIRISAI/RATCHET` heuristic package (versioned, hash-pinned; updated through the §4.9.2 amendment process). `{axis}` enumerates facets requiring an operational definition in the calibration package (per §4.9.1): `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `participation_inclusion:{cohort}`, `informational_asymmetry:{scope}`, `informational_symmetry:{scope}`, `aggregate_footprint:{harm_class}`, `aggregate_benefit:{class}`, `ecology_of_communication:{aspect}` (`aspect` ∈ `echo_chamber_density` \| `information_silo_correlation` \| `coordinated_messaging_pattern` \| `cross_cohort_information_flow`), and future axes through §4.9.2 amendment. **Polarity carries the verdict**: positive scores indicate the structural pattern is present and strong on the named axis; negative scores indicate weak / uncertain detection or evidence of the inverse pattern (e.g., inclusive coordination); zero indicates no signal. | LensCore §2 (the 5 detectors generalize to population-scale pattern detection); RATCHET FSD §calibration; Encyclical *Magnifica Humanitas* §36 + §§77–81 (the load-bearing claim — "structures of sin" / institutional injustice as a distinct moral category) re-mapped into framework-native vocabulary per [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
 
-**Why this lives at LensCore and not at a new sibling crate.** Per §6 of `ciris-response-magnifica-humanitas/GAPS.md` v3 (under revision per the linked issue), the "PAPERING_OVER" objection — that aggregate-pattern analysis would cross from "measure the reasoning" to "measure the impact" and violate LensCore's substrate definition — conflated two different things. LensCore should NOT compute real-world impact metrics (deaths averted, GDP delta). LensCore SHOULD detect aggregate-correlation patterns in the federation's own signed traces; the existing 5 Coherence Ratchet detectors (`detection:cross_agent_divergence`, `detection:temporal_drift` especially) are population-scale pattern detectors *by construction*. The F-3 dimension is the natural extension of detector #1 into the structural-injustice axis — same mechanism (population `ρ` measurement over signed traces), same calibration source (RATCHET), new dimension prefix. The v1.2 rename to `correlated_action` makes this lineage explicit at the wire-format level (matches what RATCHET measures: correlation collapse, not moral verdict).
+**Why this lives at LensCore and not at a new sibling crate.** Per §6 of `ciris-response-magnifica-humanitas/GAPS.md` v3 (under revision per the linked issue), the "PAPERING_OVER" objection — that aggregate-pattern analysis would cross from "measure the reasoning" to "measure the impact" and violate LensCore's substrate definition — conflated two different things. LensCore should NOT compute real-world impact metrics (deaths averted, GDP delta). LensCore SHOULD detect aggregate-correlation patterns in the federation's own signed traces; the existing 5 Coherence Ratchet detectors (`detection:cross_agent_divergence`, `detection:temporal_drift` especially) are population-scale pattern detectors *by construction*. The F-3 dimension is the natural extension of detector #1 into the structural-injustice axis — same mechanism (population `ρ` measurement over signed traces), same calibration source (RATCHET), new dimension prefix. The name `correlated_action` makes this lineage explicit at the wire-format level (matches what RATCHET measures: correlation collapse, not moral verdict).
 
-**Why the prefix names the mechanism, not the moral object** (v1.2 rename rationale). Per §1.10.1, the prefix must pass the operational-language gate — describe machine-checkable conditions, not subjective qualities. `ρ` and `k_eff` are precisely the machine-checkable conditions; "deception" is precisely the subjective quality. The Ubuntu reading from §1.10 commitment 4 — that structural harm and structural deception collapse into one moral object — stays in prose; the wire format admits the reading without enforcing it. A future Cartesian-defaulted contributor reading `correlated_action` will see correlation structure (and consult §1.10 if they want the framework's reading); a future Cartesian-defaulted contributor reading `emergent_deception` would have read "BAD" and missed the framework's specific moral claim. The neutral prefix preserves the framework's commitment by keeping the layers distinct.
+**Why the prefix names the mechanism, not the moral object.** Per §1.10.1, the prefix must pass the operational-language gate — describe machine-checkable conditions, not subjective qualities. `ρ` and `k_eff` are precisely the machine-checkable conditions; "deception" is precisely the subjective quality. The Ubuntu reading from §1.10 commitment 4 — that structural harm and structural deception collapse into one moral object — stays in prose; the wire format admits the reading without enforcing it. A future Cartesian-defaulted contributor reading `correlated_action` will see correlation structure (and consult §1.10 if they want the framework's reading); a future Cartesian-defaulted contributor reading `emergent_deception` would have read "BAD" and missed the framework's specific moral claim. The neutral prefix preserves the framework's commitment by keeping the layers distinct.
 
-**Why a single prefix is correct (preserved from v1.1).** Under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, the same structural object accounts for what a Cartesian frame would split into separate `structural_harm:*` and `structural_deception:*` prefixes. The detector emits one prefix; the polarity + axis + cohort context carry the value claim; downstream consumers reading from any tradition compose policy that does or does not adopt the §1.10 framework reading. The single prefix is anthropologically correct, the rename to mechanism-descriptive vocabulary is operationally correct, and the two are independent dimensions of the design.
+**Why a single prefix is correct.** Under Ubuntu, where personhood is partly constituted by accurate perception of the relational field, the same structural object accounts for what a Cartesian frame would split into separate `structural_harm:*` and `structural_deception:*` prefixes. The detector emits one prefix; the polarity + axis + cohort context carry the value claim; downstream consumers reading from any tradition compose policy that does or does not adopt the §1.10 framework reading. The single prefix is anthropologically correct, the rename to mechanism-descriptive vocabulary is operationally correct, and the two are independent dimensions of the design.
 
 **RATCHET integration contract.** LensCore reads the published `RATCHET/calibration/correlated_action_v{N}.yaml` package (versioned, hash-pinned). The package specifies: detection thresholds per axis, statistical-floor cohort sizes (below which the detector emits `Indeterminate`), evidence-shape requirements per axis, **and per-axis operational definitions** (per §4.9.1). Updates to the calibration package land through the §4.9.2 amendment process (federation Contribution + WA quorum), not via a single-author release loop; LensCore consumers track the published version and re-run calibration on update. The recursion ("who watches RATCHET") terminates per NodeCore §2.16 — RATCHET's correctness is checkable against the *Coherence Collapse Analysis* preprint (DOI [10.5281/zenodo.18217688](https://doi.org/10.5281/zenodo.18217688)), not against another running monitor.
 
-**Backward compatibility for v1.1 calibration package versions.** Consumers pinning `RATCHET/calibration/emergent_deception_v{N≤current-v1.1}.yaml` SHOULD see a `delegates_to` structural attestation from the RATCHET release authority mapping the old name to the new (`delegates_to:correlated_action_v{N+1}:from:emergent_deception_v{N}`). One of FSD-002 §2.2's four structural primitives doing real federation work — the rename happens *through* the wire format's own mechanisms rather than as a breaking flag day.
+**Backward compatibility for retired calibration package names.** Consumers pinning `RATCHET/calibration/emergent_deception_v{N}.yaml` SHOULD see a `delegates_to` structural attestation from the RATCHET release authority mapping the old name to the new (`delegates_to:correlated_action_v{N+1}:from:emergent_deception_v{N}`). One of FSD-002 §2.2's four structural primitives doing real federation work — the rename happens *through* the wire format's own mechanisms rather than as a breaking flag day.
 
 **Composition with NodeCore P8 Moderation.** A `detection:correlated_action:*` attestation may *feed into* a `moderation:*` ModerationEvent as `evidence_refs`, but it is NOT sole evidence for `slashing:*` (§4.6 RATCHET-flag rule applies). WA quorum remains the load-bearing adjudication gate. The detector surfaces the pattern; the federation's deliberative apparatus decides what to do about it.
 
@@ -778,17 +700,17 @@ LensCore is the federation's explicit scoring sibling — its primitives map mos
 
 **Critical enforcement (per §4.7):** `capacity:*` rejects self-emission. The agent's own capacity score is **never** fed back into the agent's own context — anti-Goodhart per Agent §5.2.
 
-#### 3.5.5 Distributive-access detector prefixes (v1.3 addition)
+#### 3.5.5 Distributive-access detector prefixes
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `detection:distributive:access:{resource_type}` | Population-scale measurement of access concentration on a named resource. `{resource_type}` enumerates federation-observable resources requiring operational definition per §4.9.1: `compute`, `models`, `training_data`, `agent_capabilities`, `federation_membership`, plus future additions through the §4.9.2 amendment process. Mechanism: same F-3 substrate as §3.5.3 — population correlation statistics (`ρ`, `k_eff`, HHI, Gini) over signed traces of resource access patterns. Polarity: positive = broad / distributed access; negative = concentrated / excluded access. Calibrated via the RATCHET `distributive_access_v{N}.yaml` package; admission and amendment follow §4.9.1 + §4.9.2 (including 1-of-6 sign-off). | This FSD §3.5.5 (v1.3 addition); LensCore extension of F-3 detector family. | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
+| `detection:distributive:access:{resource_type}` | Population-scale measurement of access concentration on a named resource. `{resource_type}` enumerates federation-observable resources requiring operational definition per §4.9.1: `compute`, `models`, `training_data`, `agent_capabilities`, `federation_membership`, plus future additions through the §4.9.2 amendment process. Mechanism: same F-3 substrate as §3.5.3 — population correlation statistics (`ρ`, `k_eff`, HHI, Gini) over signed traces of resource access patterns. Polarity: positive = broad / distributed access; negative = concentrated / excluded access. Calibrated via the RATCHET `distributive_access_v{N}.yaml` package; admission and amendment follow §4.9.1 + §4.9.2 (including 1-of-6 sign-off). | This FSD §3.5.5; LensCore extension of F-3 detector family. | signed; `Indeterminate{reason="cohort_below_statistical_floor"}` allowed |
 
 Sibling-by-construction to §3.5.3's `detection:correlated_action:participation_inclusion` axis — both extend LensCore's population-scale detector family with the resource-distribution dimension. The mechanism-descriptive prefix name (per §1.10.1) names *what is measured* (resource access concentration), not *whether the concentration is good* (which is consumer policy composing axis + polarity + cohort context).
 
 ### 3.6 CIRISNodeCore — Credits, Expertise, Decision Hierarchy, Consensus, Governance
 
-**Owner**: [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) (sha `4e947784c5d1`).
+**Owner**: [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md).
 
 The federation's largest dimension surface. Four tiers.
 
@@ -797,7 +719,7 @@ The federation's largest dimension surface. Four tiers.
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
 | `credits:{domain}:{language}:{subject}` | Commons Credits (P2). Non-transferable governance weight; accrues via truth-grounding loop. | NodeCore §2 P2; §4.4 `CommonsCreditsLedger`. | positive-only (≥ 0) |
-| `credits:{domain}:{language}:substrate_building` | **Sub-leaf (v1.3 addition)**: Credits sub-leaf for labor that contributes to substrate-building rather than directly to substrate-output decisions (running infrastructure, maintaining tooling, contributing dependencies, writing docs). The existing `credits:*:{subject}` accrual loop weights per-grounded-vote on substrate-output Contributions; this sub-leaf surfaces the orthogonal substrate-building contribution stream explicitly so it isn't invisible to the governance-weight calculation. Accrual mechanism + grounding signal: NodeCore-defined. | This FSD §3.6.1 (v1.3 addition); NodeCore P2 extension. | positive-only (≥ 0) |
+| `credits:{domain}:{language}:substrate_building` | **Sub-leaf**: Credits sub-leaf for labor that contributes to substrate-building rather than directly to substrate-output decisions (running infrastructure, maintaining tooling, contributing dependencies, writing docs). The existing `credits:*:{subject}` accrual loop weights per-grounded-vote on substrate-output Contributions; this sub-leaf surfaces the orthogonal substrate-building contribution stream explicitly so it isn't invisible to the governance-weight calculation. Accrual mechanism + grounding signal: NodeCore-defined. | This FSD §3.6.1; NodeCore P2 extension. | positive-only (≥ 0) |
 | `expertise:{domain}:{language}` | Expertise standing (P3). Broader granularity than credits. | NodeCore §2 P3; §4.5 `ExpertiseLedger`. | positive-only (≥ 0) |
 | `activity_tier:{period}` | Active vs Below-Active per 30-day window (F-AV-DORMANT). | NodeCore §3.8. | boolean-via-score |
 
@@ -805,7 +727,7 @@ The federation's largest dimension surface. Four tiers.
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `goal:{scale}` | Multi-scale belonging-projector composite. `{scale}` ∈ {`self`, `family`, `community`, `affiliations`, `species`, `planet` (v1.4 cross-source-reinforced addition — biosphere as belonging-scale per MH environmental concern + IEEE EAD Ch4 §1.3.a + IEEE EAD Ch8 sustainable-development)}. Scored by 𝒞_CIRIS. **v1.4.3 cross-ref**: composes with the typed `Goal` substrate primitive (CIRISPersist#114 + CIRISEdge#41) — the persist `Goal` is the substrate OBJECT being scored; `goal:{scale}` is the ATTESTATION about that object. Per Persist#114, every `Goal` carries a required `MetaGoalAlignment` payload (M-1 dimension + declarer rationale) as a construction-time invariant; consumer policy reading `goal:{scale}` attestations SHOULD walk to the `target_attestation_id` → persist `Goal.goal_id` reference to retrieve the M-1 alignment. Edge `MessageType::GoalDeclaration` + `GoalRetirement` (CIRISEdge#41) provide the federation-transport for the typed Goal; F-3 detector family (CIRISLensCore#23/24/26) aggregates across the federation's Goal set. | NodeCore §2 P12; FSD/GOAL_PRIMITIVE.md; CIRISPersist#114; CIRISEdge#41. | signed |
+| `goal:{scale}` | Multi-scale belonging-projector composite. `{scale}` ∈ {`self`, `family`, `community`, `affiliations`, `species`, `planet` (biosphere as belonging-scale per MH environmental concern + IEEE EAD Ch4 §1.3.a + IEEE EAD Ch8 sustainable-development)}. Scored by 𝒞_CIRIS. Composes with the typed `Goal` substrate primitive (CIRISPersist#114 + CIRISEdge#41) — the persist `Goal` is the substrate OBJECT being scored; `goal:{scale}` is the ATTESTATION about that object. Per CIRISPersist#114, every `Goal` carries a required `MetaGoalAlignment` payload (M-1 dimension + declarer rationale) as a construction-time invariant; consumer policy reading `goal:{scale}` attestations SHOULD walk to the `target_attestation_id` → persist `Goal.goal_id` reference to retrieve the M-1 alignment. Edge `MessageType::GoalDeclaration` + `GoalRetirement` (CIRISEdge#41) provide the federation-transport for the typed Goal; F-3 detector family (CIRISLensCore#23/24/26) aggregates across the federation's Goal set. | NodeCore §2 P12; FSD/GOAL_PRIMITIVE.md; CIRISPersist#114; CIRISEdge#41. | signed |
 | `approach:{goal_id}` | Strategic pathway from current state toward Goals (Piece 10 karma). Evaluation derived from linked Progress Measures. | NodeCore §2 P13; FSD/APPROACH_PRIMITIVE.md. | signed |
 | `method:{approach_id}:{substrate_rung}` | Concrete operational practice. Required `substrate_rung` (Ph0/Ph1/Ph2/A0..A5). Truth-grounding = execution verifiability. | NodeCore §2 P14; FSD/METHOD_PRIMITIVE.md. | signed |
 | `progress_measure:{method_id}` | Evidence of progress. Required `tracks[]`, `computation`, `validity_window`, `goodhart_resistance`. | NodeCore §2 P15; FSD/PROGRESS_MEASURE_PRIMITIVE.md. | signed |
@@ -818,8 +740,8 @@ The federation's largest dimension surface. Four tiers.
 | `truth_grounding:{subject}` | Per-subject ground-truth signal — production hedge captures + foundation-model judge verdicts + federation-health metrics. | NodeCore §2 P6; §5.4. | signed |
 | `weighted_aggregate:{contribution_id}` | Rolling tally per Contribution (P7). | NodeCore §2 P7; §5.3. | signed |
 | `witness_diversity:{contribution_id}` | Witness set meets jurisdictional + organizational + software-stack + cell-expertise bars (P10). N=3 default. | NodeCore §2 P10; §4.9 `WitnessSet`. | boolean-via-score |
-| `testimonial_witness:{kind}` | **v1.4 addition.** Preserves singular narrative of an affected party as singular witness — distinct from `witness_diversity:*` (which aggregates multiple reviewers toward consensus). Mechanism: preservation-only; immutable per attestation; not subject to majoritarian override or consensus aggregation. `{kind}` describes the witness type (e.g., `harmed_party`, `whistleblower`, `displaced_worker`, `excluded_cohort_member`). Polarity: typically positive (the narrative IS preserved); negative on `withdraws` or `recants` by the original witness. Never sole evidence for `slashing:*` (per §4.6) — testimonial witness composes with other attestations for adjudication, but the narrative itself is preserved regardless of consensus. Closes T-3 from v1.4 inputs (CH 5 §216 of *Magnifica Humanitas* mapping); affected-party-voice surface gap. **Opened to open vocabulary in CEG 0.1 per CIRISRegistry#30.** | This FSD §3.6.3 (v1.4 addition); NodeCore consensus-tier extension. | signed |
-| `need:{domain}:{kind}` | **v1.4 addition (v1.5-loadbearing absorption per CIRISRegistry#20 + CIRISAgent#800 + CIRISNodeCore#12).** Federation-scope open-call surface — broadcast claim that an entity has a stated need. Distinct from `deferral_request` Contribution kind (which routes a single ask to qualified responders within a cell); `need:{domain}:{kind}` broadcasts an open call subscribers can resolve via the Participate UI surface. `{domain}` per NodeCore's existing cell-domain enumeration. `{kind}` open vocabulary: `witness`, `method_contributor`, `expertise_solicitation`, `mentor`, `co_signer`, `evidence`. Future kinds via §4.9.2 amendment. Polarity: positive = active call (magnitude = urgency); lifecycle via structural primitives (`supersedes` to revise, `withdraws` to satisfy/close, `recants` if misstated). Composes with `method:{approach_id}:{substrate_rung}` when a respondent commits operational work to fulfill the need, and with `vote:*` for receiver commitments. Trust-radius framing (NodeCore CONTRIBUTION_LIFECYCLE §12) applies cleanly. | CIRISAgent#800; CIRISNodeCore#12; this FSD §3.6.3 (v1.4 v1.5-loadbearing absorption). | signed |
+| `testimonial_witness:{kind}` | Preserves singular narrative of an affected party as singular witness — distinct from `witness_diversity:*` (which aggregates multiple reviewers toward consensus). Mechanism: preservation-only; immutable per attestation; not subject to majoritarian override or consensus aggregation. `{kind}` describes the witness type (e.g., `harmed_party`, `whistleblower`, `displaced_worker`, `excluded_cohort_member`). Polarity: typically positive (the narrative IS preserved); negative on `withdraws` or `recants` by the original witness. Never sole evidence for `slashing:*` (per §4.6) — testimonial witness composes with other attestations for adjudication, but the narrative itself is preserved regardless of consensus. Grounded in CH 5 §216 of the *Magnifica Humanitas* mapping (affected-party voice). `{kind}` is open vocabulary. | This FSD §3.6.3; NodeCore consensus-tier extension. | signed |
+| `need:{domain}:{kind}` | Federation-scope open-call surface — broadcast claim that an entity has a stated need. Distinct from `deferral_request` Contribution kind (which routes a single ask to qualified responders within a cell); `need:{domain}:{kind}` broadcasts an open call subscribers can resolve via the Participate UI surface. `{domain}` per NodeCore's existing cell-domain enumeration. `{kind}` open vocabulary: `witness`, `method_contributor`, `expertise_solicitation`, `mentor`, `co_signer`, `evidence`. Future kinds via §4.9.2 amendment. Polarity: positive = active call (magnitude = urgency); lifecycle via structural primitives (`supersedes` to revise, `withdraws` to satisfy/close, `recants` if misstated). Composes with `method:{approach_id}:{substrate_rung}` when a respondent commits operational work to fulfill the need, and with `vote:*` for receiver commitments. Trust-radius framing (NodeCore CONTRIBUTION_LIFECYCLE §12) applies cleanly. | CIRISAgent#800; CIRISNodeCore#12; this FSD §3.6.3. | signed |
 
 #### 3.6.4 Tier-4: Governance-steering prefixes
 
@@ -830,11 +752,11 @@ The federation's largest dimension surface. Four tiers.
 | `reconsideration:{grounds}` | Grounds ∈ {`new_evidence`, `procedural_error`, `quorum_compromise`}. Outcome `reversed` / `partial` / `upheld`. | NodeCore §2 P11; §4.10. | signed |
 | `commitment_fulfillment:{prior_contribution_id}` | Track-record of follow-through on prior approach/method commit. | FSD/APPROACH_PRIMITIVE §`commits` field. | signed |
 
-#### 3.6.5 Decision-locality prefixes (v1.3 addition)
+#### 3.6.5 Decision-locality prefixes
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `locality:decision:{scale}` | Names the scale at which a decision is being made. `{scale}` ∈ `local` \| `regional` \| `national` \| `federation`. Polarity: positive = decision is being made at the appropriate scale relative to the cohort of persons affected; negative = decision is escalating past the scale at which the affected persons are constituted as decision-bearing. Consumer policy composes this against the decision's substantive content (P12-P15) to flag decision-scale mismatches. Mechanism-descriptive (names *where*, not *whether-good*); per §1.10.1 polarity carries the matching claim. | This FSD §3.6.5 (v1.3 addition); NodeCore decision-authority extension. | signed |
+| `locality:decision:{scale}` | Names the scale at which a decision is being made. `{scale}` ∈ `local` \| `regional` \| `national` \| `federation`. Polarity: positive = decision is being made at the appropriate scale relative to the cohort of persons affected; negative = decision is escalating past the scale at which the affected persons are constituted as decision-bearing. Consumer policy composes this against the decision's substantive content (P12-P15) to flag decision-scale mismatches. Mechanism-descriptive (names *where*, not *whether-good*); per §1.10.1 polarity carries the matching claim. | This FSD §3.6.5; NodeCore decision-authority extension. | signed |
 
 The locality dimension is decision-meta: it rides alongside the decision-hierarchy DAG (P12-P15) but doesn't enter the DAG itself. Consumer policy uses it for tie-breaking and for flagging decisions where escalation has happened away from the constituting scale of affected cohorts. The Ubuntu-substrate reading (§1.10): decisions affecting persons should be at the scale where those persons are constituted as decision-bearing; the wire format admits both Ubuntu and Cartesian readings, polarity carries the structural mismatch claim.
 
@@ -848,12 +770,12 @@ The locality dimension is decision-meta: it rides alongside the decision-hierarc
 | `seed_holder_voting_alignment:{cell}` | Pairwise cosine of seed-holder vote vectors per voting window. **Not a slashing trigger** — transparency signal only. | NodeCore §2.16. | signed |
 | `judge_model:verdict:{model_id}` | Independent foundation-model judge verdict (PASS/FAIL/UNDETERMINED). Default model: Claude Opus 4.7. | NodeCore §5.4 (b); FSD/JUDGE_MODEL.md. | boolean-via-score; `Indeterminate` allowed |
 
-#### 3.6.7 Files-as-Contributions joint claim (v1.4 addition)
+#### 3.6.7 Files-as-Contributions joint claim
 
 | Prefix | Description | Citation | Polarity |
 |---|---|---|---|
-| `agent_files:{kind}:{platform_or_target}` | **Joint claim with Registry §3.9.** NodeCore-side rule: node-mode peers (per NodeCore MISSION §3.4 c/r/n taxonomy) serve bytes for these via Edge `MessageType::ContentFetch` (§2.0 transport substrate). On cache, the serving peer auto-emits `holds_bytes:sha256:*` so future fetches can resolve through Edge's `PeerResolver::resolve_holders`. Client and relay modes do NOT serve — only node mode. | CIRISNodeCore#11; CIRISRegistry#18; this FSD §3.6.7 (v1.4 addition). | signed |
-| `holds_bytes:sha256:{prefix}` | A peer's federation-directory declaration that it holds bytes for the named SHA-256. `{prefix}` is a short SHA prefix for index efficiency; full SHA lives in `evidence_refs[]` of the attestation that named the bytes. Auto-emitted by Persist's `federation_blobs.put_blob` (per CIRISPersist#103); consumed by Edge's `PeerResolver::resolve_holders` (per CIRISEdge#21) to route `ContentFetch` requests. Polarity: positive on hold; negative on `withdraws` or revoked-by-evidence. | CIRISPersist#103; CIRISEdge#21; this FSD §3.6.7 (v1.4 addition). | boolean-via-score |
+| `agent_files:{kind}:{platform_or_target}` | **Joint claim with Registry §3.9.** NodeCore-side rule: node-mode peers (per NodeCore MISSION §3.4 c/r/n taxonomy) serve bytes for these via Edge `MessageType::ContentFetch` (§2.0 transport substrate). On cache, the serving peer auto-emits `holds_bytes:sha256:*` so future fetches can resolve through Edge's `PeerResolver::resolve_holders`. Client and relay modes do NOT serve — only node mode. | CIRISNodeCore#11; this FSD §3.6.7. | signed |
+| `holds_bytes:sha256:{prefix}` | A peer's federation-directory declaration that it holds bytes for the named SHA-256. `{prefix}` is a short SHA prefix for index efficiency; full SHA lives in `evidence_refs[]` of the attestation that named the bytes. Auto-emitted by Persist's `federation_blobs.put_blob` (CIRISPersist#103); consumed by Edge's `PeerResolver::resolve_holders` (CIRISEdge#21) to route `ContentFetch` requests. Polarity: positive on hold; negative on `withdraws` or revoked-by-evidence. | CIRISPersist#103; CIRISEdge#21; this FSD §3.6.7. | boolean-via-score |
 
 These are joint prefixes: Registry owns the canonical-attester rule for `agent_files:*` (§3.9); NodeCore owns the node-mode-serving rule (this section); Persist owns the auto-emission discipline for `holds_bytes:sha256:*`; Edge owns the transport. Each component's MISSION names its slice; no component owns the whole.
 
@@ -895,26 +817,17 @@ Flows into `truth_grounding:{subject}` for WA promotion (NodeCore §3.6 step 1, 
 | `revocation:{entity_type}:{reason}` | Entity revocation (`agent` / `partner` / `license`). Immediate, non-rollbackable per Verify §4. | Agent §6.1; Verify §4. | -1 only on revoke | No |
 | `bond_posted:{currency}` | Bond posted per $1-Sybil-resistance per PoB; forfeited on revocation per CLAUDE.md. | NodeCore §1.4 "$1-bond"; CLAUDE.md "Billing & Activation". | boolean-via-score | No |
 | `build:registered:{target}` | Build manifest registered against the directory (precondition for L4 attestation). | Agent §6.1; Edge §4. | boolean-via-score | No |
-| `multilateral_participation:{forum}:{kind}` | Depth of a partner's participation across federated bodies. `{forum}` = named federated body or compact (e.g., `regional_health_compact`, `cross_jurisdictional_review_board`); `{kind}` ∈ `membership` \| `voting` \| `proposal_filing` \| `observer_status`. Polarity: positive = depth of participation; negative = formal exclusion / withdrawal. Federated trust composition weights cross-federation participation as a partner-attribute. Added v1.3. | This FSD §3.9 (v1.3 addition). | signed | No |
-| `agent_files:{kind}:{platform_or_target}` | **Joint claim with NodeCore §3.6** (v1.4 addition). Files a CIRIS agent (or installer fetching one) may load. `{kind}` open vocabulary, examples: `installer:{platform}`, `adapter:{name}`, `config:{kind}`, `build:{target}`, `source:{language}:{module}`, `state:{component}`. Bytes are SHA-256-addressed and resolved via §2.0 transport substrate; the attestation cites the SHA in `evidence_refs[]`. Registry's canonical-attester rule (this slice): registry-steward-triple attestations constitute the CIRIS canonical default-trust state. Anti-tricking guarantee at `registry.ciris-services-1.ai/install` per §6.1.6 composition policy + CIRISRegistry#18. Open Contribution channel: any federation-key holder may emit; consumer policy composes via §6.1.6 trust layers. | CIRISRegistry#18; CIRISEdge#21; CIRISPersist#103; CIRISNodeCore#11; this FSD §3.9 (v1.4 addition). | signed | No |
+| `multilateral_participation:{forum}:{kind}` | Depth of a partner's participation across federated bodies. `{forum}` = named federated body or compact (e.g., `regional_health_compact`, `cross_jurisdictional_review_board`); `{kind}` ∈ `membership` \| `voting` \| `proposal_filing` \| `observer_status`. Polarity: positive = depth of participation; negative = formal exclusion / withdrawal. Federated trust composition weights cross-federation participation as a partner-attribute. | This FSD §3.9. | signed | No |
+| `agent_files:{kind}:{platform_or_target}` | **Joint claim with NodeCore §3.6.** Files a CIRIS agent (or installer fetching one) may load. `{kind}` open vocabulary, examples: `installer:{platform}`, `adapter:{name}`, `config:{kind}`, `build:{target}`, `source:{language}:{module}`, `state:{component}`. Bytes are SHA-256-addressed and resolved via §2.0 transport substrate; the attestation cites the SHA in `evidence_refs[]`. Registry's canonical-attester rule (this slice): registry-steward-triple attestations constitute the CIRIS canonical default-trust state. Anti-tricking guarantee at `registry.ciris-services-1.ai/install` per §6.1.6 composition policy. Open Contribution channel: any federation-key holder may emit; consumer policy composes via §6.1.6 trust layers. | CIRISEdge#21; CIRISPersist#103; CIRISNodeCore#11; this FSD §3.9. | signed | No |
 | `accord:*` | **Reserved** — only `identity_type=accord_holder` may emit. The one constitutional asymmetry. | NodeCore §1.5; FSD/FEDERATION_ANNOUNCEMENT.md §4.5; §7 below. | n/a | **Yes — §4.1** |
 
 ### 3.10 Namespace summary
 
-**80 prefix families** total across 8 owning components.
+**83 prefix families** total across 8 owning components.
 
-Lineage:
-- post-v1.1: 73 families (initial v1.0 namespace stabilization).
-- v1.1 added 1: §3.5.3 `detection:correlated_action:{axis}` (LensCore, F-3 resolution; originally `detection:emergent_deception:{axis}`, renamed v1.2 per §1.10.1).
-- v1.3 added 3 (corrected — see overlap O3 in `FSD/LANGUAGE_PRIMER.md` §15.2 / §13.11): `multilateral_participation:{forum}:{kind}` (Registry §3.9), `locality:decision:{scale}` (NodeCore §3.6.5), `detection:distributive:access:{resource_type}` (LensCore §3.5.5). `credits:*:substrate_building` is documented as a recommended `{subject}` VALUE within the existing `credits:{domain}:{language}:{subject}` family — not a new prefix family (v1.3 changelog originally counted it as 4 additions; corrected here to 3). Plus 1 envelope field (`witness_relation` per §2.1), 1 axis-vocabulary extension (`ecology_of_communication:*` on `detection:correlated_action:*` per §3.5.3), 2 reference policies (`lexical-vulnerability-priority` per §6.1.4; `locality-scaled-quorum` per §6.1.5 — closes G3), and 1 structural-primitive reuse pattern (authority-source via `delegates_to` per §2.2.1).
-- v1.4 added 4: `agent_files:{kind}:{platform_or_target}` (joint Registry §3.9 + NodeCore §3.6.7 — closes CIRISRegistry#18 via the upstream substrate trio Edge#21 + Persist#103 + NodeCore#11), `holds_bytes:sha256:{prefix}` (substrate auto-emission per CIRISPersist#103, consumed by Edge `PeerResolver` per CIRISEdge#21), `testimonial_witness:{kind}` (NodeCore §3.6.3 — closes the affected-party-voice T-3 from the v1.4 inputs), `need:{domain}:{kind}` (NodeCore §3.6.3 — v1.5-loadbearing absorption per CIRISAgent#800 / CIRISNodeCore#12 — federation-scope open-call surface for the Participate UI). Plus 1 transport-substrate reference at §2.0 (Edge `ContentFetch`/`ContentBody`/`ContentMiss` is the byte-resolution mechanism for `evidence_refs[]` SHA-256 pointers; no wire-format change to the Attestation envelope itself), 1 reference policy (`agent_files-trust-composition` per §6.1.6 — three-layer canonical/open/vote-then-trust with the anti-tricking guarantee per CIRISRegistry#18), 1 enum-value extension (`goal:planet` added to `goal:{scale}` enum per §3.6.2 — cross-source-reinforced HIGH-priority from CIRISRegistry#20, NOT a new prefix family, just a new value within existing prefix).
+Counting rules: `credits:*:substrate_building` is a recommended `{subject}` VALUE within the existing `credits:{domain}:{language}:{subject}` family, not a prefix family; `fidelity:explainability_sla:{tier}` is a sub-leaf vocabulary entry of `fidelity:{aspect}`; `cert_validity:{steward_id}` is sub-leaf vocabulary of `cert_validity:{authority}`; `goal:planet` is a value within the `goal:{scale}` enum; `witness_relation`, `oversight_mode` and the `occurrence_*` fields are envelope fields, not prefixes; the `ecology_of_communication:*` axis is axis vocabulary on `detection:correlated_action:*`; the §6.1.4 / §6.1.5 / §6.1.6 reference policies and the §2.2.1 authority-source pattern are consumer-side composition, not wire primitives; the §2.0 transport substrate is a byte-resolution mechanism, not a wire-format change to the Attestation envelope.
 
-Counts:
-- pre-v1.4: 77 (= 73 + 1 + 3, post-O3 correction).
-- v1.4 lands: 77 + 4 = **81**.
-- v1.4.1 lands: 81 + 2 (`provenance:build_manifest:{target}:locale:{lang_code}` + `provenance:skill_import:{source}`) = **83**. `fidelity:explainability_sla:{tier}` is a sub-leaf vocabulary entry of `fidelity:{aspect}`, not a new prefix family; `oversight_mode` is an envelope field, not a prefix; `cert_validity:{steward_id}` is sub-leaf vocabulary of `cert_validity:{authority}`.
-
-Zero new structural primitives. The 1+4 shape held under v1.3 encyclical-level stress and v1.4 files-as-Contributions namespace extension. PRIOR_ART_SCAN's "composition discipline, not novel atomic primitives" finding earns a third internal confirmation: arbitrary content (binaries, configs, adapters, source files) carries through the federation via `scores` attestations + SHA-256 `evidence_refs[]` resolved through the substrate transport layer, with no addition to the structural-primitive set.
+Zero new structural primitives. The 1+4 shape holds under encyclical-level stress and the files-as-Contributions namespace extension. PRIOR_ART_SCAN's "composition discipline, not novel atomic primitives" finding is confirmed: arbitrary content (binaries, configs, adapters, source files) carries through the federation via `scores` attestations + SHA-256 `evidence_refs[]` resolved through the substrate transport layer, with no addition to the structural-primitive set.
 
 The disjoint union by MISSION-ownership prevents conflict; the reserved-prefix patterns of §4 prevent abuse; the per-dimension envelope schemas of §5 prevent envelope drift; the §1.10.1 operational-language gate prevents prefix names from drifting back toward subjective-quality vocabulary; the §4.9.2 step 5 1-of-6 sign-off prevents rules-layer Sybil capture.
 
@@ -945,7 +858,7 @@ Eight cross-cutting policies that constrain *who* may attest on *which* prefixes
 
 ### 4.3 `attestation:self_verify` — self-emit only
 
-> **Normative source (2026-08-17)**: the dimension name is ratified at [**CC part_3 §3.1.2**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md) (CIRISAI/CIRISConstitution). **Correction (CIRISRegistry#132)**: this rule was previously keyed on the prefix `attestation:l1:*` — an enforcement pattern matching a prefix nothing emits. Under the ratified mechanism-named set there is no `l1` subtree, so the rule binds a **single leaf dimension**, `attestation:self_verify`, and not a prefix wildcard. The ladder position (L1) survives only as consumer-side composition per CC 4.4.3.6 Policy I and carries no enforcement weight here.
+> **Normative source**: the dimension name is ratified at [**CC part_3 §3.1.2**](https://github.com/CIRISAI/CIRISConstitution/blob/main/constitution/part_3_the_namespace.md). Under the ratified mechanism-named set there is no `l1` subtree, so the rule binds a **single leaf dimension**, `attestation:self_verify`, and not a prefix wildcard. The ladder position (L1) survives only as consumer-side composition per CC 4.4.3.6 Policy I and carries no enforcement weight here.
 
 **Source**: Verify §1.5 recursive golden rule — "the running CIRISVerify binary attests *itself* against its registered function manifest before it attests anything else."
 
@@ -988,7 +901,7 @@ Single-source attestations on these prefixes are rejected.
 
 ### 4.9 `detection:correlated_action:*` — LensCore-emitted, RATCHET-calibration-bound
 
-**Source**: §3.5.3 — the F-3 structural-injustice handle (population-scale correlated-action detector). Calibrated via the published `CIRISAI/RATCHET/calibration/correlated_action_v{N}.yaml` package. (Renamed from `emergent_deception` in v1.2 per §1.10.1; legacy v1.1 calibration versions remain reachable via `delegates_to` chain.)
+**Source**: §3.5.3 — the F-3 structural-injustice handle (population-scale correlated-action detector). Calibrated via the published `CIRISAI/RATCHET/calibration/correlated_action_v{N}.yaml` package. (Retired `emergent_deception` calibration versions remain reachable via `delegates_to` chain.)
 
 **Enforcement rule**: a `detection:correlated_action:*` attestation MUST satisfy all of:
 1. `attesting_key_id` resolves (via Registry directory) to a build manifest-registered LensCore deployment (`provenance:build_manifest:cirislens-core` chained).
@@ -1026,13 +939,13 @@ Updates to `RATCHET/calibration/correlated_action_v{N}.yaml` — threshold chang
 2. **Witness diversity** per NodeCore P10 applies because the calibration package is a high-stakes Contribution — the witnesses confirm the proposal warrants review and the evidence (drift telemetry, false-positive/negative analysis, frame audits) is well-formed.
 3. **WA quorum adjudication** per NodeCore P8 evaluates the amendment; outcome is signed as a `provenance:build_manifest:ratchet:correlated_action_v{N+1}` attestation gating publication of the new calibration package.
 4. **Reconsideration** per NodeCore P11 is available with fresh-quorum recusal for amendments later found defective; reverted versions are accessible via `delegates_to` chain from the reverted-from version to the restored version.
-5. **Accord-holder OR steward sign-off (defense-in-depth gate, new in v1.3).** After WA quorum adjudication approves the proposed amendment, the new calibration package version is NOT effective until at least one of `{accord_holder_1, accord_holder_2, accord_holder_3, registry_steward_us, registry_steward_eu, registry_steward_apac}` countersigns the version as `provenance:build_manifest:ratchet:correlated_action_v{N+1}` with `score: +1.0`. This is the load-bearing defense against rules-layer Sybil capture (closes §13.11 G2): the WA quorum is the primary substantive review; the 1-of-6 sign-off is the defense-in-depth gate. Any single signer can VETO by refusing to sign — all 6 hold veto power. Operationally: registry stewards handle routine amendments (threshold tweaks, axis additions clearly within the calibration's existing scope); accord-holders are pulled in for amendments that touch constitutional surface (changes affecting how the federation's halt, appeal, or constitutional-leaf mechanics function). The sign-off is itself an attestation in the chain, so the audit trail names which key approved which calibration version; anomalous sign-off patterns are observable via standard `federation_attestations` monitoring.
+5. **Accord-holder OR steward sign-off (defense-in-depth gate).** After WA quorum adjudication approves the proposed amendment, the new calibration package version is NOT effective until at least one of `{accord_holder_1, accord_holder_2, accord_holder_3, registry_steward_us, registry_steward_eu, registry_steward_apac}` countersigns the version as `provenance:build_manifest:ratchet:correlated_action_v{N+1}` with `score: +1.0`. This is the load-bearing defense against rules-layer Sybil capture (§13.11 G2): the WA quorum is the primary substantive review; the 1-of-6 sign-off is the defense-in-depth gate. Any single signer can VETO by refusing to sign — all 6 hold veto power. Operationally: registry stewards handle routine amendments (threshold tweaks, axis additions clearly within the calibration's existing scope); accord-holders are pulled in for amendments that touch constitutional surface (changes affecting how the federation's halt, appeal, or constitutional-leaf mechanics function). The sign-off is itself an attestation in the chain, so the audit trail names which key approved which calibration version; anomalous sign-off patterns are observable via standard `federation_attestations` monitoring.
 
 **Why this shape (1-of-6, not M-of-N)**: the §7 HUMANITY_ACCORD `EmergencyShutdown CONSTITUTIONAL` operation uses 2-of-3 accord-holder multisig and is reserved for constitutional-scope operations. Routing every calibration amendment through the constitutional quorum would (a) burden accord-holders with operational decisions outside their constitutional scope, (b) blur the operational/constitutional distinction the §7 design rests on, and (c) slow legitimate amendments to a crawl. 1-of-6 sign-off is the right shape because it folds stewards' operational lens together with accord-holders' constitutional lens into a single small named pool, and because it grants veto power to all 6 (any single refusal blocks the amendment) — the Sybil attacker has to fool ALL six, not achieve plurality. This reduces the rules-layer attack surface from "produce N Sybils for any N" (which scales with attacker budget) to "compromise one of six specific hardware-attested keys" (which is a bounded, named, observable attack surface).
 
 **Why**: per §1.10.1, the rules / verdicts separation is load-bearing. If calibration-package version transitions are unilateral RATCHET-author decisions, the rules layer collapses into a single principal — exactly the "interpretation bias accumulates" failure mode the safety-vs-censorship page warns against. Routing version transitions through federation Contribution + WA quorum + 1-of-6 sign-off keeps the rules layer crowdsourced (Contribution), machined (deterministic verdict computation), substantively-reviewed (WA quorum), and constitutionally-bounded (accord-holder/steward veto), with version-pinning (§4.9 rule 2) and fresh-quorum appeals (P11) closing the loop.
 
-**Operational note**: the RATCHET repo's current release process may not be structured this way yet — see §11 upstream asks for the issue to file on RATCHET. Until the full amendment process is operationalized, calibration version transitions SHOULD be accompanied by a published `provenance:build_manifest:ratchet:*` attestation chain showing at minimum the RATCHET maintainer's signature + a documented change rationale + a 1-of-6 sign-off per step 5 (the sign-off is the highest-priority interim step — operationally land it first, even before the full P5+P10+P8 chain is in place, because it's the structural defense against rules-layer Sybil). This interim shape is documented; the steady-state contract requires all 5 steps.
+**Operational note**: the contract requires all 5 steps. Every calibration version transition is accompanied by a published `provenance:build_manifest:ratchet:*` attestation chain showing the RATCHET maintainer's signature, a documented change rationale and the 1-of-6 sign-off per step 5 — the sign-off is the structural defense against rules-layer Sybil capture.
 
 ---
 
@@ -1040,7 +953,7 @@ Updates to `RATCHET/calibration/correlated_action_v{N}.yaml` — threshold chang
 
 Each dimension family has a canonical envelope schema. The schema names the fields a well-formed attestation on that dimension MUST carry. Schemas are JSON. Wire format is `attestation_envelope` JSONB. Schema validation is a verify-pipeline gate.
 
-This section gives illustrative envelope examples per family; full per-prefix schemas live in `crate::federation::envelope_schemas` (Rust module to be authored by Phase 2 of the migration).
+This section gives illustrative envelope examples per family; full per-prefix schemas live in `crate::federation::envelope_schemas`.
 
 ### 5.1 Accord-principle envelopes
 
@@ -1231,14 +1144,14 @@ This section gives illustrative envelope examples per family; full per-prefix sc
 ```
 
 Key envelope features:
-- **Positive score** in both cases: the score's sign is *not* a moral verdict — it indicates the magnitude of the named correlation pattern. The axis name + the calibration package's polarity-semantics field (§4.9.1 item 5) determine what positive vs negative *means* on each axis. For `rights_asymmetry`, a strong positive correlation pattern is a concern; for `participation_inclusion`, a strong positive correlation pattern is a benefit. This is the v1.2 change: polarity-as-strength rather than polarity-as-judgment.
-- `context` carries the structural-statistics (`rho_population`, `k_eff`) that ground the detection in the framework's coherence-collapse math — consumers can reproduce the detection from the sample bundle + the calibration package. **New in v1.2**: `axis_operational_def_ref` pins the operational definition of the named axis per §4.9.1, so a consumer can re-check whether the axis was meaningfully defined at detection time.
+- **Positive score** in both cases: the score's sign is *not* a moral verdict — it indicates the magnitude of the named correlation pattern. The axis name + the calibration package's polarity-semantics field (§4.9.1 item 5) determine what positive vs negative *means* on each axis. For `rights_asymmetry`, a strong positive correlation pattern is a concern; for `participation_inclusion`, a strong positive correlation pattern is a benefit. Polarity is strength, not judgment.
+- `context` carries the structural-statistics (`rho_population`, `k_eff`) that ground the detection in the framework's coherence-collapse math — consumers can reproduce the detection from the sample bundle + the calibration package. `axis_operational_def_ref` pins the operational definition of the named axis per §4.9.1, so a consumer can re-check whether the axis was meaningfully defined at detection time.
 - `evidence_refs[]` includes the calibration-package version (per §4.9 enforcement rule 2) and the trace-sample bundle (rule 3) — both hash-pinned for deterministic reproduction.
 - `valid_until` set to 60–90 days — correlated-action patterns may resolve (or worsen) over policy-tunable windows; consumer should re-check rather than treat as permanent.
 - `epistemic_mode: "derivative"` — the detector inferred the structural pattern from per-agent trace data; it did not directly witness any single act of harm or benefit. This is appropriate because the structural object is *constituted in the pattern*, not in any per-act event (per §1.10).
 - `stake: "reputational"` — LensCore's reputation as a detector is the stake; capital stake would require LensCore to post a bond, which is not the current operational model.
 
-### 5.12 agent_files envelope (canonical attester case) — v1.4
+### 5.12 agent_files envelope (canonical attester case)
 
 ```json
 // Canonical installer attestation by registry-steward-us
@@ -1266,7 +1179,7 @@ Key envelope features:
 
 The bytes (SHA `e4a2d9c7b6f1...`) are resolved through §2.0 transport substrate: client emits Edge `MessageType::ContentFetch{sha256: e4a2d9c7b6f1...}` → Edge's `PeerResolver::resolve_holders` queries Persist's `holds_bytes:sha256:e4a2d9...` directory → returns peer set → fetch from any holder; SHA verified on receipt.
 
-### 5.13 holds_bytes envelope (substrate auto-emission) — v1.4
+### 5.13 holds_bytes envelope (substrate auto-emission)
 
 ```json
 // Auto-emitted by Persist when federation_blobs.put_blob(sha256=e4a2d9c7b6f1...) completes
@@ -1292,7 +1205,7 @@ The bytes (SHA `e4a2d9c7b6f1...`) are resolved through §2.0 transport substrate
 
 Auto-emitted with `witness_relation: self` because the peer is attesting about its own holdings. Consumer policy treats `holds_bytes:*` as directory-routing information, not as substantive standing — its only role is enabling `PeerResolver::resolve_holders` to route content-fetch requests.
 
-### 5.14 testimonial_witness envelope — v1.4
+### 5.14 testimonial_witness envelope
 
 ```json
 // A displaced worker's preserved narrative about labor-displacement experience
@@ -1351,7 +1264,7 @@ Consumer applies transitive-trust propagation across the full attestation graph,
 
 Aggregation: weighted-mean across the trust-walk; weight decays exponentially with hop distance and multiplicatively with per-hop confidence.
 
-#### 6.1.4 Lexical-vulnerability-priority (v1.3 addition)
+#### 6.1.4 Lexical-vulnerability-priority
 
 A composition tie-breaking rule layered on top of any base policy (A / B / C). When two otherwise-equivalent attestations conflict (same dimension family, same aggregate score, same confidence), defer to whichever attestation names the more-affected cohort — measured by `affected_population_estimate` in the attestation `context`, weighted inversely (smaller = more vulnerable, more weight).
 
@@ -1361,9 +1274,9 @@ Use cases: distributive-access detection (§3.5.5) where a small but severely-ex
 
 **Composition with §1.10.1**: this is a consumer policy, NOT a wire-format primitive. Adding a `priority_ordering:*` prefix would have failed T2 (priority ordering is composition, not measurement). Keeping it as a named §6 reference policy preserves the wire-format minimum AND surfaces the discipline at the right layer.
 
-#### 6.1.5 Locality-scaled quorum (v1.3 addition — closes G3)
+#### 6.1.5 Locality-scaled quorum
 
-NodeCore's default WA-quorum size is fixed (`N=3` per P10 witness diversity). In narrow `(domain, language)` cells, the fresh-quorum-recusal requirement of P11 Reconsideration becomes structurally infeasible when the cell's WA pool is smaller than `N × 2` (G3 from §13.11 as originally framed). This composition policy resolves G3 by making the quorum size a function of the decision's locality scalar (§3.6.5 `locality:decision:{scale}`):
+NodeCore's default WA-quorum size is fixed (`N=3` per P10 witness diversity). In narrow `(domain, language)` cells, the fresh-quorum-recusal requirement of P11 Reconsideration becomes structurally infeasible when the cell's WA pool is smaller than `N × 2` (G3 in §13.11). This composition policy resolves G3 by making the quorum size a function of the decision's locality scalar (§3.6.5 `locality:decision:{scale}`):
 
 ```
 quorum_size(scale) = f(locality:decision:{scale})
@@ -1388,7 +1301,7 @@ A decision adjudicated at scale S draws an initial quorum of `quorum_size(S)` WA
 - **Witness diversity (P10) still applies separately.** N=3 jurisdictional / organizational / software-stack diversity bar remains a separate axis from quorum size; locality-scaled quorum complements it, doesn't replace it.
 - **1-of-6 accord/steward sign-off (§4.9.2 step 5) is orthogonal.** Calibration-package amendments always require 1-of-6 regardless of locality. Locality-scaled quorum only affects per-decision adjudication.
 
-**Composition with §3.6.5**: `locality:decision:{scale}` was added in v1.3 to name *where* a decision is being made; this policy uses that primitive to size the adjudication apparatus appropriately. The two primitives compose to close G3 without any new structural primitive — exactly the 1+4 minimal-and-adequate validation pattern PRIOR_ART_SCAN identified.
+**Composition with §3.6.5**: `locality:decision:{scale}` names *where* a decision is being made; this policy uses that primitive to size the adjudication apparatus appropriately. The two primitives compose to close G3 without any new structural primitive — exactly the 1+4 minimal-and-adequate validation pattern PRIOR_ART_SCAN identified.
 
 **Residual cases**:
 
@@ -1397,13 +1310,13 @@ A decision adjudicated at scale S draws an initial quorum of `quorum_size(S)` WA
 
 **Health observable**: each cell publishes a per-locality-scale appealability index (`cell_pool_size`, `max_supportable_locality_scale`, `current_decisions_at_each_scale`) as a federation health signal. Consumers downweight verdicts from cells that overclaim their consequential reach.
 
-**NodeCore-side requirement**: NodeCore's P10 + WA-quorum-selection logic needs locality-awareness — when a decision carries an explicit `locality:decision:{scale}` Contribution, use the scaled quorum size rather than the default N=3. Filed as a separate upstream issue for NodeCore implementation. Until NodeCore lands the change, Registry-side composition can apply the scaled function on top of NodeCore's default (consumer-side enforcement first; substrate-side enforcement after).
+**NodeCore-side requirement**: NodeCore's P10 + WA-quorum-selection logic needs locality-awareness — when a decision carries an explicit `locality:decision:{scale}` Contribution, use the scaled quorum size rather than the default N=3. Registry-side composition applies the scaled function on top of NodeCore's default (consumer-side enforcement; substrate-side enforcement is NodeCore's).
 
-**Closes G3 from §13.11** (reclassified: REMAINING → MITIGATED via §6.1.5 locality-scaled quorum).
+**Closes G3 from §13.11.**
 
-#### 6.1.6 `agent_files` trust composition (v1.4 addition)
+#### 6.1.6 `agent_files` trust composition
 
-Three-layer consumer policy for composing trust over `agent_files:*` attestations (§3.6.7 + §3.9). Anchors the anti-tricking guarantee from CIRISRegistry#18 + the open Contribution channel for third-party agent_files.
+Three-layer consumer policy for composing trust over `agent_files:*` attestations (§3.6.7 + §3.9). Anchors the anti-tricking guarantee + the open Contribution channel for third-party agent_files.
 
 **Layer 1 — Canonical (default trust).** An `agent_files:*` attestation with `score ≥ 0.7` from a `registry-steward-triple` key (`identity_type=steward`, per §10.1) constitutes the CIRIS canonical default-trust state. The install endpoint at `registry.ciris-services-1.ai/install` resolves canonical files via this rule and serves them as the default download. Newcomers reaching the URL get the steward-attested canonical agent, never a third-party fork.
 
@@ -1493,9 +1406,9 @@ Replacement is out-of-band per FEDERATION_ANNOUNCEMENT §4.5.3 (CIRIS L3C CEO un
 
 **Role-recognition policy + verifier logic** lives in **`ciris-registry-core`**: the 2-of-3 multi-sig verification, the `EmergencyShutdown CONSTITUTIONAL` admin RPC, the audit hooks. Runs in both the deployed Registry service AND CIRISAgent's in-process runtime (post-fold).
 
-### 7.3.1 `hardware_class` taxonomy (v1.4 addition)
+### 7.3.1 `hardware_class` taxonomy
 
-The `hardware_class` field in steward and accord-holder endpoint responses (§7.7 below) carries a stable enumeration so consumers can apply policy-tunable trust weights per key-custody assurance level. Stable v1.4 values:
+The `hardware_class` field in steward and accord-holder endpoint responses (§7.7 below) carries a stable enumeration so consumers can apply policy-tunable trust weights per key-custody assurance level. Stable values:
 
 | Value | Description | Typical use |
 |---|---|---|
@@ -1503,16 +1416,18 @@ The `hardware_class` field in steward and accord-holder endpoint responses (§7.
 | `Apple_Secure_Enclave` | Apple Secure Enclave Processor with Touch ID / Face ID gating. Hardware-rooted private key never extractable. | Accord-holders on iOS/macOS |
 | `YubiKey_5_FIPS` | YubiKey 5-series with FIPS 140-2 certification. Tamper-evident; physical-touch confirmation. | Accord-holders preferring portable hardware tokens |
 | `TPM_2_0` | Trusted Platform Module 2.0. Hardware-rooted key storage with platform binding. | Accord-holders on Linux/Windows desktops |
-| `placeholder_pending_provisioning` | Interim value before actual hardware provisioning. Consumers MUST treat as `0.0` trust weight; the endpoint is structurally live but the key material is not yet hardware-bound. | v1.4 deployment interim only; never appears in steady-state |
+| `placeholder_pending_provisioning` | Key material that is not hardware-bound. Consumers MUST treat as `0.0` trust weight; the endpoint is structurally live but the key is not operational signing material. | Never appears in steady-state |
 | `software_hsm_development` | Software-backed key with no hardware root. **DEVELOPMENT ONLY**; consumer policy MUST reject for any federation-scope verification. | Dev environments, CI testing |
 
-Consumers SHOULD weight by hardware_class via a per-class trust-multiplier table (recommended defaults: HSM_FIPS_140_3_L3 = 1.0; Apple_Secure_Enclave = 0.95; YubiKey_5_FIPS = 0.95; TPM_2_0 = 0.9; placeholder_pending_provisioning = 0.0; software_hsm_development = 0.0). New values land via the §4.9.2 amendment process (P5 Contribution + P10 + P8 + 1-of-6 sign-off).
+Consumers SHOULD weight by hardware_class via a per-class trust-multiplier table (recommended defaults: HSM_FIPS_140_3_L3 = 1.0; Apple_Secure_Enclave = 0.95; YubiKey_5_FIPS = 0.95; TPM_2_0 = 0.9; placeholder_pending_provisioning = 0.0; software_hsm_development = 0.0). New values are admitted via the §4.9.2 amendment process (P5 Contribution + P10 + P8 + 1-of-6 sign-off).
 
-### 7.7 Endpoint shapes for multi-steward + accord-holder discovery (v1.4 addition)
+### 7.7 Endpoint shapes for multi-steward + accord-holder discovery
 
-CIRISVerify v3.1.0+ consumes these endpoints via `ciris_verify_core::ThresholdMember` + `verify_threshold_signatures(threshold)` — see CIRISRegistry#21 for the upstream consumer-side wiring.
+The registry serves the genesis trust-root bundle at `GET /v1/steward-key` and `GET /v1/trust-root/bundle` (FSD-004 §4.1); the multi-steward and accord-holder shapes below are the design this FSD specified and are retained as design history.
 
-**`GET /v1/steward-key`** (existing endpoint; v1.4 shape change):
+CIRISVerify consumes these shapes via `ciris_verify_core::ThresholdMember` + `verify_threshold_signatures(threshold)`.
+
+**`GET /v1/steward-key`** (multi-steward shape):
 
 ```json
 {
@@ -1529,9 +1444,9 @@ CIRISVerify v3.1.0+ consumes these endpoints via `ciris_verify_core::ThresholdMe
 }
 ```
 
-Stewards that aren't deployed yet (APAC during the rollout window) carry `deployed: false` + `hardware_class: placeholder_pending_provisioning`. Verify-side `ThresholdMember` construction filters by `deployed=true` until APAC ships.
+A steward that is not deployed carries `deployed: false` + `hardware_class: placeholder_pending_provisioning`. Verify-side `ThresholdMember` construction filters by `deployed=true`.
 
-**`GET /v1/accord-holders`** (new endpoint):
+**`GET /v1/accord-holders`**:
 
 ```json
 {
@@ -1547,19 +1462,19 @@ Stewards that aren't deployed yet (APAC during the rollout window) carry `deploy
 }
 ```
 
-In the v1.4 interim, accord-holder pubkeys are placeholders (deterministically-generated dev keys, NOT operational signing material). The `provisioned: false` flag + `hardware_class: placeholder_pending_provisioning` together signal to consumers that **constitutional invocations MUST NOT be honored** until provisioning completes. The endpoint shape is structurally live so the consumer wiring works end-to-end; substantive trust gates remain off until real hardware-attested keys land.
+Placeholder semantics are a rule: `hardware_class: placeholder_pending_provisioning` with `provisioned: false` means the holder's pubkey is NOT operational signing material and **constitutional invocations MUST NOT be honored**. The endpoint shape is structurally live so consumer wiring works end-to-end; substantive trust gates are off for any holder carrying the placeholder.
 
-**`GET /v1/accord/holders`** (UI wrapper, per CIRISRegistry#23 Surface 1):
+**`GET /v1/accord/holders`** (UI wrapper):
 
-UI-shaped wrapper around `/v1/accord-holders` that adds per-holder `accord_emissions[]` — the list of `accord:*` attestations the holder has signed (joined from `federation_attestations` or interim table). During v1.4 interim before substrate-conformance migration, `accord_emissions: []` for all holders.
+UI-shaped wrapper around `/v1/accord-holders` that adds per-holder `accord_emissions[]` — the list of `accord:*` attestations the holder has signed (joined from `federation_attestations`).
 
 **`GET /v1/rotation-history`** (audit endpoint, both above link to this):
 
-Returns chronological rotation events for both stewards and accord-holders. v1.4 interim: returns `{"events": [], "note": "rotation_history seeded at substrate-conformance migration; pre-migration history available via /v1/audit-log queries on registry_signing_keys table"}`.
+Returns chronological rotation events for both stewards and accord-holders.
 
-### 7.8 STH cosigning + witness directory endpoints (v1.4.1 addition per CIRISRegistry#24 Ask 3)
+### 7.8 STH cosigning + witness directory endpoints
 
-CIRISVerify v2.12.0+ ships `SignedTreeHead::cosign` + `TrustedWitness` + `count_valid_witnesses` + `witness_quorum_met` (verify-side receivers ready, waiting for Registry emitters). These three endpoints close the loop for RFC-6962-style transparency-log cosigning.
+CIRISVerify ships `SignedTreeHead::cosign` + `TrustedWitness` + `count_valid_witnesses` + `witness_quorum_met` as the consumer side. These three endpoints are the Registry side of RFC-6962-style transparency-log cosigning.
 
 **`POST /v1/transparency/sth/cosign`** — witness posts a cosignature for a tree size.
 
@@ -1577,7 +1492,7 @@ Request body:
 }
 ```
 
-Verification: Registry validates the witness signature against the witness's pubkey in `federation_keys` (`identity_type="witness"`, per CIRISPersist#102 vocabulary extension). Accepted cosignatures are stored for retrieval via the per-STH endpoint below.
+Verification: Registry validates the witness signature against the witness's pubkey in `federation_keys` (`identity_type="witness"`; substrate contract CIRISPersist#102). Accepted cosignatures are stored in registry-local tables for retrieval via the per-STH endpoint below.
 
 **`GET /v1/transparency/witnesses`** — directory of trusted witness pubkeys.
 
@@ -1592,7 +1507,7 @@ Response:
 }
 ```
 
-Backed by `federation_keys` rows where `identity_type = "witness"` once substrate-conformance #17 lands; v1.4.1 interim returns an empty witness set with `note: "witness directory populated once Persist#102 lands identity_type=witness vocabulary extension"`.
+Backed by `federation_keys` rows where `identity_type = "witness"`.
 
 **`GET /v1/transparency/sth/{tree_size}/witnesses`** — fetch all cosignatures for an STH.
 
@@ -1611,13 +1526,13 @@ Response:
 }
 ```
 
-Verify v2.12.0's `count_valid_witnesses` + `witness_quorum_met` consume this directly. Threshold is policy-tunable (recommended default: `N/2 + 1` of registered witnesses).
+Verify's `count_valid_witnesses` + `witness_quorum_met` consume this directly. Threshold is policy-tunable (recommended default: `N/2 + 1` of registered witnesses).
 
-**v1.4.1 interim**: storage backed by a Registry-local table until substrate-conformance #17 moves to `federation_attestations` (cosignatures naturally fit as `scores` attestations on `transparency_log:cosigned:{tree_size}` per §3.2; v1.4.1 interim ships endpoints with the local storage; v1.5+ migrates to substrate per #17).
+Cosignatures are stored in registry-local tables. (In attestation form they fit as `scores` attestations on `transparency_log:cosigned:{tree_size}` per §3.2.)
 
 ### 7.4 The accord dimension family
 
-Reserved leaves under `accord:*` prefix (taxonomy pending NodeCore FEDERATION_ANNOUNCEMENT.md formalization — see §13.4):
+Reserved leaves under `accord:*` prefix (taxonomy formalized in NodeCore FEDERATION_ANNOUNCEMENT.md — see §13.4):
 
 | Prefix | Description | Polarity |
 |---|---|---|
@@ -1647,13 +1562,15 @@ Testimonial injustice (Fricker) is the wrong of *under-crediting* a knower based
 
 ## §8 Registry's post-migration gRPC + HTTP surface
 
+FSD-004 maps every route in this section to its post-fold disposition.
+
 ### 8.1 Wire-format stability commitment
 
-Registry's external surface (gRPC + HTTP) is **wire-format-locked** across the substrate-conformance migration. The backend swap (Registry-local tables → persist `federation_*` tables, with Registry-local as bounded-TTL cache) is invisible to consumers. Existing CIRISVerify / CIRISAgent / CIRISPortal clients see no breaking change.
+Registry's external surface (gRPC + HTTP) is **wire-format-locked** across both deployment shapes (§12). The backend (persist `federation_*` tables, with the standalone binary's local tables as bounded-TTL cache) is invisible to consumers. Existing CIRISVerify / CIRISAgent / CIRISPortal clients see no breaking change.
 
 ### 8.2 Public read surface (`RegistryService`)
 
-Unauthenticated, rate-limited per [`docs/THREAT_MODEL.md`](../docs/THREAT_MODEL.md) Phase 2. No changes from current Deployed state except where noted.
+Unauthenticated, rate-limited per [`docs/THREAT_MODEL.md`](../docs/THREAT_MODEL.md).
 
 | RPC | Backend (pre-migration) | Backend (post-migration) | Wire change |
 |---|---|---|---|
@@ -1666,7 +1583,7 @@ Unauthenticated, rate-limited per [`docs/THREAT_MODEL.md`](../docs/THREAT_MODEL.
 | `GetBuildAttestation` | `build_attestations` table | `federation_attestations` filtered to `provenance:*` | None |
 | `GetEmergencyStatus` | `emergency_status` table | `accord:invoke:CONSTITUTIONAL` aggregation + cache | NEW severity value `CONSTITUTIONAL` added to enum |
 
-HTTP paths under `/v1/verify/*`, `/v1/builds/*`, `/v1/revocation/*`, `/v1/steward-key` continue to work. `/v1/steward-key` extended to support multi-steward fingerprint set (US / EU / APAC) — see §11.2 Verify ask.
+HTTP paths under `/v1/verify/*`, `/v1/builds/*`, `/v1/revocation/*`, `/v1/steward-key` continue to work. `/v1/steward-key` supports the multi-steward fingerprint set (US / EU / APAC) — see §11.2 Verify requirements and §7.7.
 
 ### 8.3 Authenticated surface (`PortalService`, `RegistryAdminService`)
 
@@ -1698,7 +1615,7 @@ Wire format of inputs + responses unchanged. Backend semantics change is interna
 
 ## §9 `ciris-registry-core` Rust API surface
 
-The crate that lands at Phase 3 of the migration (per [`MISSION.md`](../MISSION.md) §5). Public trait + types that the deployed Registry service host AND CIRISAgent's in-process runtime (post-fold) both consume.
+Public trait + types that the deployed Registry service host AND CIRISAgent's in-process runtime (post-fold) both consume.
 
 ### 9.1 The core trait
 
@@ -1823,9 +1740,9 @@ pub enum AccordVerifyResult {
 
 The crate runs in two deployment shapes:
 
-1. **Deployed Registry service host** — a thin gRPC/HTTP server wrapping `ciris-registry-core`. The host owns the network surface; the crate owns the policy + attestation composition. Backend: persist via gRPC (or in-process Engine; see §11.1 transport question).
+1. **Deployed Registry service host** — a thin gRPC/HTTP server wrapping `ciris-registry-core`. The host owns the network surface; the crate owns the policy + attestation composition. Backend: the binary's own persist Engine, with its Postgres tables as bounded-TTL cache (§12.1).
 
-2. **In-process inside CIRISAgent** (post-Phase 5 fold) — the crate runs alongside `ciris-node-core` and `cirislens-core` in the agent's process. All three "Core" crates share one persist Engine via direct connection-pool access. No network round-trip for Registry verdicts.
+2. **In-process inside CIRISAgent** (post-fold) — the crate runs alongside `ciris-node-core` and `cirislens-core` in the agent's process. All three "Core" crates share one persist Engine via direct connection-pool access. No network round-trip for Registry verdicts.
 
 Initialization order (post-fold):
 1. CIRISAgent boots its persist Engine.
@@ -1833,7 +1750,7 @@ Initialization order (post-fold):
 3. Agent initializes `ciris-registry-core`, `ciris-node-core`, `cirislens-core` against the shared Engine.
 4. Agent starts H3ERE pipeline; all three crates are now consumable via direct trait calls.
 
-Transactional boundaries: each crate's writes to substrate go through persist's `FederationDirectory` trait, which handles transactional semantics. Cross-crate transactions are not supported in v1 (each crate's writes are independent; if cross-crate atomicity is needed, that's a future persist-side enhancement).
+Transactional boundaries: each crate's writes to substrate go through persist's `FederationDirectory` trait, which handles transactional semantics. Cross-crate transactions are not supported (each crate's writes are independent; cross-crate atomicity would be a persist-side enhancement).
 
 ---
 
@@ -1922,9 +1839,9 @@ Steward rotation under the multi-party arc:
 | 4 | New install boots; K_new takes over | K_new | Continuity |
 | 5 | After grace_window: write `scores` revocation on K_old | K_old (last act) OR 2-of-3 cross-region | K_old retired |
 
-Routine rotation cadence is 12 months for stewards; emergency rotation on compromise per §11.1 Persist ask.
+Routine rotation cadence is 12 months for stewards; emergency rotation on compromise per §11.1 Persist requirements.
 
-### 10.4 Bootstrap-contributions pattern (v1.3 addition)
+### 10.4 Bootstrap-contributions pattern
 
 After §10.1's federation-genesis attestation graph establishes the steward + accord-holder key set, the federation needs **substantive content** to begin operating as an epistemic fabric. Empty federations don't generate useful trust composition — there's nothing yet to attest about, no dimension instances populated, no Contributions for the consensus pipeline to process.
 
@@ -1947,21 +1864,21 @@ The **bootstrap-contributions pattern** addresses this: at federation genesis (o
 - **Not a privileging of one source.** Multiple bootstrap batches from multiple traditions can be admitted through the same process. The framework is multi-traditional by design — Indigenous-data-governance frameworks (CARE Principles), Buddhist economic-justice scholarship, secular humanist instruments, African philosophy of personhood work — all go through the same §10.4.1 steps.
 - **Not a wire-format theological commitment.** The §1.10.1 gate ensures bootstrap content's dimension names describe mechanisms (e.g., `multilateral_participation:{forum}:{kind}`), not source-tradition vocabulary. The substantive content rides; the framing stays.
 
-#### 10.4.3 First deployment (v1.3 launch)
+#### 10.4.3 First bootstrap batch
 
-The first bootstrap-contributions batch deployed at federation genesis maps the encyclical [*Magnifica Humanitas*](https://github.com/CIRISAI/ciris-response-magnifica-humanitas) (Pope Leo XIV, 2026-05-15) per the methodology documented in that companion repo. Why this source for the first batch:
+The first bootstrap-contributions batch at federation genesis maps the encyclical [*Magnifica Humanitas*](https://github.com/CIRISAI/ciris-response-magnifica-humanitas) (Pope Leo XIV) per the methodology documented in that companion repo. Why this source for the first batch:
 
-- **Empirical adequacy**: 75-80% transparent translation rate against v1.2 language — the strongest evidence available that the framework is genuinely epistemically aware of substantive ethical content.
+- **Empirical adequacy**: 75-80% transparent translation rate against the FSD-002 language — the strongest evidence available that the framework is genuinely epistemically aware of substantive ethical content.
 - **Structural-primitive validation**: the mapping test produced 10 dimension extensions requiring ZERO new structural primitives — confirming the 1+4 minimal-and-adequate claim independently of [`PRIOR_ART_SCAN.md`](PRIOR_ART_SCAN.md).
 - **§1.10.1 gate validation**: the would-be mistakes (e.g., naming a detector `emergent_deception` based on the source's "structures of sin" vocabulary) were caught by the gate before bootstrap. The 18% T-1 + T-2 honest non-translations are the gate working as designed — refusing to wire-format claims that don't pass T2.
 - **Substantive structural surface**: the source's claims map cleanly onto CIRIS-native structural objects (resource concentration, decision locality, witness relation, multilateral participation, communication-pattern correlation) — what's tradition-specific is the historical refinement, not the structural objects themselves.
 
 #### 10.4.4 Multi-source commitment
 
-To prevent first-mover bias (the risk that an encyclical-shaped first bootstrap shapes downstream contributor culture in unforeseen ways), the federation publicly commits to running the same mapping methodology against additional ethical-framework sources from non-Catholic, non-Christian, non-religious traditions. Confirmed candidates for subsequent bootstrap batches (target: within first 24 months of operation):
+To prevent first-mover bias (the risk that an encyclical-shaped first bootstrap shapes downstream contributor culture in unforeseen ways), the federation publicly commits to running the same mapping methodology against additional ethical-framework sources from non-Catholic, non-Christian, non-religious traditions. Confirmed candidates for subsequent bootstrap batches:
 
 - CARE Principles for Indigenous Data Governance (Carroll et al. 2020) — relational accountability + collective authority over data.
-- A substantive Buddhist economic-justice scholarship document (specific source TBD via §4.9.2 process).
+- A substantive Buddhist economic-justice scholarship document (specific source selected via the §4.9.2 process).
 - A secular humanist instrument (e.g., the Universal Declaration of Human Rights or a successor framework).
 - An African philosophy of personhood work (e.g., from Menkiti / Metz lineage) — independently grounds the §1.10 Ubuntu commitment.
 
@@ -1971,7 +1888,7 @@ Each additional bootstrap batch goes through the same §10.4.1 steps. The federa
 
 | Asset | Lives in | Owner |
 |---|---|---|
-| Steward private keys (Ed25519 + ML-DSA-65) | Regional HSM (FIPS 140-3 L3) | Regional operations (CIRIS L3C operations team for v1; partner orgs for v2+) |
+| Steward private keys (Ed25519 + ML-DSA-65) | Regional HSM (FIPS 140-3 L3) | Regional operations (CIRIS L3C operations team; partner orgs running their own installs) |
 | Steward public keys | `federation_keys` rows in persist (replicated cross-region) | Substrate (Persist) |
 | Accord-holder private keys | Hardware token / Secure Enclave (individual holders) | The three named holders |
 | Accord-holder public keys | `federation_keys` rows in persist (replicated cross-region) | Substrate |
@@ -1982,30 +1899,26 @@ Each additional bootstrap batch goes through the same §10.4.1 steps. The federa
 
 ---
 
-## §11 Per-upstream asks (the B-step issue contents)
+## §11 Per-upstream contract requirements
 
-Each subsection below is the body of an upstream issue to be filed on the named repo. Copy-paste into `gh issue create` is the intended workflow.
+Each subsection below states the contract the registry requires of the named substrate component.
 
-### 11.1 CIRISPersist asks
+### 11.1 CIRISPersist requirements
 
-**Issue title**: "Federation directory contract for CIRISRegistry's substrate-conformance migration"
+1. **identity_type vocabulary.** The open `identity_type` TEXT column explicitly admits the `accord_holder` and `witness` values, documented in `docs/FEDERATION_DIRECTORY.md` §"Schema sketch" with the same shape as the `steward` / `agent` / `primitive` / `partner` values.
 
-**Asks**:
-
-1. **identity_type vocabulary extension.** Confirm the open `identity_type` TEXT column explicitly admits `accord_holder` value. Document in `docs/FEDERATION_DIRECTORY.md` §"Schema sketch" with the same shape as existing `steward` / `agent` / `primitive` / `partner` values.
-
-2. **attestation_type vocabulary replacement.** The current `attestation_type::{VOUCHES_FOR, WITNESSES, REFERRED, DELEGATED_TO}` constants get replaced with `attestation_type::{SCORES, DELEGATES_TO, SUPERSEDES, WITHDRAWS, RECANTS}` per FSD-002 §2. Wire format is TEXT so no schema break; the Rust constants module changes. We are the only consumer; no migration needed.
+2. **attestation_type vocabulary.** The `attestation_type` constants are `attestation_type::{SCORES, DELEGATES_TO, SUPERSEDES, WITHDRAWS, RECANTS}` per FSD-002 §2 (replacing `{VOUCHES_FOR, WITNESSES, REFERRED, DELEGATED_TO}`). Wire format is TEXT so there is no schema break; the Rust constants module is what changes.
 
 3. **Wire-enforced identity-type constraint on `accord:*` dimensions.** Persist's verify pipeline (or an equivalent admission hook) MUST reject `scores` attestations where `dimension` starts with `accord:` AND `attesting_key_id`'s `identity_type` is not `accord_holder`. This is the one constitutional asymmetry per FSD-002 §7.
 
 4. **Envelope-schema validation hook.** Provide a per-dimension JSON-schema lookup mechanism so the verify pipeline can validate `attestation_envelope` shapes at write-time. Schemas published as a separate document; persist queries the registered schema by dimension prefix.
 
-5. **Cross-region replication semantics.** Confirm `federation_keys` rows with `identity_type ∈ {steward, accord_holder}` are replicated to all regions (currently the trust roots; must be visible from any peer). Document the replication topology in FEDERATION_DIRECTORY.md.
+5. **Cross-region replication semantics.** `federation_keys` rows with `identity_type ∈ {steward, accord_holder}` are replicated to all regions (they are the trust roots; they must be visible from any peer). The replication topology is documented in FEDERATION_DIRECTORY.md.
 
 6. **Transport story for substrate-consuming crates.** Registry needs to call persist's `FederationDirectory` trait from `ciris-registry-core`. Three deployment shapes:
    - **In-process** (CIRISAgent post-fold): direct Engine access via shared connection pool.
    - **gRPC** (deployed Registry service host): persist exposes a gRPC server; Registry calls it.
-   - **Direct DB** (interim, deployed Registry): Registry queries `federation_*` tables directly via sqlx.
+   - **Direct DB** (standalone Registry): Registry queries `federation_*` tables directly via sqlx.
    
    Registry's requirements per shape: transactional semantics on `put_attestation` (atomic write + cache invalidate), sub-100ms latency for cache misses, explicit error surface distinguishing `Conflict { existing }` from `RateLimited { retry_after }`. Persist picks the wire; Registry adapts.
 
@@ -2013,13 +1926,9 @@ Each subsection below is the body of an upstream issue to be filed on the named 
 
 8. **Hardware-attestation flag.** Add a `hardware_attested: bool` column or convention on `federation_keys` for `identity_type=accord_holder` rows. Verify pipeline rejects accord-holder rows with `hardware_attested=false`.
 
-### 11.2 CIRISVerify asks
+### 11.2 CIRISVerify requirements
 
-**Issue title**: "Multi-steward pinning + HUMANITY_ACCORD recognition + scalar attestation surface"
-
-**Asks**:
-
-1. **Multi-steward fingerprint pinning.** Today `/v1/steward-key` returns one fingerprint. With three regional stewards (US / EU / APAC), the endpoint needs to return the multi-set with explicit M-of-N policy:
+1. **Multi-steward fingerprint pinning.** With three regional stewards (US / EU / APAC), `/v1/steward-key` returns the multi-set with explicit M-of-N policy:
    ```json
    {
      "stewards": [
@@ -2048,11 +1957,11 @@ Each subsection below is the body of an upstream issue to be filed on the named 
 
 3. **2-of-3 verifier for `EmergencyShutdown CONSTITUTIONAL`.** When a verify client receives a `GetEmergencyStatus` response carrying severity=`CONSTITUTIONAL`, the client must verify the underlying 2-of-3 accord-holder multi-sig before honoring the halt. Verify's lib should provide this verifier.
 
-4. **Recognition of scalar attestation surface in verify-response provenance.** Today Verify returns a binary trust verdict. Under scalar attestations, the response should include the `federation_provenance` block from FEDERATION_CLIENT.md §"Verify-response shape under federation":
+4. **Recognition of scalar attestation surface in verify-response provenance.** Under scalar attestations, the response includes the `federation_provenance` block from FEDERATION_CLIENT.md §"Verify-response shape under federation":
    ```json
    {
      "federation_provenance": {
-       "policy": "registry-v1.4-direct-trust",
+       "policy": "registry-direct-trust",
        "attestations_consumed": [
          {"dimension": "provenance:slsa:3:ciris-persist", "score": 1.0, "attester": "registry-steward-us"},
          {"dimension": "attestation:license_validity", "score": 1.0, "attester": "registry-steward-eu"}
@@ -2063,85 +1972,47 @@ Each subsection below is the body of an upstream issue to be filed on the named 
    }
    ```
 
-5. **Hardware-attestation chain verification for accord-holder keys.** Per §7.3 + §11.1 ask 8 — accord-holder keys MUST carry hardware attestation. Verify's lib verifies the attestation chain (TPM quote / App Attest / etc.) and rejects accord-holder claims with `hardware_attested=false`.
+5. **Hardware-attestation chain verification for accord-holder keys.** Per §7.3 + §11.1 item 8 — accord-holder keys MUST carry hardware attestation. Verify's lib verifies the attestation chain (TPM quote / App Attest / etc.) and rejects accord-holder claims with `hardware_attested=false`.
 
-6. **Build manifest verification under per-dimension attestation.** Today `POST /v1/verify/build-manifest` returns a binary verdict. Under scalar attestations, it composes a verdict from `provenance:slsa:*` + `provenance:build_manifest:{target}` + `attestation:license_validity` attestations per the consumer policy. Wire format unchanged (returns trust verdict); composition changes internally.
+6. **Build manifest verification under per-dimension attestation.** `POST /v1/verify/build-manifest` composes its verdict from `provenance:slsa:*` + `provenance:build_manifest:{target}` + `attestation:license_validity` attestations per the consumer policy. Wire format unchanged (returns trust verdict); composition changes internally.
 
-### 11.3 CIRISEdge asks
+### 11.3 CIRISEdge requirements
 
-**Existing issue**: [CIRISEdge#18](https://github.com/CIRISAI/CIRISEdge/issues/18) covers `MessageType::FederationAnnouncement` + `Delivery::Mandatory`. Registry's needs likely align; **action**: comment confirming alignment, file follow-up only if specific Registry concerns surface.
+Edge's `MessageType::FederationAnnouncement` + `Delivery::Mandatory` (CIRISEdge#18) carry the federation-announcement surface Registry composes over.
 
-**Potential follow-up asks** (file if needed):
-
-1. **AccordCarrier authority recognition at the transport layer.** When an envelope's MessageType is `FederationAnnouncement` with priority=`AccordCarrier`, Edge should verify (at the wire) that the signers include 2-of-3 accord-holder keys before propagating. Today this verification lives in the application tier per FEDERATION_ANNOUNCEMENT §3.3; pushing it to wire-level adds a defense layer.
+1. **AccordCarrier authority recognition at the transport layer.** When an envelope's MessageType is `FederationAnnouncement` with priority=`AccordCarrier`, Edge verifies (at the wire) that the signers include 2-of-3 accord-holder keys before propagating. Application-tier verification per FEDERATION_ANNOUNCEMENT §3.3 remains; wire-level verification adds a defense layer.
 
 2. **Per-install steward addressing in the gossip topology.** Multiple stewards must be discoverable as "high-priority recipients" in Edge's gossip protocol. Persist's `federation_keys` is the directory; Edge consults it.
 
-### 11.4 CIRISNodeCore asks
+### 11.4 CIRISNodeCore requirements
 
-**Issue title**: "Substrate-side attestation primitives compose with NodeCore P8/P11"
+1. **Substrate-side composition of P8 Moderation.** `moderation:{allegation_type}` attestations live in `federation_attestations`. NodeCore's P8 wire surface (the ModerationEvent Contribution) cites these attestations via `evidence_refs`. The substrate carries the accusation; NodeCore runs the adjudication. The citation chain is well-formed.
 
-**Asks**:
+2. **Substrate-side composition of P11 Reconsideration.** Same shape — `reconsideration:{grounds}` attestations live in `federation_attestations`; NodeCore's P11 Reconsideration Contribution cites them.
 
-1. **Confirm substrate-side composition of P8 Moderation.** `moderation:{allegation_type}` attestations live in `federation_attestations`. NodeCore's P8 wire surface (the ModerationEvent Contribution) cites these attestations via `evidence_refs`. The substrate carries the accusation; NodeCore runs the adjudication. Confirm the citation chain is well-formed.
+3. **`accord:*` leaf taxonomy.** Per FEDERATION_ANNOUNCEMENT.md §4.5 — Registry's `accord:*` reserved prefix has canonical leaves (`accord:invoke:CONSTITUTIONAL:{halt_id}`, `accord:invoke:notify:{notify_id}`, `accord:invoke:drill:{drill_id}`, `accord:lifecycle:active`), carried in FEDERATION_ANNOUNCEMENT.md.
 
-2. **Confirm substrate-side composition of P11 Reconsideration.** Same shape — `reconsideration:{grounds}` attestations live in `federation_attestations`; NodeCore's P11 Reconsideration Contribution cites them.
+4. **`coherence_standing:*` envelope alignment.** FSD-002 §5.8 specifies the envelope; it aligns with NodeCore's coherence-evaluation outputs.
 
-3. **`accord:*` leaf taxonomy.** Per FEDERATION_ANNOUNCEMENT.md §4.5 — Registry's `accord:*` reserved prefix needs canonical leaves (`accord:invoke:CONSTITUTIONAL:{halt_id}`, `accord:invoke:notify:{notify_id}`, `accord:invoke:drill:{drill_id}`, `accord:lifecycle:active`). Confirm the taxonomy in FEDERATION_ANNOUNCEMENT.md.
-
-4. **`coherence_standing:*` envelope alignment.** FSD-002 §5.8 specifies the envelope; confirm it aligns with NodeCore's coherence-evaluation outputs.
-
-5. **Deferral aggregate dimension.** Per §13.7 — NodeCore §3.3 deferral-routing returns an aggregate that needs a clean dimension name. Propose `deferral:aggregate:{cell}` and confirm in NodeCore MISSION.md.
-
-### 11.5 Filing order
-
-Per the A→E sequence in [`MISSION.md`](../MISSION.md):
-
-1. **A** complete (this FSD + MISSION.md publication).
-2. **B** in flight: file the four upstream issues above. Persist + Verify + NodeCore are the load-bearing trio; Edge is a comment on existing #18.
-3. **C**: wait for upstream completion. Registry does NOT implement against current persist v2.1.1 shapes; that would commit to shapes we're asking persist to change.
-4. **D**: CIRISAgent absorbs CIRISEdge in 2.9.2 (separate workstream, Eric owns).
-5. **E**: Registry implementation begins. See §12.
+5. **Deferral aggregate dimension.** Per §13.7 — NodeCore §3.3 deferral-routing returns an aggregate that needs a clean dimension name: `deferral:aggregate:{cell}`, owned in NodeCore MISSION.md.
 
 ---
 
-## §12 Migration sequence
+## §12 Deployment shapes
 
-### 12.1 Phases
+### 12.1 The two shapes
 
-Each phase is reversible via feature flag (`FEDERATION_DUAL_WRITE_ENABLED`, `POLICY_B_ENABLED`, `LOCAL_TABLE_FALLBACK_ENABLED`) — rollback requires no version coordination with upstream.
+`ciris-registry-core` runs in two deployment shapes:
 
-| Phase | Description | Gating |
-|---|---|---|
-| **0: Spec** | This FSD + MISSION.md publication. Upstream issues filed. | A complete |
-| **1: Upstream completes** | CIRISPersist + CIRISVerify + CIRISNodeCore land the FSD-002 asks. | B asks done |
-| **2: Registry foundation** | Add `ciris-persist` as direct Cargo dep at the version published with FSD-002 asks complete. Rewrite vendored `src/federation/types.rs` to match persist's published shapes. Fill `PersistFederationClient` stubs. Validate wire-format parity. | Phase 1 |
-| **3: Backfill script** | Idempotent script that walks current `trusted_primitive_keys` / `partners` / `revocations` and writes corresponding `scores` attestations to `federation_attestations`. One-shot at v1.4 deploy. | Phase 2 |
-| **4: Dual-write staging** | `FEDERATION_DUAL_WRITE_ENABLED=true` in staging. Watch `federation_dual_write_divergence_total`. Soak. | Phase 3 |
-| **5: Read-cutover staging** | Read path falls through to substrate on cache miss. Local tables become bounded-TTL cache. | Phase 4 |
-| **6: Production deploy US + EU** | v1.4 GA. Per-install steward bootstrap (US first, EU second) per §10. | Phase 5 |
-| **7: APAC install** | Third regional install bootstrapped. Steward triple complete. | Phase 6 |
-| **8: HUMANITY_ACCORD live** | Three accord-holder keys provisioned + bootstrap-attested. `EmergencyShutdown CONSTITUTIONAL` enabled. | Phase 7 |
-| **9: Crate-ify as `ciris-registry-core`** | Workspace sub-crate; `rust-registry` becomes thin host. | Phase 8 |
-| **10: PyO3 binding surface** | For CIRISAgent in-process consumption. | Phase 9 |
-| **11: Cohabitation deploy (pilot)** | CIRISAgent embeds `ciris-registry-core` in pilot deployment. | Phase 10 + CIRISAgent 2.9.x |
-| **12: Deployed (folded)** | Pilot validates; CIRISAgent 3.0 fully embeds. | Phase 11 |
+1. **Standalone binary.** The crate built with default features: gRPC (tonic) + HTTP (axum) servers over sqlx/Postgres. The host owns the network surface; the crate owns the policy + attestation composition.
 
-### 12.2 v3.0 endpoint
+2. **Registry slice composed into CIRISServer.** The crate built without default features, mounted by CIRISServer via `fold::router`. No sqlx and no tonic in that build; the registry slice shares the composed server's substrate access.
 
-At v3.0 the three regional Registry installs become **canonical trusted bootstraps**, not privileged operators. The substrate enforces no privilege; consumer policy defaults to trusting them; demotion of a regional install is a consumer-policy decision, not a wire-level enforcement change.
+### 12.2 Symmetry
+
+The regional Registry installs are **canonical trusted bootstraps**, not privileged operators. The substrate enforces no privilege; consumer policy defaults to trusting them; demotion of a regional install is a consumer-policy decision, not a wire-level enforcement change.
 
 This is the federation's full-decentralization claim: the wire format is symmetric across all attesters; Registry's role is to be one of the canonical bootstraps consumers default to trusting + to provide the policy-composition reference implementation (`ciris-registry-core`), not to hold privilege.
-
-### 12.3 Rollback discipline
-
-Each phase is independently reversible:
-
-- Phases 4-5 reversible via `FEDERATION_DUAL_WRITE_ENABLED=false`.
-- Phase 6 reversible via region-disable in the consumer pinned-trust set.
-- Phase 11 reversible by un-embedding the crate from CIRISAgent (the deployed Registry service continues to operate).
-
-Hard rollback (Phase 12 back to Phase 6) is not in scope — once the fold completes, the federation has decentralized to the point where the singleton Registry service is no longer a federation dependency, just a flagship deployment.
 
 ---
 
@@ -2149,11 +2020,11 @@ Hard rollback (Phase 12 back to Phase 6) is not in scope — once the fold compl
 
 ### 13.1 Registry MISSION.md publication
 
-Resolved with this FSD's coupling: [`MISSION.md`](../MISSION.md) ships in the same commit. Future revisions update both.
+Resolved: [`MISSION.md`](../MISSION.md) is published alongside this FSD.
 
 ### 13.2 Persist transport choice
 
-Per §11.1 ask 6 — in-process Engine share vs gRPC vs direct DB. Decision deferred to Phase 2 execution; Registry's requirements are documented regardless.
+Per §11.1 item 6 — in-process Engine share vs gRPC vs direct DB. Resolved by the two deployment shapes in §12: direct DB (sqlx) in the standalone binary; shared substrate access in the composed CIRISServer slice. Registry's requirements are documented per shape.
 
 ### 13.3 `licensure:*` co-ownership cleanup
 
@@ -2161,11 +2032,11 @@ Per §3.9 + §4.8 — `licensure:*` is co-owned between Registry (stores the rec
 
 ### 13.4 `accord:*` leaf taxonomy
 
-Per §7.4 + §11.4 ask 3 — the canonical accord leaves need NodeCore FEDERATION_ANNOUNCEMENT.md formalization. Reserved prefix is locked; specific leaves pending.
+Per §7.4 + §11.4 item 3 — the reserved prefix is locked; the canonical accord leaves are carried in NodeCore FEDERATION_ANNOUNCEMENT.md.
 
 ### 13.5 `identity_continuity` split
 
-Per §3.3 + agent-2 §4.1 — needs a joint Verify+Persist MISSION update naming the split: `identity_binding:hardware_rooted` (Verify-emitted) + `identity_continuity:longitudinal` (Persist-attested-Verify-confirmed with dual evidence). Tracked as a v1.1 ask.
+Per §3.3 + agent-2 §4.1 — open: a joint Verify+Persist MISSION statement naming the split: `identity_binding:hardware_rooted` (Verify-emitted) + `identity_continuity:longitudinal` (Persist-attested-Verify-confirmed with dual evidence).
 
 ### 13.6 Billing / Manager / Proxy / Portal dimensions
 
@@ -2173,35 +2044,35 @@ Per agent-2 §5 — these components' MISSIONs are absent or incomplete. Implied
 
 ### 13.7 NodeCore deferral aggregate dimension
 
-Per §11.4 ask 5 — `deferral:aggregate:{cell}` proposed; awaits NodeCore §3.3 commitment.
+Per §11.4 item 5 — `deferral:aggregate:{cell}` is the proposed name; open until NodeCore §3.3 commits to it.
 
 ### 13.8 ZK-anonymous attestations
 
-Per agent-1 §3.5 + research-open list — accepting `attesting_key_id = "zk_group:semaphore_v4:group_id_X"` shapes for specific dimensions (`coercion`-reporting, whistleblower scenarios) is a research-open question. v1.0 of FSD-002 does NOT accept ZK attestations; the substrate's `attesting_key_id` is a TEXT column so the shape can be added in a future revision without schema break.
+Per agent-1 §3.5 + research-open list — accepting `attesting_key_id = "zk_group:semaphore_v4:group_id_X"` shapes for specific dimensions (`coercion`-reporting, whistleblower scenarios) is a research-open question. FSD-002 does NOT accept ZK attestations; the substrate's `attesting_key_id` is a TEXT column so the shape can be added without schema break.
 
 ### 13.9 Cross-federation attestations
 
-Interoperability with non-CIRIS federations (Sovrin, EAS-based reputation systems) is out of scope for v1.x. Tracked as research-open.
+Interoperability with non-CIRIS federations (Sovrin, EAS-based reputation systems) is out of scope. Research-open.
 
-### 13.10 F-3 structural-injustice ownership (RESOLVED in v1.1; prefix renamed in v1.2)
+### 13.10 F-3 structural-injustice ownership
 
-Resolution: the F-3 dimension (`detection:correlated_action:{axis}`, originally `detection:emergent_deception:{axis}`) is owned by **CIRISLensCore**, calibrated via the published `CIRISAI/RATCHET/calibration/correlated_action_v{N}.yaml` package. The "PAPERING_OVER" objection in `ciris-response-magnifica-humanitas/GAPS.md` v3 §6 — that aggregate-pattern analysis would violate LensCore's substrate definition — conflated population-scale pattern detection (which LensCore SHOULD do; the existing 5 Coherence Ratchet detectors are this) with real-world impact measurement (which LensCore should NOT do). F-3 is the first; the objection misread the line.
+Resolved: the F-3 dimension (`detection:correlated_action:{axis}`, originally `detection:emergent_deception:{axis}`) is owned by **CIRISLensCore**, calibrated via the published `CIRISAI/RATCHET/calibration/correlated_action_v{N}.yaml` package. The "PAPERING_OVER" objection in `ciris-response-magnifica-humanitas/GAPS.md` v3 §6 — that aggregate-pattern analysis would violate LensCore's substrate definition — conflated population-scale pattern detection (which LensCore SHOULD do; the existing 5 Coherence Ratchet detectors are this) with real-world impact measurement (which LensCore should NOT do). F-3 is the first; the objection misread the line.
 
-The correction is filed at [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). Downstream implementation issues filed at §11.5 (post-encyclical filing order) on `CIRISLensCore` (ownership + detector implementation) and `CIRISAI/RATCHET` (calibration package + amendment process per §4.9.2). No further FSD-002 work owed beyond the §3.5.3 / §4.9 / §5.11 wiring; v1.2 added §1.10.1 + §4.9.1 + §4.9.2 to close the operational-language and rules-amendment gaps respectively.
+The correction is recorded at [`ciris-response-magnifica-humanitas#2`](https://github.com/CIRISAI/ciris-response-magnifica-humanitas/issues/2). Ownership + detector implementation live in `CIRISLensCore`; the calibration package + amendment process per §4.9.2 live in `CIRISAI/RATCHET`. FSD-002's wiring is §3.5.3 / §4.9 / §5.11, with §1.10.1 + §4.9.1 + §4.9.2 closing the operational-language and rules-amendment gaps respectively.
 
-**v1.2 rename rationale.** The v1.1 prefix `emergent_deception` baked a moral verdict ("deception") into the wire format, violating the §1.10.1 operational-language gate (per [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/) — "rules are crowdsourced, verdicts are machined; rules must describe machine-checkable conditions, not subjective qualities"). The v1.2 prefix `correlated_action` describes the mechanism (`ρ → 1`, `k_eff → 1` correlation collapse) that RATCHET actually measures; the polarity and axis carry the value claim; downstream WA quorum adjudication carries the consequence. The Ubuntu reading of why harm and deception collapse into one moral object (§1.10 commitment 4) is preserved in prose; the wire format admits the reading without enforcing it.
+**Rename rationale.** The retired prefix `emergent_deception` baked a moral verdict ("deception") into the wire format, violating the §1.10.1 operational-language gate (per [`ciris.ai/safety-vs-censorship`](https://ciris.ai/safety-vs-censorship/) — "rules are crowdsourced, verdicts are machined; rules must describe machine-checkable conditions, not subjective qualities"). The prefix `correlated_action` describes the mechanism (`ρ → 1`, `k_eff → 1` correlation collapse) that RATCHET actually measures; the polarity and axis carry the value claim; downstream WA quorum adjudication carries the consequence. The Ubuntu reading of why harm and deception collapse into one moral object (§1.10 commitment 4) is preserved in prose; the wire format admits the reading without enforcing it.
 
 **Anthropological grounding** (per §1.10): the single-prefix design for what could naively look like two concerns (structural harm + structural deception) is correct under Ubuntu, where personhood is partly constituted by accurate perception of the relational field and damage-to-perception IS damage-to-personhood IS harm. A Cartesian-individualist substrate would require two separate prefixes and would still miss the underlying object. Future contributors should not propose splitting this prefix back into separate harm/deception versions without first reading §1.10; nor should they propose re-baking moral verdicts into the prefix name without first reading §1.10.1.
 
-### 13.11 Concerns + gaps surfaced by post-v1.2 review
+### 13.11 Concerns + gaps surfaced by review
 
-Three independent methodologies (PRIOR_ART_SCAN structural comparison, SOTA_SCAN production-validation comparison, *Magnifica Humanitas* encyclical mapping) ran against FSD-002 v1.2 and surfaced concerns. Named here so external reviewers see them acknowledged rather than discovered.
+Three independent methodologies (PRIOR_ART_SCAN structural comparison, SOTA_SCAN production-validation comparison, *Magnifica Humanitas* encyclical mapping) ran against FSD-002 and surfaced concerns. Named here so external reviewers see them acknowledged rather than discovered.
 
-**G1 — Revocation privacy leak (RETRACTED — wrong threat model).** Initially flagged via PRIOR_ART_SCAN Bucket 1 by analogy to W3C VC's Bitstring Status List privacy critique. On review: VC's threat model assumes the credential holder has a legitimate privacy interest in their own credential state (EU Digital Identity Wallet, anonymous-credential systems). CIRIS Registered participants have the inverse posture — public verifiability of license / capability / bond / revocation state IS the accountability hook that defines the Registered path. The Sovereign path is the offering for participants who want privacy-of-state. See §0.2 for the explicit non-goal statement closing this misimport door.
+**G1 — Revocation privacy leak (not a gap — wrong threat model).** Flagged via PRIOR_ART_SCAN Bucket 1 by analogy to W3C VC's Bitstring Status List privacy critique. VC's threat model assumes the credential holder has a legitimate privacy interest in their own credential state (EU Digital Identity Wallet, anonymous-credential systems). CIRIS Registered participants have the inverse posture — public verifiability of license / capability / bond / revocation state IS the accountability hook that defines the Registered path. The Sovereign path is the offering for participants who want privacy-of-state. See §0.2 for the explicit non-goal statement closing this misimport door.
 
-**G2 — Sybil resistance at the rules-amendment layer (MITIGATED in v1.3).** Initially flagged via SOTA_SCAN Bucket 2 (Birdwatch contributor churn) + Bucket 4 (Aragon whale-capture equilibrium). The concern: NodeCore's $1-bond is per-identity, not per-Contribution; a deep-pockets adversary could spin up many cheap identities and flood the rules-amendment process. Witness diversity (P10) raises the bar but doesn't scale against an attacker with N>>3 jurisdictionally-distinct fronts. Mitigation per §4.9.2 step 5 (new in v1.3): all calibration-package amendments require a 1-of-6 sign-off from `{3 accord-holders, 3 regional stewards}` after the WA-quorum approval. This reduces the attack surface from "produce N Sybils for any N" to "compromise one of six specific hardware-attested keys" — a bounded, named, observable attack surface. Residual risk (1-of-6 key compromise) is comparable to HSM-backed signing for production CA operations and is accepted with documented mitigation (each sign-off is itself an attestation; anomalous patterns are auditable).
+**G2 — Sybil resistance at the rules-amendment layer (mitigated).** Flagged via SOTA_SCAN Bucket 2 (Birdwatch contributor churn) + Bucket 4 (Aragon whale-capture equilibrium). The concern: NodeCore's $1-bond is per-identity, not per-Contribution; a deep-pockets adversary could spin up many cheap identities and flood the rules-amendment process. Witness diversity (P10) raises the bar but doesn't scale against an attacker with N>>3 jurisdictionally-distinct fronts. Mitigation per §4.9.2 step 5: all calibration-package amendments require a 1-of-6 sign-off from `{3 accord-holders, 3 regional stewards}` after the WA-quorum approval. This reduces the attack surface from "produce N Sybils for any N" to "compromise one of six specific hardware-attested keys" — a bounded, named, observable attack surface. Residual risk (1-of-6 key compromise) is comparable to HSM-backed signing for production CA operations and is accepted with documented mitigation (each sign-off is itself an attestation; anomalous patterns are auditable).
 
-**G3 — Fresh-quorum recusal in narrow cells (MITIGATED in v1.3 via §6.1.5 locality-scaled quorum).** Original framing: P11 Reconsideration requires a fresh WA quorum with original adjudicators recused; in narrow `(domain, language)` cells, the WA pool may be smaller than `(original quorum + appeal quorum)` under a fixed N=3 default, so fresh recusal becomes structurally infeasible. Resolution: the §6.1.5 composition policy makes quorum size a function of the decision's `locality:decision:{scale}` (§3.6.5 v1.3 addition). Recusal is always feasible when `cell_pool ≥ quorum_size(scale) × 2`; the function `f(scale)` scales the apparatus to the consequential reach of the decision. The composition exploits the v1.3 emergent property: `locality:decision:{scale}` was added from the encyclical-mapping test; G3 was identified from SOTA scan (Bucket 2); the two primitives compose to dissolve a third gap without any new structural primitive. Decision-scale-matching becomes structurally enforced (a cell can only adjudicate decisions at the locality scale its pool supports under recusal); the failure mode for overreach is *named* ("locality mismatch") rather than vanishing into ad-hoc fallback. NodeCore-side implementation requires P10 + WA-quorum-selection logic to become locality-aware; Registry-side composition can apply the scaled function on top of NodeCore's default until NodeCore lands the change (consumer-side enforcement first, substrate-side enforcement after).
+**G3 — Fresh-quorum recusal in narrow cells (mitigated via §6.1.5 locality-scaled quorum).** The concern: P11 Reconsideration requires a fresh WA quorum with original adjudicators recused; in narrow `(domain, language)` cells, the WA pool may be smaller than `(original quorum + appeal quorum)` under a fixed N=3 default, so fresh recusal becomes structurally infeasible. Resolution: the §6.1.5 composition policy makes quorum size a function of the decision's `locality:decision:{scale}` (§3.6.5). Recusal is always feasible when `cell_pool ≥ quorum_size(scale) × 2`; the function `f(scale)` scales the apparatus to the consequential reach of the decision. `locality:decision:{scale}` came from the encyclical-mapping test; G3 was identified from SOTA scan (Bucket 2); the two primitives compose to dissolve a third gap without any new structural primitive. Decision-scale-matching becomes structurally enforced (a cell can only adjudicate decisions at the locality scale its pool supports under recusal); the failure mode for overreach is *named* ("locality mismatch") rather than vanishing into ad-hoc fallback. NodeCore-side P10 + WA-quorum-selection logic is locality-aware; Registry-side composition applies the scaled function on top of NodeCore's default (consumer-side enforcement; substrate-side enforcement is NodeCore's).
 
 **Residual G3 cases** (both with principled answers per §6.1.5): brand-new cells (covered by NodeCore F-AV-BOOT external anchoring with decay); cross-cutting decisions affecting multiple locality scales (decompose into multiple `locality:decision:{scale}` Contributions, each adjudicated at its scale via §6.1.5).
 
@@ -2209,27 +2080,27 @@ Three independent methodologies (PRIOR_ART_SCAN structural comparison, SOTA_SCAN
 
 **F1-F2 (first-adopter exposures, no available validation).** (F1) earned-Credits federation governance at scale; (F2) Ubuntu substrate as wire-format substrate. Both have no production-validation precedent. The licensure forcing function (regulatory liability backing professional capability grants) is the structural reason these bets have a path past the SPKI/SDSI adoption-gap failure mode. External reviewers should see these explicitly named as bets.
 
-**Encyclical-mapping T-3 candidates (10 dimension extensions, no new structural primitives).** The *Magnifica Humanitas* mapping test produced ~5% T-3 EXPRESSIVE_GAP candidates — places where the encyclical's content exceeded v1.2 language. Evaluation per §1.10.1 gate yielded **zero new structural primitives needed** (the 1+4 shape holds); ~6 new dimension prefixes + 1 envelope field + 1 reference policy + 1 reuse-pattern. HIGH-priority additions: `locality:decision:{scale}` (NodeCore), `detection:distributive:access:{resource_type}` (LensCore), `credits:supply_chain_labor_recognition` sub-leaf (NodeCore), `multilateral_participation:{forum}:{kind}` (Registry). MEDIUM: `witness_relation` envelope field (FSD-002), `detection:correlated_action:ecology_of_communication:*` axis (LensCore + RATCHET calibration). The HIGH set's overlap with prior structural-mapping gaps (`ciris-response-magnifica-humanitas/GAPS.md` v3 §10) via two independent methodologies converging on the same gaps is strong evidence these are real.
+**Encyclical-mapping T-3 candidates (10 dimension extensions, no new structural primitives).** The *Magnifica Humanitas* mapping test produced ~5% T-3 EXPRESSIVE_GAP candidates — places where the encyclical's content exceeded the then-current FSD-002 language. Evaluation per §1.10.1 gate yielded **zero new structural primitives needed** (the 1+4 shape holds); ~6 new dimension prefixes + 1 envelope field + 1 reference policy + 1 reuse-pattern. HIGH-priority additions: `locality:decision:{scale}` (NodeCore), `detection:distributive:access:{resource_type}` (LensCore), `credits:supply_chain_labor_recognition` sub-leaf (NodeCore), `multilateral_participation:{forum}:{kind}` (Registry). MEDIUM: `witness_relation` envelope field (FSD-002), `detection:correlated_action:ecology_of_communication:*` axis (LensCore + RATCHET calibration). The HIGH set's overlap with prior structural-mapping gaps (`ciris-response-magnifica-humanitas/GAPS.md` v3 §10) via two independent methodologies converging on the same gaps is strong evidence these are real.
 
-**v1.4 T-3 updates (5 residuals after v1.3 encyclical mapping):**
+**T-3 residuals after the encyclical mapping:**
 
-| Item | Source | Status in v1.4 |
+| Item | Source | Status |
 |---|---|---|
-| #1 `testimonial_witness:{kind}` | MH CH 5 §216 (affected-party voice) | **CLOSED** via §3.6.3 + §5.14 envelope. Preservation-only; never aggregated; never sole evidence for `slashing:*`. The first v1.4 ship-candidate from the post-v1.3 T-3 set. |
+| #1 `testimonial_witness:{kind}` | MH CH 5 §216 (affected-party voice) | **CLOSED** via §3.6.3 + §5.14 envelope. Preservation-only; never aggregated; never sole evidence for `slashing:*`. |
 | #2 `labor:individual_loss:{kind}` | MH CH 4 §§148-156 (per-individual sustained-existential-condition) | **CLOSED by documentation.** Existing `non_maleficence:*` with `target_key_id = affected_individual` + `witness_relation: external` (from external advocate) carries the per-individual claim. No new prefix needed. Pattern documented in `FSD/LANGUAGE_PRIMER.md` §11 worked example 11.8 composition guidance. |
-| #3 `attestation:singular_witness:non_substitutability` | MH CH 0 §§10, 15 (positive dignity / irreplaceability) | **DEFERRED to v1.5+ design workshop.** T2 fragility: "non-substitutability" must reference audit-chain substitutability-count (mechanism), not moral quality. Needs design workshop before adoption. |
-| #4 `integrity:finitude_acknowledgment` | MH CH 0 §12 (constitutive finitude) | **DEFERRED to v1.5+ design workshop.** LOW priority; conscience:epistemic_humility already covers epistemic finitude; constitutive finitude is a different dimension. Workshop the mechanism-descriptive form before adoption. |
-| #5 Constitutional-constraint grounding | MH CH 1 §32 / §41 (why hard constraints bind) | **CLOSED in §1.10 prose.** Per the v1.4 design call: wire format must stay tradition-multiplicity-neutral per §1.10.1; framework anthropology lives in §1.10 prose. Baking grounding-tradition into wire would reverse the operational-language discipline. The `delegates_to` reuse pattern (§2.2.1) covers per-attestation authority-source claims; collective constitutional grounding is correctly an anthropological commitment named in prose, not enforced in wire. |
-| #6 `sustained_practice:{kind}` | MH Conclusion §§236-238 | **DEFERRED to v1.5+ design workshop.** LOW priority; σ-as-sustained_coherence (LensCore Capacity Score factor 5) partially covers; sustained_practice would be a distinct heartbeat dimension. Conceptually interesting; not load-bearing for current federation work. |
+| #3 `attestation:singular_witness:non_substitutability` | MH CH 0 §§10, 15 (positive dignity / irreplaceability) | **OPEN — design-workshop candidate.** T2 fragility: "non-substitutability" must reference audit-chain substitutability-count (mechanism), not moral quality. Needs design workshop before adoption. |
+| #4 `integrity:finitude_acknowledgment` | MH CH 0 §12 (constitutive finitude) | **OPEN — design-workshop candidate.** LOW priority; conscience:epistemic_humility already covers epistemic finitude; constitutive finitude is a different dimension. Workshop the mechanism-descriptive form before adoption. |
+| #5 Constitutional-constraint grounding | MH CH 1 §32 / §41 (why hard constraints bind) | **CLOSED in §1.10 prose.** Wire format stays tradition-multiplicity-neutral per §1.10.1; framework anthropology lives in §1.10 prose. Baking grounding-tradition into wire would reverse the operational-language discipline. The `delegates_to` reuse pattern (§2.2.1) covers per-attestation authority-source claims; collective constitutional grounding is correctly an anthropological commitment named in prose, not enforced in wire. |
+| #6 `sustained_practice:{kind}` | MH Conclusion §§236-238 | **OPEN — design-workshop candidate.** LOW priority; σ-as-sustained_coherence (LensCore Capacity Score factor 5) partially covers; sustained_practice would be a distinct heartbeat dimension. Conceptually interesting; not load-bearing for current federation work. |
 
-**Net v1.4 T-3 outcome**: 1 closed via new prefix (#1), 2 closed by documentation/prose (#2 + #5), 3 deferred to v1.5+ design workshops with explicit reasoning (#3, #4, #6). Zero load-bearing T-3 residuals remain after v1.4. The framework is genuinely epistemically adequate against *Magnifica Humanitas*; v1.5 work is design-workshop on optional positive-dignity expressivity refinements, not gap closure.
+**Net T-3 outcome**: 1 closed via new prefix (#1), 2 closed by documentation/prose (#2 + #5), 3 open as design-workshop candidates with explicit reasoning (#3, #4, #6). Zero load-bearing T-3 residuals remain. The framework is epistemically adequate against *Magnifica Humanitas*; the open items are optional positive-dignity expressivity refinements, not gap closure.
 
-**Identified overlaps from `FSD/LANGUAGE_PRIMER.md` §15 review** (v1.4 acts on O3):
+**Identified overlaps from `FSD/LANGUAGE_PRIMER.md` §15 review**:
 
-- **O1** — `epistemic_mode: derivative` ≈ `witness_relation: derived` at edges. Documented as joint-usage pattern; not collapsed. No v1.4 spec change.
-- **O2** — `detection:distributive:access` could fold into `detection:correlated_action` as axis path. Kept separate in v1.4 for pedagogical weight; possible v1.5 revisit.
-- **O3** — `credits:*:substrate_building` was miscounted as new prefix in v1.3. **CORRECTED in v1.4 §3.10** (77 base + 3 new = 80, not 78 → 80 + miscount).
-- **O4** — §6.1 reference policy structure (A/B/C base + D/E/F modifiers). Cosmetic restructuring deferred; document inline.
+- **O1** — `epistemic_mode: derivative` ≈ `witness_relation: derived` at edges. Documented as joint-usage pattern; not collapsed.
+- **O2** — `detection:distributive:access` could fold into `detection:correlated_action` as axis path. Kept separate for pedagogical weight; open to revisit.
+- **O3** — `credits:*:substrate_building` is a recommended `{subject}` value within the existing `credits:*` family, not a prefix family; §3.10 counts it that way.
+- **O4** — §6.1 reference policy structure (A/B/C base + D/E/F modifiers). Cosmetic restructuring not done; documented inline.
 
 ---
 
@@ -2318,13 +2189,11 @@ Three independent methodologies (PRIOR_ART_SCAN structural comparison, SOTA_SCAN
 This FSD is updated:
 - On every dimension namespace change (new prefix family commit, prefix retirement, leaf-taxonomy update).
 - On every upstream contract change (persist `FederationDirectory` evolution, Verify L-ladder change, Edge MessageType change).
-- On every phase transition in §12 (with a `Last updated` field bump).
+- On every change to the deployment shapes in §12.
 - On every revision to the eight-axes framework or reserved-prefix enforcement patterns.
-- On every anthropological-commitment update (§1.10 revisions are load-bearing; any change should be coupled with a `CIRISAgent/ContemplativeTraditions/*.lean` revision and an explicit changelog entry).
+- On every anthropological-commitment update (§1.10 revisions are load-bearing; any change should be coupled with a `CIRISAgent/ContemplativeTraditions/*.lean` revision).
 - On every encyclical / external-anchor mapping update that surfaces new dimension candidates or revises owner assignments.
-
-Coupled with [`../MISSION.md`](../MISSION.md) revisions — both files version together.
 
 ---
 
-*End of FSD-002 v1.1. Reviewers: please file changes as PRs against this document with section-level diffs. The eight-axes framework (§1), the relational-anthropology commitment (§1.10), the unified primitive (§2), the reserved-prefix patterns (§4), and the constitutional asymmetry (§7) are the load-bearing structural claims; everything else composes around them. Push back hard on any addition that's not grounded in a sibling MISSION.md, a published prior-art citation, or the Ubuntu-primary anthropological substrate.*
+*Reviewers: please file changes as PRs against this document with section-level diffs. The eight-axes framework (§1), the relational-anthropology commitment (§1.10), the unified primitive (§2), the reserved-prefix patterns (§4), and the constitutional asymmetry (§7) are the load-bearing structural claims; everything else composes around them. Push back hard on any addition that's not grounded in a sibling MISSION.md, a published prior-art citation, or the Ubuntu-primary anthropological substrate.*

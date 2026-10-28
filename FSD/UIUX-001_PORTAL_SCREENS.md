@@ -1,11 +1,8 @@
 # UIUX-001: CIRISPortal Screen Guide
 
-**Version:** 2.0.0
-**Status:** Draft
 **Authors:** CIRIS L3C
-**Date:** 2026-01-26
 
-This document provides guidance for the CIRISPortal team to design screens that consume the CIRISRegistry v1.1.0 API.
+This document provides guidance for the CIRISPortal team to design screens that consume the standalone CIRISRegistry API. [`FSD-004_POST_FOLD_SURFACE.md`](FSD-004_POST_FOLD_SURFACE.md) §4.3 and §4.5 map each Portal surface to the CIRISClient screen that carries it in the registry slice.
 
 ---
 
@@ -967,11 +964,3 @@ Never rely on color alone. Combine with:
 | GetPartnerActivity | Admin Partner Details | |
 | CleanupTestRecords | Admin Settings | Dev only |
 
----
-
-## Document History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2025-01-26 | Initial specification |
-| 2.0.0 | 2026-01-26 | Comprehensive update with all v1.1.0 endpoints |

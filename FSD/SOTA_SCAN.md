@@ -1,9 +1,8 @@
 # State of the Art Scan — FSD-002 federation surface vs production-validated systems
 
-**Companion to**: [`FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md) v1.2; [`PRIOR_ART_SCAN.md`](PRIOR_ART_SCAN.md).
-**Purpose**: Where `PRIOR_ART_SCAN.md` asks "where does FSD-002 sit in the design space?", this document asks "what production load has each shape actually carried, and where is FSD-002 inheriting validated patterns vs venturing into unvalidated frontier?" The same 14 systems, organized by which distinctive shape FSD-002 borrows from them, with deployment state, scale evidence, and known limitations as of 2026-05.
+**Companion to**: [`FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md); [`PRIOR_ART_SCAN.md`](PRIOR_ART_SCAN.md).
+**Purpose**: Where `PRIOR_ART_SCAN.md` asks "where does FSD-002 sit in the design space?", this document asks "what production load has each shape actually carried, and where is FSD-002 inheriting validated patterns vs venturing into unvalidated frontier?" The same 14 systems, organized by which distinctive shape FSD-002 borrows from them, with deployment state, scale evidence, and known limitations.
 **Method**: Each bucket gives a SOTA table + a 2-3 sentence reading of what the production record means for FSD-002's claims.
-**Last updated**: 2026-05-27.
 
 ---
 

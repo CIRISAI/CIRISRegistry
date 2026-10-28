@@ -1,9 +1,8 @@
 # Prior Art Scan — FSD-002 federation surface vs the design space
 
-**Companion to**: [`FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md) v1.2; [`SOTA_SCAN.md`](SOTA_SCAN.md).
+**Companion to**: [`FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md); [`SOTA_SCAN.md`](SOTA_SCAN.md).
 **Purpose**: Put FSD-002's distinctive design shapes in dialogue with prior-art systems so external reviewers can locate the work in the broader design space — what's a rediscovery, what's a genuine novel composition, what's borrowable. Scoped by structural shape, not by named system; systems are grouped by which distinctive shape they most challenge.
 **Method**: 5 buckets, ~14 systems. Each bucket asks: *where does FSD-002 sit in the design space this set of systems spans?*
-**Last updated**: 2026-05-27.
 
 ---
 

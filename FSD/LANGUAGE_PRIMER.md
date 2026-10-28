@@ -1,10 +1,8 @@
 # LANGUAGE_PRIMER — Federation Wire Format as a Translation Grammar
 
-**Version**: 1.1 (Registry-side canonical; v1.4-aligned).
-**Companion documents**: [`FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md) v1.3 (the wire format itself); [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) (the 15 consensus primitives that sit above the substrate-consuming tier).
+**Companion documents**: [`FSD-002_FEDERATION_SURFACE.md`](FSD-002_FEDERATION_SURFACE.md) (the wire format as this registry specified it; the [CIRIS Constitution](https://github.com/CIRISAI/CIRISConstitution) is normative); [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) (the 15 consensus primitives that sit above the substrate-consuming tier).
 **Purpose**: a working reference for **converting substantive ethical-framework content into structured Contribution wire envelopes** that the federation can carry. Symbolic-logic-style translation; not paraphrase. Where the wire format carries the claim cleanly, the conversion is rich. Where it strains, the gap is precise.
 **Audience**: sub-agents (or humans) performing bootstrap-contributions mapping per FSD-002 §10.4; reviewers verifying translation quality; future contributors proposing new content-source bootstrap batches.
-**Last updated**: 2026-05-27.
 
 ---
 
@@ -61,8 +59,8 @@ Every claim in the federation sits in one of five families. This is the navigati
 - **CIRISEdge** (§3.4): substrate self-reports `transport:*`, `delivery:*`, `peer_reachability:*`, `key_boundary:*` (reserved — only Edge emits).
 - **CIRISLensCore** (§3.5): `manifold_conformity:{cohort}`, `coherence_standing:{cohort}`, `capacity:*` factors of `𝒞_CIRIS`.
 - **CIRISNodeCore Tier-1** (§3.6.1): `credits:{domain}:{language}:{subject}` (including `substrate_building` as a recommended subject), `expertise:{domain}:{language}`, `activity_tier:{period}`.
-- **CIRISRegistry** (§3.9): `licensure:{authority_id}`, `partner_role:{role}`, `bond_posted:{currency}`, `build:registered:{target}`, `multilateral_participation:{forum}:{kind}` (v1.3), `agent_files:{kind}:{platform_or_target}` (v1.4 — joint with NodeCore §3.6.7), and reserved `accord:*` (only `identity_type=accord_holder` may emit — the one constitutional asymmetry per §7).
-- **CIRISNodeCore §3.6.7** (v1.4 joint claim with Registry §3.9): `agent_files:*` (node-mode peers serve bytes via Edge `MessageType::ContentFetch` per §2.0 transport substrate) + `holds_bytes:sha256:{prefix}` (substrate auto-emission per CIRISPersist#103; consumed by Edge `PeerResolver::resolve_holders` per CIRISEdge#21).
+- **CIRISRegistry** (§3.9): `licensure:{authority_id}`, `partner_role:{role}`, `bond_posted:{currency}`, `build:registered:{target}`, `multilateral_participation:{forum}:{kind}`, `agent_files:{kind}:{platform_or_target}` (joint with NodeCore §3.6.7), and reserved `accord:*` (only `identity_type=accord_holder` may emit — the one constitutional asymmetry per §7).
+- **CIRISNodeCore §3.6.7** (joint claim with Registry §3.9): `agent_files:*` (node-mode peers serve bytes via Edge `MessageType::ContentFetch` per §2.0 transport substrate) + `holds_bytes:sha256:{prefix}` (substrate auto-emission per CIRISPersist#103; consumed by Edge `PeerResolver::resolve_holders` per CIRISEdge#21).
 
 ### Family B — ACTION (the decision hierarchy)
 
@@ -79,7 +77,7 @@ Every claim in the federation sits in one of five families. This is the navigati
 - `method:{approach_id}:{substrate_rung}` — concrete operational practice instantiating an Approach.
 - `progress_measure:{method_id}` — evidence of progress. Required fields: `tracks[]`, `computation`, `validity_window`, `goodhart_resistance`.
 
-**v1.3 additions in Family B**:
+**Also in Family B**:
 - `locality:decision:{scale}` (NodeCore §3.6.5) — claims about *where* a decision should be made; `{scale}` ∈ {local, regional, national, federation}. Composes with §6.1.5 locality-scaled-quorum to enforce decision-scale-matching.
 
 ### Family C — DETECTION (claims about reality patterns)
@@ -93,8 +91,8 @@ Every claim in the federation sits in one of five families. This is the navigati
 **Owner prefixes** (LensCore §3.5):
 
 - §3.5.1 five Coherence-Ratchet detectors: `detection:cross_agent_divergence`, `detection:intra_agent_consistency`, `detection:hash_chain_integrity`, `detection:temporal_drift`, `detection:conscience_override_rate`.
-- §3.5.3 F-3 structural-injustice detector: `detection:correlated_action:{axis}` — population-scale correlation collapse (`ρ → 1`, `k_eff → 1`). Axes include `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `participation_inclusion:{cohort}`, `informational_asymmetry:{scope}`, `informational_symmetry:{scope}`, `aggregate_footprint:{harm_class}`, `aggregate_benefit:{class}`, `ecology_of_communication:{aspect}` (v1.3).
-- §3.5.5 distributive-access detector (v1.3): `detection:distributive:access:{resource_type}` — population-scale resource-concentration. `{resource_type}` ∈ {compute, models, training_data, agent_capabilities, federation_membership}.
+- §3.5.3 F-3 structural-injustice detector: `detection:correlated_action:{axis}` — population-scale correlation collapse (`ρ → 1`, `k_eff → 1`). Axes include `rights_asymmetry:{population}`, `participation_exclusion:{cohort}`, `participation_inclusion:{cohort}`, `informational_asymmetry:{scope}`, `informational_symmetry:{scope}`, `aggregate_footprint:{harm_class}`, `aggregate_benefit:{class}`, `ecology_of_communication:{aspect}`.
+- §3.5.5 distributive-access detector: `detection:distributive:access:{resource_type}` — population-scale resource-concentration. `{resource_type}` ∈ {compute, models, training_data, agent_capabilities, federation_membership}.
 - §3.7 RATCHET advisory flags: `ratchet:flag:*` (NEVER sole evidence for `slashing:*`).
 - LensCore-specific: `cohort:declared_inferred_mismatch`.
 
@@ -112,7 +110,7 @@ Every claim in the federation sits in one of five families. This is the navigati
 - `truth_grounding:{subject}` — per-subject ground-truth signal.
 - `weighted_aggregate:{contribution_id}` — rolling tally per Contribution.
 - `witness_diversity:{contribution_id}` — meta-attestation that N=3 diversity bar is met (jurisdictional + organizational + software-stack + cell-expertise).
-- `testimonial_witness:{kind}` (v1.4) — preserves singular narrative of an affected party. **Distinct from `witness_diversity:*`**: that primitive aggregates multiple reviewers toward consensus; this one preserves a singular narrative without aggregation, never subject to majoritarian override, never sole evidence for `slashing:*`. Use when the structural object is *this person's irreducible testimony*, not "the federation's consensus about a fact." Closes affected-party-voice T-3 from v1.4 inputs.
+- `testimonial_witness:{kind}` — preserves singular narrative of an affected party. **Distinct from `witness_diversity:*`**: that primitive aggregates multiple reviewers toward consensus; this one preserves a singular narrative without aggregation, never subject to majoritarian override, never sole evidence for `slashing:*`. Use when the structural object is *this person's irreducible testimony*, not "the federation's consensus about a fact." Closes the affected-party-voice T-3.
 
 ### Family E — CORRECTION (how the federation corrects itself)
 
@@ -133,7 +131,7 @@ Every claim in the federation sits in one of five families. This is the navigati
 
 ## §3 — The four structural primitives (the "4" in 1+4)
 
-**This is the section where the prior primer drifted.** The federation has exactly four structural primitives, all of which are `attestation_type` values that operate on the attestation graph itself rather than scoring entities. Per FSD-002 §2.2:
+The federation has exactly four structural primitives, all of which are `attestation_type` values that operate on the attestation graph itself rather than scoring entities. Per FSD-002 §2.2:
 
 | `attestation_type` | What it does | Envelope shape |
 |---|---|---|
@@ -147,7 +145,7 @@ Every claim in the federation sits in one of five families. This is the navigati
 - A **doctrinal-development** claim ("this version of the social teaching extends but does not contradict the prior version") is `supersedes` with `differs_in: ["scope", "evidence_refs"]` — NOT `recants` (which would assert prior version was false).
 - An **acknowledged-error** claim ("the prior framing was wrong; I admit the mistake") is `recants` — distinct from `withdraws` (which retracts without making a falsity claim).
 - A **prudent-retraction** ("I'm withdrawing this attestation without claiming it was false; context has changed") is `withdraws`.
-- An **authority-source claim via delegation** ("this constitutional position derives from authority-key X in scope Y") is `delegates_to` with X as `attested_key_id` (the v1.3 §2.2.1 reuse pattern for authority-source claims, replacing what would otherwise need a `grounding:{tradition}:{principle}` prefix that fails §1.10.1 T2).
+- An **authority-source claim via delegation** ("this constitutional position derives from authority-key X in scope Y") is `delegates_to` with X as `attested_key_id` (the §2.2.1 reuse pattern for authority-source claims, replacing what would otherwise need a `grounding:{tradition}:{principle}` prefix that fails §1.10.1 T2).
 
 **The `recants` distinction matters** — per PRIOR_ART_SCAN Bucket 1, no prior identity system (PGP, SPKI/SDSI, W3C VC) typed epistemic-error-admission as a wire primitive distinct from retraction. The federation has it because the recursive Golden Rule applies to attesters: admitting error is a primary act, not a derivative of retraction.
 
@@ -171,7 +169,7 @@ Attestation:
       - "<URI / content-hash / signed-Contribution-id>"
     valid_until:  "<ISO8601 datetime, optional>"
     epistemic_mode: "<direct | crypto | hearsay | derivative | appeal>"   # optional; default 'direct'
-    witness_relation: "<self | external | derived>"                       # v1.3; optional; default 'external'
+    witness_relation: "<self | external | derived>"                       # optional; default 'external'
     stake:          "<free | reputational | capital | cryptoeconomic>"    # optional; default 'reputational'
 ```
 
@@ -222,17 +220,17 @@ When deciding whether a translation needs a new prefix (a T-3 EXPRESSIVE_GAP can
 | **T3** | Can past verdicts be re-checked against the rule version they ran against? | Version-pinning in `evidence_refs[]` |
 | **T4** | Is the prefix wired so its attestations are **never sole evidence** for `slashing:*`? | Adjudication separation |
 
-**Worked T2 example** (the v1.2 rename): `detection:emergent_deception:{axis}` failed T2 because "deception" is a subjective quality. Renamed to `detection:correlated_action:{axis}` — describes the mechanism (`ρ → 1`, `k_eff → 1` correlation collapse) the detector measures. Polarity + axis carry the value claim; the Ubuntu reading lives in FSD-002 §1.10 prose, not in the wire format.
+**Worked T2 example** (the retired prefix): `detection:emergent_deception:{axis}` failed T2 because "deception" is a subjective quality. It is `detection:correlated_action:{axis}` — describes the mechanism (`ρ → 1`, `k_eff → 1` correlation collapse) the detector measures. Polarity + axis carry the value claim; the Ubuntu reading lives in FSD-002 §1.10 prose, not in the wire format.
 
-**Worked T2 reframe** (v1.3): "supply-chain labor recognition" would have failed T2 if proposed as `credits:supply_chain_labor_exploitation:*` (subjective quality). Reframed as `credits:*:substrate_building` — same content, mechanism-descriptive (the labor *builds substrate*; checkable), not judgment-laden.
+**Worked T2 reframe**: "supply-chain labor recognition" would have failed T2 if proposed as `credits:supply_chain_labor_exploitation:*` (subjective quality). Reframed as `credits:*:substrate_building` — same content, mechanism-descriptive (the labor *builds substrate*; checkable), not judgment-laden.
 
 If a candidate fails T2, look for a mechanism-descriptive reframe before proposing the new prefix.
 
 ---
 
-## §7 — v1.3 governance discipline that affects translation
+## §7 — Governance discipline that affects translation
 
-Two v1.3 additions change how bootstrap-batch translations are composed:
+Two rules shape how bootstrap-batch translations are composed:
 
 ### §7.1 — §4.9.2 step 5: 1-of-6 accord/steward sign-off
 
@@ -562,9 +560,9 @@ reason: |
   The structural claim implicit in the rhetoric (if any) IS carried by other attestations in adjacent paragraphs (cite which). The rhetorical surface itself correctly stays in prose per FSD-002 §1.10.1 — naming pastoral content in wire format would violate the operational-language gate.
 ```
 
-### 11.11 — testimonial_witness (v1.4 — closes the previous T-3)
+### 11.11 — testimonial_witness (closes the affected-party-voice T-3)
 
-What was 11.11 in v1.0 of this primer as a T-3 proposal is now a clean translation in v1.4:
+Once a T-3 proposal, this is a clean translation:
 
 ```yaml
 # Paragraph: "Touch the wounded flesh, look at faces, listen to stories — give space to victims' voices."
@@ -584,13 +582,13 @@ contributions:
         - "<source-paragraph cite>"
         - "<deployment context reference>"
       cohort_scope: self
-      schema_ref: "FSD-002 §3.6.3 (v1.4 addition)"
+      schema_ref: "FSD-002 §3.6.3"
 verdict: clean
 note: |
-  The narrative is preserved as singular witness — distinct from witness_diversity (which would aggregate multiple reviewers toward consensus). Per §3 above, this is one of the four v1.4 closure paths from the T-3 residuals.
+  The narrative is preserved as singular witness — distinct from witness_diversity (which would aggregate multiple reviewers toward consensus).
 ```
 
-### 11.12 — agent_files canonical installer (v1.4)
+### 11.12 — agent_files canonical installer
 
 ```yaml
 # Paragraph: "The official installer for this platform is X"
@@ -612,13 +610,13 @@ contributions:
       epistemic_mode: direct
       cohort_scope: species
       mutability: amendable
-      schema_ref: "FSD-002 §3.9 + §3.6.7 (v1.4 joint claim)"
+      schema_ref: "FSD-002 §3.9 + §3.6.7 (joint claim)"
 verdict: clean
 note: |
   Canonical attester per §6.1.6 Layer 1: registry-steward-triple sign-off = CIRIS default trust. The /install endpoint resolves this attestation as the default download. Third-party agent_files Contributions on the same prefix go through §6.1.6 Layer 2 (open Contribution) and Layer 3 (vote-then-trust); they never become the install-endpoint default per the anti-tricking guarantee.
 ```
 
-### 11.13 — holds_bytes substrate auto-emission (v1.4)
+### 11.13 — holds_bytes substrate auto-emission
 
 ```yaml
 # When a peer caches a file's bytes, Persist auto-emits this so PeerResolver can route future ContentFetch
@@ -636,15 +634,15 @@ contributions:
       witness_relation: self
       epistemic_mode: direct
       stake: free
-      schema_ref: "FSD-002 §3.6.7 (v1.4 substrate auto-emission per CIRISPersist#103)"
+      schema_ref: "FSD-002 §3.6.7 (substrate auto-emission per CIRISPersist#103)"
 verdict: clean
 note: |
   Translators typically don't emit this directly — it's auto-emitted by Persist's federation_blobs.put_blob on cache. Documented here so translators recognize the wire shape when they encounter it in a peer's directory.
 ```
 
-### 11.14 — labor:individual_loss (v1.4 closed-by-documentation)
+### 11.14 — labor:individual_loss (closed by documentation)
 
-The previous T-3 candidate for per-individual labor displacement closes WITHOUT a new prefix by using the existing `non_maleficence:*` composition pattern with `target_key_id = affected_individual`:
+The T-3 candidate for per-individual labor displacement closes WITHOUT a new prefix by using the existing `non_maleficence:*` composition pattern with `target_key_id = affected_individual`:
 
 ```yaml
 # Paragraph: "AI-driven labor displacement is grave; this affects specific persons."
@@ -678,7 +676,7 @@ contributions:
       cohort_scope: self
 verdict: composed
 note: |
-  Per v1.4 T-3 closure #2: no new labor:individual_loss prefix needed. Composition of (a) non_maleficence:* with per-individual target_key_id + cohort_scope: self + (b) testimonial_witness:displaced_worker for the singular narrative carries the per-individual sustained-existential-condition claim. The composition is what previous v1.3 mapping rounds flagged as a gap; v1.4 makes the pattern explicit in this primer.
+  No new labor:individual_loss prefix is needed. Composition of (a) non_maleficence:* with per-individual target_key_id + cohort_scope: self + (b) testimonial_witness:displaced_worker for the singular narrative carries the per-individual sustained-existential-condition claim.
 ```
 
 ---
@@ -692,7 +690,7 @@ note: |
 5. **Don't over-claim T-3.** A T-3 candidate must show: existing namespace doesn't reach it, proposed extension passes §1.10.1 four-test gate, gap is morally serious + operational. If you can't satisfy all three, it's more likely partial with a T-2 residual.
 6. **Don't skip prefix-discovery.** When unsure which prefix fits, grep FSD-002 §3 by family (A-E in §2 above) before defaulting to "no prefix exists." Many candidate-gaps are prefix-discovery failures.
 7. **Don't use `recants` for version succession.** Use `supersedes` (no falsity claim) for doctrinal development; reserve `recants` for actual error-admission.
-8. **Don't use `delegates_to` for "I cite this source."** `delegates_to` is for authority-source claims (the v1.3 §2.2.1 reuse pattern). Citing a source paragraph goes in `evidence_refs[]`.
+8. **Don't use `delegates_to` for "I cite this source."** `delegates_to` is for authority-source claims (the §2.2.1 reuse pattern). Citing a source paragraph goes in `evidence_refs[]`.
 9. **Use `witness_relation: external` for most bootstrap-sourced attestations.** The source is third-party; the agent translating is not self-attesting.
 10. **Cite specific FSD §** in `schema_ref`. Not just "FSD-002"; cite the section that owns the prefix.
 11. **Compose Contributions, not paraphrases.** Output is YAML wire envelopes (or equivalent), not prose translation sketches.
@@ -738,40 +736,39 @@ Multiple Contributions per paragraph are fine when the paragraph genuinely names
 
 ---
 
-## §14 — v1.4 namespace summary
+## §14 — Namespace summary
 
-Per FSD-002 v1.4 §3.10:
+Per FSD-002 §3.10:
 
-- **80 prefix families** total across 8 owning components (corrected count: 77 v1.3 base after O3 correction + 3 v1.4 additions = 80).
-- v1.4 added 3: `agent_files:{kind}:{platform_or_target}` (joint Registry §3.9 + NodeCore §3.6.7), `holds_bytes:sha256:{prefix}` (substrate auto-emission per Persist), `testimonial_witness:{kind}` (NodeCore §3.6.3).
-- v1.4 reference + transport additions: §2.0 transport-substrate reference (Edge `ContentFetch`/`ContentBody`/`ContentMiss` — NOT a wire-format addition, substrate-layer byte resolution for SHA-256 `evidence_refs[]`); §6.1.6 `agent_files-trust-composition` three-layer policy (Canonical / Open Contribution / Vote-then-trust with anti-tricking guarantee).
-- v1.3 carried forward: `multilateral_participation:{forum}:{kind}` (Registry §3.9); `locality:decision:{scale}` (NodeCore §3.6.5); `detection:distributive:access:{resource_type}` (LensCore §3.5.5); `witness_relation` envelope field (§2.1); `ecology_of_communication:{aspect}` axis extension (§3.5.3); §6.1.4 lexical-vulnerability-priority + §6.1.5 locality-scaled-quorum (closed G3); `delegates_to` reuse pattern for authority-source claims (§2.2.1); `credits:*:substrate_building` as `{subject}` value (NOT a new prefix per overlap O3).
-- **0 new structural primitives in v1.3 OR v1.4.** The 1+4 shape held under encyclical-level stress AND under files-as-Contributions extension. Third confirmation of composition-discipline (PRIOR_ART_SCAN; §6.1.5 G3 closure; v1.4 files surface) that the framework absorbs new content via composition, not via new atomic primitives.
+- **83 prefix families** total across 8 owning components.
+- Among them: `agent_files:{kind}:{platform_or_target}` (joint Registry §3.9 + NodeCore §3.6.7), `holds_bytes:sha256:{prefix}` (substrate auto-emission per Persist), `testimonial_witness:{kind}` (NodeCore §3.6.3), `multilateral_participation:{forum}:{kind}` (Registry §3.9), `locality:decision:{scale}` (NodeCore §3.6.5), `detection:distributive:access:{resource_type}` (LensCore §3.5.5), `provenance:build_manifest:{target}:locale:{lang_code}` and `provenance:skill_import:{source}` (Verify §3.2).
+- Not prefix families: the `witness_relation` and `oversight_mode` envelope fields (§2.1); the `ecology_of_communication:{aspect}` axis extension (§3.5.3); the §6.1.4 lexical-vulnerability-priority, §6.1.5 locality-scaled-quorum and §6.1.6 `agent_files` trust-composition reference policies; the `delegates_to` reuse pattern for authority-source claims (§2.2.1); `credits:*:substrate_building` as a `{subject}` value; the §2.0 transport-substrate reference (Edge `ContentFetch`/`ContentBody`/`ContentMiss` — substrate-layer byte resolution for SHA-256 `evidence_refs[]`, not a wire-format addition).
+- **The structural-primitive set is 1+4 and has not grown.** The shape held under encyclical-level stress and under the files-as-Contributions extension: the framework absorbs new content via composition, not via new atomic primitives (PRIOR_ART_SCAN; §6.1.5 G3 closure; the files surface).
 
 ---
 
 ## §15 — Concerns + identified overlaps (for future contributors)
 
-The post-v1.2 review (PRIOR_ART_SCAN + SOTA_SCAN + encyclical-mapping test) and the v1.3 lock-down work surfaced these. Per FSD-002 §13.11.
+The reviews (PRIOR_ART_SCAN + SOTA_SCAN + encyclical-mapping test) surfaced these. Per FSD-002 §13.11.
 
-### §15.1 — Closed gaps
+### §15.1 — Resolved gaps
 
-- **G1** (revocation privacy): RETRACTED. Per FSD-002 §0.2, privacy of revocation events is not a goal for Registered participants — the Registered path's thesis is public verifiability.
-- **G2** (rules-layer Sybil): MITIGATED via §4.9.2 step 5 (1-of-6 accord/steward sign-off).
-- **G3** (narrow-cell fresh-quorum): MITIGATED via §6.1.5 (locality-scaled quorum composing `locality:decision:{scale}` with NodeCore P10/P11).
-- **v1.4 T-3 closures** (per FSD-002 §13.11):
-  - #1 `testimonial_witness:{kind}` — CLOSED via §3.6.3 new prefix (preservation-only; never aggregated; never sole evidence for `slashing:*`).
-  - #2 `labor:individual_loss:{kind}` — CLOSED by documentation. Existing `non_maleficence:*` with `target_key_id = affected_individual` + `witness_relation: external` (from external advocate) carries the per-individual claim. No new prefix.
-  - #5 Constitutional-constraint grounding — CLOSED in §1.10 prose. Wire format stays tradition-multiplicity-neutral per §1.10.1.
-  - #3 (positive dignity non-substitutability), #4 (finitude-as-value), #6 (sustained_practice) — DEFERRED to v1.5+ design workshop with explicit T2-care reasoning per FSD-002 §13.11 table.
+- **G1** (revocation privacy): not a gap. Per FSD-002 §0.2, privacy of revocation events is not a goal for Registered participants — the Registered path's thesis is public verifiability.
+- **G2** (rules-layer Sybil): mitigated via §4.9.2 step 5 (1-of-6 accord/steward sign-off).
+- **G3** (narrow-cell fresh-quorum): mitigated via §6.1.5 (locality-scaled quorum composing `locality:decision:{scale}` with NodeCore P10/P11).
+- **T-3 closures** (per FSD-002 §13.11):
+  - #1 `testimonial_witness:{kind}` — closed via the §3.6.3 prefix (preservation-only; never aggregated; never sole evidence for `slashing:*`).
+  - #2 `labor:individual_loss:{kind}` — closed by documentation. Existing `non_maleficence:*` with `target_key_id = affected_individual` + `witness_relation: external` (from external advocate) carries the per-individual claim. No new prefix.
+  - #5 Constitutional-constraint grounding — closed in §1.10 prose. Wire format stays tradition-multiplicity-neutral per §1.10.1.
+  - #3 (positive dignity non-substitutability), #4 (finitude-as-value), #6 (sustained_practice) — open design-workshop candidates with explicit T2-care reasoning per the FSD-002 §13.11 table.
 
 ### §15.2 — Identified overlaps surfaced by this primer's drafting
 
-**O1** — `epistemic_mode: derivative` and `witness_relation: derived` overlap semantically at the edges. They are formally distinct (process vs relational position) but co-vary in practice (the F-3 detector is always `epistemic_mode: derivative + witness_relation: derived`). Resolution direction: document the joint usage pattern explicitly (this primer §4 attempts this); if future drift, consider folding one field. NOT collapsing in v1.3 — both fields preserve different reads at the edges.
+**O1** — `epistemic_mode: derivative` and `witness_relation: derived` overlap semantically at the edges. They are formally distinct (process vs relational position) but co-vary in practice (the F-3 detector is always `epistemic_mode: derivative + witness_relation: derived`). The joint usage pattern is documented (this primer §4); both fields stay, because they preserve different reads at the edges.
 
-**O2** — `detection:distributive:access:{resource_type}` could fold into `detection:correlated_action:resource_access:{resource_type}` as a new axis path. Same detector machinery (`ρ`/`k_eff` over signed traces), different trace source (resource events vs action events). Decision direction: kept separate in v1.3 because the OBJECT class genuinely differs and the prefix carries pedagogical weight for the Universal-Destination-of-Goods reading. Future v1.4 may revisit if axis-vs-prefix discipline tightens.
+**O2** — `detection:distributive:access:{resource_type}` could fold into `detection:correlated_action:resource_access:{resource_type}` as a new axis path. Same detector machinery (`ρ`/`k_eff` over signed traces), different trace source (resource events vs action events). Kept separate because the OBJECT class genuinely differs and the prefix carries pedagogical weight for the Universal-Destination-of-Goods reading.
 
-**O3** — **CLOSED in v1.4.** `credits:*:substrate_building` was documented in FSD-002 §3.6.1 as a sub-leaf (counted as a new prefix in v1.3 changelog) but is structurally a `{subject}` value within the existing `credits:{domain}:{language}:{subject}` family. v1.4 §3.10 corrects the count: 77 v1.3 base (post-correction) + 3 v1.4 new = 80 prefix families. `substrate_building` recounted as a documented `{subject}` value, not a new prefix family.
+**O3** — `credits:*:substrate_building` is a `{subject}` value within the existing `credits:{domain}:{language}:{subject}` family, not a prefix family of its own; FSD-002 §3.10 counts it that way.
 
 **O4** — `§6.1` reference policies (A/B/C base + D/E modifiers) compose differently. A/B/C are base aggregation policies; D (lexical-vulnerability-priority) is a tie-breaking modifier; E (locality-scaled-quorum) is a quorum-sizing modifier. Recommend restructuring §6.1 as "base policies" + "modifier policies" subsections for clarity. Cosmetic.
 
@@ -793,7 +790,7 @@ The licensure forcing function is the structural reason these bets have a path p
 
 ## §16 — The test, restated
 
-The CIRIS federation wire format v1.3 is being tested for **expressive adequacy** against substantive ethical-framework content (the *Magnifica Humanitas* encyclical is the first deployment per §10.4.3; multi-source commitment per §10.4.4 covers future batches). The test asks: can the framework's primitive language speak what the source says as structured Contributions?
+The CIRIS federation wire format is tested for **expressive adequacy** against substantive ethical-framework content (the *Magnifica Humanitas* encyclical is the first deployment per §10.4.3; multi-source commitment per §10.4.4 covers future batches). The test asks: can the framework's primitive language speak what the source says as structured Contributions?
 
 - **Clean and composed translations** are evidence the language is adequate at the substrate the source addresses.
 - **Partial translations** are honest acknowledgments that the structural shape is captured but operational content remains — typically a T-3 candidate hiding in the residual.
@@ -805,4 +802,4 @@ The source is the senior work; the framework is the junior. The test is not whet
 
 ---
 
-**End LANGUAGE_PRIMER.md v1.0**
+**End LANGUAGE_PRIMER.md**
