@@ -1,14 +1,12 @@
 # CIRISPortal UI/UX Updates for Role Hierarchy
 
-**Version:** 1.2.0
-**Date:** 2026-01-28
 **Status:** Implementation Guide for Portal Team
 
 ---
 
 ## Summary
 
-This document describes the UI/UX changes required in CIRISPortal to support the new role hierarchy and multi-organization membership features implemented in CIRISRegistry v1.2.0.
+This document describes the UI/UX changes required in CIRISPortal to support the role hierarchy and multi-organization membership features implemented in CIRISRegistry.
 
 ### Key Changes
 
@@ -357,15 +355,14 @@ interface OrgMembership {
 
 ### 5.3 Backward Compatibility
 
-The legacy `OrgUser` endpoints still work during transition:
+The legacy `OrgUser` endpoints remain available:
 - `CreateOrgUser` - Creates user bound to single org (legacy)
 - `GetOrgUser` - Returns OrgUser format (legacy)
 - `ListOrgUsers` - Returns list of OrgUser (legacy)
 
 **Migration Path:**
-1. Update UI to use new `User` + membership endpoints
+1. Update UI to use the `User` + membership endpoints
 2. Replace `OrgUser` references with `User` + `OrgMembership`
-3. Legacy endpoints will be deprecated in v1.3.0
 
 ---
 

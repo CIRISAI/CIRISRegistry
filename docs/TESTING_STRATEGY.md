@@ -1,9 +1,6 @@
 # CIRISRegistry Testing Strategy
 
-**Version:** 1.0.0
-**Date:** 2026-01-26
-
-This document proposes a comprehensive testing strategy for CIRISRegistry, inspired by the Hypothesis-based testing used in other CIRIS Python projects.
+This document describes the testing strategy for CIRISRegistry, inspired by the Hypothesis-based testing used in other CIRIS Python projects.
 
 ---
 
@@ -484,22 +481,22 @@ cargo llvm-cov --fail-under-lines 70
 
 ## 9. Recommended Test Priorities
 
-### Phase 1: Critical Path (Week 1)
+### Priority 1: Critical path
 1. **Cryptographic operations** - sign/verify roundtrips
 2. **Capability intersection** - core business logic
 3. **Agent/Partner lookup** - database CRUD
 
-### Phase 2: Security (Week 2)
+### Priority 2: Security
 4. **Revocation propagation** - fail-secure behavior
 5. **JWT validation** - authentication edge cases
 6. **Rate limiting** - abuse prevention
 
-### Phase 3: Edge Cases (Week 3)
+### Priority 3: Edge cases
 7. **Pagination** - boundary conditions
 8. **Concurrent access** - race conditions
 9. **Error handling** - graceful degradation
 
-### Phase 4: Property Tests (Ongoing)
+### Priority 4: Property tests (ongoing)
 10. **Invariant testing** - mathematical properties
 11. **Fuzzing** - unexpected inputs
 12. **Regression tests** - persisted failures

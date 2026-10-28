@@ -8,11 +8,11 @@ CIRISRegistry provides three verification levels:
 
 | Level | Purpose | Endpoint |
 |-------|---------|----------|
-| 1 | Registry key authenticity | `/v1/steward-key` |
+| 1 | Trust root | `/v1/steward-key`, `/v1/trust-root/bundle` |
 | 2 | Binary integrity (whole file) | `/v1/verify/binary-manifest/{version}` |
 | 3 | Function integrity (per-FFI export) | `/v1/verify/function-manifest/{version}/{target}` |
 
-Plus runtime license/revocation checks via gRPC and HTTP.
+Build manifests are also served CEG-natively at `/v1/builds*` (see below), and runtime license/revocation checks run via gRPC and HTTP.
 
 ---
 
@@ -20,36 +20,35 @@ Plus runtime license/revocation checks via gRPC and HTTP.
 
 Base URL: `https://api.registry.ciris-services-1.ai`
 
-### 1. Steward Key Retrieval
+### 1. Trust Root
 
 ```
 GET /v1/steward-key
+GET /v1/trust-root/bundle
 ```
 
-Returns the registry's active signing key pair for signature verification.
+Both routes return the genesis trust-root bundle: the `humanity-accord` charter, the accord-holder roster with custody evidence, the `infra:*` scopes the charter confers, the serve-node grants, and the `ciris-canonical` community birth record in the `community` member (`null` when the bundle carries none). The schema is the one CIRISServer serves at its `GET /v1/trust-root/bundle`.
 
-**Response:**
-```json
-{
-  "classical": {
-    "algorithm": "Ed25519",
-    "key": "<base64-encoded-public-key>",
-    "key_id": "steward-2026"
-  },
-  "pqc": {
-    "algorithm": "ML-DSA-65",
-    "key": "<base64-encoded-public-key>",
-    "key_id": "steward-2026",
-    "fingerprint": "sha256:abc123..."
-  },
-  "signature_mode": "HYBRID_REQUIRED",
-  "revision": 42,
-  "timestamp": 1740100000,
-  "next_rotation": null
-}
+The bundle is self-authenticating: the hybrid accord-holder signatures over the charter are re-derived by the consumer from its own records. The outer envelope carries no `response_signature`. See [`TRUST_CONTRACT.md`](TRUST_CONTRACT.md) §3 for the pinning guidance.
+
+The registry's own identity keys are served at `GET /v1/identity`; they identify the relay and are not a trust root.
+
+**Used by:** CIRISVerify Level 1 trust-root pinning
+
+---
+
+### 1a. Build Manifests (CEG-native)
+
+```
+POST /v1/builds                              # submit a signed build manifest
+GET  /v1/builds/{version}                    # the build and its federation_provenance block
+GET  /v1/builds/hash/{manifest_hash}         # the build by manifest hash
+GET  /v1/builds/manifest/{manifest_hash}     # the manifest bytes
 ```
 
-**Used by:** CIRISVerify Level 1 multi-source validation
+These routes are CEG-native on the registry slice composed into CIRISServer: `POST /v1/builds` admits a manifest signed by a pipeline key that a `delegates_to(root → pipeline, infra:attest)` grant or the accord role on its key record blesses, the bound hybrid signature is verified against the pubkeys pinned in the federation directory, and the reads serve the signed claim and the manifest bytes from the directory.
+
+The standalone binary serves `GET /v1/builds/{version}` and `GET /v1/builds/hash/{build_hash}` from its build table and requires the `REGISTRY_ADMIN_TOKEN` bearer on `POST /v1/builds`; it does not serve `/v1/builds/manifest/{manifest_hash}`. In both deployments `GET /v1/builds/{version}` folds a `-stable` suffix on lookup (`2.9.48-stable` resolves `2.9.48`); `-rc*` and `-beta*` are distinct artifacts and are not folded. The response's `federation_provenance.attestations_consumed` carries a `provenance:build_manifest:{target}:v1` entry only when a pipeline-signed Contribution binding the exact `(target, binary_version, manifest_hash)` exists in the federation directory; otherwise the entry is absent and `note` says so.
 
 ---
 
@@ -362,9 +361,9 @@ message GetRevocationListResponse {
 ### CIRISVerify Startup Sequence
 
 ```
-1. Level 1: Fetch steward key from multiple sources
+1. Level 1: Fetch the trust root from multiple sources
    GET /v1/steward-key (from 2+ geographic regions)
-   → Requires 2-of-3 agreement
+   → Bundles compare equal; the bundle is self-authenticating
 
 2. Level 2: Binary self-verification
    GET /v1/verify/binary-manifest/{version}
@@ -753,7 +752,7 @@ Authorization: Bearer <google_id_token>
 ## Security Notes
 
 1. **Hybrid Signatures:** All manifests use Ed25519 + ML-DSA-65 (post-quantum)
-2. **Multi-Source Validation:** Steward key requires 2-of-3 source agreement
+2. **Trust Root:** The bundle is self-authenticating; multi-source agreement across regions is the verifier's policy
 3. **Fail-Secure:** Unknown agents default to COMMUNITY tier
 4. **Immutability:** Manifests cannot be modified once registered for a version+target
 5. **Revocation:** Any REVOKED signal triggers immediate enforcement

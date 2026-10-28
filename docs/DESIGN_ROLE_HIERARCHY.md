@@ -1,14 +1,12 @@
 # CIRISRegistry Role Hierarchy and Nested Organizations Design
 
-**Version:** Draft 1.0
-**Date:** 2026-01-28
-**Status:** Proposal
+**Status:** Implemented. The organization types, system roles, multi-org membership model and RPCs described here are in `protocol/ciris_registry.proto` and the sqlx migrations; `SystemRole` has since gained `HUMANITY_ACCORD = 4` (`MISSION.md` §2.2).
 
 ---
 
 ## Background
 
-The current CIRISRegistry schema has flat organizations with org-scoped roles only. This doesn't map to the CIRIS ecosystem licensing model which has three distinct layers:
+A flat organization model with org-scoped roles only does not map to the CIRIS ecosystem licensing model, which has three distinct layers:
 
 1. **CIRIS Steward** (Internal) - Maintains open stack, coordinates network
 2. **Licensed Delegated Authority** (Partners) - Steward-backed, can certify others
@@ -18,7 +16,7 @@ Additionally, licensed partners need to create **Licensee** organizations beneat
 
 ---
 
-## Proposed Design
+## Design
 
 ### 1. Organization Types
 
@@ -321,19 +319,11 @@ message CreateOrganizationRequest {
 | **System Users** | New screen (SYSTEM_ADMIN only) |
 | **User Create** | Clarify: "This user will be scoped to [Org Name]" |
 
-### 10. Migration Path
+### 10. Compatibility
 
-1. **Phase 1**: Add columns with defaults (backward compatible)
-   - All existing orgs default to `OrgType.COMMUNITY`
-   - No existing orgs have parents
-
-2. **Phase 2**: Migrate known organizations
-   - Set CIRIS L3C org to `OrgType.INTERNAL`
-   - Set existing partners to `OrgType.PARTNER`
-
-3. **Phase 3**: Enable hierarchy features
-   - Portal UI shows hierarchy
-   - Licensee creation enabled
+- Columns are added with defaults: an organization with no `org_type` is `OrgType.COMMUNITY` and has no parent.
+- The CIRIS L3C org is `OrgType.INTERNAL`; licensed partners are `OrgType.PARTNER`.
+- Licensee creation is available to PARTNER org admins; the Portal shows the hierarchy.
 
 ---
 
@@ -388,6 +378,3 @@ message CreateOrganizationRequest {
   - Create user first, then add to org
   - Or use atomic `CreateUserWithMembership` (new RPC)
 
----
-
-*Awaiting approval before implementation.*
