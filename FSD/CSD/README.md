@@ -92,13 +92,20 @@ not one of CC's seven; scope order `pending: CC ruling 11`).
 | Files, Chats, Contacts, Moderation, ChildSafety, Consent, Health & Reputation, Audit | CSD-007, 110, 005, 065, 066, 053/054, 044, 071 | — | — | existing, unchanged |
 | Rules › Billing; People › Users | CSD-056, CSD-043 | — | — | leave the tier |
 
-**Why the tier is distinct** (CC rc13 deltas note, the why column): the data-handling
-and retention duties are affiliation-only in the text (C1, TEXT SAYS: classification,
-retention floors and ceilings, `legal_hold`, `erasure_policy`, `designated_officials`,
-`archive_custody`); the interest/necessity split is the stated motive (A1); wider
-moderation latitude is SILENT, and where the text speaks it tightens affiliations
-(B1: every role edge termed, the organisation on the bond). The tier shares the
-community's crypto tier and feed band (8a).
+**Why the tier is distinct** — now stated, CC 4.4.3.2.8 "The assumption each tier
+carries (normative)", rc13 3cac7b9 P4:647: "A community is presumed pro-social: its
+members gather as peers, so the floors of CC 4.5.13 and CC 4.5.4 (no single vote admits
+or removes, a named moderator, removal on a harm report by more than one voice) protect
+them from one another and from one voice. An affiliation carries no such presumption,
+and the law does not grant it one: it holds other people's data because its work
+requires it, so the limbs of this record (classification, retention, legal hold,
+erasure, disclosure, custody, designated officials) bind an affiliation and bind no
+community." Hence the split landed with it (P4:649, P4:651): the data regime attaches to
+the record at any size, so a sole practitioner is an affiliation; the floors bind power
+over members, not the count of voices (appointment is two consents; a one-seat body acts
+against a member only with an outside countersign, else it is a CC 4.5.5 proposal; the
+designated official discharges the named-moderator duty; two or more seats decide as a
+community). The tier shares the community's crypto tier and feed band (deltas 8a).
 
 Not in this set, because the client already has the card: audit (CSD-071), the device
 delegation flow (CSD-055), community founding and governance (CSD-102/103; CSD-120 is
@@ -198,16 +205,19 @@ check, persist's CHANGELOG and CC's `claims.tsv`, and should be re-read once.
 
 ## Unsettled
 
-- CC 3.3.9 (rc12) still says the three operational kinds "remain registered and in force
-  until an amendment retires them", while persist v60.0.0 V205 has dropped their tables
-  and refuses the replication kinds. A CC text amendment closing 3.3.9 onto its first
-  paragraph is owed; the cards cite both.
+- *(Settled 2026-10-28.)* CC 3.3.9 is amended on rc13 3cac7b9 (P3:1592): the three
+  operational kinds are "retired by amendment (CC 4.5.1): their names stay in this
+  section so citations resolve, no substrate admits them as record kinds", matching
+  persist v60.0.0 V205. The cards cite the amendment.
 - CIRISEdge#851 (depth 4 → 5) and CIRISEdge#808 (per-recipient `key_grant` carriage)
   were not re-checked.
 - The server's `requirements.yaml` entries for CSD-121–126 (the asks above).
 - The eleven rulings of the CC rc13 deltas note that the cards mark `pending: CC ruling
   <n> (affiliation_vs_community_deltas_2026-10-28)`: 1 discriminator on the record, 2
-  charter defaults, 3 admin scope set, 4 protocol floor and the one-person affiliation,
-  5 succession, 6 moderator duty for institutions, 7 a social community as licensor, 8
-  the public face, 10 lifecycle, 11 scope order. Ruling 9 (the reader's edge) is settled:
-  Who I trust, with CIRISPersist#1142 for the wire shape.
+  charter defaults, 3 admin scope set, 5 succession, 7 a social community as licensor, 8
+  the public face, 10 lifecycle, 11 scope order. Settled: ruling 9 (the reader's edge:
+  Who I trust, CIRISPersist#1142 for the wire shape); rulings 4 and 6 together (rc13
+  3cac7b9, CC 4.4.3.2.8 P4:647–651: one member is enough; the floors bind power over
+  members; the designated official discharges the moderator duty; governance row
+  `affiliation_member_action`; `formal/affiliation/Affiliation.lean`; wire door
+  CIRISPersist#1143).

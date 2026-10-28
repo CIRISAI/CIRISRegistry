@@ -158,11 +158,21 @@ community crypto tier and feed band (8a: P2:30, P4:408, P4:715). Pending, and
 the card does not guess: where the discriminator lives on the record (persist's
 `declared_cohort` is the implementer's shape) `pending: CC ruling 1`; whether an
 absent `role_term` is 365 or refused, and whether licence classes must be
-enumerated, `pending: CC ruling 2`; whether `founder_only` and the two-voice floor
-bind an affiliation, so whether a one-person business can be one, `pending: CC
-ruling 4`; what dissolution does to the DEK, the seats and the issued licences,
+enumerated, `pending: CC ruling 2`; what dissolution does to the DEK, the seats and the issued licences,
 `pending: CC ruling 10`; the order of `community` and `affiliations`, `pending:
 CC ruling 11` (all `affiliation_vs_community_deltas_2026-10-28`).
+
+**One member is enough (landed: CC rc13 3cac7b9, CC 4.4.3.2.8 P4:649, the former ruling
+4 / row 3c).** "An affiliation may have one member — a sole practitioner — and holds,
+processes and licenses under this record's limbs from its creation; the limbs attach
+to the record and its subjects, never to a head-count. Members of an affiliation hold
+no governance vote unless its charter grants one; the deciding seats are its officers
+under its `consensus_protocol`." So founding a one-person affiliation is allowed and the
+card offers it: a sole founder with `founder_only` has a complete charter and may issue
+licences at once (CC 4.5.12.5 P4:1702: `founder_only` is "admissible for an affiliation only
+under the one-voice countersign rule of CC 4.4.3.2.8"). What a one-voice body may not do alone is act against a member
+(CSD-121). The worked world is CC `formal/affiliation/Affiliation.lean`
+(`a1_data_regime_at_any_size`, `solo_is_bound_by_the_limbs`, `solo_hires`).
 
 **Every emitted field is a member of one signed record.** The charter is the
 affiliation's config record, superseded as a whole (CC 4.4.3.2.8: "DECLARED at

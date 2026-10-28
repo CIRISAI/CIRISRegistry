@@ -29,8 +29,8 @@ ported from `PartnerRecord` (capabilities, limits, `revision`); the obligations,
 `duty:{kind}:v1` on the licence; the capabilities, the `scope` of a
 `delegates_to` where they are agency (CSD-124) and the licence where they are
 standing; forum participation, `multilateral_participation:{forum}:{kind}:v1`.
-The `partner_record` subject kind is **retired**: persist v60.0.0 (V205) dropped
-its table and refuses the replication kind (`federation_envelope_kind_retired`).
+The `partner_record` subject kind is **retired**, by amendment (CC 3.3.9 on CC rc13 3cac7b9
+P3:1592) and in persist v60.0.0 (V205, `federation_envelope_kind_retired`).
 The monotonic `revision` the record carried lives on in the licence payload.
 
 **A role is not a price (steward, 2026-10-28).** The Portal's six
@@ -129,7 +129,7 @@ error:     {tag: "proposed:txt_partners_error", renders: "Couldn't read partners
 | forums (`multilateral_participation:*` rows) | none | CIRISServer | `blocked_by: CIRISServer#752` |
 | read outbound and inbound recognitions | none (FSD-004 proposed reads over `partner_record`, now retired) | CIRISServer | `blocked_by: CIRISServer#752` |
 | end (withdraws + optional `revocation:partner:*`) | none | CIRISServer | `blocked_by: CIRISServer#752` |
-| the `partner_record` subject kind retired | CIRISPersist V205 | CIRISPersist | confirmed — v60.0.0 §8 item 4; CC 3.3.9 rc12 keeps the three kinds "registered and in force until an amendment retires them": a CC text amendment is still owed (README, unsettled) |
+| the `partner_record` subject kind retired | CIRISPersist V205 | CIRISPersist | confirmed — v60.0.0 §8 item 4; CC 3.3.9 amended on CC rc13 3cac7b9 P3:1592: "The three kinds below are retired by amendment (CC 4.5.1): their names stay in this section so citations resolve, no substrate admits them as record kinds" |
 
 ## 3a. Topology (CSD/4)
 

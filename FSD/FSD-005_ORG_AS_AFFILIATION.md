@@ -130,11 +130,28 @@ are non-normative presets over scope sets (2c: P3:1592); in an affiliation every
 role edge is termed where a community terms only duty-bearing edges (2e: P2:276,
 P4:670); an organisation on the bond is reached by `slash` and `quarantine`
 (2g: P3:805). SILENT, so this document does not decide them: the "closed canonical
-set" of admin scopes (`pending: CC ruling 3`); whether `founder_only` and the
-two-voice floor bind an affiliation and whether a one-person body can be one
-(`pending: CC ruling 4`); succession when the last founder leaves (`pending: CC
-ruling 5`); whether a `designated_official` discharges the CC 4.5.4 moderator duty
-(`pending: CC ruling 6`). The cards cite the same rows.
+set" of admin scopes (`pending: CC ruling 3`); succession when the last founder
+leaves (`pending: CC ruling 5`). The cards cite the same rows.
+
+*The protocol floor, landed (rc13 3cac7b9, 2026-10-28; the former rulings 4 and 6).*
+CC 4.4.3.2.8 now carries three normative paragraphs: the assumption each tier carries
+(P4:647: a community is presumed pro-social and the CC 4.5.13 / 4.5.4 floors protect
+peers from one another and from one voice; an affiliation carries no such presumption
+and the data limbs bind it alone); one member is enough (P4:649: a sole practitioner is
+an affiliation, holds and licenses under the limbs from creation, and members hold no
+governance vote unless the charter grants one); the floors bind power over members, not
+the count of voices (P4:651: appointment is the protocol signature plus the appointee's
+`membership:acceptance`; a one-seat body's act against a member — removal, quarantine,
+slash, takedown — is admitted only countersigned by a key outside the seat, the
+designated official or a review-holder of the overseeing body, else it is a CC 4.5.5
+reconsideration proposal; the designated official discharges the CC 4.5.4 duty; two or
+more seats decide under their own protocol as a community). CC 4.5.12.5 (P4:1702)
+admits `founder_only` for an affiliation "only under the one-voice countersign rule of
+CC 4.4.3.2.8". Register: governance row
+`affiliation_member_action` (cosigned 2/2); model `formal/affiliation/Affiliation.lean`;
+`CLM-affiliation-one-voice-countersign` staged on CIRISPersist#1143. So the §7.1 blocker-1
+question ("is one founder enough to issue") closes as: yes, under `founder_only`, for
+issuing; never alone for an act against a member.
 
 ## 5. The authority tree, and that it closes
 
@@ -157,7 +174,7 @@ delegated; the licence and the grant are leaves.
 
 | Repo | Ask | Why |
 |---|---|---|
-| CIRISConstitution | **Landed** (#161, rc8): CC 3.3.9 now opens with "an organisation is an affiliation"; `authority_id` is the `community_key_id`; the role presets are non-normative presets over scope sets. Still owed: the 3.3.9 text keeps the three kinds "registered and in force until an amendment retires them" while persist v60 V205 has retired them — one amendment closes it | two records for one thing |
+| CIRISConstitution | **Landed** (#161, rc8; amended rc13 3cac7b9 P3:1592): CC 3.3.9 opens with "an organisation is an affiliation. The three kinds below are retired by amendment (CC 4.5.1): their names stay in this section so citations resolve, no substrate admits them as record kinds"; `authority_id` is the `community_key_id`; the role presets are non-normative presets over scope sets. Matches persist v60 V205; nothing is owed | two records for one thing |
 | CIRISConstitution (second ask) | **Landed** (#162, rc8; re-read on cirisconstitution-32, 2026-10-28): the authority set is whatever the affiliation's `consensus_protocol` admits; a licence is a cosigned row judged at its signed `asserted_at`; no public default, scope per licence class in the charter (`licence_audiences`); re-emission to named readers is new cosigned rows with the readers in `subject_key_ids`. For CIRIS the dimension is `licensure:ciris-canonical:v1` (§9.6) | both are rulings, not code |
 | CIRISPersist | §7.2: the affiliation authority-set arm for licensure; the V089 CHECK fix; licensure gate/fold agreement with an `as_of` lens; cycle refusal at admission; chain-explain read; typed affiliation config + discriminator; `role_of`; licensure public read; the `grant` gate; rc7 `key_grant`; the 3.3.9 deprecation plan | storage + admission of the rows above |
 | CIRISEdge | §7.3: a commons reach for registry families on a conferred node; subject-pull by non-subjects; consent-prefix coverage; depth default 5 | carriage + audience of the rows above |
@@ -429,6 +446,13 @@ removed the CIRIS root, keeps its identity floor but is un-federated at the serv
 tier until it attaches another root (CC 4.4.3.8 items 4–5): licensor trust is not root
 trust, and the UI warns so on removing the root. CSD-122 carries the reader half; the
 set's own surface is the Who-I-trust extension of CSD-105 (`COMMON_CARDS_ANALYSIS.md`).
+
+**Rulings 4 and 6 landed, 3.3.9 amended (rc13 3cac7b9, later on 2026-10-28).** See §4
+(the protocol floor, landed) for the three CC 4.4.3.2.8 paragraphs (P4:647, 649, 651),
+the governance row, the Lean model and CIRISPersist#1143; CC 3.3.9 (P3:1592) retires the
+three operational kinds by amendment, names kept so citations resolve. The deltas table
+(`review/notes/affiliation_vs_community_deltas_2026-10-28.md`, rc13) remains the source
+for the rulings still pending: 1, 2, 3, 5, 7, 8, 10, 11.
 
 **CSD/4.** The cards carry the LOCKED form (`CIRISServer/FSD/CSD4.md`): a `csd:tests`
 block on catalogue entry T6 ("an affiliation, a licensing authority, a delegation chain",

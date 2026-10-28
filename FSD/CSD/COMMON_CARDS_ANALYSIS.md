@@ -649,7 +649,7 @@ after this set is adopted.
 | People | Users (CSD-043) | `GLOBAL_COMMUNITIES` only | not an affiliation thing: CSD-043 §6 moves it to My things › This node | leaves the tier (CSD-043's own ask) |
 | People | AffiliationsRoster (CSD-103) | placed | the roster, with the acceptance-row provenance, the removal cascade fact and the role chip opening the delegation sheet | FOLD CSD-121 into CSD-103 (+ CSD-055 §7) |
 | People | **Partners** (CSD-123) | none | recognitions out and in, forums, the licence summary beside a partner | KEEP: new row |
-| Safety | Moderation (CSD-065) | `NEIGHBOURS_OUT` | the moderator duty, as for any community; whether a `designated_official` discharges it is `pending: CC ruling 6` | existing |
+| Safety | Moderation (CSD-065) | `NEIGHBOURS_OUT` | the moderator duty; for an affiliation the designated official discharges it (CC 4.4.3.2.8 P4:651 on rc13 3cac7b9), and a one-seat body's act against a member needs an outside countersign (CSD-121's sheet) | existing; CSD-065 gains the affiliation sentence |
 | Safety | ChildSafety (CSD-066) | all circles | unchanged | existing |
 | Safety | *(none)* | — | **lawful access and transparency obligations** (CC 4.4.3.2.8 D: `lawful_access` typed, never covert, always `hard_case:*`; `transparency_obligations[]`); CSD-120 §5 defers it to "a later card" | **GAP → CSD-130** |
 | Rules | LayerGlobalCommunities hub (CSD-050 + CSD-102) | placed | the community record and governance, plus the charter | EXTEND CSD-102 §2.3 (from CSD-120) |
@@ -727,7 +727,7 @@ scope CC does not have.
 | Decisions › pending cosignatures | — | CSD-102 (roster held changes only) | **GAP → CSD-131** | new card, or CSD-102's held-change rendering with a Decisions door |
 | Record › records duties | — | CSD-071 (the feed only) | **GAP → CSD-132** | new card; deltas C1 |
 | People / Rules › public face | — | none; CSD-102's public rooms are a different thing | **GAP → CSD-133**, held | `pending: CC ruling 8` |
-| Files, Chats, Contacts, Moderation, ChildSafety, Consent ×2, HealthReputation, Audit | — | CSD-007, 110, 005, 065, 066, 053, 054, 044, 071 | **existing** | unchanged (Moderation: `pending: CC ruling 6` for institutions) |
+| Files, Chats, Contacts, Moderation, ChildSafety, Consent ×2, HealthReputation, Audit | — | CSD-007, 110, 005, 065, 066, 053, 054, 044, 071 | **existing** | unchanged (Moderation: the designated official discharges the duty for an affiliation, P4:651) |
 | Rules › Billing; People › Users | — | CSD-056, CSD-043 | **leave the tier** | Billing's Portal leg is retired; Users moves per its own §6 |
 
 ## The net set

@@ -54,9 +54,30 @@ alone (2a, 2b: P3:215, P3:1592); the presets are non-normative over scope sets
 (2c: P3:1592); in an affiliation every role edge is termed, in a community only
 duty-bearing edges are (2e: P2:276, P4:670). Pending: the "closed canonical set"
 of admin scopes `pending: CC ruling 3`; what `role: founder` confers and what
-happens when the last founder leaves `pending: CC ruling 5`; whether a
-`designated_official` discharges the CC 4.5.4 moderator duty for an institution
-`pending: CC ruling 6` (all `affiliation_vs_community_deltas_2026-10-28`).
+happens when the last founder leaves `pending: CC ruling 5` (both
+`affiliation_vs_community_deltas_2026-10-28`).
+
+**The floors bind power over members, not the count of voices (landed: CC rc13 3cac7b9,
+CC 4.4.3.2.8 P4:651, the former rulings 4 and 6 / rows 3c and 3g).** Appointment is
+"the body's signature under its protocol together with the appointee's own
+`membership:acceptance` — two consents, as CC 3.1.3.2 already requires — so a
+one-voice body may hire." Where the body has one deciding seat, an act against a
+member — `membership:removal`, quarantine, slash, a takedown of the member's content —
+"is admitted only when countersigned by a key outside the deciding seat: the designated
+official where that key is not a seat, or a review-holder of the body that conferred or
+oversees the affiliation; without one the act stands as a proposal in the
+reconsideration path of CC 4.5.5, never as a decision." "The named-moderator duty of
+CC 4.5.4 is discharged by the designated official." Two or more deciding seats decide
+under their own protocol as a community does. Governance table row
+`affiliation_member_action` (`governance_policy.tsv:12`: cosigned, the deciding seat +
+one key outside it, 2/2); model `formal/affiliation/Affiliation.lean`
+(`a2_one_voice_appoints_with_acceptance`, `a3_one_voice_removes_nobody_alone`,
+`a3_seat_cannot_countersign_itself`, `a3_outside_countersign_admits`,
+`a5_two_voices_decide_as_a_community`); wire door `CLM-affiliation-one-voice-countersign`
+staged on CIRISPersist#1143 (`claims.tsv:516`). The card therefore has two sheets: the
+appointment confirm names the appointee's acceptance as the second consent, and the
+**member-action countersign sheet** (below) names, for a one-seat body, the outside key
+that must countersign or the act files as a reconsideration proposal.
 
 **Membership and role are two rows and two lists.** Membership is the
 `membership:{stage}` sequence onto the roster (CSD-103 renders it). A role is a
@@ -119,6 +140,12 @@ fields:
     example: "2027-01-06T00:00:00Z"
     renders: "'Until' — required, at most the charter's role_term days from now (ceiling 365); an expired role confers nothing and reads 'expired — renew?'; renewal is a new edge; the door's refusal is shown by its rule name"
     tag: "proposed:input_role_until_*"
+  - ceg: x_private:member_action_countersign
+    use: emit
+    type: "enum[not_needed,designated_official,review_holder,proposal_only]"
+    example: "designated_official"
+    renders: "on removal / quarantine / slash / takedown of a member in a ONE-seat body: 'This organization has one deciding seat, so this act needs a countersign from outside it: {designated official} / {review-holder of the overseeing body}' with the signer picked; with none available the sheet says 'This will be filed as a reconsideration proposal (CC 4.5.5), not decided' — never a silent refusal; `not_needed` for two or more seats (their protocol carries the second voice)"
+    tag: "proposed:sheet_member_action_countersign_*"
   - ceg: x_private:role_revoke_cascade
     use: display-only
     type: "list[string]"
@@ -150,7 +177,8 @@ error:     {tag: "proposed:txt_roles_error", renders: "Couldn't read roles from 
 | read roles with chain and depth | none (`GET /v1/auth/device/grants` is a flat list of device grants) | CIRISServer | `blocked_by: CIRISServer#663` |
 | end a role (a `withdraws` on the edge) | none | CIRISServer | `blocked_by: CIRISServer#752` |
 | scope attenuation, depth cap, cycle refusal and the term enforced at admission | CIRISPersist | CIRISPersist | confirmed — v60.0.0 (#1031 cycle, #1032 term lens, #1048 `federation_delegation_term_required`, CC#163 `CLM-delegation-term` staged on CIRISServer#752 / CIRISEdge#896) |
-| the three CC 3.3.9 kinds retired | CIRISPersist V205 | CIRISPersist | confirmed — v60.0.0 §8 item 4; CC 3.3.9 rc12 text still says "until an amendment retires them" (see README, unsettled) |
+| the three CC 3.3.9 kinds retired | CIRISPersist V205 | CIRISPersist | confirmed — v60.0.0 §8 item 4; CC 3.3.9 amended on CC rc13 3cac7b9 P3:1592: "retired by amendment (CC 4.5.1): their names stay in this section so citations resolve, no substrate admits them as record kinds" |
+| a one-seat body's act against a member admitted only with an outside countersign (`affiliation_member_action`, 2/2); appointment = protocol signature + acceptance | CIRISPersist | CIRISPersist | `blocked_by: CIRISPersist#1143` (`CLM-affiliation-one-voice-countersign` staged there) |
 
 ## 3a. Topology (CSD/4)
 
