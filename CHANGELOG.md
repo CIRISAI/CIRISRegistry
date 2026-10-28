@@ -13,7 +13,7 @@ discipline + release process.
 | 1.x | FSD-002 v1.4.3 baseline |
 | 2.x | CEG 0.2 |
 | 3.x | CC 1.0-rc4 (fold-prep; Server 0.6 substrate floor) |
-| 4.x | CC 1.0-rc5 (authority triad; last pre-fold release) |
+| 4.x | CC 1.0-rc5 → rc12 (authority triad; the fold slice) |
 
 Prior to v1.1.0 baseline tagging, per-feature commit history lives in
 `git log`; the CHANGELOG starts from this baseline forward.
@@ -21,6 +21,26 @@ Prior to v1.1.0 baseline tagging, per-feature commit history lives in
 ---
 
 ## [Unreleased]
+
+## [4.1.0] — 2026-10-28
+
+**The fold slice catches up to CIRISServer 0.5.240 and serves the final genesis.** Substrate: persist v52.0.1 → **v59.1.0**, edge v38.1.0 → **v43.2.1**, verify v18.0.0 → **v20.2.0** (CIRISServer v0.5.240's exact triple). `CEG-Version: 1.0-rc12`.
+
+### Wire changes
+
+- **`GET /v1/steward-key` / `GET /v1/trust-root/bundle` serve persist v59.1's version-4 bundle** (the production genesis: holders A1/B1/C1 with custody evidence, the `ciris-canonical` birth record, serve node `ciris-canonical-1`). 4.0.0 served persist v52's version-2 bundle, which the mesh has since re-minted. Clients that pinned the v2 fingerprint will see it change.
+- **New `community` member** on both routes: the `ciris-canonical` community birth record the bundle carries, `null` when the bundle carries none. Same field, same semantics, on CIRISServer's `GET /v1/trust-root/bundle`.
+- `/v1/builds` on the fold router (#143): CEG-native build manifests, a pipeline blessed by a `delegates_to(root → pipeline, infra:attest)` grant or by the accord role on its key record; submit, read per version and per manifest hash, manifest bytes. Standalone binary unchanged except the `#138` provenance walk's dimension spelling (`provenance:build_manifest:{target}:v1`).
+
+### Substrate adoption notes
+
+- persist v56 demoted the unbounded `list_attestations_by` / `_for` reads to test builds (CIRISPersist#1001); every registry read now pages persist's bounded `AttestationQuery` (`federation::persist_client::collect_pages`), narrowed to the family where one is known.
+- persist v57 writes a `key:record:v1` row on key registration under the key's own name; reads that mean "this key's Contributions" filter by dimension.
+- verify 19.0.0 adopted the registry's build-manifest wire shape (CIRISVerify#299: row mirror, `:v1`, `manifest_size`); `tests/build_manifest_fold.rs` pins that verify's producer output goes through `POST /v1/builds` unchanged.
+
+### Not changed
+
+- `GET /v1/steward-key` still carries no response signature (#133). CIRISVerify ≤ v20.2.0 still requires the pre-#133 `{stewards, threshold_policy, response_signature}` shape and falls back to DNS-only trust (#147, CIRISVerify#176/#69); that ends on verify's side by consuming `bundle`.
 
 ## [4.0.0] — 2026-10-01
 

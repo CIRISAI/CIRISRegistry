@@ -16,22 +16,16 @@
 //! authority model: no admin bearer, no registry signature, no allowlist of CI
 //! keys kept here. persist answers both questions.
 //!
-//! # Why the envelope is persist's, not verify's
+//! # The envelope is persist's stamped shape, which verify now emits
 //!
-//! `ciris_verify_core::manifest_contribution::sign_build_manifest_contribution`
-//! (verify v18) emits an envelope persist v52 cannot store, for two reasons
-//! measured against a live Engine (`tests/build_manifest_fold.rs`):
-//!
-//! - its dimension has no trailing version segment, which CC 3.1.7 R3 requires
-//!   and persist's admission refuses as `missing_version_segment`;
-//! - it carries no signed `row` mirror (CIRISPersist#643), so the row's columns
-//!   would be chosen by whoever stored it rather than by the signer.
-//!
-//! So this module reads the persist shape: the Contribution's facts inside an
-//! envelope stamped by `attestation_emit::stamp_and_canonicalize`, signed over
-//! persist's canonical bytes (which are JCS, so verify's bound-hybrid signer
-//! produces them unchanged). [`contribution_envelope`] is the one place that
-//! shape is spelled, for producers and tests alike.
+//! The wire shape is the Contribution's facts inside an envelope stamped by
+//! `attestation_emit::stamp_and_canonicalize` (a signed `row` mirror,
+//! CIRISPersist#643; the `:v1` dimension, CC 3.1.7 R3), signed over persist's
+//! canonical bytes, which are JCS. verify v18 emitted neither (measured against a
+//! live Engine; CIRISVerify#299), so this module spells the shape itself in
+//! [`contribution_envelope`]; verify 19.0.0 adopted it, and
+//! `tests/build_manifest_fold.rs` pins that its producer's output goes through
+//! this door unchanged.
 //!
 //! # Fail-closed at both ends
 //!
@@ -51,6 +45,7 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use ciris_persist::engine::Engine;
+use ciris_persist::federation::attestation_query::{AttestationQuery, FOLD_PAGE};
 use ciris_persist::federation::envelope::EnvelopeCore;
 use ciris_persist::federation::trust_root::{
     capability_roots_to_trusted_root, TrustedGrant, INFRA_ATTEST_SCOPE,
@@ -458,7 +453,15 @@ pub async fn verified_builds(
         .map_err(substrate)?;
     let mut out = Vec::new();
     for pipeline in nodes {
-        let Ok(rows) = directory.list_attestations_by(&pipeline.key_id).await else { continue };
+        // persist v56+: a bounded, paged read narrowed to this family, in
+        // place of the unbounded `list_attestations_by` (test builds only).
+        let query = AttestationQuery::by(&pipeline.key_id, FOLD_PAGE)
+            .dimension_prefix(DIMENSION_STEM)
+            .types(&[attestation_type::SCORES]);
+        let Ok(rows) = crate::federation::persist_client::collect_pages(directory, query).await
+        else {
+            continue;
+        };
         for row in &rows {
             if let Some(v) = verify_row(directory, node_key_id, &pipeline, row).await {
                 out.push(v);

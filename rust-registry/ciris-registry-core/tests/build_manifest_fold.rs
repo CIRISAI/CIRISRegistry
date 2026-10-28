@@ -1,7 +1,7 @@
 //! CEG-native build manifests on the fold router, against a real SQLite Engine.
 //!
-//! What this file can and cannot show. It shows every refusal, and it shows the
-//! two reasons verify v18's own producer cannot be used as the wire shape. It
+//! What this file can and cannot show. It shows every refusal, and that verify's
+//! own producer (≥ 19.0.0) emits exactly this door's wire shape. It
 //! does NOT show a blessed pipeline being admitted: blessing needs a trust root
 //! this node accepts, and minting one takes the accord ceremony. That path is
 //! exercised end to end by CIRISServer's `harness/mesh-repro` `manifest`
@@ -111,6 +111,20 @@ async fn post(engine: &Arc<Engine>, body: String) -> (StatusCode, serde_json::Va
     (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
 }
 
+/// Every build-manifest row `key` authored, through persist's bounded query
+/// (the unbounded read is test-build-only since persist v56). Narrowed to the
+/// family: since persist v57 registering a key writes a `key:record:v1` row
+/// under the key's own name, which is not a Contribution.
+async fn rows_by(engine: &Arc<Engine>, key: &str) -> Vec<ciris_persist::federation::types::Attestation> {
+    use ciris_persist::federation::attestation_query::{AttestationQuery, FOLD_PAGE};
+    ciris_registry_core::federation::persist_client::collect_pages(
+        engine.federation_directory().as_ref(),
+        AttestationQuery::by(key, FOLD_PAGE).dimension_prefix("provenance:build_manifest:"),
+    )
+    .await
+    .expect("paged read")
+}
+
 async fn get(engine: &Arc<Engine>, uri: &str) -> StatusCode {
     let app = ciris_registry_core::fold::router(Arc::clone(engine), NODE.to_string());
     app.oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap().status()
@@ -129,7 +143,7 @@ async fn a_valid_signature_from_an_unblessed_pipeline_is_refused_and_nothing_is_
     assert_eq!(status, StatusCode::FORBIDDEN, "{json}");
     assert_eq!(json["error"], "pipeline_not_blessed");
 
-    let rows = engine.federation_directory().list_attestations_by("ci-unblessed").await.unwrap();
+    let rows = rows_by(&engine, "ci-unblessed").await;
     assert!(rows.is_empty(), "a refused Contribution must not be stored");
     assert_eq!(get(&engine, "/v1/builds/9.9.9").await, StatusCode::NOT_FOUND);
     let sha = facts(MANIFEST).manifest_hash;
@@ -195,7 +209,7 @@ async fn an_unblessed_row_already_in_the_directory_is_not_served() {
     let (row, _) =
         attestation_emit::assemble(pipeline.key_id().to_string(), &canonical, sig, input).unwrap();
     directory.put_attestation(SignedAttestation { attestation: row }).await.expect("persist admits it");
-    assert_eq!(directory.list_attestations_by("ci-replicated").await.unwrap().len(), 1);
+    assert_eq!(rows_by(&engine, "ci-replicated").await.len(), 1);
 
     assert_eq!(get(&engine, "/v1/builds/9.9.9").await, StatusCode::NOT_FOUND);
 }
@@ -274,15 +288,16 @@ async fn a_dimension_for_another_target_is_refused() {
     assert_eq!(json["error"], "dimension_mismatch");
 }
 
-/// Why this module does not take verify v18's Contribution as-is. Both halves
-/// are measured here so the day verify changes, this test says so.
+/// Verify's own producer is the wire shape (CIRISVerify#299, fixed in 19.0.0):
+/// a `row` mirror, the `:v1` dimension, `manifest_size`. Its output goes
+/// through this door unchanged and reaches the blessing check, which is the
+/// last one. Measured here so a producer-side regression says so.
 #[tokio::test]
-async fn verify_v18s_own_contribution_is_not_storable_by_persist() {
+async fn verifys_own_contribution_passes_the_door_up_to_the_blessing() {
     use ciris_verify_core::manifest_contribution::{sign_build_manifest_contribution, BuildAttestation};
 
     let engine = engine().await;
     let pipeline = HybridSigningIdentity::generate("ci-verify-shape").unwrap();
-    engine.federation_directory().put_public_key(self_record(&pipeline).await).await.unwrap();
     let f = facts(MANIFEST);
     let obj = sign_build_manifest_contribution(
         &pipeline,
@@ -292,59 +307,23 @@ async fn verify_v18s_own_contribution_is_not_storable_by_persist() {
             build_id: &f.build_id,
             binary_version: &f.binary_version,
             manifest_hash: &f.manifest_hash,
+            manifest_size: f.manifest_size,
         },
-        "human-1",
-        "grant-1",
-        "2026-10-01T00:00:00Z",
+        chrono::Utc::now(),
     )
     .await
     .unwrap();
     let env = obj.body["signed_envelope"].clone();
+    assert!(EnvelopeCore::from_value(env.clone()).unwrap().row.is_some(), "row mirror");
+    assert_eq!(env["dimension"], build_manifest_dimension(&f.target));
 
-    // (1) No signed `row` mirror, so the columns are not the signer's.
-    assert!(
-        EnvelopeCore::from_value(env.clone()).unwrap().row.is_none(),
-        "verify now emits a row mirror: fold_builds can take its envelope directly"
-    );
-    // (2) No version segment (CC 3.1.7 R3).
-    assert_eq!(env["dimension"], "provenance:build_manifest:python-source-tree");
-    let mut facts_only = env;
-    for member in ["attestation_type", "attesting_key_id", "subject_key_ids", "signed_at"] {
-        facts_only.as_object_mut().unwrap().remove(member);
-    }
-    let core = EnvelopeCore::from_value(facts_only).unwrap();
-    let mut input = EmitAttestationInput::with_envelope("scores", core, "federation");
-    input.attested_key_id = Some(pipeline.key_id().to_string());
-    let canonical =
-        attestation_emit::stamp_and_canonicalize(&mut input, pipeline.key_id(), chrono::Utc::now())
-            .unwrap();
-    let (ed, pqc) = pipeline.sign_bound(&canonical).await.unwrap();
-    let b64 = base64::engine::general_purpose::STANDARD;
-    let sig = ciris_crypto::HybridSignature {
-        crypto_kind: ciris_crypto::CRYPTO_KIND_CIRIS_V1,
-        classical: ciris_crypto::TaggedClassicalSignature {
-            algorithm: ciris_crypto::ClassicalAlgorithm::Ed25519,
-            signature: b64.decode(ed).unwrap(),
-            public_key: Vec::new(),
-        },
-        pqc: ciris_crypto::TaggedPqcSignature {
-            algorithm: ciris_crypto::PqcAlgorithm::MlDsa65,
-            signature: b64.decode(pqc).unwrap(),
-            public_key: Vec::new(),
-        },
-        mode: ciris_crypto::SignatureMode::HybridRequired,
-    };
-    let (row, _) =
-        attestation_emit::assemble(pipeline.key_id().to_string(), &canonical, sig, input).unwrap();
-    let refused = engine
-        .federation_directory()
-        .put_attestation(SignedAttestation { attestation: row })
-        .await
-        .expect_err("persist refuses the unversioned dimension");
-    assert!(
-        format!("{refused:?}").contains("missing_version_segment"),
-        "expected missing_version_segment, got {refused:?}"
-    );
+    let c: SignedContribution = serde_json::from_value(obj.body.clone()).expect("verify's body IS the wire shape");
+    let (status, json) =
+        post(&engine, body(&c, MANIFEST, Some(&self_record(&pipeline).await))).await;
+    // Size, hash, dimension, mirror and the hybrid signature all passed: the
+    // only refusal left is the one a self-signed record earns.
+    assert_eq!(status, StatusCode::FORBIDDEN, "{json}");
+    assert_eq!(json["error"], "pipeline_not_blessed");
 }
 
 /// persist's canonical bytes are JCS, which is what lets a verify `SelfSigner`

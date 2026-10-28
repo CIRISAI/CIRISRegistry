@@ -77,3 +77,25 @@ async fn routes_the_server_already_owns_are_not_mounted() {
         assert_eq!(status, StatusCode::NOT_FOUND, "{uri} must not be in the fold router");
     }
 }
+
+/// The route's contract, pinned (#147 ask 2): the member set, the bundle
+/// version persist ≥ v59.1 bakes, and that `community` is an object when the
+/// bundle carries the birth. A shape change fails here before a client learns
+/// of it as `missing field`.
+#[tokio::test]
+async fn trust_root_bundle_keeps_its_contract() {
+    let (app, _) = fold_app().await;
+    let (status, body) = get_json(app, "/v1/trust-root/bundle").await;
+    assert_eq!(status, StatusCode::OK);
+    let mut keys: Vec<&str> = body.as_object().unwrap().keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        ["bundle", "bundle_fingerprint", "charter_root_key_id", "community", "served_by"],
+        "the member set is the contract; add a member here on purpose, with a CHANGELOG line"
+    );
+    assert_eq!(body["bundle"]["version"], 4, "persist v59.1 bakes the version-4 production bundle");
+    assert!(body["community"].is_object(), "a version-4 bundle carries the ciris-canonical birth");
+    assert_eq!(body["bundle"]["holders"].as_array().map(Vec::len), Some(3));
+    assert!(body.get("response_signature").is_none(), "#133: no wrapper signature");
+}
