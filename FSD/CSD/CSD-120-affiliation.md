@@ -1,8 +1,8 @@
 # CSD-120 — Affiliation (an organization is a community gathered by necessity)
 
-**CSD**: CSD-120 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) · **Origin**: the registry fold, FSD-005
+**CSD**: CSD-120 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) + CSD/4 (`CIRISServer/FSD/CSD4.md`, catalogue entry T6, `csd:tests` in §3a) · **Origin**: the registry fold, FSD-005
 **Flow**: unwritten
-**Reads with**: CSD-102 (founding and governance of any community — this card is the affiliation-specific charter on top of it), CSD-121 (who is in it), CSD-124 (the hierarchy under it)
+**Reads with**: CSD-102 (founding and governance of any community — this card is the affiliation-specific charter on top of it), CSD-121 (who is in it), CSD-124 (the hierarchy under it), `COMMON_CARDS_ANALYSIS.md` (recommends EXTEND CSD-102 §2.3 on adoption)
 
 ```yaml csd:stage
 stage: envisioned
@@ -22,16 +22,32 @@ institutional powers."
 
 **An organization IS this card.** The Portal's `CreateOrganization` was a
 `SYSTEM_ADMIN` act writing an `organization` row; FSD-005 §1 rules the
-organization is the affiliation. Founding is self-founding (CC 3.2: a community
-is born by its founders' signatures), and `org_id` is the affiliation's
-`community_key_id`, which is also the `authority_id` of every licence it issues
-(CSD-122).
+organization is the affiliation, and CC 3.3.9 (rc12) now says so in its own
+words: "The Portal's `Organization` is a community at `cohort_scope:
+affiliations` and nothing about an organisation is a record kind of its own."
+Persist v60.0.0 (migration V205) dropped the `organization` table and retired the
+replication kind; the Portal screen that wrote it is **retired, not migrated**
+(portal.ciris.ai is being decommissioned; steward, 2026-10-28). Founding is
+self-founding (CC 3.2: a community is born by its founders' signatures), and
+`org_id` is the affiliation's `community_key_id`, which is also the
+`authority_id` of every licence it issues (CSD-122).
+
+**CIRIS is one such affiliation, and uses this card.** The root community
+`ciris-canonical`, founded by the accord holders A1/B1/C1 (CC 3.2,
+`CLM-canonical-founders-accord`), is the affiliation whose licences are
+`licensure:ciris-canonical:v1` (CSD-122). It has a charter like any other; its
+birth record rides the GenesisBundle (CC 5.3.4, served by this registry since
+4.1.0) only because it is the shipped default root, never because it is a
+different kind of thing.
 
 **Mandatory-with-default, not mandatory-to-author.** CC 4.4.3.2.8 ships a no-op
 default and archetype presets, so a five-person committee sets one field
 (`affiliation_archetype: informal_adhoc`) and is served by construction. The card
 must make the small case small: a founder who picks an archetype and nothing
-else has a complete charter.
+else has a complete charter. Persist v60 types the record
+(`AffiliationConfig` at `policy_blob.affiliation_config`, CIRISPersist#1034
+shipped) and validates `licence_audiences` at the community door
+(`licence_audience_invalid`).
 
 ## 2. Surface (what)
 
@@ -42,17 +58,19 @@ screen: proposed:AffiliationCharter
 
 Placement: Communities and Businesses › Rules, mounted on the hub beside
 CSD-102's governance section (the community IS the circle's group; the charter
-is the affiliation's addition). The founding flow is CSD-102's founding flow with
-`cohort_scope: affiliations` and one more step, the charter.
+is the affiliation's addition; CSD-102's `affiliations_declared_record` row,
+`blocked_by: CIRISServer#649`, is the placeholder this card fills). The founding
+flow is CSD-102's founding flow with `cohort_scope: affiliations` and one more
+step, the charter.
 
 ```yaml csd:shows
-registry_sha256: 796f609981434b838edab1165462484f1be67889eed7f60c26b210ede5984464
+registry_sha256: d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b
 fields:
   - ceg: x_private:community_key_id
     use: display-only
     type: string
-    example: "aff-ciris-l3c-9f2a"
-    renders: "the affiliation's id, shown as the id its licences will carry: 'Licences you issue are signed as licensure:aff-ciris-l3c-9f2a'"
+    example: "ciris-canonical"
+    renders: "the affiliation's id, shown as the id its licences will carry: 'Licences you issue are signed as licensure:ciris-canonical:v1'"
     tag: "proposed:txt_affiliation_id"
   - ceg: x_private:affiliation_archetype
     use: emit
@@ -88,20 +106,22 @@ fields:
     use: emit
     type: string
     example: "quorum:2/3"
-    renders: "'How this organization decides' — the full range of persist's quorum models, chosen at founding (CSD-102 offers it for any community) and changeable later by a decision of the active quorum; the same rule signs a licence, a role, a charter change"
+    renders: "'How this organization decides' — the full range of persist's quorum models, chosen at founding (CSD-102 offers it for any community) and changeable later by a decision of the active quorum; the same rule signs a licence, a role, a charter change. ciris-canonical decides by a strict majority of its three founders, which is this value"
     tag: "proposed:select_consensus_protocol"
   - ceg: x_private:role_term
     use: emit
-    type: string
-    example: "P90D"
-    renders: "'How long a role lasts' — the charter's term for every role and issuance edge, at most one year (the constitutional ceiling); a small affiliation may choose ninety days; renewal is a fresh conferral"
+    type: int
+    example: 90
+    renders: "'How long a role lasts, in days' — the charter's term for every role and issuance edge, integer days 1..=365 (CC 4.4.3.2.8 C, the constitutional ceiling; CC#163 landed); a small affiliation may choose ninety; renewal is a fresh conferral; an edge past it is refused `federation_delegation_term_required` (`over_role_term`)"
     tag: "proposed:select_role_term"
-  - ceg: x_private:licence_class_scope
+    assert:
+      number: {"proposed:select_role_term": {min: 1, max: 365}}
+  - ceg: x_private:licence_audiences
     use: emit
     type: "list[string]"
     example: ["practice: federation", "internal_credential: affiliations"]
-    renders: "'Who can check each kind of licence' — per licence class, the scope the licence and its authority head are placed at; the smallest that fits (CC 1.13.3.4); no public default"
-    tag: "proposed:list_licence_class_scope"
+    renders: "'Who can check each kind of licence' — per licence class, the cohort_scope the licence and its authority head are placed at (`affiliation_config.licence_audiences`, persist v60 item 3); the smallest that fits (CC 1.13.3.4); no public default; a class not declared public cannot be issued at commons scope (`licence_audience_refused: class_not_declared_public`)"
+    tag: "proposed:list_licence_audiences"
   - ceg: x_private:parent_affiliation
     use: emit
     type: string
@@ -132,7 +152,13 @@ fields:
 **Every emitted field is a member of one signed record.** The charter is the
 affiliation's config record, superseded as a whole (CC 4.4.3.2.8: "DECLARED at
 creation"). A card that saved fields one at a time would produce N versions for
-one edit and N receipts for one act.
+one edit and N receipts for one act. A roster or config change is cosigned under
+the protocol; a delegated holder never stands in for it (CC 3.3.9 rc12).
+
+**Nothing here costs money.** The Portal charged an issuance fee and a bond per
+key by tier; that schedule went with the Portal. Founding an affiliation is a
+signed row, and the only Sybil cost is the one the Constitution already states
+for any community: a quorum of accountable people (CC 3.2 T7).
 
 ```yaml csd:states
 populated: {tag: "proposed:card_affiliation_charter"}
@@ -145,11 +171,78 @@ error:     {tag: "proposed:txt_charter_error", renders: "Couldn't read this orga
 
 | What | Route | Owner | State |
 |---|---|---|---|
-| found an affiliation | `POST /v1/communities` with `cohort_scope: affiliations` | CIRISServer | unconfirmed — see FSD-005 §7 |
-| write / supersede the charter (config record) | none today | CIRISServer, CIRISPersist | `blocked_by: CIRISServer#649` |
+| found an affiliation | `POST /v1/communities` with `tier: affiliations` | CIRISServer | confirmed as a tier label (0.5.225: invitations ride `GroupScope::Affiliations`); the charter step is below |
+| write / supersede the charter (typed config record) | none today | CIRISServer | `blocked_by: CIRISServer#649` — the storage side shipped (CIRISPersist#1034, v60: `AffiliationConfig`, declared cohort, V089 CHECK fix); the door is in CIRISServer#752 |
 | read the charter | none today | CIRISServer | `blocked_by: CIRISServer#649` |
-| nest under a parent | charter member `hierarchy` | CIRISPersist | unconfirmed |
-| dissolve | CSD-102's dissolve | CIRISServer | unconfirmed |
+| nest under a parent | charter member `hierarchy` | CIRISPersist | confirmed — typed in `AffiliationConfig` (v60) |
+| dissolve | CSD-102's `DELETE /v1/communities/{id}` | CIRISServer | confirmed by CSD-102 §3 |
+| `licence_audiences` validated at the community door | `licence_audience_invalid` | CIRISPersist | confirmed — v60.0.0 §8 item 3 |
+
+## 3a. Topology (CSD/4)
+
+The catalogue entry this card tests on is **T6** (`CIRISServer/FSD/CSD4.md` §2:
+"an affiliation, a licensing authority, a delegation chain", `serves: CSD-120–126`).
+The block below is the card's entry in the server's `requirements.yaml`, which it
+already carries for CSD-120; `check_csd4` compares the two. The catalogue
+version pinned is the client's (`packaging/csd4/PIN.md`, 3); T6 is unchanged
+through 5.
+
+```yaml csd:tests
+CSD-120:
+  catalogue_version: 3
+  topology: T6
+  tests:
+    affiliation:
+      at: [community.formed, community.member]
+    licensing:
+      at: [authority.licensing, community.member]
+    chain:
+      at: [delegation.chain]
+```
+
+**What T6 builds, and what this card needs beyond it.** The layer graph is
+shown for the reader; it is deliberately not a `csd:topology` block, because
+CSD/4 §1 names one catalogue id and never a layer graph, and `check_csd4`
+refuses a card carrying both.
+
+```yaml
+topology:                       # T6, with this card's checks per layer
+  roots:      [{id: R, kind: key, holders: 1, custody: software_test, lifecycle: {recipe: {}, verdict: rooted}}]
+  canonicals: [{id: C, holds: R, serves: [infra:serve, infra:attest]}]
+  nodes:
+    - {id: L, dials: [C],    accepts: R, announced: true}      # the founder's node
+    - {id: P, dials: [C, L], accepts: R, announced: true}      # a member's node
+  persons:
+    - {id: authority,    owns: [L], accepts: R}
+    - {id: practitioner, owns: [P], accepts: R}
+  relations:
+    - {rel: peered, between: [L, P]}
+    - {rel: reachable, node: L, person: practitioner, min: 1}
+    - {rel: community, id: AFF, founder: authority, tier: affiliations, name: Guild}
+    - {rel: member, community: AFF, invitee: practitioner}
+    # PENDING (builder refuses by name, CSD4.md §5: "a licensing authority affiliation has no route — CSD-120–126"):
+    - {rel: authority, community: AFF, by: authority}
+  actor: {person: authority, device: L}
+  negatives: []
+  checks:
+    roots:      [rooted: {verdict: rooted}]
+    nodes:      [announced: [L, P]]
+    persons:    [rule_2: every owned node accepts R]
+    relations:
+      - community: {AFF: {tier: affiliations, protocol: founder_only}}   # the only protocol a lone founder can seat
+      - member: {AFF: [practitioner]}                                     # community.member
+    actor:      [reads: "GET /v1/communities/{AFF}" → cohort_scope affiliations, consensus_protocol founder_only]
+```
+
+**Lacking in the vocabulary, per card.** The charter is a *transition*: the
+flow writes it (`pre:` the community with no `affiliation_config`; `post:` a
+typed record at version 1, then version 2 after one supersession). TOPOLOGY.md
+has no `pre:`/`post:` form (CSD4_EVALUATION §4); the card's flow drives it
+against the T6 checkpoint `rel[2]:community` and asserts the `post:` by its own
+read. A `quorum:2/3` affiliation with a held charter change is T5's shape
+(`quorum_change` + `cosign`) at the affiliations tier; T6 builds a lone founder,
+so a cosigned supersession is not reachable in the catalogue today and is said
+so here rather than pretended.
 
 ## 4. Flow
 

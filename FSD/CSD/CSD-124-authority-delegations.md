@@ -1,8 +1,8 @@
 # CSD-124 — Authority delegations (the right to issue, handed down one attenuating step at a time)
 
-**CSD**: CSD-124 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) · **Origin**: the registry fold, FSD-005 §4–5; CIRISConstitution#100
+**CSD**: CSD-124 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) + CSD/4 (`CIRISServer/FSD/CSD4.md`, catalogue entry T6, `csd:tests` in §3a) · **Origin**: the registry fold, FSD-005 §4–5; CIRISConstitution#100, #163
 **Flow**: unwritten
-**Reads with**: CSD-055 (the same primitive for a person's devices and agents; this card adds the two emission scopes and the chain), CSD-121 (roles are these edges), CSD-122 / CSD-125 (what a `license` / `grant` scope lets a delegate issue), `formal/authority_tree/`
+**Reads with**: CSD-055 (the same primitive for a person's devices and agents; this card adds the two emission scopes and the chain), CSD-121 (roles are these edges), CSD-122 / CSD-125 (what a `license` / `grant` scope lets a delegate issue), `formal/authority_tree/`, `COMMON_CARDS_ANALYSIS.md` (recommends EXTEND CSD-055 §7 on adoption)
 
 ```yaml csd:stage
 stage: envisioned
@@ -20,23 +20,45 @@ the act, every edge and every issuance right below it that ends with it.**
 Serves **Core Identity** and **Integrity**, on the one rule FSD-005 §5 settles:
 **only delegation chains**. A licence and a grant are leaves; the right to issue
 them is the delegable thing, and it rides delegation's rules — attenuation
-(CC 4.5), the depth cap of five (CC 4.1.1), cycle rejection, revocation cascade,
-and `sub_delegation` as the only way a chain grows (CC 4.4.3.4.3).
+(CC 4.5), the depth cap of five (CC 4.1.1), cycle refusal at admission
+(CIRISPersist#1031, shipped), revocation cascade, and `sub_delegation` as the
+only way a chain grows (CC 4.4.3.4.3).
 
 **The root is a human, and authority decays.** Every chain this card shows ends at
 an accountable person: the founders of an affiliation, or the person themselves
 (CC 3.4.7.3; ciris.ai/constitutional-mesh). Every edge carries a term, the charter's
-`role_term` under the constitutional ceiling of one year, and is renewed by
+`role_term` under the constitutional ceiling of 365 days (CC 4.4.3.2.8 C as landed
+by CC#163; persist v60 `federation_delegation_term_required`), and is renewed by
 re-conferral; a perpetual edge is refused at the door, and the card shows an edge's
 remaining term beside its depth.
+
+**The worked example: how a CIRIS licence gets issued (CC ruling,
+cirisconstitution-32).** The root community `ciris-canonical` decides by a
+strict majority of its three founders, the accord holders A1/B1/C1
+(`quorum:2/3`). Two of them cosign one ordinary `delegates_to` row: from
+`ciris-canonical` (`community_id: ciris-canonical`) to a registrar's key,
+`scope: [license]`, `delegation_valid_until` within the charter's `role_term`.
+That registrar then signs `licensure:ciris-canonical:v1` rows alone, and
+persist admits them because the `license` chain roots at an edge the quorum
+cosigned naming the affiliation (v60 §8 item 1). Three things the example is
+not: it is **not `infra:license`** (there is no such scope and must be none; a
+node key may carry only `infra:*`, CC 4.4.3.4.3, so an install can never
+issue); it is **not a genesis-bundle member** (CC 3.2 T5 and 5.3.4 fix what the
+bundle carries — charter, holders, serve nodes, birth record — and a `license`
+edge is a row the reader walks like any other); and it is **not a sale** (the
+registrar is a role, with a term; nothing on the edge or the licence is paid
+for). Any affiliation does the same under its own protocol with its own id.
 
 **Why this is not CSD-055.** CSD-055 is the device-code flow: a person offers a
 code, a device approves it, the scopes are a person's own verbs. This card is
 the same `delegates_to` primitive with two scopes CSD-055 does not offer —
-`license` and `grant` — a delegator that is an affiliation rather than a person,
-and the chain view CSD-055 marks `blocked_by: CIRISServer#663`. The two should
-become one card when the chain read exists; until then this document carries the
-affiliation half so the Portal's org-admin acts have a home.
+`license` and `grant` — a delegator that is an affiliation's quorum rather than a
+person, `community_id` on the edge, and the chain view CSD-055 marks `blocked_by:
+CIRISServer#663`. The two should become one card when the chain read exists
+(`COMMON_CARDS_ANALYSIS.md`: EXTEND CSD-055 §7); until then this document carries
+the affiliation half so the Portal's org-admin acts have a home. The Portal's
+org-admin role gate (`authorize_org_access`) is retired with the Portal; the
+door is the edge.
 
 **The enforced-admission rule is the card's whole contract.** CC 4.4.3.4.3: "an
 issuance whose delegator does not itself hold the underlying authority is
@@ -57,20 +79,26 @@ same card under My things for a person's own `license`/`grant` delegations
 (a sole practitioner is their own authority).
 
 ```yaml csd:shows
-registry_sha256: 796f609981434b838edab1165462484f1be67889eed7f60c26b210ede5984464
+registry_sha256: d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b
 fields:
   - ceg: x_private:delegated_scope
     use: emit
     type: "list[string]"
     example: ["license", "sub_delegation"]
-    renders: "'May issue' — license (licences under this authority), grant (grants over assets this principal owns or stewards), sub_delegation (hand this on, one step deeper); each glossed in CC 4.4.3.4.3's words; TIGHTEN-ONLY against the delegator's own effective scope"
+    renders: "'May issue' — license (licences under this authority), grant (grants over assets this principal owns or stewards), sub_delegation (hand this on, one step deeper); each glossed in CC 4.4.3.4.3's words; TIGHTEN-ONLY against the delegator's own effective scope; `infra:*` scopes are never offered here"
     tag: "proposed:list_delegation_scope_*"
   - ceg: x_private:delegate_key_id
     use: emit
     type: string
     example: "wa-registrar-3e90"
-    renders: "'To' — a member's key (must be on the roster for an affiliation's edge)"
+    renders: "'To' — a member's key (must be on the roster for an affiliation's edge); never a node key, which the door refuses for any agency scope"
     tag: "proposed:input_delegate_key"
+  - ceg: x_private:delegator
+    use: display-only
+    type: string
+    example: "ciris-canonical (quorum:2/3 — A1, C1 signed)"
+    renders: "'From' — the person, or the affiliation with the cosigners that met its protocol; a root edge from an affiliation reads as the quorum's act, never as one founder's"
+    tag: "proposed:txt_delegation_from_*"
   - ceg: x_private:delegation_depth
     use: display-only
     type: int
@@ -82,7 +110,7 @@ fields:
   - ceg: x_private:delegation_chain
     use: display-only
     type: "list[string]"
-    example: ["founders", "wa-admin-2b1c", "wa-registrar-3e90"]
+    example: ["ciris-canonical", "wa-registrar-3e90"]
     renders: "'From the founders, through {admin}, to {registrar}' — the chain above this edge, each link's receipt openable; the effective scope is the INTERSECTION along it, shown as such"
     tag: "proposed:list_delegation_chain_*"
     assert:
@@ -96,20 +124,20 @@ fields:
   - ceg: x_private:delegation_valid_until
     use: emit
     type: timestamp
-    example: "2027-06-30T00:00:00Z"
-    renders: "'Until' — required, from the charter's role_term (ceiling one year); an expired edge confers nothing and the card says 'expired', never hides it"
+    example: "2027-01-26T00:00:00Z"
+    renders: "'Until' — required, within the charter's role_term (ceiling 365 days from delegation_valid_from, which defaults to the edge's asserted_at); an expired edge confers nothing and the card says 'expired', never hides it"
     tag: "proposed:input_delegation_until"
   - ceg: x_private:revoke_cascade
     use: display-only
     type: "list[string]"
     example: ["wa-clerk-77a0 (license)", "3 licences issued under this edge stay issued"]
-    renders: "in the revoke confirm: every edge below this one that ends with it, AND the statement that issuances already made under it stay (a licence is revoked by its authority, not by the delegate's fall — CC 2.4.1.2.1)"
+    renders: "in the revoke confirm: every edge below this one that ends with it, AND the statement that issuances already made under it stay (a licence is revoked by its authority, not by the delegate's fall — CC 2.4.1.2.1; authority is judged at the licence's asserted_at, CC#162); a root edge from an affiliation is withdrawn only by a cosigned withdraws (persist v60 rule 0)"
     tag: "proposed:sheet_delegation_revoke_cascade_*"
   - ceg: x_private:admission_refusal
     use: display-only
-    type: "enum[licensure_delegator_not_authority,scope_not_held,depth_exceeded,cycle,not_on_roster,delegation_term_required]"
-    example: "scope_not_held"
-    renders: "'The node refused this: you do not hold `grant` to hand on.' — the door's own token, shown as a refusal"
+    type: "enum[licensure_delegator_not_authority,scope_not_held,depth_exceeded,cycle,not_on_roster,federation_delegation_term_required]"
+    example: "federation_delegation_term_required"
+    renders: "'The node refused this: term_missing.' — the door's own token, with persist's rule (`term_missing`, `term_unreadable`, `over_ceiling`, `over_role_term`), shown as a refusal"
     tag: "proposed:txt_delegation_refused"
 ```
 
@@ -130,21 +158,69 @@ error:     {tag: "proposed:txt_authority_delegations_error", renders: "Couldn't 
 
 | What | Route | Owner | State |
 |---|---|---|---|
-| write a `delegates_to` with scope ⊆ {license, grant, sub_delegation, …} from a person or an affiliation's quorum | none for `license`/`grant` scopes today | CIRISServer | `blocked_by: FSD-005 §7` |
-| read inbound and outbound edges with chain and depth | none (`GET /v1/auth/device/grants` is flat) | CIRISServer | `blocked_by: CIRISServer#663` |
+| write a `delegates_to` with scope ⊆ {license, grant, sub_delegation, …}, `community_id`, and a term, from a person or an affiliation's quorum (cosigned) | none for `license`/`grant` scopes today; `POST /v1/auth/device/delegate` keeps the first scope only and sets a 600 s term | CIRISServer | `blocked_by: CIRISServer#752` (the doors; CIRISServer#751 is the walk cap 4 → 5 and the durable scoped door) |
+| read inbound and outbound edges with chain and depth | none (`GET /v1/auth/device/grants` is flat, outbound-only, no `valid_until`) | CIRISServer | `blocked_by: CIRISServer#663` |
 | withdraw an edge; the read reflects the cascade | partial (device grants revoke) | CIRISServer | `blocked_by: CIRISServer#663` |
-| admission enforces attenuation, depth 5, cycle rejection, `sub_delegation`, and the `license`/`grant` underlying-authority rule | CIRISPersist | CIRISPersist | unconfirmed — FSD-005 §7 |
-| the affiliation's quorum as the chain's root | CIRISPersist | CIRISPersist | unconfirmed — FSD-005 §7 |
+| admission enforces attenuation, depth 5, cycle refusal, `sub_delegation`, the term, and the `license`/`grant` underlying-authority rule | CIRISPersist | CIRISPersist | confirmed — v60.0.0 (#1031 cycle, #1032 term lens + `as_of`, #1033 `grant` arm, #1048 term gate; `CLM-delegation-term` staged on CIRISServer#752 / CIRISEdge#896 for the doors and carriage) |
+| the affiliation's quorum as the chain's root (a root edge cosigned under the protocol, naming the affiliation) | `admission::licence_authority_set` | CIRISPersist | confirmed — v60.0.0 §8 item 1 (CIRISPersist#1036) |
+| edge's default depth 4 → 5 | CIRISEdge | CIRISEdge | `blocked_by: CIRISEdge#851` (not re-checked; see README) |
+
+## 3a. Topology (CSD/4)
+
+T6 is the entry: `delegation.chain` ("a delegation chain of length ≥ 2 stands")
+is its last promise, refused by the builder today because "`POST
+/v1/auth/device/delegate` writes owner→actor only; a chain needs the delegate's
+own act" (CSD4.md §5). T18 carries the two ending atoms. `requirements.yaml`
+carries no CSD-124 yet; the block is the entry to add.
+
+```yaml csd:tests
+CSD-124:
+  catalogue_version: 3
+  topology: T6
+  tests:
+    chain:
+      at: [delegation.chain, community.member]
+    withdrawn:
+      at: [delegation.link.withdrawn]
+    expired:
+      at: [delegation.link.expired]
+```
+
+`withdrawn` and `expired` hold only in T18 (`delegation_withdraw` /
+`delegation_expire`, both `known_red: CIRISServer#751`); the planner reselects
+T18 for them. What this card adds to the T6 layer graph (CSD-120 §3a) is the
+chain `formal/authority_tree/` enumerates:
+
+```yaml
+  nodes:      [{id: S, dials: [C, P], accepts: R, announced: true}]       # a sub-delegate's node
+  persons:    [{id: clerk, owns: [S], accepts: R}]
+  relations:
+    - {rel: member, community: AFF, invitee: clerk}
+    # PENDING (CSD4.md §5 `delegation`; CSD4_EVALUATION §4.2 drafts the shape):
+    - {rel: delegation, from: authority, to: practitioner, scopes: [license, sub_delegation], depth: 2, over: AFF, term_days: 90}
+    - {rel: delegation, from: practitioner, to: clerk, scopes: [license], depth: 1, over: AFF, term_days: 30}
+    - {rel: delegation_withdraw, from: authority, to: practitioner, known_red: "CIRISServer#751"}
+  checks:
+    relations:
+      - delegation: {chain: [authority, practitioner, clerk], effective_scope_at_clerk: [license], depth_at_clerk: 2}
+      - delegation_withdraw: {cascade: [clerk], licences_issued_by_clerk: unchanged}
+    actor: [reads: "delegations of AFF" → two edges, the second marked 'ends with the first']
+  negatives:
+    # PENDING: cannot_act
+    - {check: cannot_act, person: clerk, op: "delegate license onward", reason: scope_not_held}       # no sub_delegation
+    - {check: cannot_act, person: practitioner, op: "delegate grant", reason: scope_not_held}
+    - {check: cannot_act, person: practitioner, op: "delegate license with no term", reason: federation_delegation_term_required}
+```
 
 ## 4. Flow
 
 Unwritten at `envisioned`. The chain `formal/authority_tree/` enumerates: root →
 A (license, sub) → B (license) → B tries to issue to C and is refused (no
-sub_delegation) → A tries to hand `grant` on and is refused (not held) → root
-withdraws A → B's edge is dead, the depth read says so, B's earlier licence
-issuance stands.
+sub_delegation) → A tries to hand `grant` on and is refused (not held) → A tries
+an edge with no term and is refused `term_missing` → root withdraws A → B's edge
+is dead, the depth read says so, B's earlier licence issuance stands.
 
 ## 5. Acceptance
 
 Unsigned. Not tested here: the device-code offer/approve flow (CSD-055), moderation
-duties (CSD-090).
+duties (CSD-090), the accord's own conferral ceremony (CSD-069).

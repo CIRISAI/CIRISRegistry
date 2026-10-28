@@ -1,8 +1,8 @@
 # CSD-121 — Members and roles (a role is a delegation, a member is a person who said yes)
 
-**CSD**: CSD-121 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) · **Origin**: the registry fold, FSD-005
+**CSD**: CSD-121 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) + CSD/4 (`CIRISServer/FSD/CSD4.md`, catalogue entry T6, `csd:tests` in §3a) · **Origin**: the registry fold, FSD-005
 **Flow**: unwritten
-**Reads with**: CSD-103 (the roster as every community has one), CSD-106 (invites), CSD-124 (the delegation a role is), CSD-043 (users on a node — not this)
+**Reads with**: CSD-103 (the roster as every community has one), CSD-106 (invites), CSD-124 (the delegation a role is), CSD-043 (users on a node — not this), `COMMON_CARDS_ANALYSIS.md` (recommends FOLD INTO CSD-103 + CSD-055 §7 on adoption)
 
 ```yaml csd:stage
 stage: envisioned
@@ -20,31 +20,41 @@ revocable delegation, CC 4.4.3.2.8 C and CC 4.5, never a flag an administrator
 sets on a user row).
 
 **The Portal's `org_membership.role` enum becomes four presets over delegation
-scopes** (FSD-005 §4): `OrgAdmin` carries `sub_delegation` + `license` + `grant`
-+ the affiliation's admin verbs; `KeyManager` the key-binding right;
-`Operator` the operational verbs; `Viewer` nothing but membership. The card
-offers the presets; the wire carries the scopes; the receipt shows the scopes.
-An admin who wants a role no preset names picks the scopes.
+scopes** (FSD-005 §4; CC 3.3.9 rc12: "`OrgAdmin` / `KeyManager` / `Operator` /
+`Viewer` are non-normative presets over scope sets, and admin scopes are open
+vocabulary with a closed canonical set"): `OrgAdmin` carries `sub_delegation` +
+`license` + `grant` + the affiliation's admin verbs; `KeyManager` the
+key-binding right; `Operator` the operational verbs; `Viewer` nothing but
+membership. The card offers the presets; the wire carries the scopes; the
+receipt shows the scopes. An admin who wants a role no preset names picks the
+scopes. Persist v60.0.0 (V205) dropped the `org_membership` table; the Portal's
+user screens (`*OrgUser*`, `UpdateUserOrgRole`, `ListOrgMembers`) are retired,
+not migrated.
 
 **A member is a self, human or agent; the root is a human.** An agent joins through
 its partnership (CC 4.4.3.4.3) and may hold a role (ciris.ai/philosophy: one
 Constitution for NHI). The chain every role hangs from roots in the founders, who are
 people (CC 3.4.7.3); a node is never a member of record and never a root.
 
-**A role has a term, always.** `delegation_valid_until` is required; the charter's
-`role_term` (CSD-120) sets it, under the constitutional ceiling of one year;
-re-conferral renews it (ciris.ai/constitutional-mesh: authority "decays like everyone
-else's"). An edge with no term is refused at the door, so the card does not offer one:
-the founders are the roster root, not an edge, and re-confer when terms lapse. A lapsed
-`moderate` role is a moderator lapse under CC 4.5.4: the room auto-promotes or fails
-secure in the same step, never an unmoderated window.
+**A role has a term, always.** `delegation_valid_until` is required on every edge
+in an affiliation's `hierarchy` (CC 4.4.3.2.8 C as landed by CC#163, rc8); the
+charter's `role_term` (CSD-120, integer days 1..=365) bounds it; re-conferral
+renews it (ciris.ai/constitutional-mesh: authority "decays like everyone else's").
+An edge with no term, past the ceiling, or past the charter's term is refused at
+the door — persist v60 `federation_delegation_term_required` with the rule named
+(`term_missing`, `term_unreadable`, `over_ceiling`, `over_role_term`; CIRISPersist#1048
+shipped) — so the card does not offer one: the founders are the roster root, not
+an edge, and re-confer when terms lapse. A lapsed `moderate` role is a moderator
+lapse under CC 4.5.4: the room auto-promotes or fails secure in the same step,
+never an unmoderated window.
 
 **Membership and role are two rows and two lists.** Membership is the
 `membership:{stage}` sequence onto the roster (CSD-103 renders it). A role is a
 `delegates_to` edge from the affiliation's root, or from a holder of
-`sub_delegation`, to the member. Removing a role leaves the membership;
-removing the membership (CSD-103) cascades every role, because the roster no
-longer names the key the edges point at.
+`sub_delegation`, to the member, carrying `community_id` so the term resolves
+through the charter. Removing a role leaves the membership; removing the
+membership (CSD-103) cascades every role, because the roster no longer names the
+key the edges point at.
 
 ## 2. Surface (what)
 
@@ -58,7 +68,7 @@ Placement: Communities and Businesses › People, beside CSD-103's roster
 card's role sheet.
 
 ```yaml csd:shows
-registry_sha256: 796f609981434b838edab1165462484f1be67889eed7f60c26b210ede5984464
+registry_sha256: d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b
 fields:
   - ceg: "membership:{stage}"
     bind: {stage: acceptance}
@@ -83,7 +93,7 @@ fields:
     use: display-only
     type: string
     example: "wa-admin-2b1c"
-    renders: "'Conferred by' — the delegator's key; 'the founders' when the edge is from the quorum"
+    renders: "'Conferred by' — the delegator's key; 'the founders' when the edge is cosigned by the quorum"
     tag: "proposed:txt_role_conferred_by_*"
   - ceg: x_private:delegation_depth
     use: display-only
@@ -96,8 +106,8 @@ fields:
   - ceg: x_private:delegation_valid_until
     use: emit
     type: timestamp
-    example: "2027-06-30T00:00:00Z"
-    renders: "'Until' — required, set from the charter's role_term (ceiling one year); an expired role confers nothing and reads 'expired — renew?'; renewal is a new edge"
+    example: "2027-01-06T00:00:00Z"
+    renders: "'Until' — required, at most the charter's role_term days from now (ceiling 365); an expired role confers nothing and reads 'expired — renew?'; renewal is a new edge; the door's refusal is shown by its rule name"
     tag: "proposed:input_role_until_*"
   - ceg: x_private:role_revoke_cascade
     use: display-only
@@ -109,7 +119,10 @@ fields:
 
 **The depth row is the one CSD-055 could not fill** (`delegation_depth:
 unconfirmed, blocked_by CIRISServer#663`). This card has the same dependency and
-says so in §3; it cannot pass `building` until a chain read exists.
+says so in §3; it cannot pass `building` until a chain read exists. CSD-055 §3
+also records that `GET /v1/auth/device/grants` carries no `expires_at` although
+every edge has a term; the required-term rule above depends on that wire gap
+closing in the same read.
 
 ```yaml csd:states
 populated: {tag: "proposed:list_affiliation_roles"}
@@ -122,18 +135,58 @@ error:     {tag: "proposed:txt_roles_error", renders: "Couldn't read roles from 
 
 | What | Route | Owner | State |
 |---|---|---|---|
-| invite / accept / remove a member | CSD-106 / CSD-103 routes (`/v1/communities/{id}/…`) | CIRISServer | unconfirmed |
-| confer a role (write a `delegates_to` from a member with `sub_delegation`, or from the founders' quorum) | none at affiliation scope today | CIRISServer | `blocked_by: FSD-005 §7` |
+| invite / accept / remove a member | CSD-106 / CSD-103 routes (`/v1/communities/{id}/…`) | CIRISServer | confirmed by those cards; an affiliation's invitations ride `GroupScope::Affiliations` (0.5.225) |
+| confer a role (write a `delegates_to` with `community_id`, from a member with `sub_delegation`, or cosigned by the founders' quorum) | none at affiliation scope today (`POST /v1/auth/device/delegate` keeps one scope and a 600 s term) | CIRISServer | `blocked_by: CIRISServer#752` (the doors; supersedes the FSD-005 §7 citation) |
 | read roles with chain and depth | none (`GET /v1/auth/device/grants` is a flat list of device grants) | CIRISServer | `blocked_by: CIRISServer#663` |
-| end a role (a `withdraws` on the edge) | none | CIRISServer | `blocked_by: FSD-005 §7` |
-| scope attenuation and depth cap enforced at admission | CIRISPersist | CIRISPersist | unconfirmed — FSD-005 §7 |
+| end a role (a `withdraws` on the edge) | none | CIRISServer | `blocked_by: CIRISServer#752` |
+| scope attenuation, depth cap, cycle refusal and the term enforced at admission | CIRISPersist | CIRISPersist | confirmed — v60.0.0 (#1031 cycle, #1032 term lens, #1048 `federation_delegation_term_required`, CC#163 `CLM-delegation-term` staged on CIRISServer#752 / CIRISEdge#896) |
+| the three CC 3.3.9 kinds retired | CIRISPersist V205 | CIRISPersist | confirmed — v60.0.0 §8 item 4; CC 3.3.9 rc12 text still says "until an amendment retires them" (see README, unsettled) |
+
+## 3a. Topology (CSD/4)
+
+T6 is the entry (CSD4.md §2). `requirements.yaml` carries no CSD-121 yet; the
+block is the entry the server must add before the card can claim it
+(`check_csd4` reports the absence by name until then).
+
+```yaml csd:tests
+CSD-121:
+  catalogue_version: 3
+  topology: T6
+  tests:
+    roster:
+      at: [community.formed, community.member]
+    role_is_a_chain:
+      at: [delegation.chain, community.member]
+    term_lapsed:
+      at: [delegation.link.expired]
+```
+
+`term_lapsed` holds only in T18 (`delegation_expire`, known red on
+CIRISServer#751); the planner reselects it and says so. The layer graph T6
+builds is CSD-120 §3a's; what this card adds to it:
+
+```yaml
+  relations:
+    - {rel: member, community: AFF, invitee: practitioner}         # community.member
+    # PENDING (CSD4.md §5: "delegation — POST /v1/auth/device/delegate writes owner→actor only; a chain needs the delegate's own act"):
+    - {rel: delegation, from: authority, to: practitioner, scopes: [sub_delegation, license], depth: 2,
+       over: AFF, term_days: 90}                                     # delegation.chain
+  checks:
+    relations:
+      - delegation: {from: authority, to: practitioner, valid_until: "≤ role_term", community_id: AFF}
+    actor: [reads: "roles of practitioner" → one edge, depth 1, conferred_by the founders]
+  negatives:
+    # PENDING: cannot_act(person, op, reason) — CSD4_EVALUATION §4.2
+    - {check: cannot_act, person: practitioner, op: "delegate grant", reason: scope_not_held}
+```
 
 ## 4. Flow
 
 Unwritten at `envisioned`. The chain a flow will drive: founders confer
 `OrgAdmin` on A → A confers `KeyManager` on B → A tries to confer a scope A does
-not hold and is refused → the founders end A's role → B's role is gone, by
-cascade, and the card showed that it would be before the act.
+not hold and is refused → A tries a term of 400 days and is refused
+`over_ceiling` → the founders end A's role → B's role is gone, by cascade, and
+the card showed that it would be before the act.
 
 ## 5. Acceptance
 

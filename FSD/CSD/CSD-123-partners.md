@@ -1,8 +1,8 @@
-# CSD-123 — Partners (recognition, tier, forums: the half of a partner that is not a licence)
+# CSD-123 — Partners (recognition, role, forums: the half of a partner that is not a licence)
 
-**CSD**: CSD-123 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) · **Origin**: the registry fold, FSD-004 §4.2 / FSD-005
+**CSD**: CSD-123 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) + CSD/4 (`CIRISServer/FSD/CSD4.md`, catalogue entry T6, `csd:tests` in §3a) · **Origin**: the registry fold, FSD-004 §4.2 / FSD-005
 **Flow**: unwritten
-**Reads with**: CSD-122 (the licence half), CSD-120 (both sides are affiliations), CSD-124 (what the partner may do on the org's behalf is a delegation, never a partner field)
+**Reads with**: CSD-122 (the licence half), CSD-120 (both sides are affiliations), CSD-124 (what the partner may do on the org's behalf is a delegation, never a partner field), `COMMON_CARDS_ANALYSIS.md` (KEEP; CSD-043 §2's placeholder bind of `partner_role:{role}` points here)
 
 ```yaml csd:stage
 stage: envisioned
@@ -11,8 +11,8 @@ owner: CIRISRegistry
 
 ## 1. Mission (why)
 
-**An organization can recognise another organization or key as a partner at a
-named tier, state the forums they share, see every partner it recognises and
+**An organization can recognise another organization or key as a partner in a
+named role, state the forums they share, see every partner it recognises and
 every organization that recognises it, and end a recognition — and a reader can
 tell recognition apart from licence.** Serves **Fidelity**: CC 2.4.1.2.1 keeps
 "who grants the licence", "who vouches for the attester" and "what external force
@@ -23,18 +23,30 @@ half and a licence half for the same reason.
 `partner_record` bundled recognition (`partner_id`, `org_id`), standing
 (`license_type`, `status`), capability (`capabilities_granted/denied`,
 `max_autonomy_tier`) and obligation (`requires_supervisor`, limits) in one
-quorum-signed row. On rc7 those are: the tier, `partner_role:{role}:v1`; the
-standing, a licence (CSD-122); the obligations, `duty:{kind}:v1` on the licence;
-the capabilities, the `scope` of a `delegates_to` where they are agency (CSD-124)
-and the licence where they are standing; forum participation,
-`multilateral_participation:{forum}:{kind}:v1`. The monotonic `revision` the
-record carried is replaced by the row plane's own rules: a status change is a new
-row, a withdrawal is forward-only.
+quorum-signed row. On rc12 those are: the role, `partner_role:{role}:v1`; the
+standing, a licence (CSD-122), which now carries the typed payload persist v60
+ported from `PartnerRecord` (capabilities, limits, `revision`); the obligations,
+`duty:{kind}:v1` on the licence; the capabilities, the `scope` of a
+`delegates_to` where they are agency (CSD-124) and the licence where they are
+standing; forum participation, `multilateral_participation:{forum}:{kind}:v1`.
+The `partner_record` subject kind is **retired**: persist v60.0.0 (V205) dropped
+its table and refuses the replication kind (`federation_envelope_kind_retired`).
+The monotonic `revision` the record carried lives on in the licence payload.
+
+**A role is not a price (steward, 2026-10-28).** The Portal's six
+`license_type`s — community, community_plus, professional_medical,
+professional_legal, professional_financial, professional_full — were tiers with a
+fee, a bond and a monthly charge, and `UpgradeToPartner` was the sale. CIRIS no
+longer sells licences and the Portal is being decommissioned; the tiers, the
+prices and `GetPartnerActivity`'s "health assessment" are **retired, not
+migrated**. `partner_role:{role}` is open vocabulary (`{role}` is a `vocab`
+segment) naming what the partner IS to the recogniser — `supervising_physician`,
+`vendor`, `member_practice`, `auditor` — never what it paid.
 
 **"Anyone can define their own partners."** Recognition is a `scores` row by the
-recognising affiliation about the partner's key. It needs no steward quorum
-outside the affiliation's own, and no registry. Whether a reader weights it is
-consumer policy (CC 4.4.4).
+recognising affiliation about the partner's key, cosigned under its own
+`consensus_protocol`. It needs no steward quorum outside the affiliation's own,
+and no registry. Whether a reader weights it is consumer policy (CC 4.4.4).
 
 ## 2. Surface (what)
 
@@ -48,14 +60,14 @@ this one works with) with the issuing controls behind the affiliation's role
 gate.
 
 ```yaml csd:shows
-registry_sha256: 796f609981434b838edab1165462484f1be67889eed7f60c26b210ede5984464
+registry_sha256: d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b
 fields:
   - ceg: "partner_role:{role}"
-    bind: {role: professional_medical}
+    bind: {role: supervising_physician}
     use: emit
-    type: "enum[community,community_plus,professional_medical,professional_legal,professional_financial,professional_full]"
-    example: "professional_medical"
-    renders: "one row per partner: '{name} — professional_medical, recognised {when}'; the six canonical tiers, open vocabulary beyond them"
+    type: string
+    example: "supervising_physician"
+    renders: "one row per partner: '{name} — supervising physician, recognised {when}'; open vocabulary, the recogniser's own words; no tier, no price"
     tag: "proposed:row_partner_*"
   - ceg: x_private:partner_key_id
     use: emit
@@ -108,15 +120,46 @@ error:     {tag: "proposed:txt_partners_error", renders: "Couldn't read partners
 
 | What | Route | Owner | State |
 |---|---|---|---|
-| recognise (write `partner_role:{role}:v1` about the partner, signed by the affiliation) | none today | CIRISServer | `blocked_by: FSD-005 §7` |
-| forums (`multilateral_participation:*` rows) | none | CIRISServer | `blocked_by: FSD-005 §7` |
-| read outbound and inbound recognitions | none (FSD-004 proposed reads over `partner_record`, now retired) | CIRISServer | `blocked_by: FSD-005 §7` |
-| end (withdraws + optional `revocation:partner:*`) | none | CIRISServer | `blocked_by: FSD-005 §7` |
-| the `partner_record` subject kind retired or marked transitional | CIRISConstitution, CIRISPersist | — | FSD-005 §6 |
+| recognise (write `partner_role:{role}:v1` about the partner, cosigned by the affiliation) | none today | CIRISServer | `blocked_by: CIRISServer#752` |
+| forums (`multilateral_participation:*` rows) | none | CIRISServer | `blocked_by: CIRISServer#752` |
+| read outbound and inbound recognitions | none (FSD-004 proposed reads over `partner_record`, now retired) | CIRISServer | `blocked_by: CIRISServer#752` |
+| end (withdraws + optional `revocation:partner:*`) | none | CIRISServer | `blocked_by: CIRISServer#752` |
+| the `partner_record` subject kind retired | CIRISPersist V205 | CIRISPersist | confirmed — v60.0.0 §8 item 4; CC 3.3.9 rc12 keeps the three kinds "registered and in force until an amendment retires them": a CC text amendment is still owed (README, unsettled) |
+
+## 3a. Topology (CSD/4)
+
+T6 is the entry. `requirements.yaml` carries no CSD-123 yet; the block is the
+entry to add.
+
+```yaml csd:tests
+CSD-123:
+  catalogue_version: 3
+  topology: T6
+  tests:
+    recognised:
+      at: [community.formed, community.member]
+    licence_beside_it:
+      at: [authority.licensing, community.member]
+```
+
+What this card adds to the T6 layer graph (CSD-120 §3a): a second affiliation
+to recognise, which T6 does not build (one community per entry today).
+
+```yaml
+  nodes:      [{id: M, dials: [C, L], accepts: R, announced: true}]       # the partner clinic's founder
+  persons:    [{id: clinic, owns: [M], accepts: R}]
+  relations:
+    - {rel: community, id: CLINIC, founder: clinic, tier: affiliations, name: Mercy}
+    # PENDING: a recognition ROW — recognition(by: AFF, of: CLINIC, role: supervising_physician); no scores-row relation in TOPOLOGY.md
+  checks:
+    relations:
+      - recognition: {by: AFF, of: CLINIC, direction_on_M: inbound}
+    actor: [reads: "partners of AFF" → one outbound row; "partners of CLINIC" → one inbound row; neither says mutual]
+```
 
 ## 4. Flow
 
-Unwritten at `envisioned`. The chain: A recognises B at a tier → B's card shows
+Unwritten at `envisioned`. The chain: A recognises B in a role → B's card shows
 an inbound recognition → B recognises A → both read `mutual` → A issues B a
 licence (CSD-122) and B's row shows it → A ends the recognition and the licence
 is untouched, because they are two things.

@@ -1,8 +1,8 @@
 # CSD-125 — Grants (access to one thing, from its owner, and never passed on)
 
-**CSD**: CSD-125 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) · **Origin**: the registry fold, FSD-005; CIRISBilling resource grants
+**CSD**: CSD-125 · **Standard**: CSD/3 (`CIRISClient/CSD.md`) + CSD/4 (`CIRISServer/FSD/CSD4.md`, catalogue entry T18, `csd:tests` in §3a) · **Origin**: the registry fold, FSD-005
 **Flow**: unwritten
-**Reads with**: CSD-124 (a `grant`-scoped delegate issues on the owner's behalf), CSD-053/054 (consent, the person's own grants over their data), CSD-056 (billing, off the wire), CSD-107 (file custody)
+**Reads with**: CSD-124 (a `grant`-scoped delegate issues on the owner's behalf), CSD-053/054 (consent, the person's own grants over their data), CSD-107 (file custody; its `access[]` is a door to this list), CSD-007 (`not_granted` on a drive row), `COMMON_CARDS_ANALYSIS.md` (KEEP)
 
 ```yaml csd:stage
 stage: envisioned
@@ -11,28 +11,36 @@ owner: CIRISRegistry
 
 ## 1. Mission (why)
 
-**The owner or steward of a thing — a sealed file, a stream, a community epoch,
-a metered resource — can grant a named recipient access to it, for a window, see
-every grant that is live over what they own, and see what a recipient holds;
-and nobody who received a grant can pass it on.** Serves **Contextual
-Integrity**, on CC 2.4.1.2.1: "a grant is non-transferable by default … an onward
-grant is a new grant issued by the asset's owner or steward, or by a holder of a
+**The owner or steward of a thing — a sealed file, a stream, a community epoch
+— can grant a named recipient access to it, for a window, see every grant that
+is live over what they own, and see what a recipient holds; and nobody who
+received a grant can pass it on.** Serves **Contextual Integrity**, on
+CC 2.4.1.2.1: "a grant is non-transferable by default … an onward grant is a
+new grant issued by the asset's owner or steward, or by a holder of a
 `grant`-scoped delegation from them, never a forwarded one", and "possession of
 the data-encryption key is not issuance authority."
 
 **Two wire shapes, one card.** A key wrap is `key_grant:{axis}:v1`, one scores
-row per recipient (rc7, CIRISConstitution#143), `{axis}` ∈ content | epoch |
-stream, sealer-only, never withdrawn (forward secrecy is by rotation). A consent
-grant is `consent:scope:{kind}` over a person's data. Both answer "who may reach
-this thing", both are leaves of the authority tree, and the card renders them in
-the same rows. Resource grants for CIRISBilling (a metered allowance) are the
-same shape over a `settlement:*` / `ledger:*` subject and are **not specified
-here** until the Constitution names the family (CIRISRegistry#51 / CC 3.3.10).
+row per recipient (CC 3.3.2 rc7, CIRISConstitution#143; CIRISPersist#989
+shipped), `{axis}` ∈ content | epoch | stream, sealer-only, never withdrawn
+(forward secrecy is by rotation). A consent grant is `consent:scope:{kind}` over
+a person's data. Both answer "who may reach this thing", both are leaves of the
+authority tree, and the card renders them in the same rows. **A metered
+resource grant is not a grant on this card.** The first draft reserved a row
+for CIRISBilling's allowances; CIRIS is not selling anything that would be
+metered (steward, 2026-10-28), CC names no such family, and the row and its
+blocker are gone.
 
 **A grant is never withdrawn and the card never offers it.** CC 3.1.3: a
 `withdraws` naming a `key_grant` row is refused. Ending access is rotation: a
 new epoch, a new DEK, and the recipient is not in the new wrap set. The card's
 "end access" is therefore "rotate and exclude", and it says so.
+
+**A grant is judged at its signed instant.** Persist v60 judges a `key_grant`
+row's sealer chain, and a `grant`-scoped delegate's chain, at the row's
+`asserted_at` (§8 item 2), so a sealer whose delegation later lapses does not
+un-seal what was sealed; a row signed more than 72 h ago whose chain no longer
+stands at receipt is `asserted_at_stale`.
 
 ## 2. Surface (what)
 
@@ -46,7 +54,7 @@ Businesses › Rules (grants over the affiliation's assets). The same screen, tw
 scopes.
 
 ```yaml csd:shows
-registry_sha256: 796f609981434b838edab1165462484f1be67889eed7f60c26b210ede5984464
+registry_sha256: d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b
 fields:
   - ceg: "key_grant:{axis}"
     bind: {axis: content}
@@ -71,7 +79,7 @@ fields:
     use: display-only
     type: string
     example: "wa-self-88b1"
-    renders: "'Granted by' — the sealer; 'under a grant-scoped delegation from {owner}' when the issuer is a delegate (CSD-124)"
+    renders: "'Granted by' — the sealer; 'under a grant-scoped delegation from {owner}' when the issuer is a delegate (CSD-124; CIRISPersist#1033 admits it)"
     tag: "proposed:txt_grant_issued_by_*"
   - ceg: x_private:key_validity_window
     use: emit
@@ -122,11 +130,50 @@ error:     {tag: "proposed:txt_grants_error", renders: "Couldn't read grants fro
 
 | What | Route | Owner | State |
 |---|---|---|---|
-| grant access to a file (the node seals a wrap to the recipient) | partial: `POST /v1/files` at a cohort places it for a roster, not for one recipient | CIRISServer | `blocked_by: FSD-005 §7` |
-| read grants I issued / grants I hold | none as a list (drive rows carry custody, CSD-107) | CIRISServer | `blocked_by: FSD-005 §7` |
+| grant access to a file (the node seals a wrap to the recipient) | partial: `POST /v1/files` at a cohort places it for a roster, not for one recipient | CIRISServer | `blocked_by: CIRISServer#752` |
+| read grants I issued / grants I hold | none as a list (drive rows carry custody, CSD-107; `access[]` on the custody body is parsed and not drawn) | CIRISServer | `blocked_by: CIRISServer#752` |
 | end access = rotate and exclude | partial (room epoch rotation exists for communities) | CIRISServer | unconfirmed |
-| a `grant`-scoped delegate may seal on the owner's behalf; admission refuses a recipient re-granting | CIRISPersist | CIRISPersist | unconfirmed — FSD-005 §7 |
-| a metered resource grant (CIRISBilling) | no family | CIRISConstitution | `blocked_by: CIRISRegistry#51` |
+| a `grant`-scoped delegate may seal on the owner's behalf; admission refuses a recipient re-granting; per-recipient `key_grant` rows; judged at `asserted_at` | CIRISPersist | CIRISPersist | confirmed — #1033 (the `grant` arm), #989 (rows), v60 §8 item 2 (`asserted_at`); carriage of per-recipient rows CIRISEdge#808 (not re-checked) |
+
+## 3a. Topology (CSD/4)
+
+The entry is **T18** ("delegation ends; a key grant; a guardian bond absent"),
+whose `key_grant` relation is the one that reaches `grant.state.held`
+("`key_grant:{axis}:v1` one row per recipient"); the builder stops before it
+today (`PENDING_BUILDER`: "persist emits `key_grant:content:v1` per recipient on
+a sealed share; no read witnesses it yet"). T6 `serves` this card for the
+delegate-issuer case only. `requirements.yaml` carries no CSD-125 yet; the block
+is the entry to add.
+
+```yaml csd:tests
+CSD-125:
+  catalogue_version: 3
+  topology: T18
+  tests:
+    held:
+      at: [grant.state.held]
+    issued_by_a_delegate:
+      at: [grant.state.held, delegation.chain]
+```
+
+`issued_by_a_delegate` holds in no entry at one instant today (T18 grants
+from the owner; T6's chain carries no `grant` scope): `check_csd4` reports it
+`uncovered`, which is the honest state. What this card asks of the T18 layer
+graph:
+
+```yaml
+  relations:
+    - {rel: key_grant, person: guardian, to: child, household: H}         # grant.state.held (T18 as is)
+    # PENDING: key_grant with an axis and a window — key_grant(from: owner, to: recipient, axis: content, asset: <digest>, until: <ts>)
+    # PENDING: rotate(owner, asset) — "end access" is rotation; no relation ends a grant in TOPOLOGY.md, by design
+  checks:
+    relations:
+      - key_grant: {rows: 1, recipient: child, wrap_algorithm: v2}
+    actor: [reads: "grants over my things" → one row; on the child's node: the row, and no share control]
+  negatives:
+    # PENDING: cannot_act — the recipient re-granting is refused at admission (CC 2.4.1.2.1)
+    - {check: cannot_act, person: child, op: "grant onward", reason: grant_issuer_not_owner}
+```
 
 ## 4. Flow
 
@@ -138,4 +185,4 @@ nothing new.
 ## 5. Acceptance
 
 Unsigned. Not tested here: the consent grants' own emission (CSD-053/054), the
-bytes' custody (CSD-107), billing (CSD-056).
+bytes' custody (CSD-107).

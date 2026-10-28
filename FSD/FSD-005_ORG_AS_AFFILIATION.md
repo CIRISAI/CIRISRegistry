@@ -5,8 +5,11 @@ CEG; complete that translation; model the full state tree for grants/delegations
 closes for the enumerable depths.*
 **Reads with:** FSD-004 §4.3 (the PortalService disposition table this supersedes for
 org data), `formal/authority_tree/` (the state tree), the CSD set under `FSD/CSD/`.
-**Constitution:** 1.0-rc7 (`manifests/namespace_registry.json`
-`796f609981434b838edab1165462484f1be67889eed7f60c26b210ede5984464`, 168 families).
+**Constitution:** written against 1.0-rc7 (`manifests/namespace_registry.json`
+`796f609981434b838edab1165462484f1be67889eed7f60c26b210ede5984464`, 168 families); the
+CSD set under `FSD/CSD/` is pinned to **1.0-rc12** (`registry_sha256`
+`d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b`, 188 families) since
+2026-10-28, and §9.6 records the steward direction of that day.
 
 ---
 
@@ -18,8 +21,9 @@ rows CEG already has for an affiliation, and nothing about an organization is a 
 kind of its own.** Anyone can found one under their own key. There is no system
 administrator who creates organizations, and no roster of permitted licensing
 authorities. CIRIS L3C is one such affiliation and uses the same cards; its licences are
-`licensure:{its community_key_id}` (ciris.ai/philosophy: universal application of the
-rules to CIRIS itself).
+`licensure:ciris-canonical:v1` — the root community the accord holders founded is the
+affiliation, and its `community_key_id` is the authority (§9.6; ciris.ai/philosophy:
+universal application of the rules to CIRIS itself). CIRIS sells none of them.
 
 ## 2. Why the translation is owed
 
@@ -110,6 +114,14 @@ every role beneath it (CC 4.5). A role is a leaf of the one tree, with two kinds
 secretariat; this document takes the default and treats a deeper cap as a charter
 declaration (CSD-120), never a silent widening.
 
+*As landed (CC#163 at rc8 `c3a0a13`; persist v60.0.0 #1048):* `delegation_valid_until` is
+REQUIRED on any edge carrying `sub_delegation`, `license`, `grant`, `moderate`,
+`takedown`, `review` or `slash`, or sitting in an affiliation's `hierarchy`, at most 365
+days after `delegation_valid_from` and within the charter's `role_term` (integer days
+1..=365); the refusal is `delegation_term_required` (persist:
+`federation_delegation_term_required`, rules `term_missing` / `term_unreadable` /
+`over_ceiling` / `over_role_term`). The ask in §6 is therefore closed.
+
 ## 5. The authority tree, and that it closes
 
 `formal/authority_tree/authority_tree.py` models the triad as one state machine and
@@ -131,8 +143,8 @@ delegated; the licence and the grant are leaves.
 
 | Repo | Ask | Why |
 |---|---|---|
-| CIRISConstitution | Re-base CC 3.3.9 on CC 4.4.3.2.8: an organization is an affiliation; `authority_id` for an organisation is its `community_key_id`; retire the three operational subject kinds or mark them transitional; state the role presets as presets, not a wire enum | two records for one thing |
-| CIRISConstitution (second ask) | Rule how a licensing affiliation's authority set reaches non-member readers (§7.1 blocker 2), and whether a licence needs the affiliation's quorum or one founder (§7.1 blocker 1) | both are rulings, not code |
+| CIRISConstitution | **Landed** (#161, rc8): CC 3.3.9 now opens with "an organisation is an affiliation"; `authority_id` is the `community_key_id`; the role presets are non-normative presets over scope sets. Still owed: the 3.3.9 text keeps the three kinds "registered and in force until an amendment retires them" while persist v60 V205 has retired them — one amendment closes it | two records for one thing |
+| CIRISConstitution (second ask) | **Landed** (#162, rc8; re-read on cirisconstitution-32, 2026-10-28): the authority set is whatever the affiliation's `consensus_protocol` admits; a licence is a cosigned row judged at its signed `asserted_at`; no public default, scope per licence class in the charter (`licence_audiences`); re-emission to named readers is new cosigned rows with the readers in `subject_key_ids`. For CIRIS the dimension is `licensure:ciris-canonical:v1` (§9.6) | both are rulings, not code |
 | CIRISPersist | §7.2: the affiliation authority-set arm for licensure; the V089 CHECK fix; licensure gate/fold agreement with an `as_of` lens; cycle refusal at admission; chain-explain read; typed affiliation config + discriminator; `role_of`; licensure public read; the `grant` gate; rc7 `key_grant`; the 3.3.9 deprecation plan | storage + admission of the rows above |
 | CIRISEdge | §7.3: a commons reach for registry families on a conferred node; subject-pull by non-subjects; consent-prefix coverage; depth default 5 | carriage + audience of the rows above |
 | CIRISServer | §7.4: every write door (found an affiliation with its charter, roles as `delegates_to`, licences, grants, `license`/`grant` delegations, keys) and the public read tier a registry node serves; #646 (register every kind) | the cards |
@@ -339,6 +351,54 @@ edge is **`delegation_term_required`**; a lapsed `moderate` edge is CC 4.5.4. Ad
 tickets, on which the CC rows are staged: **CIRISPersist#1036** (authority-set arm, `as_of`
 lens, audience), **CIRISServer#752** (the doors), **CIRISEdge#852** (carriage of the
 authority head). CIRISRegistry#112 and #128 close on #161 and #163.
+
+### 9.6 Steward direction, 2026-10-28 — no sale, one root community, and where the cards stand
+
+**Direction (steward, 2026-10-28).** The CIRIS L3C licensing authority is the humanity
+accord trust root acting through the root community it founded. The model is fully
+decentralised: anyone can be their own licensor; it only matters who trusts them. A reader
+chooses how it trusts, and the shipped default root is trusted by default (CC 4.4.3.8's
+recommended pin, `ciris-canonical` + `humanity-accord`), which is how the accord's own
+licences work out of the box. **CIRIS is no longer selling licences; portal.ciris.ai is
+being decommissioned.** Every Portal screen a card in `FSD/CSD/` stood in for is retired,
+not migrated; every billing, fee, bond, tier-price and "contact sales" dependency is out
+of the cards; `partner_role:{role}` names a role, never a tier (CSD-123); the
+`CIRISBilling` row is off CSD-125 with its `CIRISRegistry#51` blocker.
+
+**The CC ruling it rests on (cirisconstitution-32, 2026-10-28, citing existing text).** A
+licence is a cosigned `licensure:{authority_id}:v1` row admitted under the cosigned-row
+rule (CC 2.1) at its signed `asserted_at`. For CIRIS the dimension is
+**`licensure:ciris-canonical:v1`** — the root community, whose founders are the accord
+holders A1/B1/C1 (`CLM-canonical-founders-accord`), NOT `licensure:humanity-accord:v1`
+(the accord family is a witnessed lineage and the kill switch, not a licensor) — cosigned
+by that community's quorum (`quorum:2/3`) or signed by a key holding a plain
+`license`-scoped `delegates_to` from `ciris-canonical` under that quorum (CC 2.4.1.2.1,
+3.3.9, 4.4.3.4.3). There is no `infra:license` and there must be none (a node key carries
+only `infra:*`). The `license` delegation is an ordinary cosigned row the reader walks,
+never a genesis-bundle member (CC 3.2 T5, 5.3.4). Any affiliation is its own licensor
+under `licensure:{its community_key_id}:v1`; a reader honours it only if its own root's
+trust reaches that authority (CC 4.4.3.8). Rows may be re-emitted to named readers via
+`subject_key_ids` (ruling #163 as landed; persist v60 `reemission_of`). CSD-122 carries
+the ruling; CSD-124 carries the worked chain.
+
+**Adopter status, re-checked.** CIRISPersist#1036 shipped in persist **v60.0.0**
+(2026-10-26: CHANGELOG §8 items 1–5 — the authority quorum, `asserted_at` with the 72 h
+window and `asserted_at_stale`, `licence_audiences` + re-emission, the typed
+`partner_record` payload on the licence and **V205** dropping the three operational
+tables, the `reconsideration` contest; plus #1031 cycle refusal, #1032 term lens, #1033
+`grant` arm, #1034 typed config, #1035 licensure gate/fold + public read, #1048 term gate,
+#1062 org on the bond). CIRISServer#752 (the doors) is open; `CLM-delegation-term` is
+staged on it. CIRISEdge#852 was split: **#895** (licence audience carriage,
+`CLM-licence-audience`) and **#896** (delegation term). In the cards a shipped blocker is
+now a `confirmed — v60.0.0` evidence pointer, never a `blocked_by`. `gh api` could not be
+read for the issues during the catch-up (intermittent 404s on this machine); the states
+come from the lead's check, persist's CHANGELOG and CC `claims.tsv`.
+
+**CSD/4.** The cards carry the LOCKED form (`CIRISServer/FSD/CSD4.md`): a `csd:tests`
+block on catalogue entry T6 ("an affiliation, a licensing authority, a delegation chain",
+`serves: CSD-120–126`; T18 for CSD-125), whose `authority` and `delegation` relations the
+builder refuses by name until the Server doors exist. `requirements.yaml` on the server
+carries CSD-120 only; the entries for CSD-121–126 are stated in each card's §3a.
 
 ### 9.5 Housekeeping
 
