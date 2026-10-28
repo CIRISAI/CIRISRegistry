@@ -1,13 +1,12 @@
 # Common-cards analysis: which of CSD-120..126 the client already carries
 
-**Status:** DRAFT, 2026-10-28. Read against CIRISClient `origin/main` (the cards
-under `FSD/CSD/`, `CSD.md` CSD/3, `packaging/check_csd_v3.py`, `CirclesNav.kt`) and our
-seven drafts in this directory after the 2026-10-28 catch-up (CSD/4, rc12, the
-steward's decommission of portal.ciris.ai, the licensure ruling on
-cirisconstitution-32, CC 4.4.3.8 rc13 "Who I trust").
+**Status:** DRAFT. Read against CIRISClient `origin/main` (the cards under
+`FSD/CSD/`, `CSD.md` CSD/3, `packaging/check_csd_v3.py`, `CirclesNav.kt`) and the seven
+cards in this directory (CSD/4; the Portal decommissioned; the CIRIS licence a row under
+`ciris-canonical`; CC 4.4.3.8 "Who I trust").
 
-**The organising frame (steward, 2026-10-28): this set fills out the affiliations
-tier of the circles model entirely.** The circles model is the client's layer hub
+**The organising frame: this set fills out the affiliations tier of the circles model
+entirely.** The circles model is the client's layer hub
 (CSD-050: `layer-agent`, `layer-family`, `layer-local-community`,
 `layer-global-communities`; CSD-051: `layer-global-commons`), five circles by seven
 tabs (`CirclesNav.kt`: Files, Chats, People, Safety, Rules, Decisions, Record). The
@@ -254,9 +253,9 @@ or a key, the `license`-scoped delegate as the only other issuer, the
 `duty:{kind}` attachments, `lapsed` versus `expired`, reinstate as a
 `withdraws` on the suspended row, per-class visibility from the charter, the
 re-emission to named readers via `subject_key_ids`, the subject's own view and
-`reconsideration:{grounds}` contest, and, after the 2026-10-28 ruling, the CIRIS
-licence as `licensure:ciris-canonical:v1` cosigned by the root community's
-quorum with no sale behind it.
+`reconsideration:{grounds}` contest, and the CIRIS licence as
+`licensure:ciris-canonical:v1` cosigned by the root community's quorum with no sale
+behind it.
 
 ### Recommendation: KEEP
 
@@ -296,8 +295,8 @@ Recognition as a `scores` row by one affiliation about another's key, at a
 named `partner_role:{role}`, with forum participation
 (`multilateral_participation:{forum}:{kind}`), the inbound / outbound / mutual
 display fold (CC 2.3.2.4), and the separation of recognition from licence
-(CSD-122) and from agency (CSD-124). After the catch-up `partner_role:{role}`
-is open vocabulary naming a role, with no tier, price or billing attached.
+(CSD-122) and from agency (CSD-124). `partner_role:{role}` is open vocabulary
+naming a role, with no tier, price or billing attached.
 
 ### Recommendation: KEEP
 
@@ -359,8 +358,8 @@ along the chain, the required term under the charter's `role_term` with the
 one-year ceiling and the `delegation_term_required` refusal, the six admission
 refusal tokens shown as refusals, and the cascade sheet's second sentence:
 issuances already made under an edge survive its withdrawal (a licence is
-revoked by its authority, CC 2.4.1.2.1). After the catch-up, the worked
-example is the `license` chain from `ciris-canonical` under its `quorum:2/3`.
+revoked by its authority, CC 2.4.1.2.1). The worked example is the `license`
+chain from `ciris-canonical` under its `quorum:2/3`.
 
 ### Recommendation: EXTEND CSD-055
 
@@ -419,10 +418,9 @@ different "grant":
 * **CSD-056** (Billing) is CIRISAgent's credits and Google Play; its
   "start a non-Play purchase" row (`POST /v1/api/billing/purchase/initiate`,
   "the Portal/Stripe leg; nothing reaches it") is the leg the Portal
-  decommission retires. No metered-resource **grant** exists there, and after
-  the catch-up our card no longer reserves one: the CIRISBilling row and its
-  `CIRISRegistry#51` blocker are gone from CSD-125 (CIRIS sells nothing that
-  would be metered), so nothing on CSD-056 touches it.
+  decommission retires. No metered-resource **grant** exists there, and our
+  card reserves none: CSD-125 carries no CIRISBilling row (CIRIS sells nothing
+  that would be metered), so nothing on CSD-056 touches it.
 
 ### What is genuinely new in ours
 
@@ -543,16 +541,15 @@ that ask rather than filing their own.
 
 ## Who I trust: the reader-side card
 
-The 2026-10-28 steward correction and CC 4.4.3.8 rc13 ("Who I trust (normative)",
-branch `rc13` b70b614) add a surface none of our seven cards carried: the reader's
-own trust set. Each entry is the reader's own `delegates_to(reader → authority)`
+CC 4.4.3.8 "Who I trust" adds a surface none of our seven cards carried: the
+reader's own trust set. Each entry is the reader's own `delegates_to(reader → authority)`
 bearing `trust:accepts:v1`, naming the authority as a licensor for every class its
 charter declares or for a listed class set (`trust_classes`), with a depth
 (`trust_depth`, 0..5: licensors of licensors over the authorities' own acceptance
 edges). The shipped root is one default, removable entry; removing it removes
 exactly what reached through it (`removal_only_removes`, `TrustSet.lean`), keeps the
 identity floor, and un-federates the node at the server tier until another root is
-attached (CC 4.4.3.8 items 4–5). Wire members: CIRISPersist#1142 (open).
+attached (CC 4.4.3.8 items 4–5). Wire members: CIRISPersist#1142.
 
 ### Is CSD-105 already that surface?
 
@@ -579,8 +576,8 @@ closest card, and it is half of it:
   a root with a charter, holders and a lineage head (CIRISServer#693, #404 open).
 
 What CSD-105 does not have: an entry that targets an **authority that is not a
-root** (a hospital board, a guild: deltas 6b, now settled by rc13); a class list and a
-depth on the entry (6c, 6d, now settled: `trust_classes` / `trust_depth`); a list of
+root** (a hospital board, a guild); a class list and a depth on the entry
+(`trust_classes` / `trust_depth`, CC 4.4.3.8 "Who I trust"); a list of
 entries that is not a list of roots; and the warning that removing the root with
 licensor entries remaining un-federates without un-trusting them. Its routes write
 and remove a ROOT's edge from a bundle; no route adds a licensor entry with classes
@@ -628,7 +625,7 @@ CSD-105 extension (one card, two doors, as CSD-107 is reached from three surface
 The loopback gate stays the node's; off the node's machine the row renders CSD-105's
 `trust_root_loopback_only` sentence, never an empty list.
 
-**No card may say the root is the only trust knob.** CSD-122 §1 and §2 now say the
+**No card may say the root is the only trust knob.** CSD-122 §1 and §2 say the
 reader half in these terms; CSD-120 and the README say the root is a default entry.
 
 ---
@@ -649,7 +646,7 @@ after this set is adopted.
 | People | Users (CSD-043) | `GLOBAL_COMMUNITIES` only | not an affiliation thing: CSD-043 §6 moves it to My things › This node | leaves the tier (CSD-043's own ask) |
 | People | AffiliationsRoster (CSD-103) | placed | the roster, with the acceptance-row provenance, the removal cascade fact and the role chip opening the delegation sheet | FOLD CSD-121 into CSD-103 (+ CSD-055 §7) |
 | People | **Partners** (CSD-123) | none | recognitions out and in, forums, the licence summary beside a partner | KEEP: new row |
-| Safety | Moderation (CSD-065) | `NEIGHBOURS_OUT` | the moderator duty; for an affiliation the designated official discharges it (CC 4.4.3.2.8 P4:651 on rc13 3cac7b9), and a one-seat body's act against a member needs an outside countersign (CSD-121's sheet) | existing; CSD-065 gains the affiliation sentence |
+| Safety | Moderation (CSD-065) | `NEIGHBOURS_OUT` | the moderator duty; for an affiliation the designated official discharges it (CC 4.4.3.2.8 "The floors bind power over members, not the count of voices"), and a one-seat body's act against a member needs an outside countersign (CSD-121's sheet) | existing; CSD-065 gains the affiliation sentence |
 | Safety | ChildSafety (CSD-066) | all circles | unchanged | existing |
 | Safety | *(none)* | — | **lawful access and transparency obligations** (CC 4.4.3.2.8 D: `lawful_access` typed, never covert, always `hard_case:*`; `transparency_obligations[]`); CSD-120 §5 defers it to "a later card" | **GAP → CSD-130** |
 | Rules | LayerGlobalCommunities hub (CSD-050 + CSD-102) | placed | the community record and governance, plus the charter | EXTEND CSD-102 §2.3 (from CSD-120) |
@@ -664,14 +661,14 @@ after this set is adopted.
 | Decisions | HealthReputation (CSD-044) | `NEIGHBOURS_OUT` | unchanged | existing |
 | Decisions | *(none)* | — | **pending cosignatures**: the affiliation's held changes of every kind (charter supersession, roster, licence issue/suspend/revoke, a root delegation edge), each a `/changes/{envelope,cosign,assemble}` 409 `quorum_pending` that CSD-102 renders only for roster changes on the Rules hub | **GAP → CSD-131** (or EXTEND CSD-102's held-change rendering with a Decisions door; a number is proposed so the slot is not empty) |
 | Record | Audit (CSD-071) | all circles | the record feed; every "the receipt opens" in this set reads it; the Portal's compliance export is retired, not migrated | existing |
-| Record | *(none)* | — | **records duties**: retention floors and ceilings per class, `legal_hold`, `erasure_policy` (Art 17(3) refused-with-reason), `disclosure_accounting`, `breach_notification`, `archive_custody` (deltas C1: affiliation-only, TEXT SAYS) | **GAP → CSD-132** |
-| People / Rules | *(none)* | — | **the public face of an affiliation**: existence, `community_key_id`, officers' roles, declared licence classes, Commons-visible; a non-public affiliation's `community:listing:v1` row naming those four and nothing else (CC 4.4.3.2.8 P4:657 on rc13 5298190) | folded into CSD-120 (the four things are members of the record it already renders; the listing row is signed at its found door); the former GAP CSD-133 is withdrawn |
+| Record | *(none)* | — | **records duties**: retention floors and ceilings per class, `legal_hold`, `erasure_policy` (Art 17(3) refused-with-reason), `disclosure_accounting`, `breach_notification`, `archive_custody` (CC 4.4.3.2.8 A, B and D: affiliation-only) | **GAP → CSD-132** |
+| People / Rules | *(none)* | — | **the public face of an affiliation**: existence, `community_key_id`, officers' roles, declared licence classes, Commons-visible; a non-public affiliation's `community:listing:v1` row naming those four and nothing else (CC 4.4.3.2.8 "Public face") | part of CSD-120: the four things are members of the record it renders, and the listing row is signed at its found door |
 
 **Numbers.** `numbers.tsv` on the client reserves CSD-118 and CSD-119 on #179
 ("Never allowed", "Guardian bond"), so they are not free; CSD-129 is in the server's
 `requirements.yaml` (the halt card). The roster's unassigned list is 009, 017–019,
 038, 058–064, 072–079, 088–089, 097–099 and everything above 128; this note proposes
-**CSD-130, 131, 132, 133** as new numbers above the reserved range, to be added to
+**CSD-130, 131, 132** as new numbers above the reserved range, to be added to
 `numbers.tsv` as `reserved` rows naming this file.
 
 ## Own scope, or inside `layer-global-communities`?
@@ -682,9 +679,9 @@ own terms:
 
 1. **A circle IS a `cohort_scope`** (CSD-050 §1: "a circle IS a `cohort_scope`, so
    the card that names the scope is the card that says what may cross out of it"),
-   and `affiliations` is one of CC 2.1's closed set of seven (deltas 8a, TEXT SAYS:
-   P2:30). "Global communities" is not a CC kind: scale is a `cohort_subkind` and
-   roster matter, "global" is the Commons (deltas 8c, TEXT SAYS: P3:582, P4:409).
+   and `affiliations` is one of CC 2.1's closed set of seven. "Global communities" is
+   not a CC kind: scale is a `cohort_subkind` and roster matter (CC 3.2), "global" is
+   the Commons (CC 4.4.3.2.1).
 2. **The hub already reads the tier.** `LayerGlobalCommunities` reads the community
    section at `tier: affiliations` (CSD-050 §1 table); `AffiliationsRoster` and
    `AffiliationsChats` are its People and Chats rows. The circle has been the
@@ -693,20 +690,20 @@ own terms:
    species | biosphere | federation`, and the circles run Just me, Family,
    Neighbours, Communities and Businesses, Everyone: the affiliations circle sits
    between the local community and the Commons already. Whether `affiliations` is
-   *wider* than `community` is now text (CC 4.4.3.2.8 P4:663 on rc13 5298190):
+   *wider* than `community` is settled by CC 4.4.3.2.8 "The scopes":
    "`affiliations` sits beside `community`, neither wider nor narrower, so a re-sign
    between them is a new placement, never a promotion and never the narrowing a
    placement-touching re-sign may make; the order of widening is `self`, `family`,
    then `community` and `affiliations` side by side, then `species`, `biosphere` and
    `federation`." The two circles are siblings, and no arrow runs between them.
-4. **Why the tier is distinct at all** (now text, CC 4.4.3.2.8 P4:647 on rc13
-   3cac7b9): a community is presumed pro-social and the floors protect peers from one
+4. **Why the tier is distinct at all** (CC 4.4.3.2.8 "The assumption each tier
+   carries"): a community is presumed pro-social and the floors protect peers from one
    another and from one voice; an affiliation carries no such presumption and the data
    limbs bind it alone. And the line between the two is the licence class, not the
-   label (P4:661 on 5298190): anyone may license, a community included, and "a
+   label ("Who may license"): anyone may license, a community included, and "a
    community whose charter declares a class with legal weight has taken on the
    affiliation's duties for it". So the tier exists to carry duties, sharing the
-   community's crypto tier and feed band (8a).
+   community's crypto tier and feed band (CC 4.4.3.2.1; CC 4.4.3.3).
 
 So: keep the `layer-global-communities` nav id (renaming it churns every tag the
 flows name), declare `cohort_scope: affiliations` on its row in CSD-050 §2, and let
@@ -730,9 +727,9 @@ scope CC does not have.
 | Rules › Trust (Who I trust) | — (new, reader side) | CSD-105 §1–§3 (root edges, two confirms), CSD-052 (the misplaced row) | **EXTEND CSD-105** | CSD-105 §2.2 "Who I trust"; the Rules › Trust row on this circle is its door; CSD-052 moves to This node |
 | Safety › lawful access, transparency obligations | — | none | **GAP → CSD-130** | new card; CC 4.4.3.2.8 D |
 | Decisions › pending cosignatures | — | CSD-102 (roster held changes only) | **GAP → CSD-131** | new card, or CSD-102's held-change rendering with a Decisions door |
-| Record › records duties | — | CSD-071 (the feed only) | **GAP → CSD-132** | new card; deltas C1 |
-| People / Rules › public face | — (now CSD-120's) | none; CSD-102's public rooms are a different thing | **folded into CSD-120** (the former GAP CSD-133 withdrawn) | CSD-120 §2: `declared_cohort`, `public_face`, `listing_row`; CC 4.4.3.2.8 P4:657 |
-| Files, Chats, Contacts, Moderation, ChildSafety, Consent ×2, HealthReputation, Audit | — | CSD-007, 110, 005, 065, 066, 053, 054, 044, 071 | **existing** | unchanged (Moderation: the designated official discharges the duty for an affiliation, P4:651) |
+| Record › records duties | — | CSD-071 (the feed only) | **GAP → CSD-132** | new card; CC 4.4.3.2.8 A |
+| People / Rules › public face | CSD-120 | none; CSD-102's public rooms are a different thing | **part of CSD-120** | CSD-120 §2: `declared_cohort`, `public_face`, `listing_row`; CC 4.4.3.2.8 "Public face" |
+| Files, Chats, Contacts, Moderation, ChildSafety, Consent ×2, HealthReputation, Audit | — | CSD-007, 110, 005, 065, 066, 053, 054, 044, 071 | **existing** | unchanged (Moderation: the designated official discharges the duty for an affiliation, CC 4.4.3.2.8 "The floors bind power over members, not the count of voices") |
 | Rules › Billing; People › Users | — | CSD-056, CSD-043 | **leave the tier** | Billing's Portal leg is retired; Users moves per its own §6 |
 
 ## The net set
@@ -748,10 +745,9 @@ After the recommendations the client maintains, for the affiliations tier:
 * **four retired numbers**: 120, 121, 124, 126, each a `retired` row in
   `numbers.tsv` naming its carrier (as CSD-001 and CSD-034);
 * **three gaps with proposed numbers**: CSD-130 lawful access and transparency
-  obligations, CSD-131 pending cosignatures, CSD-132 records duties (the fourth,
-  CSD-133 the public face, is withdrawn: CC 4.4.3.2.8 P4:657 on rc13 5298190 makes
-  the public face four members of the record CSD-120 already renders, so it is
-  CSD-120's §2, not a card);
+  obligations, CSD-131 pending cosignatures, CSD-132 records duties (the public face
+  is not a gap: CC 4.4.3.2.8 "Public face" makes it four members of the record
+  CSD-120 renders, so it is CSD-120 §2, not a card);
 * **two rows that leave the tier**: Billing (CSD-056 placement) and Users (CSD-043,
   per its own §6);
 * **unchanged**: CSD-007, 110, 005, 065, 066, 053, 054, 044, 071, 095, 104, 106,
