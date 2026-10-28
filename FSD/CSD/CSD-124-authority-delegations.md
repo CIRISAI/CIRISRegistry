@@ -49,6 +49,14 @@ edge is a row the reader walks like any other); and it is **not a sale** (the
 registrar is a role, with a term; nothing on the edge or the licence is paid
 for). Any affiliation does the same under its own protocol with its own id.
 
+**What the text says and what is still a ruling (CC rc13 deltas note).** TEXT
+SAYS: `license` issues on behalf of a delegator that holds licence authority by
+quorum, refused `licensure_delegator_not_authority` otherwise, and the chain roots
+at that quorum (4b: P4:849, P4:852, P2:340); every edge in a hierarchy is termed
+(2e: P2:276). Pending: whether a `withdraws` of the affiliation's record ends its
+live edges at once, or they lapse by their terms, `pending: CC ruling 10
+(affiliation_vs_community_deltas_2026-10-28)` (7d).
+
 **Why this is not CSD-055.** CSD-055 is the device-code flow: a person offers a
 code, a device approves it, the scopes are a person's own verbs. This card is
 the same `delegates_to` primitive with two scopes CSD-055 does not offer —
@@ -186,31 +194,15 @@ CSD-124:
       at: [delegation.link.expired]
 ```
 
-`withdrawn` and `expired` hold only in T18 (`delegation_withdraw` /
-`delegation_expire`, both `known_red: CIRISServer#751`); the planner reselects
-T18 for them. What this card adds to the T6 layer graph (CSD-120 §3a) is the
-chain `formal/authority_tree/` enumerates:
-
-```yaml
-  nodes:      [{id: S, dials: [C, P], accepts: R, announced: true}]       # a sub-delegate's node
-  persons:    [{id: clerk, owns: [S], accepts: R}]
-  relations:
-    - {rel: member, community: AFF, invitee: clerk}
-    # PENDING (CSD4.md §5 `delegation`; CSD4_EVALUATION §4.2 drafts the shape):
-    - {rel: delegation, from: authority, to: practitioner, scopes: [license, sub_delegation], depth: 2, over: AFF, term_days: 90}
-    - {rel: delegation, from: practitioner, to: clerk, scopes: [license], depth: 1, over: AFF, term_days: 30}
-    - {rel: delegation_withdraw, from: authority, to: practitioner, known_red: "CIRISServer#751"}
-  checks:
-    relations:
-      - delegation: {chain: [authority, practitioner, clerk], effective_scope_at_clerk: [license], depth_at_clerk: 2}
-      - delegation_withdraw: {cascade: [clerk], licences_issued_by_clerk: unchanged}
-    actor: [reads: "delegations of AFF" → two edges, the second marked 'ends with the first']
-  negatives:
-    # PENDING: cannot_act
-    - {check: cannot_act, person: clerk, op: "delegate license onward", reason: scope_not_held}       # no sub_delegation
-    - {check: cannot_act, person: practitioner, op: "delegate grant", reason: scope_not_held}
-    - {check: cannot_act, person: practitioner, op: "delegate license with no term", reason: federation_delegation_term_required}
-```
+**What the vocabulary lacks for this card.** `withdrawn` and `expired` hold only in
+T18 (`delegation_withdraw` / `delegation_expire`, both `known_red: CIRISServer#751`);
+the planner reselects T18 for them. `delegation.chain` says a chain of length ≥ 2
+stands and nothing about its scopes, so a `license`-scoped chain from an
+affiliation's quorum is indistinguishable from a device grant chain; the README's
+asks list `delegation.scope.license`, `delegation.scope.grant` and
+`delegation.refused` (with the door's token: `scope_not_held`, `depth_exceeded`,
+`cycle`, `federation_delegation_term_required`) as the atoms, and `cannot_act` as
+the negative. `formal/authority_tree/` already enumerates the chain the flow drives.
 
 ## 4. Flow
 

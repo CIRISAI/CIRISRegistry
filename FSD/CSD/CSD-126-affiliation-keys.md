@@ -40,6 +40,14 @@ key the affiliation owns apart from a person. The `ciris-canonical` installs
 (`ciris-canonical-1`) are node keys seated by the accord's blessing, carry only
 `infra:*`, and never sign a licence (CSD-122).
 
+**What the text says (CC rc13 deltas note).** An agent key held for an
+organisation names the affiliation in its owner-binding's `community_id`,
+cosigned under the affiliation's protocol, and `slash` and `quarantine` reach the
+affiliation's keys as well as the steward's (2g: P3:805); `archive_custody` is the
+affiliation-only custodian role that lets retained records survive member turnover
+where a community gets rotation only (7e: P4:665). The escrow custodian this card
+names is that role when the charter declares it.
+
 ## 2. Surface (what)
 
 ```yaml csd:surface
@@ -133,9 +141,8 @@ error:     {tag: "proposed:txt_affiliation_keys_error", renders: "Couldn't read 
 
 T6 is the entry (the affiliation and the `KeyManager` edge as a `delegation`);
 the revocation atoms live in **T19** (`key.revocation.revoked_after`,
-`key.revocation.revoked_all`, `node.announce.announced`) and the self-roster
-changes in T10. `requirements.yaml` carries no CSD-126 yet; the block is the
-entry to add.
+`key.revocation.revoked_all`) and the self-roster changes in T10.
+`requirements.yaml` carries no CSD-126 yet; the block is the entry to add.
 
 ```yaml csd:tests
 CSD-126:
@@ -150,30 +157,13 @@ CSD-126:
       at: [key.revocation.revoked_all]
 ```
 
-The two revocation tests hold only in T19 (`deadmit`, `PENDING_BUILDER`); the
-planner reselects it. What this card adds to the T6 layer graph (CSD-120 §3a):
-
-```yaml
-  relations:
-    # PENDING (`delegation`, CSD4.md §5): the KeyManager binding, cosigned by the founders
-    - {rel: delegation, from: authority, to: practitioner, scopes: [key_manager], depth: 1, over: AFF, term_days: 365}
-    # PENDING: key_record(person, key) with a pre-rotation commitment; rotate(person, key, to: successor);
-    #          escrow(person, key, custodian) — none typed in TOPOLOGY.md; T19's `deadmit` is the only key-plane relation
-    - {rel: deadmit, person: practitioner, after: "<ts>"}                 # key.revocation.revoked_after (T19 shape)
-  checks:
-    relations:
-      - delegation: {scopes: [key_manager], cosigned_under: founder_only, community_id: AFF}
-      - deadmit: {revoked_after: "<ts>", rows_before: still_verifiable, rows_after: refused}
-    actor: [reads: "keys that speak for AFF" → one row held by practitioner, bound under the founder's protocol]
-  negatives:
-    - {check: holds_no_row, node: C, dimension: "key:record", person: practitioner}   # the canonical holds the PUBLIC record; control: ≥1 public row
-```
-
-(The `holds_no_row` negative is listed to be honest about its control clause:
-a key record IS public, so the negative as written fails as unproven; what the
-card actually wants is `holds_no_private_material`, which is not a row and
-cannot be a topology negative. The private key never being on any node is a
-property of the client, pinned in its own tests, not of the fixture.)
+**What the vocabulary lacks for this card.** The two revocation tests hold only in
+T19 (`deadmit`, `PENDING_BUILDER`); the planner reselects it. No atom names a
+pre-rotation commitment, a rotation to the committed successor, or an escrow with a
+named custodian: the README's asks list `key.successor_committed`, `key.rotated` and
+`key.escrowed`. The private key never being on any node is a property of the client,
+pinned in its own tests, not of the fixture: no `holds_no_row` negative can state it,
+because the key *record* is public by design.
 
 ## 4. Flow
 

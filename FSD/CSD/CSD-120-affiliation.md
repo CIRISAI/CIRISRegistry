@@ -149,6 +149,21 @@ fields:
     tag: "proposed:txt_charter_accepted_by"
 ```
 
+**What the text says and what is still a ruling (CC rc13
+`review/notes/affiliation_vs_community_deltas_2026-10-28.md`).** TEXT SAYS: the
+charter's limbs are the affiliation's and a social community declares none of
+them (1c, 1d: P4:649, P4:647, P4:670); `dissolves_at` is the affiliation's
+wind-down (7a: P4:683); the scope is a `cohort_scope` value sharing the
+community crypto tier and feed band (8a: P2:30, P4:408, P4:715). Pending, and
+the card does not guess: where the discriminator lives on the record (persist's
+`declared_cohort` is the implementer's shape) `pending: CC ruling 1`; whether an
+absent `role_term` is 365 or refused, and whether licence classes must be
+enumerated, `pending: CC ruling 2`; whether `founder_only` and the two-voice floor
+bind an affiliation, so whether a one-person business can be one, `pending: CC
+ruling 4`; what dissolution does to the DEK, the seats and the issued licences,
+`pending: CC ruling 10`; the order of `community` and `affiliations`, `pending:
+CC ruling 11` (all `affiliation_vs_community_deltas_2026-10-28`).
+
 **Every emitted field is a member of one signed record.** The charter is the
 affiliation's config record, superseded as a whole (CC 4.4.3.2.8: "DECLARED at
 creation"). A card that saved fields one at a time would produce N versions for
@@ -182,10 +197,10 @@ error:     {tag: "proposed:txt_charter_error", renders: "Couldn't read this orga
 
 The catalogue entry this card tests on is **T6** (`CIRISServer/FSD/CSD4.md` §2:
 "an affiliation, a licensing authority, a delegation chain", `serves: CSD-120–126`).
-The block below is the card's entry in the server's `requirements.yaml`, which it
-already carries for CSD-120; `check_csd4` compares the two. The catalogue
-version pinned is the client's (`packaging/csd4/PIN.md`, 3); T6 is unchanged
-through 5.
+The block is the card's entry in the server's `requirements.yaml`, which it already
+carries for CSD-120; `check_csd4` compares the two. `catalogue_version` is the
+client's pin (`packaging/csd4/PIN.md`, 3); the server's catalogue is at 5, and T6
+differs between 3 and 5 only in its own `catalogue_version` field.
 
 ```yaml csd:tests
 CSD-120:
@@ -200,49 +215,15 @@ CSD-120:
       at: [delegation.chain]
 ```
 
-**What T6 builds, and what this card needs beyond it.** The layer graph is
-shown for the reader; it is deliberately not a `csd:topology` block, because
-CSD/4 §1 names one catalogue id and never a layer graph, and `check_csd4`
-refuses a card carrying both.
-
-```yaml
-topology:                       # T6, with this card's checks per layer
-  roots:      [{id: R, kind: key, holders: 1, custody: software_test, lifecycle: {recipe: {}, verdict: rooted}}]
-  canonicals: [{id: C, holds: R, serves: [infra:serve, infra:attest]}]
-  nodes:
-    - {id: L, dials: [C],    accepts: R, announced: true}      # the founder's node
-    - {id: P, dials: [C, L], accepts: R, announced: true}      # a member's node
-  persons:
-    - {id: authority,    owns: [L], accepts: R}
-    - {id: practitioner, owns: [P], accepts: R}
-  relations:
-    - {rel: peered, between: [L, P]}
-    - {rel: reachable, node: L, person: practitioner, min: 1}
-    - {rel: community, id: AFF, founder: authority, tier: affiliations, name: Guild}
-    - {rel: member, community: AFF, invitee: practitioner}
-    # PENDING (builder refuses by name, CSD4.md §5: "a licensing authority affiliation has no route — CSD-120–126"):
-    - {rel: authority, community: AFF, by: authority}
-  actor: {person: authority, device: L}
-  negatives: []
-  checks:
-    roots:      [rooted: {verdict: rooted}]
-    nodes:      [announced: [L, P]]
-    persons:    [rule_2: every owned node accepts R]
-    relations:
-      - community: {AFF: {tier: affiliations, protocol: founder_only}}   # the only protocol a lone founder can seat
-      - member: {AFF: [practitioner]}                                     # community.member
-    actor:      [reads: "GET /v1/communities/{AFF}" → cohort_scope affiliations, consensus_protocol founder_only]
-```
-
-**Lacking in the vocabulary, per card.** The charter is a *transition*: the
-flow writes it (`pre:` the community with no `affiliation_config`; `post:` a
-typed record at version 1, then version 2 after one supersession). TOPOLOGY.md
-has no `pre:`/`post:` form (CSD4_EVALUATION §4); the card's flow drives it
-against the T6 checkpoint `rel[2]:community` and asserts the `post:` by its own
-read. A `quorum:2/3` affiliation with a held charter change is T5's shape
-(`quorum_change` + `cosign`) at the affiliations tier; T6 builds a lone founder,
-so a cosigned supersession is not reachable in the catalogue today and is said
-so here rather than pretended.
+**What the vocabulary lacks for this card.** T6 builds the affiliation with a lone
+founder (`founder_only`), so `community.formed` at the affiliations tier is reachable
+today; `authority.licensing` is past the `authority` relation the builder refuses
+("a licensing authority affiliation has no route", CSD4.md §5). The charter itself is
+a transition the flow writes (no config record, then version 1, then version 2 after
+one supersession) and no atom names it: the README's asks list `affiliation.charter.declared`
+and `affiliation.charter.superseded` as the two atoms to add, and a cosigned
+supersession under `quorum:2/3` needs T5's `quorum_change` + `cosign` at the
+affiliations tier, which no entry builds.
 
 ## 4. Flow
 

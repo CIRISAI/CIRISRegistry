@@ -48,6 +48,16 @@ an edge, and re-confer when terms lapse. A lapsed `moderate` role is a moderator
 lapse under CC 4.5.4: the room auto-promotes or fails secure in the same step,
 never an unmoderated window.
 
+**What the text says and what is still a ruling (CC rc13 deltas note).** TEXT
+SAYS: admission is two consents in both kinds and an `OrgAdmin` cannot seat anyone
+alone (2a, 2b: P3:215, P3:1592); the presets are non-normative over scope sets
+(2c: P3:1592); in an affiliation every role edge is termed, in a community only
+duty-bearing edges are (2e: P2:276, P4:670). Pending: the "closed canonical set"
+of admin scopes `pending: CC ruling 3`; what `role: founder` confers and what
+happens when the last founder leaves `pending: CC ruling 5`; whether a
+`designated_official` discharges the CC 4.5.4 moderator duty for an institution
+`pending: CC ruling 6` (all `affiliation_vs_community_deltas_2026-10-28`).
+
 **Membership and role are two rows and two lists.** Membership is the
 `membership:{stage}` sequence onto the roster (CSD-103 renders it). A role is a
 `delegates_to` edge from the affiliation's root, or from a holder of
@@ -145,8 +155,8 @@ error:     {tag: "proposed:txt_roles_error", renders: "Couldn't read roles from 
 ## 3a. Topology (CSD/4)
 
 T6 is the entry (CSD4.md §2). `requirements.yaml` carries no CSD-121 yet; the
-block is the entry the server must add before the card can claim it
-(`check_csd4` reports the absence by name until then).
+block is the entry the server must add (README, asks of CIRISServer) before the
+card can claim it, and `check_csd4` reports the absence by name until then.
 
 ```yaml csd:tests
 CSD-121:
@@ -161,24 +171,13 @@ CSD-121:
       at: [delegation.link.expired]
 ```
 
-`term_lapsed` holds only in T18 (`delegation_expire`, known red on
-CIRISServer#751); the planner reselects it and says so. The layer graph T6
-builds is CSD-120 §3a's; what this card adds to it:
-
-```yaml
-  relations:
-    - {rel: member, community: AFF, invitee: practitioner}         # community.member
-    # PENDING (CSD4.md §5: "delegation — POST /v1/auth/device/delegate writes owner→actor only; a chain needs the delegate's own act"):
-    - {rel: delegation, from: authority, to: practitioner, scopes: [sub_delegation, license], depth: 2,
-       over: AFF, term_days: 90}                                     # delegation.chain
-  checks:
-    relations:
-      - delegation: {from: authority, to: practitioner, valid_until: "≤ role_term", community_id: AFF}
-    actor: [reads: "roles of practitioner" → one edge, depth 1, conferred_by the founders]
-  negatives:
-    # PENDING: cannot_act(person, op, reason) — CSD4_EVALUATION §4.2
-    - {check: cannot_act, person: practitioner, op: "delegate grant", reason: scope_not_held}
-```
+**What the vocabulary lacks for this card.** `term_lapsed` holds only in T18
+(`delegation_expire`, known red on CIRISServer#751); the planner reselects it and
+says so. The role edge is T6's `delegation` relation, refused today because
+"`POST /v1/auth/device/delegate` writes owner→actor only; a chain needs the
+delegate's own act". No atom says a delegation was *refused* (a scope not held, a
+missing term): CSD4_EVALUATION §4.2's `cannot_act(person, op, reason)` negative is
+the missing piece, listed in the README's asks.
 
 ## 4. Flow
 

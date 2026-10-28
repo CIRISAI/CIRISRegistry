@@ -43,6 +43,11 @@ migrated**. `partner_role:{role}` is open vocabulary (`{role}` is a `vocab`
 segment) naming what the partner IS to the recogniser — `supervising_physician`,
 `vendor`, `member_practice`, `auditor` — never what it paid.
 
+**Pending.** Whether an affiliation may be `cohort_subkind: public` or carry a
+`community:listing` row so a partner can find it, and what of it is
+Commons-visible, is `pending: CC ruling 8 (affiliation_vs_community_deltas_2026-10-28)`
+(5b, 5f); until then a partner is added by id or code, as the field below says.
+
 **"Anyone can define their own partners."** Recognition is a `scores` row by the
 recognising affiliation about the partner's key, cosigned under its own
 `consensus_protocol`. It needs no steward quorum outside the affiliation's own,
@@ -142,20 +147,12 @@ CSD-123:
       at: [authority.licensing, community.member]
 ```
 
-What this card adds to the T6 layer graph (CSD-120 §3a): a second affiliation
-to recognise, which T6 does not build (one community per entry today).
-
-```yaml
-  nodes:      [{id: M, dials: [C, L], accepts: R, announced: true}]       # the partner clinic's founder
-  persons:    [{id: clinic, owns: [M], accepts: R}]
-  relations:
-    - {rel: community, id: CLINIC, founder: clinic, tier: affiliations, name: Mercy}
-    # PENDING: a recognition ROW — recognition(by: AFF, of: CLINIC, role: supervising_physician); no scores-row relation in TOPOLOGY.md
-  checks:
-    relations:
-      - recognition: {by: AFF, of: CLINIC, direction_on_M: inbound}
-    actor: [reads: "partners of AFF" → one outbound row; "partners of CLINIC" → one inbound row; neither says mutual]
-```
+**What the vocabulary lacks for this card.** A recognition is a scores row by one
+affiliation about another, and T6 builds one community, so a second affiliation to
+recognise does not exist in any entry; no atom names a recognition row or its
+direction. The README's asks list `recognition.outbound`, `recognition.inbound` and
+`recognition.mutual` (a display fold, so the last may be a derived atom) and a second
+`community` relation at the affiliations tier on T6.
 
 ## 4. Flow
 

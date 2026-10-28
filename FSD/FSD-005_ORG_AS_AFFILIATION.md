@@ -122,6 +122,20 @@ days after `delegation_valid_from` and within the charter's `role_term` (integer
 `federation_delegation_term_required`, rules `term_missing` / `term_unreadable` /
 `over_ceiling` / `over_role_term`). The ask in §6 is therefore closed.
 
+*What the Constitution's own deltas note settles for this section* (CC rc13
+`review/notes/affiliation_vs_community_deltas_2026-10-28.md`, 49 rows: 31 TEXT SAYS,
+18 SILENT). TEXT SAYS: the seat is by two consents in both kinds and a delegated
+admin never stands in for the protocol (2a, 2b: P3:215, P3:1592); the four names
+are non-normative presets over scope sets (2c: P3:1592); in an affiliation every
+role edge is termed where a community terms only duty-bearing edges (2e: P2:276,
+P4:670); an organisation on the bond is reached by `slash` and `quarantine`
+(2g: P3:805). SILENT, so this document does not decide them: the "closed canonical
+set" of admin scopes (`pending: CC ruling 3`); whether `founder_only` and the
+two-voice floor bind an affiliation and whether a one-person body can be one
+(`pending: CC ruling 4`); succession when the last founder leaves (`pending: CC
+ruling 5`); whether a `designated_official` discharges the CC 4.5.4 moderator duty
+(`pending: CC ruling 6`). The cards cite the same rows.
+
 ## 5. The authority tree, and that it closes
 
 `formal/authority_tree/authority_tree.py` models the triad as one state machine and
@@ -393,6 +407,28 @@ staged on it. CIRISEdge#852 was split: **#895** (licence audience carriage,
 now a `confirmed — v60.0.0` evidence pointer, never a `blocked_by`. `gh api` could not be
 read for the issues during the catch-up (intermittent 404s on this machine); the states
 come from the lead's check, persist's CHANGELOG and CC `claims.tsv`.
+
+**Who I trust (CC 4.4.3.8 rc13, normative; branch `rc13` b70b614, 2026-10-28; the
+registry grammar hash did not move).** The reader's trust is NOT "whatever its pinned
+root reaches". The reader's trust set is its own `delegates_to(reader → authority)`
+rows bearing `trust:accepts:v1`; the shipped root is one default, removable entry.
+Each entry names the authority as a licensor for every class its charter declares or
+for a listed class set, plus a depth (`0` = its own licences; `n` = the licensors it
+trusts for the class, `n` more hops, five-hop cap). A licence is honoured iff the
+reader's class-filtered, depth-bounded walk reaches the issuing authority and that
+authority's charter declares the class; a licence confers no trust; removing an entry
+removes exactly what reached through it; an empty set honours nothing (Lean:
+`formal/trust_set/TrustSet.lean` — `no_trust_without_my_edge`,
+`empty_set_honours_nothing`, `licence_confers_no_trust`, `removal_only_removes`,
+`reaches_mono_budget`). Correction to the first reading of this direction:
+licensors-of-licensors is this trust walk over the authorities' own acceptance edges,
+not a `license`-scoped delegation chain (which conveys issuing under one authority).
+Wire shape: `trust_classes` and `trust_depth` inside the reader's signature on the
+edge, CIRISPersist#1142 (open). A reader whose only edges are licensor entries, having
+removed the CIRIS root, keeps its identity floor but is un-federated at the server
+tier until it attaches another root (CC 4.4.3.8 items 4–5): licensor trust is not root
+trust, and the UI warns so on removing the root. CSD-122 carries the reader half; the
+set's own surface is the Who-I-trust extension of CSD-105 (`COMMON_CARDS_ANALYSIS.md`).
 
 **CSD/4.** The cards carry the LOCKED form (`CIRISServer/FSD/CSD4.md`): a `csd:tests`
 block on catalogue entry T6 ("an affiliation, a licensing authority, a delegation chain",

@@ -28,9 +28,10 @@ and portal.ciris.ai is being decommissioned. The Portal screens this card stood
 in for — `RegisterPartner`'s licence half, `RevokeEntity(license)`,
 `ListExpiringLicenses` — are **retired, not migrated**. The model is fully
 decentralised: anyone can be their own licensor; it only matters who trusts
-them. A reader chooses how it trusts (CC 4.4.3.8), and the shipped default root
-is trusted by default, which is how the accord's own licences work out of the
-box.
+them. A reader chooses how it trusts through its own **Who I trust** set
+(CC 4.4.3.8 rc13, "Who I trust (normative)"): the shipped root is one default,
+removable entry in that set, which is how the accord's own licences work out of
+the box and why the root is never the only trust knob.
 
 **A CIRIS licence is a row under the root community (CC ruling,
 cirisconstitution-32, citing existing text).** The CIRIS L3C licensing authority
@@ -55,11 +56,39 @@ the serve nodes and the birth record, and nothing else is a root).
 
 **Any affiliation is its own licensor, on the same rule.** A state board, a
 clinic, a guild issues `licensure:{its community_key_id}:v1` cosigned under its
-own `consensus_protocol`. A reader honours it only if its own root's trust
-reaches that authority (CC 4.4.3.8: the pinned trust set is a graph whose roots
-are pluggable; the default pin is `ciris-canonical` + `humanity-accord`). A
-Sovereign key scoring `licensure:CA_medical_board` is wire-identical to a
-steward scoring it (CC 4.4.4); the reader's policy weights it.
+own `consensus_protocol` (deltas 4a, TEXT SAYS: "Anyone"; whether a social
+community may be a licensor is `pending: CC ruling 7
+(affiliation_vs_community_deltas_2026-10-28)`). A Sovereign key scoring
+`licensure:CA_medical_board` is wire-identical to a steward scoring it
+(CC 4.4.4).
+
+**The reader half: a licence is honoured iff the reader's own Who-I-trust walk
+reaches its authority for its class (CC 4.4.3.8 rc13, normative; b70b614).** The
+reader's trust set is its OWN `delegates_to(reader → authority)` rows bearing
+`trust:accepts:v1`, which it signs, adds and removes freely; the shipped root is
+one such entry, written at first run. Each entry names the authority **as a
+licensor** (every class its charter declares) or **for a class set** (medical,
+legal, financial: the classes listed on the edge and no other), and **how far**
+(`trust_depth`: `0` honours that authority's own licences; `n` honours, within
+the five-hop cap, the licensors that authority itself trusts for the class, `n`
+more hops — licensors of licensors, which is a walk over the authorities' own
+acceptance edges, NOT a `license`-scoped delegation chain, which only conveys
+issuing under one authority). The reader honours a `licensure:{authority_id}:v1`
+row iff its breadth-first walk from its own edges reaches the issuing authority
+for the row's class and that authority's charter declares the class; at each hop
+the depth is the lesser and the classes the intersection, so the walk only
+narrows. A licence confers no trust; removing an entry removes exactly what
+reached through it; an empty set honours nothing. The proofs are CC
+`formal/trust_set/TrustSet.lean`: `no_trust_without_my_edge`,
+`empty_set_honours_nothing`, `licence_confers_no_trust`, `removal_only_removes`,
+`reaches_mono_budget`. A licence that fails the walk is **read, not refused**:
+`licence_issuer_not_trusted` or `licence_class_not_trusted`, and the card says
+which. The wire members `trust_classes` and `trust_depth` ride inside the reader's
+own signature on the edge (CIRISPersist#1142, open: refusals
+`trust_accepts_classes_malformed`, `trust_accepts_depth_out_of_range`). The
+reader's surface for the set is the Who-I-trust extension of CSD-105
+(`COMMON_CARDS_ANALYSIS.md`); this card only shows the verdict and which entry
+carried it.
 
 **A licence does not chain.** Holding one confers no power to issue one. The only
 way a key other than the authority issues `licensure:A` is a `license`-scoped
@@ -148,6 +177,21 @@ fields:
     example: true
     renders: "'Reinstate' on a suspended row — a cosigned `withdraws` on the suspended row, never a new `issued`; absent on a revoked row"
     tag: "proposed:btn_licence_reinstate_*"
+  - ceg: x_private:licence_class
+    use: display-only
+    type: string
+    example: "medical"
+    renders: "'Class: medical' — the class the row carries; honoured only if the authority's charter declares it (TrustSet.lean `undeclared_class_never_honoured`; CC 4.4.3.8 rc13: the charter is read at read, so an undeclared class is a licence that does not match, never a refusal). Whether the charter MUST enumerate classes at issuance is `pending: CC ruling 2 (affiliation_vs_community_deltas_2026-10-28)`"
+    tag: "proposed:txt_licence_class_*"
+  - ceg: "trust:{job}:{version}"
+    bind: {job: accepts, version: v1}
+    use: display-only
+    type: "enum[honoured,licence_issuer_not_trusted,licence_class_not_trusted]"
+    example: "honoured"
+    renders: "'Honoured — through your entry for {authority} (medical, depth 0)' / 'through {authority} → {licensor} (2 hops)' / 'Not honoured: you do not trust this issuer' / 'Not honoured: you trust {authority} for legal, not medical' — the reader's own walk, never the node's opinion; the entry named opens the Who-I-trust list (CSD-105 extension). The family is reserved (CC 3.1.1) and this card only reads it"
+    tag: "proposed:chip_licence_trust_*"
+    assert:
+      one_of: {"proposed:chip_licence_trust_*": [honoured, licence_issuer_not_trusted, licence_class_not_trusted]}
   - ceg: x_private:licence_audience
     use: display-only
     type: "enum[federation,affiliations,named_readers]"
@@ -181,9 +225,16 @@ fields:
 ```
 
 **No card ranks authorities.** A reader decides which authorities to trust (CC 4.4.4;
-ciris.ai/constitutional-mesh: "every client chooses which roots to trust"). The card
-lists what is held and who said it; it never sorts a state board above a sole
-practitioner, and never sorts `ciris-canonical` above either.
+CC 4.4.3.8 rc13; ciris.ai/constitutional-mesh: "every client chooses which roots to
+trust"). The card lists what is held and who said it; it never sorts a state board
+above a sole practitioner, and never sorts `ciris-canonical` above either. The root
+is not the only trust knob: a reader that removes it keeps every licensor entry it
+added, and the licences that reached through those entries stay honoured
+(`removal_only_removes`); what it loses is federation at the server tier until it
+attaches another root (CC 4.4.3.8 items 4–5: licensor trust is not root trust).
+What of an affiliation is Commons-visible once the 3.3.9 kinds are gone (its key,
+its roster, its licences) is `pending: CC ruling 8
+(affiliation_vs_community_deltas_2026-10-28)`.
 
 **`lapsed` and `expired` are different words on purpose.** A row whose
 `valid_until` has passed is no longer live; `lapsed` is the authority saying so
@@ -215,6 +266,9 @@ error:     {tag: "proposed:txt_licences_error", renders: "Couldn't read licences
 | the typed licence payload (`partner_record` member), `revision` anti-rollback, skew bound | CIRISPersist | CIRISPersist | confirmed — v60.0.0 §8 item 4 |
 | a subject's `withdraws` against a licence refused; `reconsideration:{grounds}` is the contest | CIRISPersist | CIRISPersist | confirmed — v60.0.0 §8 item 5 (CC#164) |
 | the `license` delegation from `ciris-canonical` to an issuing key (the CIRIS worked chain) | CSD-124 | CIRISServer | `blocked_by: CIRISServer#752`; no genesis-bundle change is asked and none is wanted |
+| the reader's Who-I-trust walk at read (`honoured` / `licence_issuer_not_trusted` / `licence_class_not_trusted`); `trust_classes` + `trust_depth` on `trust:accepts:v1` | persist | CIRISPersist | `blocked_by: CIRISPersist#1142` (open; CC 4.4.3.8 rc13 `CLM`-row pending) |
+| add / remove a Who-I-trust entry (any authority, a class set, a depth), the root included | none; `POST /v1/trust-root/import` and `DELETE /v1/trust-root/{id}` write and remove a ROOT's edge only | CIRISServer | CSD-105 extension (`COMMON_CARDS_ANALYSIS.md`); the door is in the README's asks of CIRISServer |
+| authority judged at issuance; contest by reconsideration | — | — | deltas 4f, 4e TEXT SAYS (CC 2.4.1.2.1 P2:340; CC 4.5.5 P4:1475) |
 
 ## 3a. Topology (CSD/4)
 
@@ -233,31 +287,18 @@ CSD-122:
       at: [authority.licensing, delegation.chain]
 ```
 
-What this card adds to the T6 layer graph (CSD-120 §3a):
-
-```yaml
-  relations:
-    # PENDING (builder refuses `authority` by name until a licence has a route — CSD4.md §5):
-    - {rel: authority, community: AFF, by: authority}            # authority.licensing: AFF issues licensure:AFF:v1
-    # PENDING: a licence ROW as a relation — licence(authority: AFF, subject: practitioner, status: issued, cosigned: founder_only)
-    #          and its status transitions (suspend → reinstate → revoke); TOPOLOGY.md has no row-level relation for scores rows
-    - {rel: delegation, from: authority, to: practitioner, scopes: [license], depth: 1, over: AFF, term_days: 90}
-  checks:
-    relations:
-      - authority: {AFF: {dimension: "licensure:AFF:v1", protocol: founder_only}}
-      - licence:   {subject: practitioner, status_set: [issued], asserted_at: "≤ now", cosigned: true}
-    actor: [reads: "licences of practitioner under AFF" → status set [issued], issued_under: the founder]
-  negatives:
-    # PENDING: cannot_act — a member without `license` issuing licensure:AFF is refused licensure_delegator_not_authority
-    - {check: cannot_act, person: practitioner, op: "issue licensure:AFF:v1", reason: licensure_delegator_not_authority}
-```
-
-**The CIRIS case in this vocabulary** needs an `infrastructure` root with
-seated founders (`roots[].kind: infrastructure`, `founders.seated: 3`,
-`quorum: 2`), which TOPOLOGY.md §2.1 types and the builder refuses until the
-ceremony can mint it; T8 builds the accord halt on that root but not a licence.
-The card therefore tests the CIRIS chain on T6's key root with `AFF` standing
-for `ciris-canonical` and `founder_only` standing for `quorum:2/3`, and says so.
+**What the vocabulary lacks for this card.** `authority.licensing` says an
+authority is affiliated; no atom says a *licence row* stands, nor its status set
+(`issued` → `suspended` → reinstated → `revoked`), nor that a reader honoured or
+did not honour it (`licence_issuer_not_trusted`, `licence_class_not_trusted`, CC
+4.4.3.8 rc13). The README's asks list `licence.issued`, `licence.status.suspended`,
+`licence.status.revoked`, `licence.honoured` and `licence.not_trusted` as the atoms
+this card needs, and a reader-side relation for the Who-I-trust edge (`trust_accepts`
+with `trust_classes` / `trust_depth`, CIRISPersist#1142). The CIRIS case needs an
+`infrastructure` root with seated founders (`quorum: 2`), which TOPOLOGY.md §2.1
+types and the builder refuses until the ceremony can mint it; the card tests the
+CIRIS chain on T6's key root with the affiliation standing for `ciris-canonical`
+and `founder_only` standing for `quorum:2/3`, and says so.
 
 ## 4. Flow
 
@@ -266,7 +307,12 @@ status set reads `issued, suspended` → reinstates (withdraws) → reads `issue
 a `license`-scoped delegate issues a second licence and the row names the
 delegation → a member without the scope is refused at the door → the subject
 contests one row and the row is unchanged → the authority revokes and the row
-is terminal.
+is terminal. The reader half (TrustSet.lean's worked world): a reader with only
+the shipped root honours the CIRIS licence and not the board's → adds the board
+for `medical`, depth 0 → the clinician's licence is honoured, the board's legal
+licence reads `licence_class_not_trusted`, a stranger's medical licence reads
+`licence_issuer_not_trusted` → removes the root → the CIRIS licence is no longer
+honoured, the clinician's still is, and the un-federated warning shows.
 
 ## 5. Acceptance
 

@@ -143,7 +143,8 @@ whose `key_grant` relation is the one that reaches `grant.state.held`
 today (`PENDING_BUILDER`: "persist emits `key_grant:content:v1` per recipient on
 a sealed share; no read witnesses it yet"). T6 `serves` this card for the
 delegate-issuer case only. `requirements.yaml` carries no CSD-125 yet; the block
-is the entry to add.
+is the entry to add. T18 differs between catalogue 3 and 5 only in its
+`catalogue_version` field.
 
 ```yaml csd:tests
 CSD-125:
@@ -156,24 +157,12 @@ CSD-125:
       at: [grant.state.held, delegation.chain]
 ```
 
-`issued_by_a_delegate` holds in no entry at one instant today (T18 grants
-from the owner; T6's chain carries no `grant` scope): `check_csd4` reports it
-`uncovered`, which is the honest state. What this card asks of the T18 layer
-graph:
-
-```yaml
-  relations:
-    - {rel: key_grant, person: guardian, to: child, household: H}         # grant.state.held (T18 as is)
-    # PENDING: key_grant with an axis and a window — key_grant(from: owner, to: recipient, axis: content, asset: <digest>, until: <ts>)
-    # PENDING: rotate(owner, asset) — "end access" is rotation; no relation ends a grant in TOPOLOGY.md, by design
-  checks:
-    relations:
-      - key_grant: {rows: 1, recipient: child, wrap_algorithm: v2}
-    actor: [reads: "grants over my things" → one row; on the child's node: the row, and no share control]
-  negatives:
-    # PENDING: cannot_act — the recipient re-granting is refused at admission (CC 2.4.1.2.1)
-    - {check: cannot_act, person: child, op: "grant onward", reason: grant_issuer_not_owner}
-```
+**What the vocabulary lacks for this card.** `issued_by_a_delegate` holds in no
+entry at one instant today (T18 grants from the owner; T6's chain carries no `grant`
+scope): `check_csd4` reports it `uncovered`, which is the honest state. No atom
+names a grant's axis or window, the recipient's refused onward grant, or the
+rotation that ends access (by design no relation ends a grant); the README's asks
+list `grant.axis.content`, `grant.onward_refused` and `grant.ended_by_rotation`.
 
 ## 4. Flow
 
