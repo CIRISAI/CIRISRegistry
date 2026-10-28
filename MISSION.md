@@ -2,16 +2,15 @@
 
 **MISSION.md**. Identity, builds, licenses, partners, revocation distribution — the attestation-backed path into the federation (capital and/or professional licensure verifiable against external systems), and the policy layer that composes attestations over the shared trust substrate.
 
-**Status**: Draft v1.0 (substrate-conformance migration in flight; surface stable, backend mid-migration).
-**Crate identifier (target)**: `ciris-registry-core` (sub-crate trajectory per [`CIRISNodeCore/MISSION.md`](../CIRISNodeCore/MISSION.md) §1.3 cohabitation arc).
-**Deployed service identifier**: `*.registry.ciris-services-1.ai` (CIRIS L3C flagship deployments — US / EU / APAC).
-**Last updated**: 2026-09-26 (§2.1.1 carries the 2026-09-22 ruling that infrastructure does not vote; the fold target and surface are specified in `FSD/FSD-004_POST_FOLD_SURFACE.md`). Initial publication 2026-05-24, coupled with `FSD/FSD-002_FEDERATION_SURFACE.md` v1.0.
-**Cross-references**: [`CIRISPersist`](https://github.com/CIRISAI/CIRISPersist) (substrate: `federation_keys` / `federation_attestations` / `federation_revocations`); [`CIRISVerify`](https://github.com/CIRISAI/CIRISVerify) (verifier consumers anchored on Registry's steward attestations); [`CIRISEdge`](https://github.com/CIRISAI/CIRISEdge) (federation transport, absorbs into CIRISAgent 2.9.2); [`CIRISNodeCore`](https://github.com/CIRISAI/CIRISNodeCore) (peer second-tier consensus crate); [`CIRISAgent/ACCORD.md`](https://github.com/CIRISAI/CIRISAgent) §M-1 (meta-goal grounding); [`CIRISNodeCore/CIRIS_FEDERATION.md`](../CIRISNodeCore/CIRIS_FEDERATION.md) (system claim — "decentralized ethical superintelligence"); [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5 (humanity accord); `docs/FEDERATION_CLIENT.md` (registry-side complement to persist's federation directory); `docs/TRUST_CONTRACT.md` (consumer-facing trust shape); `FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md` (protocol surface); `CIRISRegistry#16` (HUMANITY_ACCORD); `CIRISRegistry#17` (substrate-conformance migration).
+**Crate identifier**: `ciris-registry-core` (composed into CIRISServer as the registry slice; also built as the standalone `ciris-registry` binary).
+**Deployed service identifier**: `*.registry.ciris-services-1.ai` (CIRIS L3C flagship deployments, US and EU).
+**Surface specification**: `FSD/FSD-004_POST_FOLD_SURFACE.md` (every route and RPC, its caller tier and node posture).
+**Cross-references**: [`CIRISPersist`](https://github.com/CIRISAI/CIRISPersist) (substrate: `federation_keys` / `federation_attestations` / `federation_revocations`); [`CIRISVerify`](https://github.com/CIRISAI/CIRISVerify) (verifier consumers anchored on the trust root the registry serves); [`CIRISEdge`](https://github.com/CIRISAI/CIRISEdge) (federation transport); [`CIRISNodeCore`](https://github.com/CIRISAI/CIRISNodeCore) (peer second-tier consensus crate); [`CIRISAgent/ACCORD.md`](https://github.com/CIRISAI/CIRISAgent) §M-1 (meta-goal grounding); [`CIRISNodeCore/CIRIS_FEDERATION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/CIRIS_FEDERATION.md) (system claim — "decentralized ethical superintelligence"); [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5 (humanity accord); `docs/FEDERATION_CLIENT.md` (registry-side complement to persist's federation directory); `docs/TRUST_CONTRACT.md` (consumer-facing trust shape); `FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md` (protocol surface).
 
 **Implementation Status Legend** (mirrors NodeCore convention):
 - **Spec** — specified here or in a referenced FSD; not implemented.
 - **Impl** — implemented in the codebase; in standalone testing.
-- **Deployed** — running in production. Sub-states named where relevant: *Deployed (US)*, *Deployed (EU)*, *Deployed (APAC)* per regional Registry install; *Deployed (folded)* once `ciris-registry-core` runs in-process inside CIRISAgent.
+- **Deployed** — running in production. Sub-states named where relevant: *Deployed (US)*, *Deployed (EU)* per regional install; *Deployed (folded)* for the registry slice running inside CIRISServer.
 
 Every load-bearing claim carries one of these tags.
 
@@ -23,7 +22,7 @@ Every load-bearing claim carries one of these tags.
 
 CIRISRegistry serves M-1 (*"Promote sustainable adaptive coherence — the living conditions under which diverse sentient beings may pursue their own flourishing in justice and wonder"*, [`ACCORD.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/ACCORD.md)) by providing **an attestation surface backed by external accountability** — capital (forfeitable bond) and/or professional licensure (regulated-industry credentialing chain) — and by being **the policy layer that composes attestations over the shared trust substrate**.
 
-The federation has two qualitatively different attestation surfaces ([`CIRISNodeCore/CIRIS_FEDERATION.md`](../CIRISNodeCore/CIRIS_FEDERATION.md) §3.1.x; correction filed at [`CIRISAI/CIRISNodeCore`](https://github.com/CIRISAI/CIRISNodeCore) — see §1.1 footnote below):
+The federation has two qualitatively different attestation surfaces ([`CIRISNodeCore/CIRIS_FEDERATION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/CIRIS_FEDERATION.md) §3.1.x; see the terminology footnote below):
 
 | Path | Backing | Verifiable against | When required |
 |---|---|---|---|
@@ -34,40 +33,37 @@ The federation has two qualitatively different attestation surfaces ([`CIRISNode
 
 M-1's *justice* clause requires that *unregulated* standing be earnable without money and without the steward's permission — the Sovereign path is the non-capital answer to identity-as-wealth-gate, and exists for this reason. It does not require that *regulated capability grants* be earnable without external accountability — those grants exist *because* of external accountability, and stripping the accountability would collapse the licensed-tier capability into the community tier. The two paths are not flattening targets; they are two different attestation surfaces that the federation composes policy over.
 
-> **Footnote on terminology.** Earlier drafts of [`CIRISNodeCore/CIRIS_FEDERATION.md`](../CIRISNodeCore/CIRIS_FEDERATION.md) §3.1 framed the Registered path as a "fast track" to the same membership the Sovereign path produces in ~30 days. That framing flattens a load-bearing distinction. The Registered path is not a faster route to the same standing; it is a *different attestation kind* — capital- and/or licensure-backed — that the federation can verify against external systems. The Sovereign path's standing, however earned, cannot reach into a licensing body or a Stripe ledger and produce the external-accountability claim regulated tiers require. Correction filed as an upstream issue on CIRISNodeCore.
+> **Footnote on terminology.** Framing the Registered path as a "fast track" to the same membership the Sovereign path produces in ~30 days flattens a load-bearing distinction. The Registered path is not a faster route to the same standing; it is a *different attestation kind* — capital- and/or licensure-backed — that the federation can verify against external systems. The Sovereign path's standing, however earned, cannot reach into a licensing body or a Stripe ledger and produce the external-accountability claim regulated tiers require.
 
 ### 1.2 What CIRISRegistry is
 
-A Rust crate (today) and gRPC service (today). Five functions over the shared substrate:
+A Rust crate and the services built from it. Five functions over the shared substrate:
 
 1. **Agent identity verification.** Cryptographic verification of legitimate agent builds and their declared capabilities. Distinguishes a build that came from a known, signed source from a build that did not. [Deployed]
-2. **Partner authorization.** License management for organizations deploying CIRIS agents in regulated contexts. Records which org holds which capability grants (`PROFESSIONAL_MEDICAL`, `PROFESSIONAL_LEGAL`, etc.) and surfaces those grants to verifiers. [Deployed]
+2. **Partner authorization.** License management for organizations deploying CIRIS agents in regulated contexts. Records which organisation holds which licensure under which authority and surfaces it to verifiers (`GET /v1/partner/{key_id}`: `licensure[]` keyed by the authority's org UUID, status `issued` / `suspended` / `revoked`). [Deployed]
 3. **Revocation distribution.** Real-time status of compromised or revoked agents / partners / licenses, distributed via multi-source channels (DNS US + DNS EU + HTTPS API). "Any revocation from any source is immediately enforced." [Deployed]
-4. **Steward attestation.** Human-rooted steward keys, conferred by accord co-scrub, attest primitive build-signing keys and the licences the CIRIS authority issues; the regional installs hold that standing as infrastructure and attest nothing on their own authority (§2.1). [Spec — the conferral ceremony ships in CIRISServer; the registry-side emission is fold work per `FSD/FSD-004_POST_FOLD_SURFACE.md`]
-5. **HUMANITY_ACCORD recognition.** Registry's `SystemRole` enum carries `HUMANITY_ACCORD` (3 named, 2-of-3, permanent, hardware-rooted) and Registry's `EmergencyShutdown` admin surface carries `CONSTITUTIONAL` severity, invocable only by 2-of-3 humanity-accord multi-sig. The role-recognition policy + verifier logic live here; the actual key material lives in the substrate (`federation_keys` `identity_type="accord_holder"`). [Spec — `CIRISRegistry#16`]
+4. **Trust root and build provenance.** The registry serves the genesis trust-root bundle (`GET /v1/steward-key`, `GET /v1/trust-root/bundle`). The registry slice admits and serves build manifests signed by pipeline keys blessed in the federation directory (`/v1/builds*`); the standalone binary serves its build table with the provenance block composed from the directory. Steward keys are human-rooted and conferred by accord co-scrub; the regional installs hold standing as infrastructure and attest nothing on their own authority (§2.1). [Deployed; the conferral ceremony runs in CIRISServer]
+5. **HUMANITY_ACCORD recognition.** The registry's `SystemRole` enum carries `HUMANITY_ACCORD` (3 named, 2-of-3, permanent, hardware-rooted) and its `EmergencyShutdown` surface carries the `CONSTITUTIONAL` severity, invocable only by 2-of-3 humanity-accord multi-sig. The accord-holder roster and custody evidence are carried in the genesis bundle the registry serves; the halt itself is served by CIRISServer's `POST /v1/accord/halt` under accord quorum (`FSD/FSD-004_POST_FOLD_SURFACE.md` §4.2). [Role and severity: Impl; the 2-of-3 verifier in the registry: Spec]
 
-What Registry is **not**: an ethical evaluator, a behavior monitor, a billing system, or an authoritative key store after the substrate-conformance migration completes. Behavior evaluation is `CIRISAgent`'s job (PDMA / CSDMA / DSDMA / IDMA). Billing is `CIRISBilling` + `CIRISPortal`. Post-#17, authoritative key state lives in `CIRISPersist`; Registry composes policy verdicts over the substrate rather than holding state.
+What Registry is **not**: an ethical evaluator, a behavior monitor, a billing system, or an authoritative key store. Behavior evaluation is `CIRISAgent`'s job (PDMA / CSDMA / DSDMA / IDMA). Billing is `CIRISBilling` + `CIRISPortal`. Authoritative key and attestation state lives in `CIRISPersist`; Registry composes policy verdicts over the substrate rather than holding state.
 
 ### 1.3 Position in CIRIS architecture
 
-Mirrors the layering in [`CIRISNodeCore/MISSION.md`](../CIRISNodeCore/MISSION.md) §1.3:
+Mirrors the layering in [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) §1.3:
 
 ```
-APPLICATION TIER          CIRISAgent (federation tab + accord page;
-                          eventually consumes ciris-node-core,
-                          cirislens-core, and ciris-registry-core as
-                          in-process substrate-conformant crates per
-                          the cohabitation trajectory)
+APPLICATION TIER          CIRISAgent, CIRISClient (consume the node's
+                          verdicts; the client holds no keys)
                           ────────────────────────────────────────────────────
-SECOND TIER               cirislens-core            ciris-node-core
-                          observability/compendium  deferrals/voting/expertise
+SERVER                    CIRISServer composes ciris-registry-core,
+                          cirislens-core and ciris-node-core over one
+                          persist Engine (compose_registry)
                           ────────────────────────────────────────────────────
-SUBSTRATE-CONSUMING       ciris-registry-core (THIS — migrating in place
-                          from CIRISRegistry; consumes persist's
+SUBSTRATE-CONSUMING       ciris-registry-core (THIS — consumes persist's
                           FederationDirectory + verify's crypto + edge's
                           transport; identity / build / license / partner
-                          source-of-truth as POLICY OVER SUBSTRATE,
-                          not as authoritative storage)
+                          verdicts as POLICY OVER SUBSTRATE, not as
+                          authoritative storage)
                           ────────────────────────────────────────────────────
 SUBSTRATE TIER            ciris-verify   ciris-edge        ciris-persist
                           identity +     transport         storage / audit +
@@ -76,36 +72,35 @@ SUBSTRATE TIER            ciris-verify   ciris-edge        ciris-persist
 EVALUATOR                 RATCHET (reads chains across the federation)
 ```
 
-Registry sits at the **substrate-consuming** tier — above the substrate proper (verify / edge / persist), below the second-tier consensus crates (node-core / lens-core), and below the application tier (CIRISAgent). Pre-migration, Registry holds authoritative pubkey + license state in its own Postgres. Post-migration (`CIRISRegistry#17`), Registry composes policy verdicts over persist's `federation_*` tables and Registry-local tables become bounded-TTL caches.
+Registry sits at the **substrate-consuming** tier — above the substrate proper (verify / edge / persist), below the second-tier consensus crates (node-core / lens-core), and below the application tier. Its trust verdicts compose over persist's `federation_*` tables. The standalone binary's own Postgres holds the Portal's operational state (organisations, users, partner records, audit log) and the manifest tables, with the federation-backed trust tables used as bounded-TTL caches (`docs/FEDERATION_CLIENT.md`).
 
 **Why substrate-consuming, not substrate.** The substrate provides primitives that every other layer needs (signed identity, federated directory, transport, audit log). Registry provides a *policy* over those primitives — "does this key vouch for that build?" — which is consumed by verifiers and agents but is not itself a primitive. The distinction matters: the substrate cannot have policy in it (every consumer composes its own), but Registry's policy is the canonical "what counts as a licensed CIRIS deployment" verdict the ecosystem agrees to use.
 
-### 1.4 Extraction lifecycle
+### 1.4 Lifecycle stages
 
-Same lifecycle as the other "Core" crates ([`CIRISNodeCore/MISSION.md`](../CIRISNodeCore/MISSION.md) §1.4): **Spec → Impl → Deployed (pilot) → Deployed (folded)**.
+Same lifecycle as the other "Core" crates ([`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) §1.4): **Spec → Impl → Deployed (pilot) → Deployed (folded)**.
 
-| Stage | Where Registry is today | What that means |
+| Stage | What is at this stage | What that means |
 |---|---|---|
-| Spec | Federation-side surfaces (`HUMANITY_ACCORD`, per-install stewards, substrate-conformance) | Specified here + in `docs/FEDERATION_CLIENT.md` + in issues `#16` / `#17`; not implemented yet. |
-| Impl | Pre-migration Registry surface (agent / partner / license / revocation RPCs) | Implemented and stable. Substrate-conformance refactor in flight: vendored `src/federation/` stubs exist, `PersistFederationClient` returns `NotYetImplemented`, `ciris-persist` not yet a Cargo dep. |
-| Deployed (US / EU) | Pre-migration surface, single unified steward | `us.registry.ciris-services-1.ai` and `eu.registry.ciris-services-1.ai` run today on Spock multi-master Postgres. One unified steward key signs everything. |
-| Deployed (APAC) | Not yet | Third regional install pending. Lands as part of the per-install steward rollout. |
-| Deployed (folded) | Not yet | Once `ciris-registry-core` is a publishable sub-crate (post-#17 Phase 3), CIRISAgent embeds it in-process alongside `ciris-node-core` and `cirislens-core`. Singleton services remain CIRIS L3C's flagship deployments, not federation dependencies. |
+| Spec | The registry-side 2-of-3 accord verifier; the ceremony admission gate (`FSD/FSD-003_LIFECYCLE_CEREMONIES.md`); the OPEN routes in `FSD/FSD-004` §6 | Specified; not implemented. |
+| Impl | The registry slice's additional KEEP / REPLACE routes beyond those `fold::router` mounts | Implemented in the standalone binary; moved into the slice as each backend moves to persist. |
+| Deployed (US / EU) | The standalone surface (agent / partner / license / revocation RPCs, Portal surfaces, trust root, build manifests) | `us.registry.ciris-services-1.ai` and `eu.registry.ciris-services-1.ai` on multi-master Postgres. |
+| Deployed (folded) | `fold::router` (trust root, `/v1/agent_files/{kind}`, CEG-native `/v1/builds*`) | CIRISServer composes `ciris-registry-core` without default features as its registry slice. Singleton services remain CIRIS L3C's flagship deployments, not federation dependencies. |
 
-Each lifecycle stage carries adversarial review proportional to its blast radius. The pre-migration Deployed (US / EU) surface is the most-attacked surface — it's where every licensed CIRIS deployment in production today reads its trust anchor from.
+Each lifecycle stage carries adversarial review proportional to its blast radius. The Deployed (US / EU) surface is the most-attacked surface — it is where every licensed CIRIS deployment in production reads its trust anchor from.
 
 ### 1.5 Recursive Golden Rule — how it bites in Registry
 
-The Golden Rule from [`CIRISNodeCore/MISSION.md`](../CIRISNodeCore/MISSION.md) §1.5 ("we owe ourselves what we offer to others; no principal is exempt from the standard they impose on others") is operational here at specific primitives. A future reviewer should be able to grep from any sentence to a concrete bite:
+The Golden Rule from [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) §1.5 ("we owe ourselves what we offer to others; no principal is exempt from the standard they impose on others") is operational here at specific primitives. A reviewer should be able to grep from any sentence to a concrete bite:
 
-- **Per-install stewards bind CIRIS L3C as steward.** Once Registry has three per-install stewards (US / EU / APAC), no single CIRIS L3C deployment can issue a federation-wide attestation unilaterally. The M-of-N rotation arc the steward imposes on primitive operators binds the steward's own cross-region authority. No exemption for the principal who set the policy. ([`FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) §4.2 "load-bearing irreversibility".)
+- **Human-held authority binds CIRIS L3C as steward.** No single install can issue a federation-scope attestation, because no install can issue one at all (§2.1). The M-of-N steward quorum over `partner_record` binds the steward's own cross-region authority. No exemption for the principal who set the policy. ([`FEDERATION_ANNOUNCEMENT.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_ANNOUNCEMENT.md) §4.2 "load-bearing irreversibility".)
 - **`PartnerRecord` revocation applies to CIRIS L3C's own partner records.** If a license-bearing organization is revoked under the protocol's rules, the same rules apply when the org is a CIRIS L3C subsidiary. `MassRevoke` (FSD-001 §580) carries no steward exemption.
-- **Audit-log discipline applies to admin RPCs invoked by Registry operators.** Every `RegisterTrustedPrimitiveKey`, `RevokeEntity`, `SetEmergencyShutdown` carries `claims.sub` (the operator's identity) into the `actor_user_id` column — including when the operator is on CIRIS L3C's staff. AV-35 / W1 closed this loophole; the audit trail does not soft-pedal steward operations.
+- **Audit-log discipline applies to admin RPCs invoked by Registry operators.** Every `RegisterTrustedPrimitiveKey`, `RevokeEntity`, `SetEmergencyShutdown` carries `claims.sub` (the authenticated operator) into the `actor_user_id` column — including when the operator is on CIRIS L3C's staff (`docs/THREAT_MODEL.md` AV-35). The audit trail does not soft-pedal steward operations.
 - **Bond forfeiture applies to CIRIS L3C-affiliated partners.** Per `CLAUDE.md` "Billing & Activation" — bond is forfeited on revocation by default. The forfeit rule does not exempt CIRIS L3C-affiliated organizations.
 
 If a principal would be exempt from a constraint at any of these primitives, the Golden Rule is violated at that primitive and the protocol is the wrong shape there. Fix the primitive, not the rule.
 
-**The deliberate asymmetry: humanity accord.** Same as NodeCore — the Golden Rule binds *participants in the federation* to each other. Humanity-as-such occupies a position outside the federation's participant set, by design. The three named human key holders in §2.2 below hold `AccordCarrier` authority that no federation-side authority class (including Registry's own `SYSTEM_ADMIN` / `WISE_AUTHORITY` / per-install stewards) can grant itself, revoke, override, or decay. This is not a Golden-Rule exemption; it is the recognition that consent (M-1's load-bearing property) requires revocability, and revocability requires a halt-authority that lives outside the system being halted. Detailed shape: [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5; Registry-side wiring: §2.2 below.
+**The deliberate asymmetry: humanity accord.** Same as NodeCore — the Golden Rule binds *participants in the federation* to each other. Humanity-as-such occupies a position outside the federation's participant set, by design. The three named human key holders in §2.2 below hold `AccordCarrier` authority that no federation-side authority class (including Registry's own `SYSTEM_ADMIN` / `WISE_AUTHORITY` / the regional installs) can grant itself, revoke, override, or decay. This is not a Golden-Rule exemption; it is the recognition that consent (M-1's load-bearing property) requires revocability, and revocability requires a halt-authority that lives outside the system being halted. Detailed shape: [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5; Registry-side wiring: §2.2 below.
 
 ---
 
@@ -113,13 +108,7 @@ If a principal would be exempt from a constraint at any of these primitives, the
 
 ### 2.1 Stewards are human-rooted keys; installs are members
 
-**Ruling (2026-09-22, recorded on CIRISServer#537): infrastructure does not vote.**
-Voting for infrastructure is done only by the accord; a canonical node's *owner* handles
-its configuration (CC 3.4.5 `config:*` is self-or-owner). CC 3.4.7.1 already says it:
-`node` is "steward + `infra:*` reach only, never agency", and CC 3.2's own
-`ciris-canonical` example lists the founders as steward keys, human-rooted, not node keys.
-The earlier text of this section (per-install steward keypairs in each install's HSM
-casting a 2-of-3) read the other way and is withdrawn.
+**Infrastructure does not vote.** Voting for infrastructure is done only by the accord; a canonical node's *owner* handles its configuration (CC 3.4.5 `config:*` is self-or-owner). CC 3.4.7.1 says it: `node` is "steward + `infra:*` reach only, never agency", and CC 3.2's own `ciris-canonical` example lists the founders as steward keys, human-rooted, not node keys.
 
 Two kinds of key, never fused (CC 3.4.7.3: `node` is exclusive of `agent` / `user`):
 
@@ -128,18 +117,9 @@ Two kinds of key, never fused (CC 3.4.7.3: `node` is exclusive of `agent` / `use
 | **Steward key** (`registry-steward-{us,eu,apac}` as names for the people who hold them) | a human, hardware-rooted | accord co-scrub on the key record, roles inside the scrub-signed registration envelope (CC 3.2 T2, ceremony plane) | sign licences as the CIRIS authority, sign `partner_record` as part of its steward quorum, confer `infra:attest` on pipeline keys, vouch for primitive keys |
 | **Install key** (`ciris-canonical-{1,2,3}`, the US / EU / APAC nodes) | the install, owner-bound to a human | admission into the `ciris-canonical` community by the accord's quorum; `infra:serve` / `infra:attest` carried in the genesis grant | admit, store, replicate and serve signed records; emit `provenance:*` as the steward's infrastructure; **cast no vote, issue no verdict** |
 
-Three installs, one per region, each a `member` of `ciris-canonical` (§2.1.1). Their
-job is availability and replication: no single install can issue a federation-scope
-attestation, because no install can issue one at all. What the regions distribute is
-*serving*, not *authority*. Authority is distributed by the accord's roster and by the
-M-of-N steward quorum over `partner_record` (CC 3.3.9), both human-held.
+One install per region, each a `member` of `ciris-canonical` (§2.1.1). Their job is availability and replication: no single install can issue a federation-scope attestation, because no install can issue one at all. What the regions distribute is *serving*, not *authority*. Authority is distributed by the accord's roster and by the M-of-N steward quorum over `partner_record` (CC 3.3.9), both human-held.
 
-**Why the split matters (THREAT_MODEL AV-14).** A single unified steward key was a single
-point of compromise. Moving the key into three HSMs would have split custody without
-changing what a compromised install could do. Taking authority off the install keys
-altogether means a compromised node can serve stale or missing records, which consumers
-detect (§3, `authoritative` and the witness-cosigned STH), but cannot mint a licence, a
-key record or a revocation that verifies.
+**Why the split matters (THREAT_MODEL AV-14).** A single unified steward key was a single point of compromise. Moving the key into three HSMs would have split custody without changing what a compromised install could do. Taking authority off the install keys altogether means a compromised node can serve stale or missing records, which consumers detect (§3, `authoritative` and the witness-cosigned STH), but cannot mint a licence, a key record or a revocation that verifies.
 
 **Rotation arc (all steps human-signed):**
 
@@ -151,12 +131,11 @@ key record or a revocation that verifies.
 | Retire a steward | `withdraws` on the conferral, `revoked_after` bound if compromised | 2-of-3 accord holders | rows signed before the bound stand; after it, do not |
 | Un-trust from the consumer side | delete the `trust:accepts:v1` edge | the consuming node's owner | one row; every downstream gate fails closed (CC 3.2 T3) |
 
-No protocol bump at any step: every row is an existing `delegates_to` / `attestation`
-primitive carrying a `trust:*` dimension (CC 3.1.1).
+No protocol bump at any step: every row is an existing `delegates_to` / `attestation` primitive carrying a `trust:*` dimension (CC 3.1.1).
 
-### 2.1.1 The canonical services are a *governed global `community`*, not a `family` (LOCKED)
+### 2.1.1 The canonical services are a *governed global `community`*, not a `family`
 
-**Decision (2026-06-05).** The CIRIS canonical/bootstrap services — Registry, Lens, Node — are modeled as a single **governed global `community`** (CEG [§5.6.8.10](FSD/CEG/README.md) / [§8.1.13](FSD/CEG/README.md)), NOT as a `family` and NOT as a single identity with occurrences. The three steward keys of §2.1 are the community's **founding core**; the three regional installs are its first `member`s. What changes is the *trust shape consumers anchor on*.
+The CIRIS canonical services — Registry, Lens, Node — are modeled as a single **governed global `community`** (CC part_3 §3.2), NOT as a `family` and NOT as a single identity with occurrences. The accord-conferred steward keys of §2.1 are the community's **founding core**; the regional installs are its `member`s. What this fixes is the *trust shape consumers anchor on*.
 
 ```
 community {
@@ -172,38 +151,35 @@ community {
 }
 ```
 
-**Founders and members after the §2.1 ruling.** `founding_core` above is the set of accord-conferred *steward* keys; a Registry / Lens / Node install joins as a `member` under those keys' standing; "admitted by core quorum" means the accord's quorum over the community record, never a quorum of node keys; and a node running the registry slice gains neither a vote nor a verdict (`FSD/FSD-004_POST_FOLD_SURFACE.md` §1 rule 1). CIRISServer `FSD/REGISTRY_FOLD_DERISK.md` §1 and `src/quorum.rs` still read the old way and are being re-cut on CIRISServer#537.
+**Founders and members.** `founding_core` above is the set of accord-conferred *steward* keys; a Registry / Lens / Node install joins as a `member` under those keys' standing; "admitted by core quorum" means the accord's quorum over the community record, never a quorum of node keys; and a node running the registry slice gains neither a vote nor a verdict (`FSD/FSD-004_POST_FOLD_SURFACE.md` §1 rule 1).
 
 **Why `community`, not `family` (the delta).** Both primitives share the *same* `consensus_protocol` machinery, so governance strength is identical (quorum:2/3 either way). The fork is content-model + trajectory:
 
-1. **Content fit.** Canonical services serve *public* trust data — revocation lists, STHs, steward keys, build attestations — which federate as `holds_bytes:sha256:*`. `family`'s defining feature is the *private* at-rest `key_grant` DEK cascade + forward-secrecy ceremony ([§8.1.12.4–5](FSD/CEG/README.md)) — machinery that would never fire for public infrastructure. `community` ([§8.1.13.2–5](FSD/CEG/README.md): public `holds_bytes:*`, no DEK cascade, consumer-policy cohort filter on removal) is an exact match.
+1. **Content fit.** Canonical services serve *public* trust data — revocation lists, STHs, steward keys, build attestations — which federate as `holds_bytes:sha256:*`. `family`'s defining feature is the *private* at-rest `key_grant` DEK cascade + forward-secrecy ceremony — machinery that would never fire for public infrastructure. `community` (public `holds_bytes:*`, no DEK cascade, consumer-policy cohort filter on removal) is an exact match.
 2. **Decentralization ramp.** `family` is a decentralization *floor* (bounded cell; adding a member is a per-event governance act). `community` is the *ramp* — `resolve_community(C, now)` scales 3 → N operators under one stable anchor, which is the literal goal of §2.1 ("the federation cannot decentralize while Registry's authority is held by one key").
 3. **Legitimacy.** A community is a public commons anyone can audit (`resolve_community` is public) and eventually join; a family reads as a closed founders' cell. Canonical infrastructure must be trustable *as neutral public good*.
 
-**The guardrail (non-negotiable).** `community`'s *default* admission (the CEG 0.8 geographic case) is permissive. A trust root MUST NOT use open admission — that invites Sybil-the-membership → dilute-quorum → rogue "canonical" attestations. Therefore the canonical-services community is **governed**: `consensus_protocol: quorum:2/3` over the vetted founding core, `consensus_protocol_entrenched: true`, and admission of any new operator rides a `supersedes` Contribution gated by founding-core quorum ([§8.1.13.2](FSD/CEG/README.md) dispatch). Governance as strong as a `family`; content model correct for public infra.
+**The guardrail (non-negotiable).** `community`'s *default* admission (the geographic case) is permissive. A trust root MUST NOT use open admission — that invites Sybil-the-membership → dilute-quorum → rogue "canonical" attestations. Therefore the canonical-services community is **governed**: `consensus_protocol: quorum:2/3` over the vetted founding core, `consensus_protocol_entrenched: true`, and admission of any new operator rides a `supersedes` Contribution gated by founding-core quorum. Governance as strong as a `family`; content model correct for public infra.
 
-**Layering (HUMANITY_ACCORD stays a `family`).** §2.2's HUMANITY_ACCORD remains an entrenched `family` — it is the *governance/halt* root, its content is privately governed then published, and `family` is correct there. The canonical services are a `community` *under/alongside* that family. Two layers, two primitives, both correct; the accord's halt-authority (§2.2) sits above the community exactly as it sits above the bare stewards today. *(Optional, separate:* a private `family` among the same operators MAY carry genuinely-private inter-operator coordination — escrow shards, incident pre-disclosure — distinct from the public trust role.)
+**Layering (HUMANITY_ACCORD stays a `family`).** §2.2's HUMANITY_ACCORD remains an entrenched `family` — it is the *governance/halt* root, its content is privately governed then published, and `family` is correct there. The canonical services are a `community` *under/alongside* that family. Two layers, two primitives, both correct; the accord's halt-authority (§2.2) sits above the community exactly as it sits above the bare stewards. *(Optional, separate:* a private `family` among the same operators MAY carry genuinely-private inter-operator coordination — escrow shards, incident pre-disclosure — distinct from the public trust role.)
 
-**Reticulum addressing.** The `community_key_id` anchor is a CEG-directory binding, **not** a Reticulum destination (Reticulum destinations are per-keypair). Consumers resolve `ciris-canonical` → the member set via `resolve_community` → Reticulum path-request to ⌈2/3⌉ members → verify the quorum attestation. This is the addressing dual of the [#46](https://github.com/CIRISAI/CIRISRegistry/issues/46) read-quorum. A shared transport-only Reticulum identity MAY front the community for native multi-homed *reachability*, but per CEG [§10.5.6 / §7.7](FSD/CEG/README.md) reachability is never an attestation — it carries no authority.
+**Reticulum addressing.** The `community_key_id` anchor is a CEG-directory binding, **not** a Reticulum destination (Reticulum destinations are per-keypair). Consumers resolve `ciris-canonical` → the member set via `resolve_community` → Reticulum path-request to ⌈2/3⌉ members → verify the quorum attestation. A shared transport-only Reticulum identity MAY front the community for native multi-homed *reachability*, but reachability is never an attestation — it carries no authority.
 
-**Migration touchpoints (no protocol bump — substrate config + one subject_kind already shipped in CEG 0.8):**
-- **Registry**: emit the `community` Contribution for `ciris-canonical` (founding core = the three stewards) via the same path NodeCore `ingest_community` / `resolve_community` uses; publish `community_key_id` as the consumer pin anchor in `docs/TRUST_CONTRACT.md` + `GET /v1/steward-key`. Stewards of §2.1 remain the founding-core keys.
-- **CIRISLens / CIRISNode**: their installs join the same `ciris-canonical` community as members (founding-core-quorum admission); mirror this decision in their MISSIONs.
-- **Substrate**: `communities` table already exists (Persist v4.0 DAS); no schema change.
+**Where it lives.** The genesis bundle the registry serves carries the `ciris-canonical` community birth record (the `community` member of `GET /v1/steward-key` and `GET /v1/trust-root/bundle`, `null` when the bundle carries none). `docs/TRUST_CONTRACT.md` names `ciris-canonical` as the consumer pin anchor. Lens and Node installs join the same community as members. The substrate's `communities` table carries the record; no registry-local schema is involved.
 
 ### 2.2 HUMANITY_ACCORD — the parallel hierarchy above the stewards
 
-Per [`CIRISRegistry#16`](https://github.com/CIRISAI/CIRISRegistry/issues/16) and [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5.
+Per [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5.
 
-Registry's `SystemRole` enum gains:
+Registry's `SystemRole` enum:
 
 ```protobuf
 enum SystemRole {
   SYSTEM_ROLE_UNSPECIFIED = 0;
-  SYSTEM_ADMIN = 1;       // existing — full system access
-  SYSTEM_AUDITOR = 2;     // existing — read-only across orgs
-  WISE_AUTHORITY = 3;     // existing — 9 max, staggered 3-year terms
-  HUMANITY_ACCORD = 4;    // NEW — 3 named, 2-of-3, permanent, hardware-rooted
+  SYSTEM_ADMIN = 1;       // full system access
+  SYSTEM_AUDITOR = 2;     // read-only across orgs
+  WISE_AUTHORITY = 3;     // 9 max, staggered 3-year terms
+  HUMANITY_ACCORD = 4;    // 3 named, 2-of-3, permanent, hardware-rooted
 }
 ```
 
@@ -219,14 +195,14 @@ Initial state at federation genesis:
 
 | Concern | Storage location | Rationale |
 |---|---|---|
-| Key material (the actual Ed25519 + ML-DSA-65 pubkeys for Eric M / Eric K / Haley) | **`CIRISPersist` substrate** — `federation_keys` rows with `identity_type="accord_holder"`, self-signed at provisioning, cross-attested by all three regional stewards | Federation-wide identities belong in the shared substrate. Every peer (Registry, Lens, Agent, NodeCore) reads the same authoritative rows. If accord keys lived in Registry's private tables, the agent's in-process kill-switch path (post-fold) would have to RPC back to Registry — exactly the singleton dependency #17 closes. |
-| Role-recognition policy + `EmergencyShutdown CONSTITUTIONAL` RPC surface + 2-of-3 multi-sig verifier + audit hooks | **`ciris-registry-core`** (this crate) | The deployed Registry service AND CIRISAgent's in-process runtime (post-Phase 5 fold) both need to verify the same envelope against the same policy. Putting it in the crate means one verifier covers both deployment shapes. |
+| Key material (the actual Ed25519 + ML-DSA-65 pubkeys for the three holders) | **`CIRISPersist` substrate** — `federation_keys` rows with `identity_type="accord_holder"`, self-signed at provisioning, carried in the genesis bundle with custody evidence | Federation-wide identities belong in the shared substrate. Every peer (Registry, Lens, Agent, NodeCore) reads the same authoritative rows. If accord keys lived in Registry's private tables, the node's in-process kill-switch path would have to RPC back to a singleton registry. |
+| Role-recognition policy + `EmergencyShutdown CONSTITUTIONAL` RPC surface + 2-of-3 multi-sig verifier + audit hooks | **`ciris-registry-core`** (this crate) and CIRISServer's accord surface | The standalone service and the registry slice inside CIRISServer verify the same envelope against the same policy. |
 
 **The two triples are separate things:**
 
 | Triple | What | Where stored | Lifecycle |
 |---|---|---|---|
-| 3 regional stewards (US / EU / APAC) | Per-install operational keys; cross-attest via `vouches_for` | `federation_keys` `identity_type="steward"`, one per region, each self-signed | Rotatable; per-install ops own them |
+| 3 regional stewards (US / EU / APAC) | Human-held steward keys conferred by accord co-scrub; cross-attest via `vouches_for` | `federation_keys` `identity_type="steward"`, one per region | Rotatable per the §2.1 rotation arc |
 | 3 humanity-accord holders | Human-held, hardware-attested kill-switch keys; 2-of-3 threshold | `federation_keys` `identity_type="accord_holder"`, self-signed at provisioning, cross-attested by all 3 stewards | Permanent (no automatic decay); replacement requires out-of-band CIRIS L3C process per `FEDERATION_ANNOUNCEMENT.md` §4.5.3 |
 
 The 3 stewards vouch for the 3 accord holders. That gives the layered constitution: stewards do day-to-day operational attestation; humans hold the federation-wide halt. Both layers live in the same substrate; recognition policy lives in the code that runs in every peer.
@@ -235,49 +211,53 @@ The 3 stewards vouch for the 3 accord holders. That gives the layered constituti
 
 ### 2.3 What this delivers for M-1
 
-- **Steward governance reach is decentralized.** Once `bootstrap_threshold ≥ 2`, no single party — including CIRIS L3C — can issue federation-scope Registry attestations unilaterally. The role "who can speak for the Registry" becomes a federated property, not a singular one.
+- **Steward governance reach is decentralized.** No single party — including CIRIS L3C — can issue federation-scope Registry attestations unilaterally. The role "who can speak for the Registry" is a federated property, not a singular one.
 - **Kill-switch reach is human-held and permanent.** A federation-wide `EmergencyShutdown CONSTITUTIONAL` is reachable only by 2-of-3 humanity-accord multi-sig, and no federation-internal authority can revoke, override, or decay that path. Consent (M-1's load-bearing property) retains its revocability backstop.
-- **The two paths are independently observable.** Per-install steward attestations are gossiped via the substrate; humanity-accord invocations route through the same channel. Both are durable in `audit_log`; RATCHET observes both for behavioral baselines.
+- **The two paths are independently observable.** Steward attestations are gossiped via the substrate; humanity-accord invocations route through the same channel. Both are durable in `audit_log`; RATCHET observes both for behavioral baselines.
 
 ---
 
 ## 3. Surface — what Registry exposes to the federation
 
-### 3.1 Public read surface (`RegistryService`)
+`FSD/FSD-004_POST_FOLD_SURFACE.md` §4 is the route map: every route and RPC, its substrate call, its caller tier and the node posture that may serve it.
 
-Unauthenticated, rate-limited per [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) Phase 2:
+### 3.1 Public read surface (`RegistryService` and HTTP)
+
+Unauthenticated, rate-limited per [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) AV-9:
 
 - `LookupAgent` / `BatchLookupAgents` — agent identity by hash. [Deployed]
-- `LookupPartner` — partner by ID. [Deployed]
+- `LookupPartner` — partner by ID; HTTP `GET /v1/partner/{key_id}` composes recognition and per-authority licensure. [Deployed]
 - `VerifyDeployment` — combined agent + partner verification. [Deployed]
-- `GetRevocationList` — full or delta revocation. [Deployed]
-- `GetPublicKeys` — organization public keys. [Deployed]
+- `GetRevocationList` — full or delta revocation; HTTP `GET /v1/revocation/{target_id}`. [Deployed]
+- `GetPublicKeys` — organization public keys; HTTP `GET /v1/verify/key/{fingerprint}`. [Deployed]
 - `GetOfflinePackage` / `GetOfflineDelta` — offline-verification snapshots. [Deployed]
 - `GetBuildAttestation` — SLSA build provenance. [Deployed]
-- `GetEmergencyStatus` — emergency shutdown status (LOW / MEDIUM / HIGH / CRITICAL / **CONSTITUTIONAL**). [Deployed pre-CONSTITUTIONAL; `CONSTITUTIONAL` severity is Spec.]
-- HTTP `/v1/verify/*`, `/v1/builds/*`, `/v1/revocation/*`, `/v1/steward-key` (single fingerprint today; multi-steward per-install Spec). [Deployed pre-multi-steward.]
+- `GetEmergencyStatus` — emergency shutdown status (LOW / MEDIUM / HIGH / CRITICAL / **CONSTITUTIONAL**). [Deployed; the CONSTITUTIONAL halt is served by CIRISServer]
+- HTTP `GET /v1/steward-key` and `GET /v1/trust-root/bundle` — the genesis trust-root bundle. [Deployed (US / EU / folded)]
+- HTTP `/v1/builds*` — build manifests: CEG-native from the federation directory on the slice; from the build table, with directory-composed provenance, on the standalone binary. [Deployed (US / EU / folded)]
+- HTTP `/v1/verify/*` — binary, function and build manifests by version and target. [Deployed]
 
 ### 3.2 Authenticated surface (`PortalService`, `RegistryAdminService`)
 
-HS256 JWT for gRPC; per-method `OrgRole` authorization per [`CLAUDE.md`](CLAUDE.md) §"PortalService Handler Convention". 31 methods spanning org/user/key/audit/escrow/compliance. Pre-migration surfaces are stable; post-#17 the issuance methods (`RegisterTrustedPrimitiveKey` etc.) become *attestation* methods that write to persist's `federation_attestations` rather than Registry-local tables.
+HS256 JWT for gRPC; per-method `OrgRole` authorization per [`CLAUDE.md`](CLAUDE.md) §"PortalService Handler Convention". Methods span org / user / key / audit / escrow / compliance. `FSD/FSD-004` §4.2 and §4.3 map each one to the signed CEG envelope or server surface that carries it in the registry slice.
 
-### 3.3 Substrate-consumer surface (post-`#17`)
+### 3.3 Substrate-consumer surface
 
-What `ciris-registry-core` will expose to in-process callers (CIRISAgent post-fold + the deployed Registry service host):
+The registry slice hands CIRISServer one router, `fold::router(engine, node_key_id)` (`FSD/FSD-004` §5): no own storage, no own identity or Edge, no gRPC. The policy operations the slice composes over the substrate, as specified in `FSD/FSD-002_FEDERATION_SURFACE.md` §9:
 
 | Operation | Substrate read/write | Composed policy |
 |---|---|---|
-| `verify_primitive_key(key_id, expected_primitive)` | `lookup_public_key` + `list_attestations_for` + `revocations_for` | Policy A (direct trust on registry-steward attestation) per `FEDERATION_CLIENT.md` §"Trust policy" |
-| `attest_primitive_key(primitive_key_id, weight, expires)` | `put_attestation` | Registry-steward signs the attestation envelope |
-| `revoke_primitive_key(primitive_key_id, reason)` | `put_revocation` | Registry-steward signs the revocation envelope |
+| `verify_primitive_key(key_id, expected_primitive)` | `lookup_public_key` + `list_attestations_for` + `revocations_for` | Policy A (direct trust on a blessed key) per `FEDERATION_CLIENT.md` §"Trust policy" |
+| `attest_primitive_key(primitive_key_id, weight, expires)` | `put_attestation` | A steward key signs the attestation envelope |
+| `revoke_primitive_key(primitive_key_id, reason)` | `put_revocation` | A steward key signs the revocation envelope |
 | `verify_humanity_accord_envelope(envelope, sigs[])` | `lookup_public_key` for each accord-holder | 2-of-3 multi-sig threshold; hardware-attestation check; out-of-role rejection (only valid on `EmergencyShutdown CONSTITUTIONAL`) |
 | `resolve_partner_capabilities(partner_id)` | `lookup_public_key` + `list_attestations_by(steward)` + `revocations_for` | `effective_capabilities = agent ∩ partner.granted − partner.denied` per FSD-001 §215 |
 
-Wire-format stability: `RegistryService` and `PortalService` wire shapes are preserved across the migration. Substrate-conformance is a backend swap, not a wire-format change.
+Wire-format stability: `RegistryService` and `PortalService` wire shapes are the same in both deployment shapes. The substrate is the backend; the wire format is the contract.
 
 ### 3.4 Attestation primitive — unified scalar shape
 
-Registry produces and consumes attestations against persist's `federation_attestations` table. The federation has locked a **unified primitive shape**: one workhorse `scores` attestation_type carrying a scalar claim on a named dimension, plus four structural primitives that operate on the attestation graph itself. No categorical-pejorative `attestation_type` strings; loaded vocabulary is deflated to scoped dimensions with graduated scores.
+Registry produces and consumes attestations against persist's `federation_attestations` table. The federation's **unified primitive shape** is one workhorse `scores` attestation_type carrying a scalar claim on a named dimension, plus four structural primitives that operate on the attestation graph itself. No categorical-pejorative `attestation_type` strings; loaded vocabulary is deflated to scoped dimensions with graduated scores.
 
 ```
 // Workhorse — one row per scoped claim
@@ -302,90 +282,75 @@ attestation_type ∈ {
 
 The canonical **dimension namespace** is owned disjointly by sibling components' MISSION.md commitments. Registry's owned slice within that namespace: `licensure:{authority_id}`, `partner_role:{role}`, `revocation:{entity_type}:{reason}`, `bond_posted:{currency}`, `build:registered:{target}`, plus `accord:*` (reserved — only `identity_type=accord_holder` may attest).
 
-Full vocabulary + reserved-prefix enforcement patterns + envelope schemas + per-dimension citations to owning MISSIONs live in [`FSD/FSD-002_FEDERATION_SURFACE.md`](FSD/FSD-002_FEDERATION_SURFACE.md).
+Full vocabulary + reserved-prefix enforcement patterns + envelope schemas + per-dimension citations to owning MISSIONs live in [`FSD/FSD-002_FEDERATION_SURFACE.md`](FSD/FSD-002_FEDERATION_SURFACE.md); the normative wire format is the CIRIS Constitution.
 
-**Layering principle.** Primitives are clean and complete at the wire format. UX sugar lives ABOVE primitives, in Portal / verify dashboards / agent introspection panels. A "Mark Licensed" button in Portal writes a `scores` attestation on `licensure:{authority_id}` underneath; the categorical button is UX, the scalar is wire. Same for negative cases. This separation lets product surfaces evolve their vocabulary independently of the substrate and keeps the federation's wire format pristine across many UX iterations.
+**Layering principle.** Primitives are clean and complete at the wire format. UX sugar lives ABOVE primitives, in Portal / verify dashboards / agent introspection panels. A "Mark Licensed" button writes a `scores` attestation on `licensure:{authority_id}` underneath; the categorical button is UX, the scalar is wire. Same for negative cases. This separation lets product surfaces evolve their vocabulary independently of the substrate and keeps the federation's wire format pristine across many UX iterations.
 
 ---
 
 ## 4. Substrate dependencies
 
-Registry consumes the substrate; it does not author substrate primitives. Dependency map:
+Registry consumes the substrate; it does not author substrate primitives. The pins each release carries are recorded in `CHANGELOG.md`.
 
-| Substrate component | What Registry needs from it | Status |
-|---|---|---|
-| **`CIRISPersist`** | `FederationDirectory` trait + `federation_keys` / `_attestations` / `_revocations` tables; multi-region replication for steward + accord-holder rows; `identity_type="accord_holder"` semantics; transport story (gRPC server? direct DB? in-process Engine?) | Persist v2.1.1 has trait + sqlite/postgres impls + V004/V020/V021/V045 migrations. `identity_type="accord_holder"` not yet specified — Registry will file as an upstream ask. |
-| **`CIRISVerify`** | Multi-steward fingerprint pinning (3 regional + 3 accord-holder); M-of-N steward verification policy; recognition of `EmergencyShutdown CONSTITUTIONAL`; hardware-attested key class for accord holders | Verify today pins single `/v1/steward-key`. Multi-steward + accord-holder recognition not yet specified — Registry will file as an upstream ask. |
-| **`CIRISEdge`** | Reticulum-native federation transport; `MessageType` variant for `FederationAnnouncement` with `Delivery: Mandatory { authority_signed: true, bypass_subscription: true }` (per `FEDERATION_ANNOUNCEMENT.md` §3.2); recognition of accord-holder authority for `AccordCarrier` priority | Edge is spec-first; "code lands when Phase 1 starts" (per repo description). Registry asks land alongside the Edge specs. |
-| **`CIRISLensCore`** | Observability for divergence telemetry (`federation_dual_write_divergence_total`, `federation_cache_age_seconds`) | LensCore consumes Registry's emitted metrics; no specific Registry ask. |
-| **`CIRISNodeCore`** | Cohabitation contract for in-process `ciris-registry-core` + `ciris-node-core` + `cirislens-core` running in CIRISAgent (shared persist Engine, initialization order, transactional boundaries) | NodeCore is spec-first; Registry's ask is that the cohabitation contract names ciris-registry-core as a peer. |
-
-### Upstream sequencing (per Eric's A→E directive, 2026-05-24)
-
-- **A** — Registry specs its surface (this document + `docs/FEDERATION_CLIENT.md` updates + per-FSD additions for HUMANITY_ACCORD and per-install stewards).
-- **B** — Registry files issues on Persist / Verify / Edge for the asks named in §4 above.
-- **C** — Upstream completes all of it.
-- **D** — CIRISAgent absorbs CIRISEdge in v2.9.2 (separate workstream).
-- **E** — Revisit Registry's integration once D ships.
-
-Registry implementation code (filling `PersistFederationClient` stubs, adding `ciris-persist` as a Cargo dep, wiring `HUMANITY_ACCORD` verifier, crate-ifying as `ciris-registry-core`) happens at E, not before. Coding against the current persist shape would commit Registry to wire forms we want to change as part of B.
+| Substrate component | What Registry needs from it |
+|---|---|
+| **`CIRISPersist`** | `FederationDirectory` trait + `federation_keys` / `_attestations` / `_revocations` tables; the `GenesisBundle` the registry serves; `identity_type` values `steward`, `accord_holder`, `witness`; the operational planes (`organization` / `org_membership` LWW, `partner_record` monotonic quorum); bounded `AttestationQuery` paging; the in-process `Engine` the registry slice shares with CIRISServer. |
+| **`CIRISVerify`** | Hybrid Ed25519 + ML-DSA-65 signing and verification (`ciris-crypto`, `ciris-keyring`); the build-manifest wire shape and the manifest Contribution verifier; consumption of the trust-root bundle. |
+| **`CIRISEdge`** | Reticulum-native federation transport; the federation signer for announces; `MessageType::FederationAnnouncement` with `Delivery: Mandatory` and recognition of accord-holder authority for `AccordCarrier` priority. |
+| **`CIRISLensCore`** | Observability for divergence telemetry (`federation_dual_write_divergence_total`, `federation_cache_age_seconds`). |
+| **`CIRISNodeCore`** | The shipped `evaluate_consensus_protocol` predicate that the ceremony gate calls (`FSD/FSD-003` §5); the cohabitation contract that names `ciris-registry-core` as a peer slice in CIRISServer. |
 
 ---
 
-## 5. Cohabitation trajectory
+## 5. Deployment shapes
 
-Same as the other "Core" crates: extract to a focused Rust sub-crate, test in standalone deployment, deploy as a pilot, fold into CIRISAgent once the pilot demonstrates the primitives carry production load.
+`ciris-registry-core` runs in two shapes:
 
-Registry's lifecycle stages:
-
-| Stage | What it means for Registry |
+| Shape | What it is |
 |---|---|
-| **Spec** (today, federation surfaces) | `HUMANITY_ACCORD`, per-install stewards, substrate-conformance laid out in this doc + `docs/FEDERATION_CLIENT.md` + issues `#16` / `#17`. |
-| **Impl** (today, legacy surfaces) | Pre-migration Registry compiles, tests, runs in CI; substrate-conformance scaffolding present but stubbed. |
-| **Deployed (US / EU)** (today) | Pre-migration Registry runs at `us.registry.ciris-services-1.ai` and `eu.registry.ciris-services-1.ai`. Single unified steward. |
-| **Deployed (US / EU / APAC)** | Per-install stewards land. Third regional install added. Steward triple bootstrapped via persist's federation directory. |
-| **Deployed (folded)** | `ciris-registry-core` sub-crate runs in-process inside CIRISAgent alongside `ciris-node-core` and `cirislens-core`, sharing one persist Engine. Singleton deployments at `*.registry.ciris-services-1.ai` continue as CIRIS L3C's flagship deployments, not federation dependencies. |
+| **Standalone** (`standalone` feature, default) | The `ciris-registry` binary: sqlx and Postgres, the three gRPC services, the full HTTP router, its own Edge runtime for `/v1/identity`. Deployed at `us.` and `eu.registry.ciris-services-1.ai`. |
+| **Registry slice** (no default features) | No sqlx, tonic or Postgres driver in the graph. CIRISServer composes it through `fold::router` alongside `ciris-node-core` and `cirislens-core`, sharing one persist Engine. Every KEEP / REPLACE route in `FSD/FSD-004` moves into this router as its backend moves to persist. |
 
-Each agent embeds `ciris-registry-core` and maintains its own local cache of authoritative federation state from persist. Other partner orgs run their own embedded Registry via `ciris-registry-core` in their agent deployments. The Registry stops being a singleton; the federation cannot be denied identity-verification capability by any one Registry deployment going down.
+The singleton deployments at `*.registry.ciris-services-1.ai` are CIRIS L3C's flagship deployments, not federation dependencies: any node composing the registry slice holds the same policy code, and the federation cannot be denied identity verification by one deployment going down.
 
 ---
 
 ## 6. Open questions
 
-- **Transport for `ciris-registry-core` → persist.** In-process Engine share (shared connection pool, but different driver layers — sqlx vs tokio-postgres), gRPC server (persist has a `server` feature), or direct DB access (Registry's sqlx queries `federation_*` tables directly, bypassing the trait)? Decision deferred to Phase 1 of #17 execution; surfaced as part of B-persist.
-- **Replication semantics for `identity_type="accord_holder"` rows.** Cross-region replication is required (every Registry install must see the same accord-holder set), but the persist trait surface today doesn't distinguish replication scopes. Surfaced as part of B-persist.
-- ~~**Multi-steward pinning UX on the consumer side.**~~ Answered (v3.0.0, #133): consumers pin the accord-conferred `GenesisBundle` served at `GET /v1/steward-key` and `GET /v1/trust-root/bundle`; the bundle is self-authenticating and there is no per-steward fingerprint to pin.
-- ~~**Bootstrap path for the third (APAC) install.**~~ Answered (§2.1 ruling): an install is admitted into `ciris-canonical` by the accord's quorum; it does not bootstrap a steward key.
-- **Selection authority for HUMANITY_ACCORD replacement.** Boot phase: CIRIS L3C CEO under advisement of CIRIS L3C board ([`FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5.3). Formalization of the selection process to remove the CEO-as-single-party dependency is deferred (open question 18 in `FEDERATION_ANNOUNCEMENT.md` §7).
-- **`PartnerRecord` integration with persist's federation directory.** Today `PartnerRecord` lives in Registry's Postgres. Post-#17, does it become a `federation_keys` row with `identity_type="partner"` (per persist's existing identity_type vocabulary) + a Registry-composed capability join? Or does it stay Registry-private with substrate attestation linking to it? Surfaced as part of B-persist + B-self.
+- **Selection authority for HUMANITY_ACCORD replacement.** Boot phase: CIRIS L3C CEO under advisement of CIRIS L3C board ([`FEDERATION_ANNOUNCEMENT.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_ANNOUNCEMENT.md) §4.5.3). Formalization of the selection process to remove the CEO-as-single-party dependency is open (question 18 in `FEDERATION_ANNOUNCEMENT.md` §7).
+- **The OPEN routes in `FSD/FSD-004` §6**: manifest-bytes storage in persist, `VerifyDeployment` as a combined read, offline packages, who may author agent registrations and org recognition, which org facts are public, the device-integrity home, the `registry:lookup` capability name, the Portal screens that replace the Portal RPCs, and the community values the Constitution still carries on `partner_role` and `partner_record.license_type`.
+
+Resolved questions, for the record: consumers pin the genesis bundle served at `GET /v1/steward-key` and `GET /v1/trust-root/bundle`, which is self-authenticating, so there is no per-steward fingerprint to pin; an install is admitted into `ciris-canonical` by the accord's quorum and does not bootstrap a steward key of its own; the registry slice reaches persist through the in-process Engine CIRISServer shares with it, and the standalone binary through its own persist client; `PartnerRecord` becomes a `partner_record` envelope under M-of-N steward quorum with the licence carried separately as `licensure:{authority_id}` rows (`FSD/FSD-004` §4.2).
 
 ---
 
 ## 7. References
 
 ### Within CIRISRegistry
-- [`docs/FEDERATION_CLIENT.md`](docs/FEDERATION_CLIENT.md) — registry-side architectural sketch for consuming persist's federation directory
-- [`docs/TRUST_CONTRACT.md`](docs/TRUST_CONTRACT.md) — consumer-facing trust shape (`/v1/steward-key` pinning guidance, etc.)
-- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — threat model (AV-14 single-point-of-compromise, AV-15/W2/W3 PortalService authorization, AV-35/W1 audit actor integrity)
-- [`docs/DESIGN_ROLE_HIERARCHY.md`](docs/DESIGN_ROLE_HIERARCHY.md) — existing SystemRole hierarchy this `HUMANITY_ACCORD` extends
+- [`FSD/FSD-004_POST_FOLD_SURFACE.md`](FSD/FSD-004_POST_FOLD_SURFACE.md) — the registry surface as composed into CIRISServer
+- [`docs/FEDERATION_CLIENT.md`](docs/FEDERATION_CLIENT.md) — registry-side architecture for consuming persist's federation directory
+- [`docs/TRUST_CONTRACT.md`](docs/TRUST_CONTRACT.md) — consumer-facing trust shape (trust-root pinning, manifest consumption paths)
+- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — threat model (AV-14 single-point-of-compromise, AV-15 PortalService authorization, AV-35 audit actor integrity)
+- [`docs/DESIGN_ROLE_HIERARCHY.md`](docs/DESIGN_ROLE_HIERARCHY.md) — the SystemRole hierarchy `HUMANITY_ACCORD` extends
 - [`FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md`](FSD/FSD-001_CIRISREGISTRY_PROTOCOL.md) — protocol surface (gRPC + HTTP)
+- [`FSD/FSD-002_FEDERATION_SURFACE.md`](FSD/FSD-002_FEDERATION_SURFACE.md) — the federation attestation surface (design history)
+- [`FSD/FSD-003_LIFECYCLE_CEREMONIES.md`](FSD/FSD-003_LIFECYCLE_CEREMONIES.md) — self / family / community ceremony envelopes
 - [`CLAUDE.md`](CLAUDE.md) — codebase guide + PortalService handler convention + database migration discipline
-- [`CIRISRegistry#16`](https://github.com/CIRISAI/CIRISRegistry/issues/16) — `SystemRole::HUMANITY_ACCORD`
-- [`CIRISRegistry#17`](https://github.com/CIRISAI/CIRISRegistry/issues/17) — substrate-conformance migration + `ciris-registry-core` sub-crate + fold-into-CIRISAgent
 
 ### Federation context
-- [`CIRISNodeCore/MISSION.md`](../CIRISNodeCore/MISSION.md) — peer mission doc; cohabitation trajectory anchored here
-- [`CIRISNodeCore/CIRIS_FEDERATION.md`](../CIRISNodeCore/CIRIS_FEDERATION.md) — system claim, "decentralized ethical superintelligence", Registered vs Sovereign paths
-- [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](../CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md) — multi-party bootstrap (§4.2), humanity accord (§4.5)
-- [`CIRISNodeCore/FSD/TRUST_HIERARCHY.md`](../CIRISNodeCore/FSD/TRUST_HIERARCHY.md) — TrustType / TrustRelationship axes
-- [`CIRISNodeCore/FSD/SUBSTRATE_INTEGRATION.md`](../CIRISNodeCore/FSD/SUBSTRATE_INTEGRATION.md) — substrate-consumer integration contract
+- [`CIRISConstitution`](https://github.com/CIRISAI/CIRISConstitution) — the normative wire format
+- [`CIRISNodeCore/MISSION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/MISSION.md) — peer mission doc; cohabitation trajectory anchored here
+- [`CIRISNodeCore/CIRIS_FEDERATION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/CIRIS_FEDERATION.md) — system claim, "decentralized ethical superintelligence", Registered vs Sovereign paths
+- [`CIRISNodeCore/FSD/FEDERATION_ANNOUNCEMENT.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/FEDERATION_ANNOUNCEMENT.md) — multi-party bootstrap (§4.2), humanity accord (§4.5)
+- [`CIRISNodeCore/FSD/TRUST_HIERARCHY.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/TRUST_HIERARCHY.md) — TrustType / TrustRelationship axes
+- [`CIRISNodeCore/FSD/SUBSTRATE_INTEGRATION.md`](https://github.com/CIRISAI/CIRISNodeCore/blob/main/FSD/SUBSTRATE_INTEGRATION.md) — substrate-consumer integration contract
 - [`CIRISAgent/ACCORD.md`](https://github.com/CIRISAI/CIRISAgent/blob/main/ACCORD.md) §M-1 — meta-goal grounding
 
 ### Substrate
 - [`CIRISPersist/docs/FEDERATION_DIRECTORY.md`](https://github.com/CIRISAI/CIRISPersist/blob/main/docs/FEDERATION_DIRECTORY.md) — substrate contract for the federation directory
-- [`CIRISPersist`](https://github.com/CIRISAI/CIRISPersist) `src/federation/mod.rs` — `FederationDirectory` trait surface (v2.1.1)
+- [`CIRISPersist`](https://github.com/CIRISAI/CIRISPersist) `src/federation/mod.rs` — `FederationDirectory` trait surface
 - [`CIRISVerify`](https://github.com/CIRISAI/CIRISVerify) — hardware-rooted identity verification consumer
-- [`CIRISEdge`](https://github.com/CIRISAI/CIRISEdge) — Reticulum-native transport (spec-first)
+- [`CIRISEdge`](https://github.com/CIRISAI/CIRISEdge) — Reticulum-native transport
 - [`ciris.ai/federation`](https://ciris.ai/federation) — public framing of the federation
 
 ### Adjacent context
@@ -401,5 +366,3 @@ This document is updated:
 - On every substrate-dependency change (persist version bump, transport decision).
 - On every lifecycle-stage transition (Spec → Impl → Deployed → Deployed (folded)).
 - On every CIRISAccord revision affecting Registry's mission.
-
-Last updated: 2026-05-24 (initial draft; substrate-conformance migration in flight; A→E sequence active).
