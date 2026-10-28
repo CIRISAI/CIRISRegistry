@@ -21,15 +21,13 @@ new grant issued by the asset's owner or steward, or by a holder of a
 the data-encryption key is not issuance authority."
 
 **Two wire shapes, one card.** A key wrap is `key_grant:{axis}:v1`, one scores
-row per recipient (CC 3.3.2 rc7, CIRISConstitution#143; CIRISPersist#989
-shipped), `{axis}` ∈ content | epoch | stream, sealer-only, never withdrawn
+row per recipient (CC 3.3.2; persist, CIRISPersist#989), `{axis}` ∈ content |
+epoch | stream, sealer-only, never withdrawn
 (forward secrecy is by rotation). A consent grant is `consent:scope:{kind}` over
 a person's data. Both answer "who may reach this thing", both are leaves of the
 authority tree, and the card renders them in the same rows. **A metered
-resource grant is not a grant on this card.** The first draft reserved a row
-for CIRISBilling's allowances; CIRIS is not selling anything that would be
-metered (steward, 2026-10-28), CC names no such family, and the row and its
-blocker are gone.
+resource grant is not a grant on this card.** CIRIS sells nothing that would be
+metered and CC names no such family, so the card carries no CIRISBilling row.
 
 **A grant is never withdrawn and the card never offers it.** CC 3.1.3: a
 `withdraws` naming a `key_grant` row is refused. Ending access is rotation: a
@@ -37,14 +35,14 @@ new epoch, a new DEK, and the recipient is not in the new wrap set. The card's
 "end access" is therefore "rotate and exclude", and it says so.
 
 **A grant ends with its record.** When the affiliation that owns or stewards the
-asset is dissolved (the `withdraws` of its record, CC 4.4.3.2.8 P4:659 on rc13 5298190),
+asset is dissolved (the `withdraws` of its record, CC 4.4.3.2.8 "Succession and dissolution"),
 every grant over its assets ends with it, the DEK rotates no more, and no new grant is
 issued; what a recipient already fetched stays theirs, which is the same sentence the
 end-access confirm already says. `blocked_by: CIRISPersist#1143` (`CLM-affiliation-dissolution`).
 
 **A grant is judged at its signed instant.** Persist v60 judges a `key_grant`
 row's sealer chain, and a `grant`-scoped delegate's chain, at the row's
-`asserted_at` (§8 item 2), so a sealer whose delegation later lapses does not
+`asserted_at`, so a sealer whose delegation later lapses does not
 un-seal what was sealed; a row signed more than 72 h ago whose chain no longer
 stands at receipt is `asserted_at_stale`.
 
@@ -139,7 +137,7 @@ error:     {tag: "proposed:txt_grants_error", renders: "Couldn't read grants fro
 | grant access to a file (the node seals a wrap to the recipient) | partial: `POST /v1/files` at a cohort places it for a roster, not for one recipient | CIRISServer | `blocked_by: CIRISServer#752` |
 | read grants I issued / grants I hold | none as a list (drive rows carry custody, CSD-107; `access[]` on the custody body is parsed and not drawn) | CIRISServer | `blocked_by: CIRISServer#752` |
 | end access = rotate and exclude | partial (room epoch rotation exists for communities) | CIRISServer | unconfirmed |
-| a `grant`-scoped delegate may seal on the owner's behalf; admission refuses a recipient re-granting; per-recipient `key_grant` rows; judged at `asserted_at` | CIRISPersist | CIRISPersist | confirmed — #1033 (the `grant` arm), #989 (rows), v60 §8 item 2 (`asserted_at`); carriage of per-recipient rows CIRISEdge#808 (not re-checked) |
+| a `grant`-scoped delegate may seal on the owner's behalf; admission refuses a recipient re-granting; per-recipient `key_grant` rows; judged at `asserted_at` | CIRISPersist | CIRISPersist | confirmed — persist v60 (#1033 the `grant` arm, #989 the rows, `asserted_at`); carriage of per-recipient rows: CIRISEdge#808 |
 
 ## 3a. Topology (CSD/4)
 

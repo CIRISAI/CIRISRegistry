@@ -21,7 +21,7 @@ laundering (CC 4.1.1), so `GenerateKeyPair` and `RequestSignature` are gone and
 stay gone. Keys are self-custodied; what the federation holds is the public
 record.
 
-**The Portal's key screens are retired, not migrated (steward, 2026-10-28).**
+**The Portal's key screens are retired, not migrated.**
 `ActivateKey`, `RotateKey`, `RevokeKey`, `Register*Key`,
 `RequestKeyEscrow`/`RequestKeyRecovery` were operations on registry-custodied
 keys, each charged per key by tier (issuance fee plus a refundable bond); with
@@ -29,25 +29,25 @@ portal.ciris.ai decommissioned there is no custodian to charge and nothing to
 charge for. Here they are operations a person performs on a key they hold,
 which the affiliation recognises, and the only "activation" is a signed row.
 
-**What "the organization's key" means on rc12.** An affiliation signs through its
+**What "the organization's key" means on CEG.** An affiliation signs through its
 founders' quorum and the keys its members hold roles with (CSD-121). A key
 "registered to the organization" is a member's self-signed `key:record:v1`
 (persist v57 writes it on registration under the key's own name) bound to the
 affiliation by a `delegates_to` edge carrying the `KeyManager` scope, cosigned
-under the affiliation's protocol — CC 3.3.9 (rc12): "a keyless affiliation's key
+under the affiliation's protocol — CC 3.3.9: "a keyless affiliation's key
 manager holds the registration binding under the quorum's cosignature" — not a
 key the affiliation owns apart from a person. The `ciris-canonical` installs
 (`ciris-canonical-1`) are node keys seated by the accord's blessing, carry only
 `infra:*`, and never sign a licence (CSD-122).
 
-**What the text says (CC rc13 deltas note).** An agent key held for an
-organisation names the affiliation in its owner-binding's `community_id`,
-cosigned under the affiliation's protocol, and `slash` and `quarantine` reach the
-affiliation's keys as well as the steward's (2g: P3:805); `archive_custody` is the
+**What CC says for this card.** An agent key held for an organisation names the
+affiliation in its owner-binding's `community_id`, cosigned under the affiliation's
+protocol, and `slash` and `quarantine` reach the affiliation's keys as well as the
+steward's (CC 3.2, "The organisation is on the bond"); `archive_custody` is the
 affiliation-only custodian role that lets retained records survive member turnover
-where a community gets rotation only (7e: P4:665). The escrow custodian this card
+where a community gets rotation only (CC 4.4.3.2.8 B). The escrow custodian this card
 names is that role when the charter declares it. On dissolution (the record's
-`withdraws`, CC 4.4.3.2.8 P4:659 on rc13 5298190) the `KeyManager` binding ends with every
+`withdraws`, CC 4.4.3.2.8 "Succession and dissolution") the `KeyManager` binding ends with every
 other hierarchy edge, but "custody rows and the record itself stand on the record":
 the keys' public records, their revocations and the escrow index stay readable, and
 rows those keys signed before the instant still verify; the card lists them struck
@@ -84,7 +84,7 @@ fields:
     use: display-only
     type: string
     example: "quorum:2/3 — A1, B1 signed"
-    renders: "'Bound to this organization by' — the cosigned KeyManager edge (CC 3.3.9 rc12); a binding one founder signed alone reads 'not bound'"
+    renders: "'Bound to this organization by' — the cosigned KeyManager edge (CC 3.3.9); a binding one founder signed alone reads 'not bound'"
     tag: "proposed:txt_key_bound_under_*"
   - ceg: x_private:pre_rotation_commitment
     use: emit
@@ -136,12 +136,12 @@ error:     {tag: "proposed:txt_affiliation_keys_error", renders: "Couldn't read 
 
 | What | Route | Owner | State |
 |---|---|---|---|
-| register a key (self-signed `key:record:v1` + the cosigned `KeyManager` binding) | partial: a person registers their own (`/v1/federation/self-key-record`, CSD-037); the affiliation binding is CSD-124's edge | CIRISServer | `blocked_by: CIRISServer#752` (CIRISRegistry#65 was the standalone registry's ask and folds into it) |
+| register a key (self-signed `key:record:v1` + the cosigned `KeyManager` binding) | partial: a person registers their own (`/v1/federation/self-key-record`, CSD-037); the affiliation binding is CSD-124's edge | CIRISServer | `blocked_by: CIRISServer#752` |
 | rotate (supersession under a pre-rotation commitment) | none | CIRISServer | `blocked_by: CIRISServer#752` |
 | revoke (`key:revocation`, with or without `revoked_after`) | partial (own devices, CSD-037; `POST /v1/admin/deadmit` preview/commit per CSD4.md §5) | CIRISServer | unconfirmed |
-| escrow / recovery (custody index) | none; `registry_key_escrows` exists in persist (CIRISPersist#752) | CIRISServer | `blocked_by: CIRISServer#752`; the product decision FSD-005 §7.4 asked for is now the steward's: no custodian is sold, the custodian is whoever the affiliation names |
+| escrow / recovery (custody index) | none; `registry_key_escrows` exists in persist (CIRISPersist#752) | CIRISServer | `blocked_by: CIRISServer#752`; no custodian is sold: the custodian is whoever the affiliation names |
 | list keys that speak for an affiliation (outbound `KeyManager` edges with their records) | none | CIRISServer | `blocked_by: CIRISServer#663` (the same inbound/outbound chain read CSD-055 waits on) |
-| an owner-binding naming an affiliation admitted only cosigned under its protocol | CIRISPersist | CIRISPersist | confirmed — v60.0.0 (#1062) |
+| an owner-binding naming an affiliation admitted only cosigned under its protocol | CIRISPersist | CIRISPersist | confirmed — persist v60 (#1062) |
 
 ## 3a. Topology (CSD/4)
 

@@ -20,14 +20,15 @@ revocable delegation, CC 4.4.3.2.8 C and CC 4.5, never a flag an administrator
 sets on a user row).
 
 **The Portal's `org_membership.role` enum becomes four presets over delegation
-scopes** (FSD-005 §4; CC 3.3.9 rc12: "`OrgAdmin` / `KeyManager` / `Operator` /
+scopes** (FSD-005 §4; CC 3.3.9: "`OrgAdmin` / `KeyManager` / `Operator` /
 `Viewer` are non-normative presets over scope sets, and admin scopes are open
-vocabulary with a closed canonical set"): `OrgAdmin` carries `sub_delegation` +
+vocabulary, their canonical presets published as data with the family model
+manifest"): `OrgAdmin` carries `sub_delegation` +
 `license` + `grant` + the affiliation's admin verbs; `KeyManager` the
 key-binding right; `Operator` the operational verbs; `Viewer` nothing but
 membership. The card offers the presets; the wire carries the scopes; the
 receipt shows the scopes. An admin who wants a role no preset names picks the
-scopes. Persist v60.0.0 (V205) dropped the `org_membership` table; the Portal's
+scopes. Persist v60 (V205) dropped the `org_membership` table; the Portal's
 user screens (`*OrgUser*`, `UpdateUserOrgRole`, `ListOrgMembers`) are retired,
 not migrated.
 
@@ -37,32 +38,31 @@ Constitution for NHI). The chain every role hangs from roots in the founders, wh
 people (CC 3.4.7.3); a node is never a member of record and never a root.
 
 **A role has a term, always.** `delegation_valid_until` is required on every edge
-in an affiliation's `hierarchy` (CC 4.4.3.2.8 C as landed by CC#163, rc8); the
+in an affiliation's `hierarchy` (CC 4.4.3.2.8 C); the
 charter's `role_term` (CSD-120, integer days 1..=365) bounds it; re-conferral
 renews it (ciris.ai/constitutional-mesh: authority "decays like everyone else's").
 An edge with no term, past the ceiling, or past the charter's term is refused at
 the door — persist v60 `federation_delegation_term_required` with the rule named
-(`term_missing`, `term_unreadable`, `over_ceiling`, `over_role_term`; CIRISPersist#1048
-shipped) — so the card does not offer one: the founders are the roster root, not
+(`term_missing`, `term_unreadable`, `over_ceiling`, `over_role_term`; CIRISPersist#1048)
+— so the card does not offer one: the founders are the roster root, not
 an edge, and re-confer when terms lapse. A lapsed `moderate` role is a moderator
 lapse under CC 4.5.4: the room auto-promotes or fails secure in the same step,
 never an unmoderated window.
 
-**What the text says and what is still a ruling (CC rc13 deltas note).** TEXT
-SAYS: admission is two consents in both kinds and an `OrgAdmin` cannot seat anyone
-alone (2a, 2b: P3:215, P3:1592); the presets are non-normative over scope sets
-(2c: P3:1592); in an affiliation every role edge is termed, in a community only
-duty-bearing edges are (2e: P2:276, P4:670). Landed on rc13 5298190: the admin presets
-are DATA, the family model manifest carrying the config record's schema (CC
-4.4.3.2.8 P4:653; CIRISConstitution#189), not a closed set in the text, so the four
-preset names below are what the manifest ships and an affiliation may name its own;
-succession is the charter's (P4:659): a successor seat or `dissolves_at`, and when the
+**What CC says for this card.** Admission is two consents in both kinds and an
+`OrgAdmin` cannot seat anyone alone (CC 3.1.3.2; CC 3.3.9); the presets are
+non-normative over scope sets (CC 3.3.9); in an affiliation every role edge is termed,
+in a community only duty-bearing edges are (CC 2.4.1; CC 4.4.3.2.8 C). The admin
+presets are DATA, the family model manifest carrying the config record's schema
+(CC 4.4.3.2.8 "The record"), not a closed set in the text, so the four preset names
+below are what the manifest ships and an affiliation may name its own; succession is
+the charter's ("Succession and dissolution"): a successor seat or `dissolves_at`, and when the
 last deciding seat lapses with neither the affiliation is dissolved at that instant
 (every role edge ends with it; a community whose last founder leaves continues under
 its protocol and may seat a founder by it).
 
-**The floors bind power over members, not the count of voices (landed: CC rc13 3cac7b9,
-CC 4.4.3.2.8 P4:651, the former rulings 4 and 6 / rows 3c and 3g).** Appointment is
+**The floors bind power over members, not the count of voices (CC 4.4.3.2.8).**
+Appointment is
 "the body's signature under its protocol together with the appointee's own
 `membership:acceptance` — two consents, as CC 3.1.3.2 already requires — so a
 one-voice body may hire." Where the body has one deciding seat, an act against a
@@ -73,12 +73,12 @@ oversees the affiliation; without one the act stands as a proposal in the
 reconsideration path of CC 4.5.5, never as a decision." "The named-moderator duty of
 CC 4.5.4 is discharged by the designated official." Two or more deciding seats decide
 under their own protocol as a community does. Governance table row
-`affiliation_member_action` (`governance_policy.tsv:12`: cosigned, the deciding seat +
+`affiliation_member_action` (`governance_policy.tsv`: cosigned, the deciding seat +
 one key outside it, 2/2); model `formal/affiliation/Affiliation.lean`
 (`a2_one_voice_appoints_with_acceptance`, `a3_one_voice_removes_nobody_alone`,
 `a3_seat_cannot_countersign_itself`, `a3_outside_countersign_admits`,
 `a5_two_voices_decide_as_a_community`); wire door `CLM-affiliation-one-voice-countersign`
-staged on CIRISPersist#1143 (`claims.tsv:516`). The card therefore has two sheets: the
+staged on CIRISPersist#1143. The card therefore has two sheets: the
 appointment confirm names the appointee's acceptance as the second consent, and the
 **member-action countersign sheet** (below) names, for a one-seat body, the outside key
 that must countersign or the act files as a reconsideration proposal.
@@ -177,11 +177,11 @@ error:     {tag: "proposed:txt_roles_error", renders: "Couldn't read roles from 
 | What | Route | Owner | State |
 |---|---|---|---|
 | invite / accept / remove a member | CSD-106 / CSD-103 routes (`/v1/communities/{id}/…`) | CIRISServer | confirmed by those cards; an affiliation's invitations ride `GroupScope::Affiliations` (0.5.225) |
-| confer a role (write a `delegates_to` with `community_id`, from a member with `sub_delegation`, or cosigned by the founders' quorum) | none at affiliation scope today (`POST /v1/auth/device/delegate` keeps one scope and a 600 s term) | CIRISServer | `blocked_by: CIRISServer#752` (the doors; supersedes the FSD-005 §7 citation) |
+| confer a role (write a `delegates_to` with `community_id`, from a member with `sub_delegation`, or cosigned by the founders' quorum) | none at affiliation scope today (`POST /v1/auth/device/delegate` keeps one scope and a 600 s term) | CIRISServer | `blocked_by: CIRISServer#752` (the doors) |
 | read roles with chain and depth | none (`GET /v1/auth/device/grants` is a flat list of device grants) | CIRISServer | `blocked_by: CIRISServer#663` |
 | end a role (a `withdraws` on the edge) | none | CIRISServer | `blocked_by: CIRISServer#752` |
-| scope attenuation, depth cap, cycle refusal and the term enforced at admission | CIRISPersist | CIRISPersist | confirmed — v60.0.0 (#1031 cycle, #1032 term lens, #1048 `federation_delegation_term_required`, CC#163 `CLM-delegation-term` staged on CIRISServer#752 / CIRISEdge#896) |
-| the three CC 3.3.9 kinds retired | CIRISPersist V205 | CIRISPersist | confirmed — v60.0.0 §8 item 4; CC 3.3.9 amended on CC rc13 3cac7b9 P3:1592: "retired by amendment (CC 4.5.1): their names stay in this section so citations resolve, no substrate admits them as record kinds" |
+| scope attenuation, depth cap, cycle refusal and the term enforced at admission | CIRISPersist | CIRISPersist | confirmed — persist v60 (#1031 cycle, #1032 term lens, #1048 `federation_delegation_term_required`); `CLM-delegation-term` staged on CIRISServer#752 / CIRISEdge#896 |
+| the three CC 3.3.9 kinds retired | CIRISPersist V205 | CIRISPersist | confirmed — persist v60; CC 3.3.9: "retired by amendment (CC 4.5.1): their names stay in this section so citations resolve, no substrate admits them as record kinds" |
 | a one-seat body's act against a member admitted only with an outside countersign (`affiliation_member_action`, 2/2); appointment = protocol signature + acceptance | CIRISPersist | CIRISPersist | `blocked_by: CIRISPersist#1143` (`CLM-affiliation-one-voice-countersign` staged there) |
 
 ## 3a. Topology (CSD/4)

@@ -23,32 +23,32 @@ half and a licence half for the same reason.
 `partner_record` bundled recognition (`partner_id`, `org_id`), standing
 (`license_type`, `status`), capability (`capabilities_granted/denied`,
 `max_autonomy_tier`) and obligation (`requires_supervisor`, limits) in one
-quorum-signed row. On rc12 those are: the role, `partner_role:{role}:v1`; the
+quorum-signed row. On CEG those are: the role, `partner_role:{role}:v1`; the
 standing, a licence (CSD-122), which now carries the typed payload persist v60
 ported from `PartnerRecord` (capabilities, limits, `revision`); the obligations,
 `duty:{kind}:v1` on the licence; the capabilities, the `scope` of a
 `delegates_to` where they are agency (CSD-124) and the licence where they are
 standing; forum participation, `multilateral_participation:{forum}:{kind}:v1`.
-The `partner_record` subject kind is **retired**, by amendment (CC 3.3.9 on CC rc13 3cac7b9
-P3:1592) and in persist v60.0.0 (V205, `federation_envelope_kind_retired`).
+The `partner_record` subject kind is **retired**, by amendment (CC 3.3.9) and in
+persist v60 (V205, `federation_envelope_kind_retired`).
 The monotonic `revision` the record carried lives on in the licence payload.
 
-**A role is not a price (steward, 2026-10-28).** The Portal's six
+**A role is not a price.** The Portal's six
 `license_type`s — community, community_plus, professional_medical,
 professional_legal, professional_financial, professional_full — were tiers with a
-fee, a bond and a monthly charge, and `UpgradeToPartner` was the sale. CIRIS no
-longer sells licences and the Portal is being decommissioned; the tiers, the
+fee, a bond and a monthly charge, and `UpgradeToPartner` was the sale. CIRIS sells
+no licences and the Portal is decommissioned; the tiers, the
 prices and `GetPartnerActivity`'s "health assessment" are **retired, not
 migrated**. `partner_role:{role}` is open vocabulary (`{role}` is a `vocab`
 segment) naming what the partner IS to the recogniser — `supervising_physician`,
 `vendor`, `member_practice`, `auditor` — never what it paid.
 
-**A partner can be found (CC 4.4.3.2.8 P4:657 on rc13 5298190).** Every affiliation's
+**A partner can be found (CC 4.4.3.2.8 "Public face").** Every affiliation's
 existence, `community_key_id`, officers' roles and declared licence classes are
 Commons-visible; a non-public one carries a `community:listing:v1` row naming those
 four things (CSD-120). So the partner picker below resolves an id or a code against
 that public face and shows the four things before the recognising act; a social
-community may be recognised and may itself license (P4:661), the partner's
+community may be recognised and may itself license ("Who may license"), the partner's
 `declared_cohort` being shown, never a gate.
 
 **"Anyone can define their own partners."** Recognition is a `scores` row by the
@@ -132,7 +132,7 @@ error:     {tag: "proposed:txt_partners_error", renders: "Couldn't read partners
 | forums (`multilateral_participation:*` rows) | none | CIRISServer | `blocked_by: CIRISServer#752` |
 | read outbound and inbound recognitions | none (FSD-004 proposed reads over `partner_record`, now retired) | CIRISServer | `blocked_by: CIRISServer#752` |
 | end (withdraws + optional `revocation:partner:*`) | none | CIRISServer | `blocked_by: CIRISServer#752` |
-| the `partner_record` subject kind retired | CIRISPersist V205 | CIRISPersist | confirmed — v60.0.0 §8 item 4; CC 3.3.9 amended on CC rc13 3cac7b9 P3:1592: "The three kinds below are retired by amendment (CC 4.5.1): their names stay in this section so citations resolve, no substrate admits them as record kinds" |
+| the `partner_record` subject kind retired | CIRISPersist V205 | CIRISPersist | confirmed — persist v60; CC 3.3.9: "The three kinds below are retired by amendment (CC 4.5.1): their names stay in this section so citations resolve, no substrate admits them as record kinds" |
 
 ## 3a. Topology (CSD/4)
 
