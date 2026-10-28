@@ -13,7 +13,7 @@
 # directory; keep both in sync.
 
 # Builder stage
-FROM rust:1.93-bookworm AS builder
+FROM rust:1.97-bookworm AS builder
 
 # System dependencies:
 # - protobuf-compiler / libprotobuf-dev: tonic-build proto codegen
