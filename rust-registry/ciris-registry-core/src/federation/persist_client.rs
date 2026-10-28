@@ -122,19 +122,21 @@ impl FederationDirectory for PersistFederationClient {
     }
 
     async fn list_attestations_for(&self, attested_key_id: &str) -> Result<Vec<Attestation>> {
-        self.engine
-            .federation_directory()
-            .list_attestations_for(attested_key_id)
-            .await
-            .map_err(Into::into)
+        use ciris_persist::federation::attestation_query::{AttestationQuery, FOLD_PAGE};
+        collect_pages(
+            self.engine.federation_directory().as_ref(),
+            AttestationQuery::to(attested_key_id, FOLD_PAGE),
+        )
+        .await
     }
 
     async fn list_attestations_by(&self, attesting_key_id: &str) -> Result<Vec<Attestation>> {
-        self.engine
-            .federation_directory()
-            .list_attestations_by(attesting_key_id)
-            .await
-            .map_err(Into::into)
+        use ciris_persist::federation::attestation_query::{AttestationQuery, FOLD_PAGE};
+        collect_pages(
+            self.engine.federation_directory().as_ref(),
+            AttestationQuery::by(attesting_key_id, FOLD_PAGE),
+        )
+        .await
     }
 
     async fn put_revocation(&self, revocation: SignedRevocation) -> Result<()> {
@@ -152,4 +154,20 @@ impl FederationDirectory for PersistFederationClient {
             .await
             .map_err(Into::into)
     }
+}
+
+/// Every row of a bounded query, page by page. persist v56 (CIRISPersist#1001)
+/// demoted the unbounded `list_attestations_by` / `_for` reads to test builds;
+/// a production read pages `AttestationQuery` at `FOLD_PAGE` and stops when
+/// the cursor stops advancing.
+pub async fn collect_pages(
+    dir: &dyn ciris_persist::federation::FederationDirectory,
+    query: ciris_persist::federation::attestation_query::AttestationQuery,
+) -> Result<Vec<Attestation>> {
+    let mut out = Vec::new();
+    let mut pages = query.pages();
+    while let Some(rows) = pages.next(dir).await.map_err(DirectoryError::from)? {
+        out.extend(rows);
+    }
+    Ok(out)
 }

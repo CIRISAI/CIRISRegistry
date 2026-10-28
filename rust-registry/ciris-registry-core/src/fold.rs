@@ -16,6 +16,8 @@
 //!   bundle (#133).
 //! - `GET /v1/agent_files/{kind}` — three-layer trust composition over the
 //!   federation directory.
+//! - `POST /v1/builds`, `GET /v1/builds/…` — CEG-native build manifests
+//!   ([`crate::fold_builds`]); mounted by [`router`] only.
 //!
 //! Not here, because the server already serves them: `/v1/identity`,
 //! `/v1/accord-holders`, health and metrics.
@@ -48,11 +50,15 @@ pub fn router(engine: Arc<ciris_persist::engine::Engine>, node_key_id: String) -
     let federation: Arc<dyn FederationDirectory> = Arc::new(
         crate::federation::persist_client::PersistFederationClient::new(Arc::clone(&engine)),
     );
-    routes().with_state(FoldState {
-        engine: Some(engine),
-        federation,
-        node_key_id,
-    })
+    routes()
+        .with_state(FoldState {
+            engine: Some(Arc::clone(&engine)),
+            federation,
+            node_key_id: node_key_id.clone(),
+        })
+        // CEG-native builds. Server-only: the standalone binary still serves
+        // `/v1/builds` from its Postgres build table.
+        .merge(crate::fold_builds::router(engine, node_key_id))
 }
 
 /// The fold routes, unbound. `api::http` merges these into the standalone
@@ -163,8 +169,12 @@ async fn steward_key(
         _ => false,
     };
 
+    let community = ciris_persist::federation::genesis::canonical_community_asset()
+        .and_then(|c| serde_json::to_value(c).ok());
+
     Ok(Json(TrustRootBundleResponse {
         bundle: bundle_json,
+        community,
         bundle_fingerprint,
         charter_root_key_id,
         served_by: TrustRootServedBy {
@@ -209,6 +219,12 @@ pub(crate) fn accord_holder_roster() -> Vec<String> {
 struct TrustRootBundleResponse {
     /// The artifact — the only part of this response that carries authority.
     bundle: serde_json::Value,
+    /// The `ciris-canonical` community birth record the bundle carries
+    /// (persist ≥ v53, a version-4 bundle), self-authenticating like `bundle`.
+    /// `null` when the bundle carries none, so a client can tell "not baked"
+    /// from "a server that predates this field". Same field on CIRISServer's
+    /// `GET /v1/trust-root/bundle` (agreed 2026-10-02).
+    community: Option<serde_json::Value>,
     /// `sha256:` over the JCS-canonical bundle. Convenience; recompute it.
     bundle_fingerprint: Option<String>,
     /// The charter root the bundle declares. Read off the bundle; verify it.
@@ -372,6 +388,7 @@ mod tests {
     fn trust_root_outer_envelope_claims_no_authority() {
         let body = TrustRootBundleResponse {
             bundle: serde_json::json!({"stub": true}),
+            community: None,
             bundle_fingerprint: Some("sha256:f".into()),
             charter_root_key_id: Some("humanity-accord".into()),
             served_by: TrustRootServedBy { node_key_id: "n".into(), accepts_this_root: false },
