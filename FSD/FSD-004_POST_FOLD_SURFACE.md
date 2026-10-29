@@ -254,6 +254,21 @@ or shows the `key_grant`s a key holds or has issued. Those are the Portal remain
 they are client work against the routes in §4.1 and §4.2. Billing (CSD-056) stays
 off-wire and is the only Portal function that does not become a CEG object.
 
+### 4.6 Evidence of work (tier S submit, tier P read)
+
+The slice admits and serves **evidence of work**: a self-report (CC 3.4.5.1) of work done under a named rule, cited by hash. The family is `evidence:{suite}:{kind}:{cell}:{prefix}:v1` (CC 3.1.5.5); `{suite}` is a closed vocabulary admitted by registration (CC 3.1.7 R2), and `safety_battery` is the registered suite. The row is a `scores` Contribution at federation scope, hybrid-signed by the submitting key, naming the bundle's manifest in `evidence_refs`; the manifest bytes are a commons blob at that hash. Authority is the build-manifest door's: the signer holds `infra:attest` by a `delegates_to(root → signer, infra:attest)` grant from a root this node accepts, or by the accord role on its key record. A self-report confers the right to emit and no right to be believed: the slice computes no credit, recognition or verdict; standing is others' attestations, and the read reports only the signer's blessing.
+
+| Route | Tier | What it does |
+|---|---|---|
+| `POST /v1/evidence/{suite}` | S | Body: `contribution` (the stamped envelope and the signer's hybrid signature), `manifest_base64` (the bundle's `manifest_signed.json`), optional `pipeline_record` and `pipeline_grant`. Admits the row and the bytes. |
+| `GET /v1/evidence/{suite}?cell=&kind=&agent_version=&rubric=&since=` | P | Every currently valid row of the suite, newest assertion first, filtered on the facts; each row carries the Contribution, the signer's record and standing, and `blob_held`. |
+| `GET /v1/evidence/{suite}/{manifest_hash}` | P | One row by its manifest hash. |
+| `GET /v1/evidence/{suite}/blob/{manifest_hash}` | P | The manifest bytes, only for a hash a valid row names. |
+
+**`safety_battery`.** `{kind}` is `capture` or `interpret`; `{cell}` is `{lang}_{domain}` in lowercase (`am_mental_health`). A capture's `{prefix}` is the first 16 lowercase hex of its own manifest digest and its score is 1. An interpret's manifest carries `capture_manifest_sha256`; its `{prefix}` is the first 16 hex of that digest and its score is the pass ratio of `verdicts_summary` (`pass_ratio`, or `passed` over `total`), in the family's positive-only polarity (0, 1]. An interpretation therefore rides its capture's dimension, and a re-posted interpretation of the same capture is a later row on that dimension. The envelope's `evidence` member carries suite, kind, cell, prefix, agent version, rubric (id, version, sha256), judge (model, prompt sha256) for an interpretation, `capture_prefix`, the originating run's `ci_provenance` as submitted, `captured_at`, and the manifest hash and size. `asserted_at` is the signing time and may be any amount later than `captured_at`: back-signing is admitted with the original run's provenance.
+
+**Refusals**, cheapest first, nothing stored on any of them: `namespace_vocab_value_unregistered` (the suite), `manifest_too_large` (over 1 MiB), `contribution_malformed`, `dimension_mismatch`, `evidence_kind_invalid`, `evidence_cell_invalid`, `evidence_prefix_mismatch`, `evidence_score_invalid`, `manifest_size_mismatch`, `manifest_hash_mismatch`, `evidence_capture_link_missing`, `unknown_pipeline`, `signature_invalid`, `pipeline_not_blessed`.
+
 ## 5. What the registry slice hands the server
 
 This mirrors the lens precedent: `LensCore::attach_handler(&edge, engine)` plus

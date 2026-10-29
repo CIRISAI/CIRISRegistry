@@ -58,7 +58,12 @@ pub fn router(engine: Arc<ciris_persist::engine::Engine>, node_key_id: String) -
         })
         // CEG-native builds. Server-only: the standalone binary still serves
         // `/v1/builds` from its Postgres build table.
-        .merge(crate::fold_builds::router(engine, node_key_id))
+        .merge(crate::fold_builds::router(
+            Arc::clone(&engine),
+            node_key_id.clone(),
+        ))
+        // Evidence of work (`evidence:{suite}:…`), the same door generalized.
+        .merge(crate::fold_evidence::router(engine, node_key_id))
 }
 
 /// The fold routes, unbound. `api::http` merges these into the standalone
