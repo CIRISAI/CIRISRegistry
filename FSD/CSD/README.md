@@ -13,9 +13,9 @@ PortalService methods each card stood in for), `COMMON_CARDS_ANALYSIS.md` (which
 cards already carry parts of this set, and what to fold where).
 
 **Registry pin:** `registry_sha256`
-`d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b` (188 families; the
-grammar hash, `_meta.registry_sha256`), the hash CC 1.0-rc12 and 1.0-rc13 share. Every
-`ceg:` family the seven cards name resolves in it. The cards cite CC 1.0-rc13 text.
+`df79a1dde30a380380da83f0d776737e580705b6305741f037a5a78c2bef9898` (189 families; the
+grammar hash, `_meta.registry_sha256`), CC 1.0-rc14. Every
+`ceg:` family the seven cards name resolves in it. The cards cite CC 1.0-rc14 text.
 
 **Catalogue pin:** CSD/4 catalogue version 3, the client's `packaging/csd4/PIN.md`
 (CIRISServer v0.5.233); the server's main is at version 5. T6 and T18, the entries these

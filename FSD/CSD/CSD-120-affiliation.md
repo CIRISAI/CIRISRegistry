@@ -64,7 +64,7 @@ flow is CSD-102's founding flow with `cohort_scope: affiliations` and one more
 step, the charter.
 
 ```yaml csd:shows
-registry_sha256: d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b
+registry_sha256: df79a1dde30a380380da83f0d776737e580705b6305741f037a5a78c2bef9898
 fields:
   - ceg: x_private:community_key_id
     use: display-only
