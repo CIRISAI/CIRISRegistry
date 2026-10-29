@@ -57,7 +57,9 @@ use ciris_persist::federation::{
     attestation_emit, BlobBody, EmitAttestationInput, FederationDirectory, KeyRecord,
     SignedKeyRecord,
 };
-use ciris_verify_core::threshold::{verify_threshold_signatures, ThresholdMember, ThresholdSignature};
+use ciris_verify_core::threshold::{
+    verify_threshold_signatures, ThresholdMember, ThresholdSignature,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -67,7 +69,7 @@ const DIMENSION_STEM: &str = "provenance:build_manifest:";
 const DIMENSION_VERSION: &str = "v1";
 /// Largest manifest the submit door takes. A file manifest for the agent tree
 /// is a few hundred KiB; persist's inline blob cap is 1 MiB.
-const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
 
 /// `provenance:build_manifest:{target}:v1`.
 #[must_use]
@@ -145,6 +147,31 @@ pub enum Refusal {
     PipelineNotBlessed(String),
     /// The substrate refused or failed. Carries its message.
     Substrate(String),
+    /// `{suite}` is a closed vocabulary admitted by registration (CC 3.1.7
+    /// R2: an unregistered family never admits). This node serves only the
+    /// suites CC registers and it has rules for.
+    SuiteUnregistered(String),
+    /// An evidence `kind` the suite does not define.
+    EvidenceKindInvalid(String),
+    /// An evidence `cell` that is not `{lang}_{domain}`.
+    EvidenceCellInvalid(String),
+    /// The `{prefix}` segment is not the first 16 hex of the capture blob's digest.
+    EvidencePrefixMismatch { expected: String, found: String },
+    /// An interpret bundle that names no capture (`capture_manifest_sha256`).
+    EvidenceCaptureLinkMissing,
+    /// The score is absent, not derivable from the bundle, or outside the
+    /// family's declared polarity.
+    EvidenceScoreInvalid(String),
+    /// `references_attestation_id` names a row this node does not hold.
+    EvidenceReferenceNotFound(String),
+    /// `references_attestation_id` names a row outside `goal:` / `approach:` /
+    /// `method:`.
+    EvidenceReferenceNotAGoal {
+        attestation_id: String,
+        dimension: String,
+    },
+    /// `references_attestation_id` names a row that has been withdrawn.
+    EvidenceReferenceWithdrawn(String),
 }
 
 impl Refusal {
@@ -153,7 +180,17 @@ impl Refusal {
             Self::Malformed(_)
             | Self::DimensionMismatch { .. }
             | Self::ManifestHashMismatch { .. }
-            | Self::ManifestSizeMismatch { .. } => StatusCode::BAD_REQUEST,
+            | Self::ManifestSizeMismatch { .. }
+            | Self::SuiteUnregistered(_)
+            | Self::EvidenceKindInvalid(_)
+            | Self::EvidenceCellInvalid(_)
+            | Self::EvidencePrefixMismatch { .. }
+            | Self::EvidenceCaptureLinkMissing
+            | Self::EvidenceScoreInvalid(_)
+            | Self::EvidenceReferenceNotAGoal { .. } => StatusCode::BAD_REQUEST,
+            Self::EvidenceReferenceNotFound(_) | Self::EvidenceReferenceWithdrawn(_) => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
             Self::ManifestTooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Self::UnknownPipeline(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::SignatureInvalid => StatusCode::UNAUTHORIZED,
@@ -175,6 +212,17 @@ impl Refusal {
             Self::SignatureInvalid => "signature_invalid",
             Self::PipelineNotBlessed(_) => "pipeline_not_blessed",
             Self::Substrate(_) => "substrate_error",
+            Self::SuiteUnregistered(_) => "namespace_vocab_value_unregistered",
+            Self::EvidenceKindInvalid(_) => "evidence_kind_invalid",
+            Self::EvidenceCellInvalid(_) => "evidence_cell_invalid",
+            Self::EvidencePrefixMismatch { .. } => "evidence_prefix_mismatch",
+            Self::EvidenceCaptureLinkMissing => "evidence_capture_link_missing",
+            Self::EvidenceScoreInvalid(_) => "evidence_score_invalid",
+            // One CC token (3.1.5.5, rc14) for every way a Goal reference
+            // fails to resolve; the variant's Display carries which way.
+            Self::EvidenceReferenceNotFound(_)
+            | Self::EvidenceReferenceNotAGoal { .. }
+            | Self::EvidenceReferenceWithdrawn(_) => "evidence_reference_unresolved",
         }
     }
 }
@@ -182,9 +230,9 @@ impl Refusal {
 impl std::fmt::Display for Refusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Malformed(m) => write!(f, "not a build-manifest Contribution: {m}"),
+            Self::Malformed(m) => write!(f, "not a well-formed Contribution: {m}"),
             Self::DimensionMismatch { expected, found } => {
-                write!(f, "dimension is {found:?}, expected {expected:?} for this build's target")
+                write!(f, "dimension is {found:?}, expected {expected:?} for these facts")
             }
             Self::ManifestHashMismatch { expected, found } => write!(
                 f,
@@ -212,6 +260,35 @@ impl std::fmt::Display for Refusal {
                  manifest is valid only from a blessed pipeline"
             ),
             Self::Substrate(e) => write!(f, "substrate: {e}"),
+            Self::SuiteUnregistered(s) => write!(
+                f,
+                "evidence suite {s:?} is not a registered value of `evidence:{{suite}}` on this node \
+                 (CC 3.1.7 R2: an unregistered family never admits)"
+            ),
+            Self::EvidenceKindInvalid(k) => write!(f, "evidence kind {k:?} is not one the suite defines"),
+            Self::EvidenceCellInvalid(c) => {
+                write!(f, "evidence cell {c:?} is not `{{lang}}_{{domain}}` in lowercase")
+            }
+            Self::EvidencePrefixMismatch { expected, found } => write!(
+                f,
+                "the dimension's prefix is {found}, but the capture blob's digest begins {expected}"
+            ),
+            Self::EvidenceCaptureLinkMissing => {
+                f.write_str("an interpret bundle must name its capture in `capture_manifest_sha256`")
+            }
+            Self::EvidenceScoreInvalid(why) => write!(f, "evidence score: {why}"),
+            Self::EvidenceReferenceNotFound(id) => write!(
+                f,
+                "references_attestation_id {id:?} names a row this node does not hold"
+            ),
+            Self::EvidenceReferenceNotAGoal { attestation_id, dimension } => write!(
+                f,
+                "references_attestation_id {attestation_id:?} is on {dimension:?}, not a goal:, \
+                 approach: or method: row"
+            ),
+            Self::EvidenceReferenceWithdrawn(id) => {
+                write!(f, "references_attestation_id {id:?} names a withdrawn row")
+            }
         }
     }
 }
@@ -223,12 +300,14 @@ impl IntoResponse for Refusal {
     }
 }
 
-fn substrate(e: impl std::fmt::Display) -> Refusal {
+pub(crate) fn substrate(e: impl std::fmt::Display) -> Refusal {
     Refusal::Substrate(e.to_string())
 }
 
-fn is_bare_sha256_hex(s: &str) -> bool {
-    s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+pub(crate) fn is_bare_sha256_hex(s: &str) -> bool {
+    s.len() == 64
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// The build facts in an envelope, with the self-consistency a Contribution
@@ -238,7 +317,9 @@ fn facts_of(envelope: &serde_json::Value) -> Result<BuildFacts, Refusal> {
     let facts: BuildFacts =
         serde_json::from_value(build.clone()).map_err(|_| Refusal::Malformed("build members"))?;
     if !is_bare_sha256_hex(&facts.manifest_hash) {
-        return Err(Refusal::Malformed("build.manifest_hash is not 64 lowercase hex chars"));
+        return Err(Refusal::Malformed(
+            "build.manifest_hash is not 64 lowercase hex chars",
+        ));
     }
     let found = envelope
         .get("dimension")
@@ -246,7 +327,10 @@ fn facts_of(envelope: &serde_json::Value) -> Result<BuildFacts, Refusal> {
         .ok_or(Refusal::Malformed("dimension"))?;
     let expected = build_manifest_dimension(&facts.target);
     if found != expected {
-        return Err(Refusal::DimensionMismatch { expected, found: found.to_string() });
+        return Err(Refusal::DimensionMismatch {
+            expected,
+            found: found.to_string(),
+        });
     }
     if envelope.get("delegation_scope").and_then(|s| s.as_str()) != Some(INFRA_ATTEST_SCOPE) {
         return Err(Refusal::Malformed("delegation_scope is not infra:attest"));
@@ -254,15 +338,25 @@ fn facts_of(envelope: &serde_json::Value) -> Result<BuildFacts, Refusal> {
     let names_its_blob = envelope
         .get("evidence_refs")
         .and_then(|r| r.as_array())
-        .is_some_and(|refs| refs.iter().any(|r| r.as_str() == Some(facts.manifest_hash.as_str())));
+        .is_some_and(|refs| {
+            refs.iter()
+                .any(|r| r.as_str() == Some(facts.manifest_hash.as_str()))
+        });
     if !names_its_blob {
-        return Err(Refusal::Malformed("evidence_refs does not name build.manifest_hash"));
+        return Err(Refusal::Malformed(
+            "evidence_refs does not name build.manifest_hash",
+        ));
     }
     Ok(facts)
 }
 
 /// Does `(ed, pqc)` verify over `canonical` against `key`'s registered pubkeys?
-fn signature_verifies(key: &KeyRecord, canonical: &[u8], ed: &str, pqc: Option<&str>) -> bool {
+pub(crate) fn signature_verifies(
+    key: &KeyRecord,
+    canonical: &[u8],
+    ed: &str,
+    pqc: Option<&str>,
+) -> bool {
     let member = ThresholdMember {
         member_id: key.key_id.clone(),
         ed25519_public_key_base64: key.pubkey_ed25519_base64.clone(),
@@ -284,10 +378,16 @@ fn signature_verifies(key: &KeyRecord, canonical: &[u8], ed: &str, pqc: Option<&
 pub enum Blessing {
     /// A live `delegates_to(root → pipeline, infra:attest)` from a single-key
     /// root this node accepts.
-    Delegation { root_key_id: String, grant_attestation_id: String },
+    Delegation {
+        root_key_id: String,
+        grant_attestation_id: String,
+    },
     /// The same grant, signed by enough seated holders of a family this node
     /// accepts that it is a grant by the family.
-    FamilyQuorum { root_key_id: String, grant_attestation_id: String },
+    FamilyQuorum {
+        root_key_id: String,
+        grant_attestation_id: String,
+    },
     /// The accord co-scrubbed `infra:attest` onto the pipeline's key record,
     /// and no quorum has withdrawn it. This is what the CI-key ceremony
     /// (`POST /v1/accord/ci-key/{propose,cosign}`) produces. It names no root
@@ -296,7 +396,7 @@ pub enum Blessing {
 }
 
 impl Blessing {
-    fn summary(&self) -> String {
+    pub(crate) fn summary(&self) -> String {
         match self {
             Self::Delegation { root_key_id, .. } => format!("delegation:{root_key_id}"),
             Self::FamilyQuorum { root_key_id, .. } => format!("family_quorum:{root_key_id}"),
@@ -319,16 +419,20 @@ impl Blessing {
 /// root in its own right and asks for a charter, a recovery commitment and a
 /// heartbeat, none of which a pipeline has, so it answers `None` for every
 /// pipeline the ceremony blesses.
-async fn blessing(
+pub(crate) async fn blessing(
     directory: &dyn FederationDirectory,
     node_key_id: &str,
     pipeline_key_id: &str,
 ) -> Result<Option<Blessing>, Refusal> {
     use ciris_persist::federation::trust_root::ConferralPlane;
-    let walked: Option<TrustedGrant> =
-        capability_roots_to_trusted_root(directory, node_key_id, pipeline_key_id, INFRA_ATTEST_SCOPE)
-            .await
-            .map_err(substrate)?;
+    let walked: Option<TrustedGrant> = capability_roots_to_trusted_root(
+        directory,
+        node_key_id,
+        pipeline_key_id,
+        INFRA_ATTEST_SCOPE,
+    )
+    .await
+    .map_err(substrate)?;
     if let Some(grant) = walked {
         return Ok(Some(match grant.conferral_plane {
             ConferralPlane::Delegation => Blessing::Delegation {
@@ -349,11 +453,12 @@ async fn blessing(
     Ok(by_role.then_some(Blessing::AccordRole))
 }
 
-/// A stored Contribution that passed every check, now.
+/// A stored Contribution that passed every check, now. `F` is the family's
+/// facts: [`BuildFacts`] here, [`crate::fold_evidence::EvidenceFacts`] there.
 #[derive(Debug, Clone)]
-pub struct VerifiedBuild {
+pub struct VerifiedRow<F> {
     /// The attested facts.
-    pub facts: BuildFacts,
+    pub facts: F,
     /// The row that carries them.
     pub attestation_id: String,
     /// The pipeline key that signed it.
@@ -365,32 +470,42 @@ pub struct VerifiedBuild {
     pub pipeline_record: KeyRecord,
     /// The Contribution exactly as the pipeline signed it.
     pub contribution: SignedContribution,
+    /// When the row was asserted: the signing time persist stamped.
+    pub asserted_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// A build-manifest Contribution that passed every check, now.
+pub type VerifiedBuild = VerifiedRow<BuildFacts>;
+
 /// Check a stored row end to end. `None` for anything that is not a currently
-/// valid build-manifest Contribution; the reason is logged, not returned,
-/// because a read that finds nothing valid has nothing to say about the rest.
-async fn verify_row(
+/// valid Contribution of the family `stem` names; the reason is logged, not
+/// returned, because a read that finds nothing valid has nothing to say about
+/// the rest. `facts_of` is the family's envelope check.
+pub(crate) async fn verify_row<F: Send>(
     directory: &dyn FederationDirectory,
     node_key_id: &str,
     pipeline: &KeyRecord,
     row: &Attestation,
-) -> Option<VerifiedBuild> {
-    if row.attestation_type != attestation_type::SCORES || row.cohort_scope != cohort_scope::FEDERATION {
+    stem: &str,
+    facts_of: &(dyn Fn(&serde_json::Value) -> Result<F, Refusal> + Sync),
+) -> Option<VerifiedRow<F>> {
+    if row.attestation_type != attestation_type::SCORES
+        || row.cohort_scope != cohort_scope::FEDERATION
+    {
         return None;
     }
     let is_family = row
         .attestation_envelope
         .get("dimension")
         .and_then(|d| d.as_str())
-        .is_some_and(|d| d.starts_with(DIMENSION_STEM));
+        .is_some_and(|d| d.starts_with(stem));
     if !is_family {
         return None;
     }
     let facts = match facts_of(&row.attestation_envelope) {
         Ok(f) => f,
         Err(e) => {
-            tracing::warn!(attestation = %row.attestation_id, "build manifest row ignored: {e}");
+            tracing::warn!(attestation = %row.attestation_id, family = stem, "row ignored: {e}");
             return None;
         }
     };
@@ -404,7 +519,8 @@ async fn verify_row(
         tracing::warn!(
             attestation = %row.attestation_id,
             pipeline = %pipeline.key_id,
-            "build manifest row ignored: its signature does not re-verify"
+            family = stem,
+            "row ignored: its signature does not re-verify"
         );
         return None;
     }
@@ -414,7 +530,8 @@ async fn verify_row(
             tracing::info!(
                 attestation = %row.attestation_id,
                 pipeline = %pipeline.key_id,
-                "build manifest row ignored: its pipeline is not blessed for infra:attest here"
+                family = stem,
+                "row ignored: its signer is not blessed for infra:attest here"
             );
             return None;
         }
@@ -423,7 +540,7 @@ async fn verify_row(
             return None;
         }
     };
-    Some(VerifiedBuild {
+    Some(VerifiedRow {
         facts,
         attestation_id: row.attestation_id.clone(),
         pipeline_key_id: pipeline.key_id.clone(),
@@ -434,19 +551,22 @@ async fn verify_row(
             ed25519_signature_base64: row.scrub_signature_classical.clone(),
             mldsa65_signature_base64: row.scrub_signature_pqc.clone().unwrap_or_default(),
         },
+        asserted_at: row.asserted_at,
     })
 }
 
-/// Every currently valid build this node holds a Contribution for.
+/// Every currently valid Contribution of one family this node holds.
 ///
 /// The directory indexes attestations by attester and has no dimension index,
 /// so the walk starts from who may attest: `node` keys. That is every peer on
-/// a busy node; it is acceptable while builds are read rarely, and the place
+/// a busy node; it is acceptable while these are read rarely, and the place
 /// to put an index when they are not.
-pub async fn verified_builds(
+pub(crate) async fn verified_rows<F: Send>(
     directory: &dyn FederationDirectory,
     node_key_id: &str,
-) -> Result<Vec<VerifiedBuild>, Refusal> {
+    stem: &str,
+    facts_of: impl Fn(&serde_json::Value) -> Result<F, Refusal> + Sync,
+) -> Result<Vec<VerifiedRow<F>>, Refusal> {
     let nodes = directory
         .list_keys_by_identity_type(identity_type::NODE)
         .await
@@ -456,19 +576,29 @@ pub async fn verified_builds(
         // persist v56+: a bounded, paged read narrowed to this family, in
         // place of the unbounded `list_attestations_by` (test builds only).
         let query = AttestationQuery::by(&pipeline.key_id, FOLD_PAGE)
-            .dimension_prefix(DIMENSION_STEM)
+            .dimension_prefix(stem)
             .types(&[attestation_type::SCORES]);
         let Ok(rows) = crate::federation::persist_client::collect_pages(directory, query).await
         else {
             continue;
         };
         for row in &rows {
-            if let Some(v) = verify_row(directory, node_key_id, &pipeline, row).await {
+            if let Some(v) =
+                verify_row(directory, node_key_id, &pipeline, row, stem, &facts_of).await
+            {
                 out.push(v);
             }
         }
     }
     Ok(out)
+}
+
+/// Every currently valid build this node holds a Contribution for.
+pub async fn verified_builds(
+    directory: &dyn FederationDirectory,
+    node_key_id: &str,
+) -> Result<Vec<VerifiedBuild>, Refusal> {
+    verified_rows(directory, node_key_id, DIMENSION_STEM, facts_of).await
 }
 
 /// What [`submit`] stored.
@@ -508,16 +638,15 @@ pub struct PipelineCredentials {
 /// Rebuild a signed row from the mirror its author signed, checking the
 /// signature against the author's key in the directory. No re-stamp: a fresh
 /// stamp would mint an id the signature does not cover.
-async fn adopt_row(
+pub(crate) async fn adopt_row(
     directory: &dyn FederationDirectory,
     signed: &SignedContribution,
 ) -> Result<Attestation, Refusal> {
     let core = EnvelopeCore::from_value(signed.signed_envelope.clone())
         .map_err(|_| Refusal::Malformed("envelope"))?;
-    let mirror = core
-        .row
-        .clone()
-        .ok_or(Refusal::Malformed("no signed `row` mirror (CIRISPersist#643)"))?;
+    let mirror = core.row.clone().ok_or(Refusal::Malformed(
+        "no signed `row` mirror (CIRISPersist#643)",
+    ))?;
     let author = directory
         .lookup_public_key(&mirror.attesting_key_id)
         .await
@@ -570,44 +699,71 @@ async fn adopt_row(
     Ok(row)
 }
 
-/// Admit a Contribution and its manifest bytes.
+/// The blob a Contribution claims: its address and its declared size
+/// (CC 5.3.2.5: every blob carries its size).
+#[derive(Debug, Clone)]
+pub(crate) struct BlobClaim {
+    pub hash: String,
+    pub size: u64,
+}
+
+/// What [`admit`] stored.
+#[derive(Debug, Clone)]
+pub(crate) struct Admitted {
+    pub attestation_id: String,
+    pub pipeline_key_id: String,
+    pub blessing: Blessing,
+    pub newly_stored: bool,
+}
+
+/// Check that `blob` is the bytes `claim` names: size first, then the hash
+/// (CC 5.3.2.5). Returns the digest.
+pub(crate) fn check_blob(blob: &[u8], claim: &BlobClaim) -> Result<[u8; 32], Refusal> {
+    if blob.len() as u64 != claim.size {
+        return Err(Refusal::ManifestSizeMismatch {
+            expected: claim.size,
+            found: blob.len() as u64,
+        });
+    }
+    let sha: [u8; 32] = Sha256::digest(blob).into();
+    let found = hex::encode(sha);
+    if found != claim.hash {
+        return Err(Refusal::ManifestHashMismatch {
+            expected: claim.hash.clone(),
+            found,
+        });
+    }
+    Ok(sha)
+}
+
+/// Admit a Contribution and the blob it names. The family's own checks
+/// (envelope facts, blob contents) run before this; what is left is what every
+/// family shares: the blob is the bytes the Contribution names, the row mirror
+/// is a federation-scope `scores` row, the signer is known and its signature
+/// verifies, and the signer is blessed for `infra:attest`.
 ///
 /// Order is cheapest-first. The Contribution and its blob are written only
 /// after every check has passed. The pipeline's credentials are written
 /// before, because the checks read them: each is self-authenticating, and
 /// storing a key record or a grant confers nothing that the capability walk
 /// would not have refused anyway.
-pub async fn submit(
+pub(crate) async fn admit(
     engine: &Arc<Engine>,
     node_key_id: &str,
     contribution: SignedContribution,
-    manifest: &[u8],
+    blob: &[u8],
+    claim: &BlobClaim,
     credentials: PipelineCredentials,
-) -> Result<Accepted, Refusal> {
-    if manifest.len() > MAX_MANIFEST_BYTES {
-        return Err(Refusal::ManifestTooLarge(manifest.len()));
-    }
-    let facts = facts_of(&contribution.signed_envelope)?;
-    // Size first, then the hash (CC 5.3.2.5).
-    if manifest.len() as u64 != facts.manifest_size {
-        return Err(Refusal::ManifestSizeMismatch {
-            expected: facts.manifest_size,
-            found: manifest.len() as u64,
-        });
-    }
-    let sha: [u8; 32] = Sha256::digest(manifest).into();
-    let found = hex::encode(sha);
-    if found != facts.manifest_hash {
-        return Err(Refusal::ManifestHashMismatch { expected: facts.manifest_hash, found });
-    }
+    content_type: &str,
+) -> Result<Admitted, Refusal> {
+    let sha = check_blob(blob, claim)?;
 
     // The columns come out of the signed envelope, never from the caller.
     let core = EnvelopeCore::from_value(contribution.signed_envelope.clone())
         .map_err(|_| Refusal::Malformed("envelope"))?;
-    let mirror = core
-        .row
-        .clone()
-        .ok_or(Refusal::Malformed("no signed `row` mirror (CIRISPersist#643)"))?;
+    let mirror = core.row.clone().ok_or(Refusal::Malformed(
+        "no signed `row` mirror (CIRISPersist#643)",
+    ))?;
     if mirror.attestation_type != attestation_type::SCORES {
         return Err(Refusal::Malformed("row.attestation_type is not `scores`"));
     }
@@ -631,11 +787,16 @@ pub async fn submit(
         if row.attestation_type != attestation_type::DELEGATES_TO
             || row.attested_key_id != mirror.attesting_key_id
         {
-            return Err(Refusal::Malformed("pipeline_grant is not a delegates_to naming this pipeline"));
+            return Err(Refusal::Malformed(
+                "pipeline_grant is not a delegates_to naming this pipeline",
+            ));
         }
         // A grant already held is fine. One persist refuses is not fatal here
         // either: the pipeline may hold another, and the walk below decides.
-        if let Err(e) = directory.put_attestation(SignedAttestation { attestation: row }).await {
+        if let Err(e) = directory
+            .put_attestation(SignedAttestation { attestation: row })
+            .await
+        {
             tracing::debug!(pipeline = %mirror.attesting_key_id, "pipeline_grant not stored: {e}");
         }
     }
@@ -652,8 +813,8 @@ pub async fn submit(
     engine
         .put_blob_signing(
             &sha,
-            BlobBody::Inline(manifest.to_vec()),
-            Some("application/json"),
+            BlobBody::Inline(blob.to_vec()),
+            Some(content_type),
             &pipeline_key_id,
             chrono::Utc::now(),
             uuid::Uuid::new_v4(),
@@ -666,12 +827,46 @@ pub async fn submit(
         .map_err(substrate)?;
     let newly_stored = format!("{outcome:?}").starts_with("Inserted");
 
-    Ok(Accepted {
+    Ok(Admitted {
         attestation_id,
-        manifest_sha256: facts.manifest_hash,
         pipeline_key_id,
         blessing,
         newly_stored,
+    })
+}
+
+/// Admit a build-manifest Contribution and its manifest bytes.
+pub async fn submit(
+    engine: &Arc<Engine>,
+    node_key_id: &str,
+    contribution: SignedContribution,
+    manifest: &[u8],
+    credentials: PipelineCredentials,
+) -> Result<Accepted, Refusal> {
+    if manifest.len() > MAX_MANIFEST_BYTES {
+        return Err(Refusal::ManifestTooLarge(manifest.len()));
+    }
+    let facts = facts_of(&contribution.signed_envelope)?;
+    let claim = BlobClaim {
+        hash: facts.manifest_hash.clone(),
+        size: facts.manifest_size,
+    };
+    let admitted = admit(
+        engine,
+        node_key_id,
+        contribution,
+        manifest,
+        &claim,
+        credentials,
+        "application/json",
+    )
+    .await?;
+    Ok(Accepted {
+        attestation_id: admitted.attestation_id,
+        manifest_sha256: facts.manifest_hash,
+        pipeline_key_id: admitted.pipeline_key_id,
+        blessing: admitted.blessing,
+        newly_stored: admitted.newly_stored,
     })
 }
 
@@ -704,7 +899,10 @@ pub fn router(engine: Arc<Engine>, node_key_id: String) -> Router {
         .route("/v1/builds/{version}", get(build_by_version))
         .route("/v1/builds/hash/{manifest_hash}", get(build_by_hash))
         .route("/v1/builds/manifest/{manifest_hash}", get(manifest_by_hash))
-        .with_state(BuildsState { engine, node_key_id })
+        .with_state(BuildsState {
+            engine,
+            node_key_id,
+        })
 }
 
 #[derive(Deserialize)]
@@ -719,8 +917,14 @@ async fn submit_build(State(st): State<BuildsState>, Json(body): Json<SubmitBody
     let Ok(manifest) = B64.decode(body.manifest_base64.as_bytes()) else {
         return Refusal::Malformed("manifest_base64").into_response();
     };
-    match submit(&st.engine, &st.node_key_id, body.contribution, &manifest, body.credentials)
-        .await
+    match submit(
+        &st.engine,
+        &st.node_key_id,
+        body.contribution,
+        &manifest,
+        body.credentials,
+    )
+    .await
     {
         Ok(accepted) => {
             tracing::info!(
@@ -732,7 +936,10 @@ async fn submit_build(State(st): State<BuildsState>, Json(body): Json<SubmitBody
             (StatusCode::CREATED, Json(accepted)).into_response()
         }
         Err(refusal) => {
-            tracing::warn!(reason = refusal.token(), "build manifest Contribution refused: {refusal}");
+            tracing::warn!(
+                reason = refusal.token(),
+                "build manifest Contribution refused: {refusal}"
+            );
             refusal.into_response()
         }
     }

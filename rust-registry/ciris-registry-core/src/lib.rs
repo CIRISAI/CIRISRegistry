@@ -59,6 +59,7 @@ pub mod error;
 pub mod federation;
 pub mod fold;
 pub mod fold_builds;
+pub mod fold_evidence;
 #[cfg(feature = "standalone")]
 pub mod middleware;
 #[cfg(feature = "standalone")]
