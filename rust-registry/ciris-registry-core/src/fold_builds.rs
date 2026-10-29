@@ -218,9 +218,11 @@ impl Refusal {
             Self::EvidencePrefixMismatch { .. } => "evidence_prefix_mismatch",
             Self::EvidenceCaptureLinkMissing => "evidence_capture_link_missing",
             Self::EvidenceScoreInvalid(_) => "evidence_score_invalid",
-            Self::EvidenceReferenceNotFound(_) => "evidence_reference_not_found",
-            Self::EvidenceReferenceNotAGoal { .. } => "evidence_reference_not_a_goal",
-            Self::EvidenceReferenceWithdrawn(_) => "evidence_reference_withdrawn",
+            // One CC token (3.1.5.5, rc14) for every way a Goal reference
+            // fails to resolve; the variant's Display carries which way.
+            Self::EvidenceReferenceNotFound(_)
+            | Self::EvidenceReferenceNotAGoal { .. }
+            | Self::EvidenceReferenceWithdrawn(_) => "evidence_reference_unresolved",
         }
     }
 }

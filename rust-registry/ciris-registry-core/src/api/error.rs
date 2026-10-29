@@ -32,7 +32,7 @@ use serde_json::{json, Value};
 /// since that file is the artifact this header claims conformance to.
 /// rc6 is open upstream but not cut; this claims the last RELEASED text (rc5),
 /// whose authority triad the licensure surface implements.
-pub const CEG_VERSION: &str = "1.0-rc12";
+pub const CEG_VERSION: &str = "1.0-rc13";
 
 tokio::task_local! {
     /// Per-request id, set by [`request_context_mw`] and read by

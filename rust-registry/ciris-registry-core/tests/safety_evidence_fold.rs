@@ -868,7 +868,7 @@ async fn evidence_offered_against_a_withdrawn_goal_is_refused() {
     let c = sign(&signer, contribution_envelope_against(&facts, score, &goal)).await;
     let (status, json) = post(&engine, SUITE, body(&c, &manifest, None)).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{json}");
-    assert_eq!(json["error"], "evidence_reference_withdrawn");
+    assert_eq!(json["error"], "evidence_reference_unresolved");
 }
 
 #[tokio::test]
@@ -888,7 +888,7 @@ async fn evidence_offered_against_a_row_outside_the_goal_families_is_refused() {
     .await;
     let (status, json) = post(&engine, SUITE, body(&c, &manifest, None)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
-    assert_eq!(json["error"], "evidence_reference_not_a_goal");
+    assert_eq!(json["error"], "evidence_reference_unresolved");
 
     let unknown = uuid::Uuid::new_v4().to_string();
     let c = sign(
@@ -898,7 +898,7 @@ async fn evidence_offered_against_a_row_outside_the_goal_families_is_refused() {
     .await;
     let (status, json) = post(&engine, SUITE, body(&c, &manifest, None)).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{json}");
-    assert_eq!(json["error"], "evidence_reference_not_found");
+    assert_eq!(json["error"], "evidence_reference_unresolved");
 
     let c = sign(
         &signer,
@@ -1051,7 +1051,7 @@ async fn a_progress_measure_citing_the_row_counts_it_and_the_goal_read_finds_it(
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{json}");
-    assert_eq!(json["error"], "evidence_reference_not_found");
+    assert_eq!(json["error"], "evidence_reference_unresolved");
     let (status, json) = get_json(
         &engine,
         &format!("/v1/evidence/{SUITE}?offered_against={goal}"),
