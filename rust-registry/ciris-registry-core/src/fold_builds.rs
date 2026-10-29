@@ -162,6 +162,16 @@ pub enum Refusal {
     /// The score is absent, not derivable from the bundle, or outside the
     /// family's declared polarity.
     EvidenceScoreInvalid(String),
+    /// `references_attestation_id` names a row this node does not hold.
+    EvidenceReferenceNotFound(String),
+    /// `references_attestation_id` names a row outside `goal:` / `approach:` /
+    /// `method:`.
+    EvidenceReferenceNotAGoal {
+        attestation_id: String,
+        dimension: String,
+    },
+    /// `references_attestation_id` names a row that has been withdrawn.
+    EvidenceReferenceWithdrawn(String),
 }
 
 impl Refusal {
@@ -176,7 +186,11 @@ impl Refusal {
             | Self::EvidenceCellInvalid(_)
             | Self::EvidencePrefixMismatch { .. }
             | Self::EvidenceCaptureLinkMissing
-            | Self::EvidenceScoreInvalid(_) => StatusCode::BAD_REQUEST,
+            | Self::EvidenceScoreInvalid(_)
+            | Self::EvidenceReferenceNotAGoal { .. } => StatusCode::BAD_REQUEST,
+            Self::EvidenceReferenceNotFound(_) | Self::EvidenceReferenceWithdrawn(_) => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
             Self::ManifestTooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Self::UnknownPipeline(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::SignatureInvalid => StatusCode::UNAUTHORIZED,
@@ -204,6 +218,9 @@ impl Refusal {
             Self::EvidencePrefixMismatch { .. } => "evidence_prefix_mismatch",
             Self::EvidenceCaptureLinkMissing => "evidence_capture_link_missing",
             Self::EvidenceScoreInvalid(_) => "evidence_score_invalid",
+            Self::EvidenceReferenceNotFound(_) => "evidence_reference_not_found",
+            Self::EvidenceReferenceNotAGoal { .. } => "evidence_reference_not_a_goal",
+            Self::EvidenceReferenceWithdrawn(_) => "evidence_reference_withdrawn",
         }
     }
 }
@@ -258,6 +275,18 @@ impl std::fmt::Display for Refusal {
                 f.write_str("an interpret bundle must name its capture in `capture_manifest_sha256`")
             }
             Self::EvidenceScoreInvalid(why) => write!(f, "evidence score: {why}"),
+            Self::EvidenceReferenceNotFound(id) => write!(
+                f,
+                "references_attestation_id {id:?} names a row this node does not hold"
+            ),
+            Self::EvidenceReferenceNotAGoal { attestation_id, dimension } => write!(
+                f,
+                "references_attestation_id {attestation_id:?} is on {dimension:?}, not a goal:, \
+                 approach: or method: row"
+            ),
+            Self::EvidenceReferenceWithdrawn(id) => {
+                write!(f, "references_attestation_id {id:?} names a withdrawn row")
+            }
         }
     }
 }

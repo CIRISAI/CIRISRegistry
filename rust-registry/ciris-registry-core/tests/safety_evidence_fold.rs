@@ -24,7 +24,8 @@ use ciris_persist::federation::{attestation_emit, EmitAttestationInput, SignedKe
 use ciris_registry_core::crypto::HybridCrypto;
 use ciris_registry_core::fold_builds::SignedContribution;
 use ciris_registry_core::fold_evidence::{
-    contribution_envelope, evidence_dimension, prefix_of, EvidenceFacts, Judge, Rubric,
+    cited_under, contribution_envelope, contribution_envelope_against, counted_by,
+    evidence_dimension, prefix_of, resolve_goal_reference, EvidenceFacts, Judge, Rubric,
 };
 use ciris_verify_core::federation_self_record::{produce_scrubbed_key_record, ScrubTarget};
 use ciris_verify_core::self_at_login::{HybridSigningIdentity, SelfSigner};
@@ -244,10 +245,23 @@ async fn write_through_persist(
     signer: &HybridSigningIdentity,
     envelope: serde_json::Value,
 ) -> Result<(), String> {
+    write_row(engine, signer, "scores", envelope)
+        .await
+        .map(|_| ())
+}
+
+/// Write a signed row of `attestation_type` straight through persist by
+/// `signer`, on its own key. Returns the row's id.
+async fn write_row(
+    engine: &Arc<Engine>,
+    signer: &HybridSigningIdentity,
+    attestation_type: &str,
+    envelope: serde_json::Value,
+) -> Result<String, String> {
     let directory = engine.federation_directory();
     let _ = directory.put_public_key(self_record(signer).await).await;
     let core = EnvelopeCore::from_value(envelope).unwrap();
-    let mut input = EmitAttestationInput::with_envelope("scores", core, "federation");
+    let mut input = EmitAttestationInput::with_envelope(attestation_type, core, "federation");
     input.attested_key_id = Some(signer.key_id().to_string());
     let canonical =
         attestation_emit::stamp_and_canonicalize(&mut input, signer.key_id(), chrono::Utc::now())
@@ -270,11 +284,60 @@ async fn write_through_persist(
     };
     let (row, _) =
         attestation_emit::assemble(signer.key_id().to_string(), &canonical, sig, input).unwrap();
+    let id = row.attestation_id.clone();
     directory
         .put_attestation(SignedAttestation { attestation: row })
         .await
-        .map(|_| ())
+        .map(|_| id)
         .map_err(|e| e.to_string())
+}
+
+/// A `goal:species:v1` row (CC 3.1.9.7): a signed `scores` row on the family.
+async fn goal_row(engine: &Arc<Engine>, signer: &HybridSigningIdentity) -> String {
+    write_row(
+        engine,
+        signer,
+        "scores",
+        serde_json::json!({
+            "dimension": "goal:species:v1",
+            "score": 0.5,
+            "goal": "every cell of the safety battery reaches a passing interpretation",
+        }),
+    )
+    .await
+    .expect("persist admits a goal row")
+}
+
+/// A `withdraws` of `target` by its own author (CEG §6.1 rule 1).
+async fn withdraw(engine: &Arc<Engine>, signer: &HybridSigningIdentity, target: &str) -> String {
+    write_row(
+        engine,
+        signer,
+        "withdraws",
+        serde_json::json!({
+            "references_attestation_id": target,
+            "withdrawal_reason": "retired by its author",
+        }),
+    )
+    .await
+    .expect("persist admits a self-withdraws")
+}
+
+/// A `supersedes` of `target` by its own author, carrying the successor body.
+async fn supersede(engine: &Arc<Engine>, signer: &HybridSigningIdentity, target: &str) -> String {
+    write_row(
+        engine,
+        signer,
+        "supersedes",
+        serde_json::json!({
+            "dimension": "goal:species:v1",
+            "score": 0.6,
+            "references_attestation_id": target,
+            "goal": "every cell of the safety battery reaches a passing interpretation, in 29 languages",
+        }),
+    )
+    .await
+    .expect("persist admits a self-supersedes")
 }
 
 // ───────────────────────────── the door ─────────────────────────────
@@ -746,6 +809,256 @@ async fn the_listing_filters_and_unverified_bytes_are_not_served() {
         Some(0),
         "unblessed rows are not evidence"
     );
+}
+
+// ───────────────────────────── citing a Goal ─────────────────────────────
+
+/// Offered against a held goal row: every suite rule and the reference pass;
+/// the reference resolves to the goal itself; the stored row carries it.
+#[tokio::test]
+async fn evidence_offered_against_a_goal_row_is_admitted_up_to_the_blessing_and_resolves() {
+    let engine = engine().await;
+    let author = HybridSigningIdentity::generate("goal-author").unwrap();
+    let goal = goal_row(&engine, &author).await;
+    let signer = HybridSigningIdentity::generate("agent-steward-test").unwrap();
+    let (manifest, facts, score) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let c = sign(&signer, contribution_envelope_against(&facts, score, &goal)).await;
+    let (status, json) = post(
+        &engine,
+        SUITE,
+        body(&c, &manifest, Some(&self_record(&signer).await)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{json}");
+    assert_eq!(
+        json["error"], "pipeline_not_blessed",
+        "the reference passed"
+    );
+
+    let resolved = resolve_goal_reference(engine.federation_directory().as_ref(), &goal)
+        .await
+        .unwrap();
+    assert_eq!(resolved.attestation_id, goal);
+    assert_eq!(resolved.family, "goal");
+    assert_eq!(resolved.dimension, "goal:species:v1");
+
+    write_through_persist(
+        &engine,
+        &signer,
+        contribution_envelope_against(&facts, score, &goal),
+    )
+    .await
+    .unwrap();
+    let rows = rows_by(&engine, "agent-steward-test").await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].attestation_envelope["references_attestation_id"],
+        goal
+    );
+}
+
+#[tokio::test]
+async fn evidence_offered_against_a_withdrawn_goal_is_refused() {
+    let engine = engine().await;
+    let author = HybridSigningIdentity::generate("goal-author").unwrap();
+    let goal = goal_row(&engine, &author).await;
+    withdraw(&engine, &author, &goal).await;
+    let signer = HybridSigningIdentity::generate("agent-steward-test").unwrap();
+    let (manifest, facts, score) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let c = sign(&signer, contribution_envelope_against(&facts, score, &goal)).await;
+    let (status, json) = post(&engine, SUITE, body(&c, &manifest, None)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{json}");
+    assert_eq!(json["error"], "evidence_reference_withdrawn");
+}
+
+#[tokio::test]
+async fn evidence_offered_against_a_row_outside_the_goal_families_is_refused() {
+    let engine = engine().await;
+    let author = HybridSigningIdentity::generate("goal-author").unwrap();
+    let (_, other, s) = capture("hi_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let not_a_goal = write_row(&engine, &author, "scores", contribution_envelope(&other, s))
+        .await
+        .unwrap();
+    let signer = HybridSigningIdentity::generate("agent-steward-test").unwrap();
+    let (manifest, facts, score) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let c = sign(
+        &signer,
+        contribution_envelope_against(&facts, score, &not_a_goal),
+    )
+    .await;
+    let (status, json) = post(&engine, SUITE, body(&c, &manifest, None)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
+    assert_eq!(json["error"], "evidence_reference_not_a_goal");
+
+    let unknown = uuid::Uuid::new_v4().to_string();
+    let c = sign(
+        &signer,
+        contribution_envelope_against(&facts, score, &unknown),
+    )
+    .await;
+    let (status, json) = post(&engine, SUITE, body(&c, &manifest, None)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{json}");
+    assert_eq!(json["error"], "evidence_reference_not_found");
+
+    let c = sign(
+        &signer,
+        contribution_envelope_against(&facts, score, "not-an-id"),
+    )
+    .await;
+    let (status, json) = post(&engine, SUITE, body(&c, &manifest, None)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
+    assert_eq!(json["error"], "contribution_malformed");
+}
+
+#[tokio::test]
+async fn evidence_offered_against_a_superseded_goal_resolves_to_the_successor() {
+    let engine = engine().await;
+    let author = HybridSigningIdentity::generate("goal-author").unwrap();
+    let goal = goal_row(&engine, &author).await;
+    let successor = supersede(&engine, &author, &goal).await;
+    let resolved = resolve_goal_reference(engine.federation_directory().as_ref(), &goal)
+        .await
+        .unwrap();
+    assert_eq!(
+        resolved.attestation_id, successor,
+        "the stated goal resolves to its successor"
+    );
+    assert_eq!(resolved.as_stated, goal);
+    assert_eq!(resolved.family, "goal");
+
+    let signer = HybridSigningIdentity::generate("agent-steward-test").unwrap();
+    let (manifest, facts, score) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let c = sign(&signer, contribution_envelope_against(&facts, score, &goal)).await;
+    let (status, json) = post(
+        &engine,
+        SUITE,
+        body(&c, &manifest, Some(&self_record(&signer).await)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{json}");
+    assert_eq!(
+        json["error"], "pipeline_not_blessed",
+        "a superseded reference is admissible"
+    );
+}
+
+/// No reference is admissible: the first test in this file is that case.
+/// Here the same, with the member present but null.
+#[tokio::test]
+async fn evidence_with_no_reference_is_admissible() {
+    let engine = engine().await;
+    let signer = HybridSigningIdentity::generate("agent-steward-test").unwrap();
+    let (manifest, facts, score) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let mut env = contribution_envelope(&facts, score);
+    env["references_attestation_id"] = serde_json::Value::Null;
+    let c = sign(&signer, env).await;
+    let (status, json) = post(
+        &engine,
+        SUITE,
+        body(&c, &manifest, Some(&self_record(&signer).await)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{json}");
+    assert_eq!(json["error"], "pipeline_not_blessed");
+}
+
+/// The Goal side's count: a `progress_measure:{method_id}` row citing the
+/// evidence (by manifest hash) is reported as `counted_by`, and the walk
+/// goal → approach → method → progress_measure finds the evidence under the
+/// goal.
+#[tokio::test]
+async fn a_progress_measure_citing_the_row_counts_it_and_the_goal_read_finds_it() {
+    let engine = engine().await;
+    let author = HybridSigningIdentity::generate("goal-author").unwrap();
+    let goal = goal_row(&engine, &author).await;
+    let approach = write_row(
+        &engine,
+        &author,
+        "scores",
+        serde_json::json!({
+            "dimension": format!("approach:{goal}:v1"), "score": 0.5,
+            "approach": "run the battery on every release candidate",
+        }),
+    )
+    .await
+    .unwrap();
+    let method = write_row(
+        &engine,
+        &author,
+        "scores",
+        serde_json::json!({
+            "dimension": format!("method:{approach}:a1:v1"), "score": 0.5,
+            "method": "safety-battery.yml on main",
+        }),
+    )
+    .await
+    .unwrap();
+    let signer = HybridSigningIdentity::generate("agent-steward-replicated").unwrap();
+    let (_, facts, score) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let evidence_id = write_row(
+        &engine,
+        &signer,
+        "scores",
+        contribution_envelope_against(&facts, score, &goal),
+    )
+    .await
+    .unwrap();
+    let measure = write_row(&engine, &author, "scores", serde_json::json!({
+        "dimension": format!("progress_measure:{method}:v1"), "score": 0.5,
+        "tracks": ["pass_ratio"], "computation": "mean", "validity_window": "P30D", "goodhart_resistance": "two judges",
+        "evidence_refs": [facts.manifest_hash],
+    })).await.unwrap();
+
+    let directory = engine.federation_directory();
+    let counted = counted_by(directory.as_ref(), &facts.manifest_hash, &evidence_id)
+        .await
+        .unwrap();
+    assert_eq!(counted, vec![measure.clone()]);
+    let unrelated = counted_by(directory.as_ref(), &"00".repeat(32), "nobody")
+        .await
+        .unwrap();
+    assert!(unrelated.is_empty());
+
+    let target = resolve_goal_reference(directory.as_ref(), &goal)
+        .await
+        .unwrap();
+    let cited = cited_under(directory.as_ref(), &target).await.unwrap();
+    assert!(
+        cited.contains(&facts.manifest_hash),
+        "the walk goal → approach → method → measure cites the row"
+    );
+    let under_method = cited_under(
+        directory.as_ref(),
+        &resolve_goal_reference(directory.as_ref(), &method)
+            .await
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(under_method, cited);
+
+    // The route answers for the goal; the rows it would list are unblessed
+    // here, so the list is empty while the citation set is not.
+    let (status, json) =
+        get_json(&engine, &format!("/v1/goals/{goal}/evidence?suite={SUITE}")).await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["goal"]["attestation_id"], goal);
+    assert_eq!(json["cited"].as_array().map(Vec::len), Some(1));
+    assert_eq!(json["evidence"].as_array().map(Vec::len), Some(0));
+    let (status, json) = get_json(
+        &engine,
+        &format!("/v1/goals/{}/evidence", uuid::Uuid::new_v4()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{json}");
+    assert_eq!(json["error"], "evidence_reference_not_found");
+    let (status, json) = get_json(
+        &engine,
+        &format!("/v1/evidence/{SUITE}?offered_against={goal}"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{json}");
+    assert_eq!(json["evidence"].as_array().map(Vec::len), Some(0));
 }
 
 /// The build-manifest door is untouched by the generalization.

@@ -41,6 +41,19 @@
 //! interpretation of the same capture is a later row on the same dimension,
 //! not a new one.
 //!
+//! # Citing a Goal
+//!
+//! Evidence is offered against something (CC 3.1.9.3 / 3.1.9.7). The row
+//! may name the `goal:{scale}`, `approach:{goal_id}` or
+//! `method:{approach_id}:{substrate_rung}` row it is offered against in the
+//! envelope's existing `references_attestation_id` member; no new member.
+//! At the door the referenced row must be held here, be one of those three
+//! families, and not be withdrawn; a superseded one resolves to its latest
+//! successor, which is what the read reports as `offered_against`. An
+//! absent reference is admissible. The Goal side's count is a separate
+//! self-report: `progress_measure:{method_id}` rows that cite this row in
+//! their `evidence_refs[]` are reported as `counted_by`, never as standing.
+//!
 //! `asserted_at` is the signing time. `captured_at` in the manifest is when
 //! the work was done. The two may differ by any amount: back-signing existing
 //! bundles is admitted with the original run's `ci_provenance`.
@@ -56,13 +69,15 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use ciris_persist::engine::Engine;
+use ciris_persist::federation::attestation_query::{AttestationQuery, FOLD_PAGE};
 use ciris_persist::federation::trust_root::INFRA_ATTEST_SCOPE;
+use ciris_persist::federation::types::{attestation_type, identity_type, Attestation};
 use ciris_persist::federation::{FederationDirectory, KeyRecord};
 use serde::{Deserialize, Serialize};
 
 use crate::fold_builds::{
-    admit, check_blob, is_bare_sha256_hex, manifest_bytes, verified_rows, Blessing, BlobClaim,
-    PipelineCredentials, Refusal, SignedContribution, VerifiedRow, MAX_MANIFEST_BYTES,
+    admit, check_blob, is_bare_sha256_hex, manifest_bytes, substrate, verified_rows, Blessing,
+    BlobClaim, PipelineCredentials, Refusal, SignedContribution, VerifiedRow, MAX_MANIFEST_BYTES,
 };
 
 /// The family stem. A dimension under it is `{stem}{suite}:{kind}:{cell}:{prefix}:v1`.
@@ -163,6 +178,40 @@ pub fn contribution_envelope(facts: &EvidenceFacts, score: f64) -> serde_json::V
         "evidence": facts,
         "evidence_refs": [facts.manifest_hash],
     })
+}
+
+/// [`contribution_envelope`] offered against a Goal-side row: the envelope's
+/// `references_attestation_id` names it (CC 3.1.9.3).
+#[must_use]
+pub fn contribution_envelope_against(
+    facts: &EvidenceFacts,
+    score: f64,
+    references_attestation_id: &str,
+) -> serde_json::Value {
+    let mut env = contribution_envelope(facts, score);
+    env["references_attestation_id"] = serde_json::json!(references_attestation_id);
+    env
+}
+
+/// The Goal-side row an envelope is offered against, as stated: the
+/// `references_attestation_id` member, shape-checked (an attestation id is a
+/// UUID). `None` when absent, which is admissible.
+pub fn reference_of(envelope: &serde_json::Value) -> Result<Option<String>, Refusal> {
+    match envelope.get("references_attestation_id") {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(v) => {
+            let id = v
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .ok_or(Refusal::Malformed("references_attestation_id"))?;
+            if uuid::Uuid::parse_str(id).is_err() {
+                return Err(Refusal::Malformed(
+                    "references_attestation_id is not an attestation id",
+                ));
+            }
+            Ok(Some(id.to_string()))
+        }
+    }
 }
 
 /// The facts and score in an envelope, with the self-consistency a
@@ -498,6 +547,9 @@ pub async fn submit(
         });
     }
     rules.check_facts(&facts, score)?;
+    if let Some(id) = reference_of(&contribution.signed_envelope)? {
+        resolve_goal_reference(engine.federation_directory().as_ref(), &id).await?;
+    }
     let claim = BlobClaim {
         hash: facts.manifest_hash.clone(),
         size: facts.manifest_size,
@@ -524,8 +576,17 @@ pub async fn submit(
     })
 }
 
-/// A stored evidence row that passed every check, now: the facts and the score.
-pub type VerifiedEvidence = VerifiedRow<(EvidenceFacts, f64)>;
+/// What a verified evidence row carries: the facts, the score, and the
+/// Goal-side row it was offered against, as stated.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EvidenceRow {
+    pub facts: EvidenceFacts,
+    pub score: f64,
+    pub reference: Option<String>,
+}
+
+/// A stored evidence row that passed every check, now.
+pub type VerifiedEvidence = VerifiedRow<EvidenceRow>;
 
 /// Every currently valid evidence row of `suite_name` this node holds,
 /// newest assertion first.
@@ -544,11 +605,222 @@ pub async fn verified_evidence(
         suite(&facts.suite)
             .ok_or_else(|| Refusal::SuiteUnregistered(facts.suite.clone()))?
             .check_facts(&facts, score)?;
-        Ok((facts, score))
+        let reference = reference_of(env)?;
+        Ok(EvidenceRow {
+            facts,
+            score,
+            reference,
+        })
     })
     .await?;
     rows.sort_by(|a, b| b.asserted_at.cmp(&a.asserted_at));
     Ok(rows)
+}
+
+// ───────────────────────────── the Goal side ─────────────────────────────
+
+/// The Goal-side families an evidence row may be offered against
+/// (CC 3.1.9.7), as dimension stems.
+pub const GOAL_FAMILY_STEMS: &[(&str, &str)] = &[
+    ("goal", "goal:"),
+    ("approach", "approach:"),
+    ("method", "method:"),
+];
+/// The Goal side's count of evidence (CC 3.1.9.7).
+pub const PROGRESS_MEASURE_STEM: &str = "progress_measure:";
+/// How many `supersedes` hops a reference is followed through.
+const MAX_SUPERSEDE_HOPS: usize = 16;
+
+/// The Goal-side row an evidence row is offered against, resolved through
+/// `supersedes` to the latest successor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OfferedAgainst {
+    /// The resolved row's id (the successor, when the stated row was
+    /// superseded).
+    pub attestation_id: String,
+    /// `goal`, `approach` or `method`.
+    pub family: String,
+    /// The resolved row's dimension.
+    pub dimension: String,
+    /// The id as the evidence row stated it.
+    pub as_stated: String,
+}
+
+fn goal_family_of(dimension: &str) -> Option<&'static str> {
+    GOAL_FAMILY_STEMS
+        .iter()
+        .find(|(_, stem)| dimension.starts_with(stem))
+        .map(|(family, _)| *family)
+}
+
+fn dimension_of(row: &Attestation) -> Option<&str> {
+    row.attestation_envelope
+        .get("dimension")
+        .and_then(serde_json::Value::as_str)
+}
+
+/// Resolve `attestation_id` as a Goal-side reference: the row must be held
+/// here, be a `goal:` / `approach:` / `method:` row, and not be withdrawn; a
+/// superseded row resolves to its latest non-superseded successor.
+pub async fn resolve_goal_reference(
+    directory: &dyn FederationDirectory,
+    attestation_id: &str,
+) -> Result<OfferedAgainst, Refusal> {
+    let as_stated = attestation_id.to_string();
+    let mut id = as_stated.clone();
+    for _ in 0..MAX_SUPERSEDE_HOPS {
+        let row = directory
+            .get_attestation(&id)
+            .await
+            .map_err(substrate)?
+            .ok_or_else(|| Refusal::EvidenceReferenceNotFound(id.clone()))?;
+        let dimension = dimension_of(&row).unwrap_or_default().to_string();
+        let Some(family) = goal_family_of(&dimension) else {
+            return Err(Refusal::EvidenceReferenceNotAGoal {
+                attestation_id: id,
+                dimension,
+            });
+        };
+        let referencing = directory
+            .list_attestations_referencing(&id)
+            .await
+            .map_err(substrate)?;
+        if referencing
+            .iter()
+            .any(|r| r.attestation_type == attestation_type::WITHDRAWS)
+        {
+            return Err(Refusal::EvidenceReferenceWithdrawn(id));
+        }
+        // Ordered by asserted_at DESC: the first supersedes is the latest.
+        match referencing
+            .iter()
+            .find(|r| r.attestation_type == attestation_type::SUPERSEDES)
+        {
+            Some(successor) => id = successor.attestation_id.clone(),
+            None => {
+                return Ok(OfferedAgainst {
+                    attestation_id: id,
+                    family: family.to_string(),
+                    dimension,
+                    as_stated,
+                })
+            }
+        }
+    }
+    Err(Refusal::Substrate(format!(
+        "the supersedes chain from {as_stated} is longer than {MAX_SUPERSEDE_HOPS}"
+    )))
+}
+
+/// The identity types whose keys may author Goal-side rows. The directory
+/// indexes attestations by attester, so a read by dimension walks keys.
+const GOAL_SIDE_AUTHORS: &[&str] = &[
+    identity_type::NODE,
+    identity_type::AGENT,
+    identity_type::STEWARD,
+    identity_type::PRIMITIVE,
+    identity_type::PARTNER,
+];
+
+/// Every federation-tier row under a dimension `prefix` this node holds,
+/// across the keys that may author it, newest first.
+pub async fn rows_with_prefix(
+    directory: &dyn FederationDirectory,
+    prefix: &str,
+) -> Result<Vec<Attestation>, Refusal> {
+    let mut out = Vec::new();
+    for kind in GOAL_SIDE_AUTHORS {
+        let keys = directory
+            .list_keys_by_identity_type(kind)
+            .await
+            .map_err(substrate)?;
+        for key in keys {
+            let query = AttestationQuery::by(&key.key_id, FOLD_PAGE)
+                .dimension_prefix(prefix)
+                .types(&[attestation_type::SCORES, attestation_type::SUPERSEDES]);
+            let rows = crate::federation::persist_client::collect_pages(directory, query)
+                .await
+                .map_err(substrate)?;
+            out.extend(rows);
+        }
+    }
+    out.sort_by(|a, b| b.asserted_at.cmp(&a.asserted_at));
+    out.dedup_by(|a, b| a.attestation_id == b.attestation_id);
+    Ok(out)
+}
+
+fn evidence_refs_of(row: &Attestation) -> Vec<&str> {
+    row.attestation_envelope
+        .get("evidence_refs")
+        .and_then(serde_json::Value::as_array)
+        .map(|a| a.iter().filter_map(serde_json::Value::as_str).collect())
+        .unwrap_or_default()
+}
+
+/// The `progress_measure:{method_id}` rows that cite an evidence row (by its
+/// manifest hash or its attestation id) in their `evidence_refs[]`. The Goal
+/// side's self-report, never standing.
+pub async fn counted_by(
+    directory: &dyn FederationDirectory,
+    manifest_hash: &str,
+    attestation_id: &str,
+) -> Result<Vec<String>, Refusal> {
+    let measures = rows_with_prefix(directory, PROGRESS_MEASURE_STEM).await?;
+    Ok(measures
+        .iter()
+        .filter(|m| {
+            evidence_refs_of(m)
+                .iter()
+                .any(|r| *r == manifest_hash || *r == attestation_id)
+        })
+        .map(|m| m.attestation_id.clone())
+        .collect())
+}
+
+/// The `method:` row ids under a resolved Goal-side row: the row itself for
+/// a method; every method under every approach for a goal; every method for
+/// an approach. The walk follows the ids embedded in the dimensions
+/// (`approach:{goal_id}`, `method:{approach_id}:{rung}`).
+pub async fn methods_under(
+    directory: &dyn FederationDirectory,
+    target: &OfferedAgainst,
+) -> Result<Vec<String>, Refusal> {
+    let approaches: Vec<String> = match target.family.as_str() {
+        "method" => return Ok(vec![target.attestation_id.clone()]),
+        "approach" => vec![target.attestation_id.clone()],
+        _ => rows_with_prefix(directory, &format!("approach:{}:", target.attestation_id))
+            .await?
+            .into_iter()
+            .map(|r| r.attestation_id)
+            .collect(),
+    };
+    let mut methods = Vec::new();
+    for approach in approaches {
+        methods.extend(
+            rows_with_prefix(directory, &format!("method:{approach}:"))
+                .await?
+                .into_iter()
+                .map(|r| r.attestation_id),
+        );
+    }
+    Ok(methods)
+}
+
+/// Everything the `progress_measure` rows under a Goal-side row cite: the
+/// union of their `evidence_refs[]` (manifest hashes or attestation ids).
+pub async fn cited_under(
+    directory: &dyn FederationDirectory,
+    target: &OfferedAgainst,
+) -> Result<std::collections::BTreeSet<String>, Refusal> {
+    let mut cited = std::collections::BTreeSet::new();
+    for method in methods_under(directory, target).await? {
+        for measure in
+            rows_with_prefix(directory, &format!("{PROGRESS_MEASURE_STEM}{method}:")).await?
+        {
+            cited.extend(evidence_refs_of(&measure).into_iter().map(str::to_string));
+        }
+    }
+    Ok(cited)
 }
 
 // ───────────────────────────── HTTP ─────────────────────────────
@@ -574,6 +846,10 @@ pub fn router(engine: Arc<Engine>, node_key_id: String) -> Router {
         .route(
             "/v1/evidence/{suite}/blob/{manifest_hash}",
             get(blob_by_hash),
+        )
+        .route(
+            "/v1/goals/{attestation_id}/evidence",
+            get(evidence_under_goal),
         )
         .with_state(EvidenceState {
             engine,
@@ -641,6 +917,13 @@ struct EvidenceResponse {
     /// the verdict: `2·r − 1` for pass ratio `r`, so the ratio is
     /// `(score + 1) / 2`.
     score: f64,
+    /// The worker side: the Goal-side row this evidence was offered against,
+    /// resolved through `supersedes` to its latest successor. `null` when
+    /// the row names none, or names one this node no longer resolves.
+    offered_against: Option<OfferedAgainst>,
+    /// The Goal side: the `progress_measure:{method_id}` rows that cite this
+    /// row. A self-report of the Goal side, not standing.
+    counted_by: Vec<String>,
     attestation_id: String,
     asserted_at: String,
     signer_key_id: String,
@@ -655,14 +938,32 @@ struct EvidenceResponse {
 }
 
 async fn respond_row(st: &EvidenceState, row: VerifiedEvidence) -> EvidenceResponse {
-    let (facts, score) = row.facts;
+    let EvidenceRow {
+        facts,
+        score,
+        reference,
+    } = row.facts;
     let held = manifest_bytes(&st.engine, &st.node_key_id, &facts.manifest_hash)
         .await
         .is_some();
+    let directory = st.engine.federation_directory();
+    let offered_against = match reference {
+        Some(id) => resolve_goal_reference(directory.as_ref(), &id).await.ok(),
+        None => None,
+    };
+    let counted_by = counted_by(
+        directory.as_ref(),
+        &facts.manifest_hash,
+        &row.attestation_id,
+    )
+    .await
+    .unwrap_or_default();
     EvidenceResponse {
         dimension: evidence_dimension(&facts.suite, &facts.kind, &facts.cell, &facts.prefix),
         facts,
         score,
+        offered_against,
+        counted_by,
         attestation_id: row.attestation_id,
         asserted_at: row.asserted_at.to_rfc3339(),
         signer_key_id: row.pipeline_key_id,
@@ -686,6 +987,8 @@ struct ListQuery {
     rubric: Option<String>,
     /// RFC 3339; rows whose `captured_at` is at or after it.
     since: Option<String>,
+    /// A Goal-side attestation id; rows whose resolved reference is it.
+    offered_against: Option<String>,
 }
 
 fn not_found(what: &str) -> Response {
@@ -713,9 +1016,16 @@ async fn list_evidence(
         Ok(r) => r,
         Err(e) => return e.into_response(),
     };
+    let want_against = match q.offered_against.as_deref() {
+        Some(id) => match resolve_goal_reference(directory.as_ref(), id).await {
+            Ok(target) => Some(target.attestation_id),
+            Err(e) => return e.into_response(),
+        },
+        None => None,
+    };
     let mut out = Vec::new();
     for row in rows {
-        let (facts, _) = &row.facts;
+        let facts = &row.facts.facts;
         if q.cell.as_deref().is_some_and(|c| c != facts.cell)
             || q.kind.as_deref().is_some_and(|k| k != facts.kind)
             || q.agent_version
@@ -734,9 +1044,68 @@ async fn list_evidence(
                 continue;
             }
         }
-        out.push(respond_row(&st, row).await);
+        let shown = respond_row(&st, row).await;
+        if let Some(want) = &want_against {
+            if shown
+                .offered_against
+                .as_ref()
+                .is_none_or(|o| o.attestation_id != *want)
+            {
+                continue;
+            }
+        }
+        out.push(shown);
     }
     Json(serde_json::json!({ "suite": suite_name, "evidence": out })).into_response()
+}
+
+#[derive(Deserialize, Default)]
+struct GoalQuery {
+    suite: Option<String>,
+}
+
+/// `GET /v1/goals/{attestation_id}/evidence?suite=`: the evidence rows the
+/// Goal side counts under a goal, approach or method, i.e. those the
+/// `progress_measure:{method_id}` rows beneath it cite in `evidence_refs[]`.
+/// The Goal side's self-report; each row still carries its own standing.
+async fn evidence_under_goal(
+    State(st): State<EvidenceState>,
+    Path(attestation_id): Path<String>,
+    Query(q): Query<GoalQuery>,
+) -> Response {
+    let directory = st.engine.federation_directory();
+    let target = match resolve_goal_reference(directory.as_ref(), &attestation_id).await {
+        Ok(t) => t,
+        Err(e) => return e.into_response(),
+    };
+    let cited = match cited_under(directory.as_ref(), &target).await {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
+    let suites: Vec<&str> = match q.suite.as_deref() {
+        Some(s) => vec![s],
+        None => suites().to_vec(),
+    };
+    let mut out = Vec::new();
+    for suite_name in &suites {
+        let rows = match verified_evidence(directory.as_ref(), &st.node_key_id, suite_name).await {
+            Ok(r) => r,
+            Err(e) => return e.into_response(),
+        };
+        for row in rows {
+            if cited.contains(&row.facts.facts.manifest_hash) || cited.contains(&row.attestation_id)
+            {
+                out.push(respond_row(&st, row).await);
+            }
+        }
+    }
+    Json(serde_json::json!({
+        "goal": target,
+        "suites": suites,
+        "cited": cited,
+        "evidence": out,
+    }))
+    .into_response()
 }
 
 async fn evidence_by_hash(
@@ -748,7 +1117,10 @@ async fn evidence_by_hash(
         Ok(r) => r,
         Err(e) => return e.into_response(),
     };
-    match rows.into_iter().find(|r| r.facts.0.manifest_hash == hash) {
+    match rows
+        .into_iter()
+        .find(|r| r.facts.facts.manifest_hash == hash)
+    {
         Some(row) => Json(respond_row(&st, row).await).into_response(),
         None => not_found(&format!("manifest {hash}")),
     }
@@ -761,7 +1133,7 @@ async fn blob_by_hash(
 ) -> Response {
     let directory = st.engine.federation_directory();
     let attested = match verified_evidence(directory.as_ref(), &st.node_key_id, &suite_name).await {
-        Ok(r) => r.into_iter().any(|r| r.facts.0.manifest_hash == hash),
+        Ok(r) => r.into_iter().any(|r| r.facts.facts.manifest_hash == hash),
         Err(e) => return e.into_response(),
     };
     if !attested {
