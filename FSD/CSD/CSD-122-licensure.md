@@ -121,7 +121,7 @@ affiliation's licences), and My things › Devices & keys for the holding side (
 licences). One screen, two scopes.
 
 ```yaml csd:shows
-registry_sha256: d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b
+registry_sha256: df79a1dde30a380380da83f0d776737e580705b6305741f037a5a78c2bef9898
 fields:
   - ceg: "licensure:{authority_id}"
     bind: {authority_id: ciris-canonical}

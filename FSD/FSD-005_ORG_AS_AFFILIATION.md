@@ -5,9 +5,8 @@ translation and models the full state tree for grants and delegations so it clos
 the enumerable depths.
 **Reads with:** FSD-004 §4.3 (the PortalService disposition table this supersedes for
 org data), `formal/authority_tree/` (the state tree), the CSD set under `FSD/CSD/`.
-**Constitution:** CC 1.0-rc13. The registry grammar is pinned at `registry_sha256`
-`d587156605dd8de7c0c56e271625293eb05b3f9b5debd44cf8bc822d4e701c5b` (188 families), the
-hash rc12 and rc13 share; the CSD set under `FSD/CSD/` carries the same pin.
+**Constitution:** CC 1.0-rc14. The registry grammar is pinned at `registry_sha256`
+`df79a1dde30a380380da83f0d776737e580705b6305741f037a5a78c2bef9898` (189 families); the CSD set under `FSD/CSD/` carries the same pin.
 
 ---
 
