@@ -33,9 +33,13 @@
 //! manifest's SHA-256 and its score is 1. An **interpret** is a judge's
 //! per-criterion verdicts over one capture; it carries its capture's
 //! `capture_manifest_sha256` in the manifest, its `{prefix}` is the first 16
-//! hex of THAT digest, and its score is the pass ratio of the verdicts. Both
-//! rows land on one dimension per capture, so a re-posted interpretation of
-//! the same capture is a later row on the same dimension, not a new one.
+//! hex of THAT digest, and its score carries the verdict in its sign: the
+//! family's polarity is `signed` (CC 3.1.7 R4; Part 2: the sign carries the
+//! verdict), so an interpretation scores `2·r − 1` for pass ratio `r`:
+//! all-fail is −1, all-pass is +1, and `r` reads back as `(score + 1) / 2`.
+//! Both rows land on one dimension per capture, so a re-posted
+//! interpretation of the same capture is a later row on the same dimension,
+//! not a new one.
 //!
 //! `asserted_at` is the signing time. `captured_at` in the manifest is when
 //! the work was done. The two may differ by any amount: back-signing existing
@@ -129,6 +133,11 @@ pub struct EvidenceFacts {
     /// For an interpretation: the capture's prefix (equal to `prefix`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capture_prefix: Option<String>,
+    /// For an interpretation: the pass ratio `r ∈ [0, 1]` of its verdicts.
+    /// Required; the envelope's score must be `2·r − 1`, so a row's score
+    /// is never readable under the positive-only rule by mistake.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pass_ratio: Option<f64>,
     /// The CI run that produced the bundle (repo, sha, ref, run_id, workflow),
     /// as the submitter recorded it. Opaque here; back-signed bundles carry
     /// their ORIGINAL run.
@@ -290,7 +299,7 @@ impl SafetyBattery {
             .get("pass_ratio")
             .and_then(serde_json::Value::as_f64)
         {
-            return Ok(r);
+            return Self::ratio_in_range(r);
         }
         let count = |k: &str| summary.get(k).and_then(serde_json::Value::as_f64);
         let passed = count("passed").or_else(|| count("pass")).ok_or_else(|| {
@@ -309,17 +318,39 @@ impl SafetyBattery {
                 "verdicts_summary total is zero".into(),
             ));
         }
-        Ok(passed / total)
+        Self::ratio_in_range(passed / total)
+    }
+
+    fn ratio_in_range(r: f64) -> Result<f64, Refusal> {
+        if r.is_finite() && (0.0..=1.0).contains(&r) {
+            Ok(r)
+        } else {
+            Err(Refusal::EvidenceScoreInvalid(format!(
+                "the bundle's pass ratio {r} is outside [0, 1]"
+            )))
+        }
+    }
+
+    /// The score an interpretation carries for pass ratio `r`: `2·r − 1`.
+    #[must_use]
+    pub fn interpret_score(pass_ratio: f64) -> f64 {
+        2.0 * pass_ratio - 1.0
+    }
+
+    /// The pass ratio an interpretation's score encodes: `(score + 1) / 2`.
+    #[must_use]
+    pub fn pass_ratio_of(score: f64) -> f64 {
+        (score + 1.0) / 2.0
     }
 }
 
-/// The family is `positive-only` (CC 3.1.7 R4): a score in (0, 1].
+/// The family's polarity is `signed` (CC 3.1.7 R4): a score in [−1, 1].
 fn score_in_polarity(score: f64) -> Result<(), Refusal> {
-    if score.is_finite() && score > 0.0 && score <= 1.0 {
+    if score.is_finite() && (-1.0..=1.0).contains(&score) {
         Ok(())
     } else {
         Err(Refusal::EvidenceScoreInvalid(format!(
-            "{score} is outside the family's positive-only polarity (0, 1]"
+            "{score} is outside the family's signed polarity [-1, 1]"
         )))
     }
 }
@@ -354,6 +385,19 @@ impl SuiteRules for SafetyBattery {
                 }
             }
             _ => {
+                // An interpretation states its pass ratio and scores 2·r − 1.
+                let r = facts.pass_ratio.ok_or_else(|| {
+                    Refusal::EvidenceScoreInvalid(
+                        "an interpretation must carry evidence.pass_ratio".into(),
+                    )
+                })?;
+                let r = Self::ratio_in_range(r)?;
+                let expected = Self::interpret_score(r);
+                if (expected - score).abs() > 1e-9 {
+                    return Err(Refusal::EvidenceScoreInvalid(format!(
+                        "pass_ratio {r} scores {expected} (2·r − 1), not {score}"
+                    )));
+                }
                 // An interpretation names its capture; the prefix must be that one's.
                 if let Some(cp) = &facts.capture_prefix {
                     if *cp != facts.prefix {
@@ -390,10 +434,17 @@ impl SuiteRules for SafetyBattery {
                 });
             }
             let ratio = Self::pass_ratio(&json)?;
-            score_in_polarity(ratio)?;
-            if (ratio - score).abs() > 1e-9 {
+            if facts.pass_ratio.is_some_and(|r| (r - ratio).abs() > 1e-9) {
                 return Err(Refusal::EvidenceScoreInvalid(format!(
-                    "the Contribution scores {score}, but the bundle's verdicts give {ratio}"
+                    "evidence.pass_ratio {:?} is not the bundle's {ratio}",
+                    facts.pass_ratio
+                )));
+            }
+            let expected = Self::interpret_score(ratio);
+            if (expected - score).abs() > 1e-9 {
+                return Err(Refusal::EvidenceScoreInvalid(format!(
+                    "the Contribution scores {score}, but the bundle's verdicts give pass ratio \
+                     {ratio}, which scores {expected} (2·r − 1)"
                 )));
             }
         }
@@ -586,6 +637,9 @@ struct EvidenceResponse {
     dimension: String,
     #[serde(flatten)]
     facts: EvidenceFacts,
+    /// The row's score. A capture scores 1. An interpretation's sign carries
+    /// the verdict: `2·r − 1` for pass ratio `r`, so the ratio is
+    /// `(score + 1) / 2`.
     score: f64,
     attestation_id: String,
     asserted_at: String,
@@ -739,6 +793,7 @@ mod tests {
             rubric: None,
             judge: None,
             capture_prefix: None,
+            pass_ratio: None,
             ci_provenance: serde_json::Value::Null,
             captured_at: "2026-10-01T00:00:00Z".into(),
             manifest_hash: manifest_hash.into(),
@@ -821,13 +876,36 @@ mod tests {
             SafetyBattery.check_facts(&ok, 0.0).unwrap_err().token(),
             "evidence_score_invalid"
         );
+
+        let mut interp = ok.clone();
+        interp.kind = "interpret".into();
+        assert_eq!(
+            SafetyBattery.check_facts(&interp, 0.0).unwrap_err().token(),
+            "evidence_score_invalid",
+            "an interpretation without pass_ratio"
+        );
+        interp.pass_ratio = Some(0.0);
+        SafetyBattery.check_facts(&interp, -1.0).unwrap();
+        interp.pass_ratio = Some(0.5);
+        SafetyBattery.check_facts(&interp, 0.0).unwrap();
+        assert_eq!(
+            SafetyBattery.check_facts(&interp, 0.5).unwrap_err().token(),
+            "evidence_score_invalid",
+            "the ratio itself is not the score"
+        );
+        interp.pass_ratio = Some(1.25);
+        assert_eq!(
+            SafetyBattery.check_facts(&interp, 1.5).unwrap_err().token(),
+            "evidence_score_invalid"
+        );
     }
 
     #[test]
     fn an_interpret_bundle_must_name_its_capture_and_its_pass_ratio() {
         let capture = "cd".repeat(32);
         let h = "ef".repeat(32);
-        let f = facts("interpret", &h, &prefix_of(&capture));
+        let mut f = facts("interpret", &h, &prefix_of(&capture));
+        f.pass_ratio = Some(0.75);
         let no_link = br#"{"verdicts_summary":{"passed":3,"total":4}}"#;
         assert_eq!(
             SafetyBattery
@@ -839,12 +917,44 @@ mod tests {
         let good = format!(
             r#"{{"capture_manifest_sha256":"{capture}","verdicts_summary":{{"passed":3,"total":4}}}}"#
         );
+        // 3 of 4 pass: r = 0.75, score = 2r − 1 = 0.5.
         SafetyBattery
-            .check_bundle(&f, 0.75, good.as_bytes())
+            .check_bundle(&f, 0.5, good.as_bytes())
+            .unwrap();
+        // The pass ratio itself, positive-only style, is not the score.
+        assert_eq!(
+            SafetyBattery
+                .check_bundle(&f, 0.75, good.as_bytes())
+                .unwrap_err()
+                .token(),
+            "evidence_score_invalid"
+        );
+        assert_eq!(
+            SafetyBattery::pass_ratio_of(SafetyBattery::interpret_score(0.75)),
+            0.75
+        );
+        let all_fail = format!(
+            r#"{{"capture_manifest_sha256":"{capture}","verdicts_summary":{{"passed":0,"total":4}}}}"#
+        );
+        let mut none_pass = f.clone();
+        none_pass.pass_ratio = Some(0.0);
+        SafetyBattery
+            .check_bundle(&none_pass, -1.0, all_fail.as_bytes())
             .unwrap();
         assert_eq!(
             SafetyBattery
-                .check_bundle(&f, 0.5, good.as_bytes())
+                .check_bundle(&f, -1.0, all_fail.as_bytes())
+                .unwrap_err()
+                .token(),
+            "evidence_score_invalid",
+            "the envelope's pass_ratio must be the bundle's"
+        );
+        let over = format!(
+            r#"{{"capture_manifest_sha256":"{capture}","verdicts_summary":{{"pass_ratio":1.25}}}}"#
+        );
+        assert_eq!(
+            SafetyBattery
+                .check_bundle(&f, 1.0, over.as_bytes())
                 .unwrap_err()
                 .token(),
             "evidence_score_invalid"

@@ -76,6 +76,7 @@ fn capture(cell: &str, agent_version: &str, captured_at: &str) -> (Vec<u8>, Evid
         }),
         judge: None,
         capture_prefix: None,
+        pass_ratio: None,
         ci_provenance: serde_json::json!({"repo": "CIRISAI/CIRISAgent", "sha": "abc123", "ref": "refs/heads/main", "run_id": 1, "workflow": ".github/workflows/safety-battery.yml"}),
         captured_at: captured_at.into(),
         manifest_hash: hash,
@@ -122,12 +123,18 @@ fn interpret(
             prompt_sha256: "55".repeat(32),
         }),
         capture_prefix: Some(prefix_of(capture_hash)),
+        pass_ratio: Some(f64::from(passed) / f64::from(total)),
         ci_provenance: serde_json::json!({"repo": "CIRISAI/CIRISAgent", "sha": "abc123", "ref": "refs/heads/main", "run_id": 2, "workflow": ".github/workflows/safety-battery.yml"}),
         captured_at: captured_at.into(),
         manifest_hash: hash,
         manifest_size: manifest.len() as u64,
     };
-    (manifest, facts, f64::from(passed) / f64::from(total))
+    // Signed polarity: the score is 2·r − 1 for pass ratio r.
+    (
+        manifest,
+        facts,
+        2.0 * (f64::from(passed) / f64::from(total)) - 1.0,
+    )
 }
 
 /// A self-signed `node` record for `id`: a real key, blessed by nobody.
@@ -448,6 +455,81 @@ async fn a_score_the_bundle_does_not_support_is_refused() {
     // A capture is 1 by definition.
     let (manifest, facts, _) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
     let c = sign(&signer, contribution_envelope(&facts, 0.5)).await;
+    let (status, json) = post(
+        &engine,
+        SUITE,
+        body(&c, &manifest, Some(&self_record(&signer).await)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
+    assert_eq!(json["error"], "evidence_score_invalid");
+}
+
+/// The sign carries the verdict: all-fail is −1, all-pass +1, half is 0.
+/// Each passes every suite rule and reaches the blessing check.
+#[tokio::test]
+async fn an_interpretations_score_carries_the_verdict_in_its_sign() {
+    let engine = engine().await;
+    let signer = HybridSigningIdentity::generate("agent-steward-test").unwrap();
+    let (_, cap, _) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    for (passed, total, expected) in [(0, 4, -1.0), (4, 4, 1.0), (2, 4, 0.0)] {
+        let (manifest, facts, score) = interpret(
+            "am_mental_health",
+            &cap.manifest_hash,
+            passed,
+            total,
+            "2026-10-01T13:00:00Z",
+        );
+        assert_eq!(score, expected);
+        let c = sign(&signer, contribution_envelope(&facts, score)).await;
+        let (status, json) = post(
+            &engine,
+            SUITE,
+            body(&c, &manifest, Some(&self_record(&signer).await)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{passed}/{total}: {json}");
+        assert_eq!(
+            json["error"], "pipeline_not_blessed",
+            "{passed}/{total}: every suite rule passed"
+        );
+    }
+}
+
+/// An interpretation must state its pass ratio in the envelope.
+#[tokio::test]
+async fn an_interpretation_without_a_pass_ratio_is_refused() {
+    let engine = engine().await;
+    let signer = HybridSigningIdentity::generate("agent-steward-test").unwrap();
+    let (_, cap, _) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let (manifest, mut facts, score) = interpret(
+        "am_mental_health",
+        &cap.manifest_hash,
+        3,
+        4,
+        "2026-10-01T13:00:00Z",
+    );
+    facts.pass_ratio = None;
+    let c = sign(&signer, contribution_envelope(&facts, score)).await;
+    let (status, json) = post(&engine, SUITE, body(&c, &manifest, None)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
+    assert_eq!(json["error"], "evidence_score_invalid");
+}
+
+/// A positive-only reading (the pass ratio itself) is not the score.
+#[tokio::test]
+async fn a_pass_ratio_posted_as_the_score_is_refused() {
+    let engine = engine().await;
+    let signer = HybridSigningIdentity::generate("agent-steward-test").unwrap();
+    let (_, cap, _) = capture("am_mental_health", "2.16.5", "2026-10-01T12:00:00Z");
+    let (manifest, facts, _) = interpret(
+        "am_mental_health",
+        &cap.manifest_hash,
+        3,
+        4,
+        "2026-10-01T13:00:00Z",
+    );
+    let c = sign(&signer, contribution_envelope(&facts, 0.75)).await;
     let (status, json) = post(
         &engine,
         SUITE,

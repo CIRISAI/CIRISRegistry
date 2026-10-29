@@ -23,7 +23,7 @@ Per-feature history before v1.1.0 lives in `git log`.
 
 ### Added
 
-- **Evidence of work on the registry slice** (`fold_evidence`): `POST /v1/evidence/{suite}` admits a self-report of work cited by hash as a `scores` Contribution on `evidence:{suite}:{kind}:{cell}:{prefix}:v1` (CC 3.1.5.5) with the bundle's manifest as a commons blob; `GET /v1/evidence/{suite}` lists verified rows filtered by cell, kind, agent version, rubric and `since`; one row and its bytes by manifest hash. `safety_battery` is the registered suite (capture and interpret bundles; the interpretation rides its capture's dimension prefix). Same authority as build manifests: the signer must hold `infra:attest`. The build-manifest intake is now the family-generic admission the evidence door shares; its behaviour and routes are unchanged.
+- **Evidence of work on the registry slice** (`fold_evidence`): `POST /v1/evidence/{suite}` admits a self-report of work cited by hash as a `scores` Contribution on `evidence:{suite}:{kind}:{cell}:{prefix}:v1` (CC 3.1.5.5) with the bundle's manifest as a commons blob; `GET /v1/evidence/{suite}` lists verified rows filtered by cell, kind, agent version, rubric and `since`; one row and its bytes by manifest hash. `safety_battery` is the registered suite (capture and interpret bundles; the interpretation rides its capture's dimension prefix and, under the family's `signed` polarity, scores `2·r − 1` for pass ratio `r`). Same authority as build manifests: the signer must hold `infra:attest`. The build-manifest intake is now the family-generic admission the evidence door shares; its behaviour and routes are unchanged.
 
 ## [4.1.0] — 2026-10-28
 
